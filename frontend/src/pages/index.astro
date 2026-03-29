@@ -1,0 +1,16 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const title = "Mi Sistema";
+---
+
+<Layout title={title}>
+  <main class="grid min-h-screen place-items-center bg-linear-to-br from-slate-100 to-blue-100 px-4">
+    <section class="w-full max-w-2xl rounded-3xl bg-white/90 p-12 shadow-2xl shadow-slate-900/10">
+      <h1 class="mb-4 text-5xl font-semibold tracking-tight text-slate-900">{title}</h1>
+      <p class="text-lg leading-7 text-slate-700">
+        Frontend inicializado con Astro y preparado para el template de shadcn.
+      </p>
+    </section>
+  </main>
+</Layout>
