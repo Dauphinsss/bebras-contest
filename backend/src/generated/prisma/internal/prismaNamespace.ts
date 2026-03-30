@@ -384,7 +384,8 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 
 export const ModelName = {
-  User: 'User'
+  User: 'User',
+  TaskDraft: 'TaskDraft'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -400,7 +401,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user"
+    modelProps: "user" | "taskDraft"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -436,6 +437,10 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
           args: Prisma.UserCreateManyArgs<ExtArgs>
           result: BatchPayload
         }
+        createManyAndReturn: {
+          args: Prisma.UserCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserPayload>[]
+        }
         delete: {
           args: Prisma.UserDeleteArgs<ExtArgs>
           result: runtime.Types.Utils.PayloadToResult<Prisma.$UserPayload>
@@ -452,6 +457,10 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
           args: Prisma.UserUpdateManyArgs<ExtArgs>
           result: BatchPayload
         }
+        updateManyAndReturn: {
+          args: Prisma.UserUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserPayload>[]
+        }
         upsert: {
           args: Prisma.UserUpsertArgs<ExtArgs>
           result: runtime.Types.Utils.PayloadToResult<Prisma.$UserPayload>
@@ -467,6 +476,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UserCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UserCountAggregateOutputType> | number
+        }
+      }
+    }
+    TaskDraft: {
+      payload: Prisma.$TaskDraftPayload<ExtArgs>
+      fields: Prisma.TaskDraftFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TaskDraftFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TaskDraftFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>
+        }
+        findFirst: {
+          args: Prisma.TaskDraftFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TaskDraftFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>
+        }
+        findMany: {
+          args: Prisma.TaskDraftFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>[]
+        }
+        create: {
+          args: Prisma.TaskDraftCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>
+        }
+        createMany: {
+          args: Prisma.TaskDraftCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TaskDraftCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>[]
+        }
+        delete: {
+          args: Prisma.TaskDraftDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>
+        }
+        update: {
+          args: Prisma.TaskDraftUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>
+        }
+        deleteMany: {
+          args: Prisma.TaskDraftDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TaskDraftUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TaskDraftUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>[]
+        }
+        upsert: {
+          args: Prisma.TaskDraftUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskDraftPayload>
+        }
+        aggregate: {
+          args: Prisma.TaskDraftAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTaskDraft>
+        }
+        groupBy: {
+          args: Prisma.TaskDraftGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TaskDraftGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TaskDraftCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TaskDraftCountAggregateOutputType> | number
         }
       }
     }
@@ -500,9 +583,6 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
  */
 
 export const TransactionIsolationLevel = runtime.makeStrictEnum({
-  ReadUncommitted: 'ReadUncommitted',
-  ReadCommitted: 'ReadCommitted',
-  RepeatableRead: 'RepeatableRead',
   Serializable: 'Serializable'
 } as const)
 
@@ -520,6 +600,24 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
+export const TaskDraftScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  category: 'category',
+  difficulties: 'difficulties',
+  bodyBlocks: 'bodyBlocks',
+  challengeBlocks: 'challengeBlocks',
+  answers: 'answers',
+  correctAnswerId: 'correctAnswerId',
+  explanation: 'explanation',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TaskDraftScalarFieldEnum = (typeof TaskDraftScalarFieldEnum)[keyof typeof TaskDraftScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -534,14 +632,6 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
-
-
-export const UserOrderByRelevanceFieldEnum = {
-  email: 'email',
-  name: 'name'
-} as const
-
-export type UserOrderByRelevanceFieldEnum = (typeof UserOrderByRelevanceFieldEnum)[keyof typeof UserOrderByRelevanceFieldEnum]
 
 
 
@@ -673,6 +763,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  taskDraft?: Prisma.TaskDraftOmit
 }
 
 /* Types for Logging */

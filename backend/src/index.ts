@@ -4,8 +4,42 @@ import { prisma } from "./lib/prisma";
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
+const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
 
-app.use(express.json());
+function serializeJson(value: unknown) {
+  return JSON.stringify(value);
+}
+
+function deserializeTask(task: {
+  difficulties: unknown;
+  bodyBlocks: unknown;
+  challengeBlocks: unknown;
+  answers: unknown;
+  [key: string]: unknown;
+}) {
+  return {
+    ...task,
+    difficulties: JSON.parse(String(task.difficulties ?? "{}")),
+    bodyBlocks: JSON.parse(String(task.bodyBlocks ?? "[]")),
+    challengeBlocks: JSON.parse(String(task.challengeBlocks ?? "[]")),
+    answers: JSON.parse(String(task.answers ?? "[]")),
+  };
+}
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", frontendOrigin);
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+
+  next();
+});
+
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_req, res) => {
   res.json({
@@ -20,6 +54,106 @@ app.get("/health", async (_req, res) => {
     status: "ok",
     database: "connected",
   });
+});
+
+app.get("/api/tasks", async (_req, res) => {
+  const tasks = await prisma.taskDraft.findMany({
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
+
+  res.json(tasks.map(deserializeTask));
+});
+
+app.get("/api/tasks/:id", async (req, res) => {
+  const task = await prisma.taskDraft.findUnique({
+    where: {
+      id: req.params.id,
+    },
+  });
+
+  if (!task) {
+    res.status(404).json({
+      message: "Task not found",
+    });
+    return;
+  }
+
+  res.json(deserializeTask(task));
+});
+
+app.post("/api/tasks", async (req, res) => {
+  const {
+    title,
+    category,
+    difficulties,
+    bodyBlocks,
+    challengeBlocks,
+    answers,
+    correctAnswerId,
+    explanation,
+    status,
+  } = req.body;
+
+  const task = await prisma.taskDraft.create({
+    data: {
+      title,
+      category,
+      difficulties: serializeJson(difficulties),
+      bodyBlocks: serializeJson(bodyBlocks),
+      challengeBlocks: serializeJson(challengeBlocks),
+      answers: serializeJson(answers),
+      correctAnswerId,
+      explanation,
+      status: status ?? "Borrador",
+    },
+  });
+
+  res.status(201).json(deserializeTask(task));
+});
+
+app.put("/api/tasks/:id", async (req, res) => {
+  const {
+    title,
+    category,
+    difficulties,
+    bodyBlocks,
+    challengeBlocks,
+    answers,
+    correctAnswerId,
+    explanation,
+    status,
+  } = req.body;
+
+  const task = await prisma.taskDraft.update({
+    where: {
+      id: req.params.id,
+    },
+    data: {
+      title,
+      category,
+      difficulties: serializeJson(difficulties),
+      bodyBlocks: serializeJson(bodyBlocks),
+      challengeBlocks: serializeJson(challengeBlocks),
+      answers: serializeJson(answers),
+      correctAnswerId,
+      explanation,
+      status: status ?? "Borrador",
+    },
+  });
+
+  res.json(deserializeTask(task));
+});
+
+app.delete("/api/tasks/:id", async (req, res) => {
+  await prisma.taskDraft.delete({
+    where: {
+      id: req.params.id,
+    },
+  });
+
+  res.status(204).send();
 });
 
 const startServer = async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAllTasks } from "@/lib/task-storage";
+import { listTasks } from "@/lib/tasks-api";
 import {
   buildAgeSummary,
   getQuestionSummary,
@@ -31,24 +31,36 @@ import {
 } from "@/lib/task-schema";
 
 export function TaskTester() {
-  const [tasks] = useState<StoredTask[]>(() => getAllTasks());
-  const [selectedTaskId, setSelectedTaskId] = useState(
-    () => {
-      if (typeof window === "undefined") {
-        return getAllTasks()[0]?.id ?? "";
-      }
-
-      const taskIdFromUrl = new URLSearchParams(window.location.search).get("id");
-      const allTasks = getAllTasks();
-      return (
-        allTasks.find((task) => task.id === taskIdFromUrl)?.id ??
-        allTasks[0]?.id ??
-        ""
-      );
-    },
-  );
+  const [tasks, setTasks] = useState<StoredTask[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState("");
   const [selectedAnswerId, setSelectedAnswerId] = useState("");
   const [checkedAnswerId, setCheckedAnswerId] = useState("");
+
+  useEffect(() => {
+    const taskIdFromUrl = new URLSearchParams(window.location.search).get("id");
+    let active = true;
+
+    void listTasks()
+      .then((loadedTasks) => {
+        if (!active) {
+          return;
+        }
+
+        setTasks(loadedTasks);
+        setSelectedTaskId(
+          loadedTasks.find((task) => task.id === taskIdFromUrl)?.id ??
+            loadedTasks[0]?.id ??
+            "",
+        );
+      })
+      .catch(() => {
+        toast.error("No se pudieron cargar las tareas desde el backend.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const selectedTask = useMemo(
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,

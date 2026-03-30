@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { FilePenLineIcon, FilePlus2Icon, PlayCircleIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  FilePenLineIcon,
+  FilePlus2Icon,
+  PlayCircleIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,16 +19,34 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  deleteTask,
-  getAllTasks,
+  listTasks,
   mapTaskToHomeItem,
+  removeTask,
   type HomeTaskItem,
-} from "@/lib/task-storage";
+} from "@/lib/tasks-api";
 
 export function TasksHome() {
-  const [tasks, setTasks] = useState<HomeTaskItem[]>(() =>
-    getAllTasks().map(mapTaskToHomeItem),
-  );
+  const [tasks, setTasks] = useState<HomeTaskItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    void listTasks()
+      .then((loadedTasks) => {
+        if (!active) {
+          return;
+        }
+
+        setTasks(loadedTasks.map(mapTaskToHomeItem));
+      })
+      .catch(() => {
+        toast.error("No se pudieron cargar las tareas desde el backend.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -44,7 +67,7 @@ export function TasksHome() {
         <CardHeader className="border-b">
           <CardTitle>Tareas</CardTitle>
           <CardDescription>
-            Estas son las tareas cargadas actualmente en el frontend.
+            Estas son las tareas cargadas actualmente en el backend.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-6">
@@ -80,11 +103,16 @@ export function TasksHome() {
                       variant="outline"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteTask(task.id);
-                        setTasks((current) =>
-                          current.filter((currentTask) => currentTask.id !== task.id),
-                        );
-                        toast.success("La tarea se eliminó del frontend.");
+                        void removeTask(task.id)
+                          .then(() => {
+                            setTasks((current) =>
+                              current.filter((currentTask) => currentTask.id !== task.id),
+                            );
+                            toast.success("La tarea se eliminó del backend.");
+                          })
+                          .catch(() => {
+                            toast.error("No se pudo eliminar la tarea.");
+                          });
                       }}
                     >
                       <Trash2Icon data-icon="inline-start" />

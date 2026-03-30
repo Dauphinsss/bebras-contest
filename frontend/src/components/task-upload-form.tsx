@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TaskContentBuilder } from "@/components/task-content-builder";
-import { getTaskById, saveTask, upsertTask } from "@/lib/task-storage";
+import { createTask, updateTask } from "@/lib/tasks-api";
 import {
   ageRanges,
   buildAgeSummary,
@@ -89,7 +89,6 @@ type FormState = {
 
 type TaskUploadFormProps = {
   initialTask?: StoredTask | null;
-  initialTaskId?: string | null;
   onSubmitted?: (task: StoredTask) => void;
 };
 
@@ -232,18 +231,13 @@ function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask 
 
 export function TaskUploadForm({
   initialTask = null,
-  initialTaskId = null,
   onSubmitted,
 }: TaskUploadFormProps) {
-  const fallbackInitialTask =
-    initialTask ??
-    (typeof window !== "undefined" && initialTaskId ? getTaskById(initialTaskId) : null);
-
   const [form, setForm] = useState<FormState>(() =>
-    fallbackInitialTask ? createStateFromTask(fallbackInitialTask) : createInitialState(),
+    initialTask ? createStateFromTask(initialTask) : createInitialState(),
   );
   const [errors, setErrors] = useState<string[]>([]);
-  const [loadedTask, setLoadedTask] = useState<StoredTask | null>(fallbackInitialTask);
+  const [loadedTask, setLoadedTask] = useState<StoredTask | null>(initialTask);
   const activeOptionLabels = optionLabels.slice(0, form.answerCount);
 
   const completedOptionsCount = useMemo(
@@ -254,7 +248,7 @@ export function TaskUploadForm({
     [activeOptionLabels, form.options],
   );
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors = validateForm(form);
@@ -265,13 +259,8 @@ export function TaskUploadForm({
       return;
     }
 
-    const task = buildStoredTask(form, loadedTask?.id);
-
-    if (loadedTask) {
-      upsertTask(task);
-    } else {
-      saveTask(task);
-    }
+    const draft = buildStoredTask(form, loadedTask?.id);
+    const task = loadedTask ? await updateTask(draft) : await createTask(draft);
 
     onSubmitted?.(task);
     setLoadedTask(task);
