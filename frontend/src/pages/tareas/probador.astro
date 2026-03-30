@@ -1,0 +1,31 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { TaskTester } from "../../components/task-tester";
+
+const title = "Probador de tareas";
+---
+
+<Layout title={title}>
+  <main class="min-h-screen px-4 py-10 sm:px-6 lg:px-8">
+    <div class="mx-auto flex w-full max-w-5xl flex-col gap-8">
+      <header class="flex flex-col gap-3">
+        <a
+          href="/"
+          class="w-fit text-sm font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          Volver a Bebras Bolivia
+        </a>
+        <div class="flex flex-col gap-2">
+          <h1 class="font-heading text-4xl font-semibold tracking-tight">
+            Probador de tareas
+          </h1>
+          <p class="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+            Aquí puedes probar una tarea cargada y verificar la respuesta desde la vista del participante.
+          </p>
+        </div>
+      </header>
+
+      <TaskTester client:load />
+    </div>
+  </main>
+</Layout>
