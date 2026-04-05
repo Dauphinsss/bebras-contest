@@ -21,7 +21,9 @@ export function TaskContentRenderer({
                 alt={block.image.name}
                 className="block h-auto max-w-full"
                 src={block.image.url}
-                style={{ width: `${block.widthPercent}%` }}
+                style={{
+                  width: `min(100%, max(${block.widthPercent}%, 16rem))`,
+                }}
               />
             </div>
           );

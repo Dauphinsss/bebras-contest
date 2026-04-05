@@ -607,6 +607,7 @@ export const TaskDraftScalarFieldEnum = {
   difficulties: 'difficulties',
   bodyBlocks: 'bodyBlocks',
   challengeBlocks: 'challengeBlocks',
+  multipleChoiceOrderMode: 'multipleChoiceOrderMode',
   answers: 'answers',
   correctAnswerId: 'correctAnswerId',
   explanation: 'explanation',

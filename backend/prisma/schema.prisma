@@ -23,6 +23,7 @@ model TaskDraft {
   difficulties    String
   bodyBlocks      String
   challengeBlocks String
+  multipleChoiceOrderMode String @default("fixed")
   answers         String
   correctAnswerId String
   explanation     String

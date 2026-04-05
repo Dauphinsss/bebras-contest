@@ -1,6 +1,7 @@
 import {
   buildAgeSummary,
   getQuestionSummary,
+  normalizeCategories,
   type StoredTask,
 } from "@/lib/task-schema";
 
@@ -69,7 +70,7 @@ export function mapTaskToHomeItem(task: StoredTask): HomeTaskItem {
   return {
     id: task.id,
     title: task.title,
-    categories: [task.category],
+    categories: normalizeCategories(task.categories),
     ageSummary: buildAgeSummary(task.difficulties),
     question: getQuestionSummary(task.challengeBlocks),
     status: task.status,

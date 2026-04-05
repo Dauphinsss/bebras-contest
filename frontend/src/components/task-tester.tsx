@@ -1,40 +1,43 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcwIcon } from "lucide-react";
+import { AlertCircleIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { listTasks } from "@/lib/tasks-api";
 import {
   buildAgeSummary,
   getQuestionSummary,
   type StoredTask,
 } from "@/lib/task-schema";
+import { cn } from "@/lib/utils";
+
+function createSeedFromText(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash || 1;
+}
+
+function nextSeed(seed: number) {
+  return (seed * 1664525 + 1013904223) >>> 0;
+}
 
 export function TaskTester() {
   const [tasks, setTasks] = useState<StoredTask[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [selectedAnswerId, setSelectedAnswerId] = useState("");
-  const [checkedAnswerId, setCheckedAnswerId] = useState("");
+  const [checkedValue, setCheckedValue] = useState("");
+  const [shortAnswer, setShortAnswer] = useState("");
+  const [rangeValue, setRangeValue] = useState("");
 
   useEffect(() => {
     const taskIdFromUrl = new URLSearchParams(window.location.search).get("id");
@@ -67,153 +70,239 @@ export function TaskTester() {
     [selectedTaskId, tasks],
   );
 
-  const isCorrect =
-    selectedTask !== null &&
-    checkedAnswerId.length > 0 &&
-    checkedAnswerId === selectedTask.correctAnswerId;
+  const displayedAnswers = useMemo(() => {
+    if (!selectedTask) {
+      return [];
+    }
+
+    const answers = [...selectedTask.answers];
+
+    if (selectedTask.multipleChoiceOrderMode !== "random") {
+      return answers;
+    }
+
+    let seed = createSeedFromText(
+      `${selectedTask.id}:${selectedTask.updatedAt}:${selectedTask.correctAnswerId}`,
+    );
+
+    for (let index = answers.length - 1; index > 0; index -= 1) {
+      seed = nextSeed(seed);
+      const randomIndex = seed % (index + 1);
+      [answers[index], answers[randomIndex]] = [answers[randomIndex], answers[index]];
+    }
+
+    return answers;
+  }, [selectedTask]);
+
+  const isCorrect = useMemo(() => {
+    if (!selectedTask || !checkedValue) {
+      return false;
+    }
+
+    const answerType = selectedTask.answerType ?? "multiple_choice";
+
+    if (answerType === "multiple_choice") {
+      return checkedValue === selectedTask.correctAnswerId;
+    }
+
+    if (answerType === "short_text") {
+      return (
+        checkedValue.trim().toLowerCase() ===
+        (selectedTask.shortAnswer ?? "").trim().toLowerCase()
+      );
+    }
+
+    const numericValue = Number(checkedValue);
+    if (Number.isNaN(numericValue)) {
+      return false;
+    }
+
+    return (selectedTask.rangeAnswers ?? []).some(
+      (rangeAnswer) =>
+        numericValue >= rangeAnswer.min && numericValue <= rangeAnswer.max,
+    );
+  }, [checkedValue, selectedTask]);
 
   const handleCheckAnswer = () => {
     if (!selectedTask) {
       return;
     }
 
-    if (!selectedAnswerId) {
-      toast.error("Selecciona una respuesta antes de probar la tarea.");
+    const answerType = selectedTask.answerType ?? "multiple_choice";
+
+    if (answerType === "multiple_choice") {
+      if (!selectedAnswerId) {
+        toast.error("Selecciona una respuesta antes de probar la tarea.");
+        return;
+      }
+
+      setCheckedValue(selectedAnswerId);
+      if (selectedAnswerId === selectedTask.correctAnswerId) {
+        toast.success("Respuesta correcta");
+      } else {
+        toast.error("Respuesta incorrecta");
+      }
       return;
     }
 
-    setCheckedAnswerId(selectedAnswerId);
+    if (answerType === "short_text") {
+      if (!shortAnswer.trim()) {
+        toast.error("Escribe una respuesta antes de probar la tarea.");
+        return;
+      }
 
-    if (selectedAnswerId === selectedTask.correctAnswerId) {
+      setCheckedValue(shortAnswer);
+      if (
+        shortAnswer.trim().toLowerCase() ===
+        (selectedTask.shortAnswer ?? "").trim().toLowerCase()
+      ) {
+        toast.success("Respuesta correcta");
+      } else {
+        toast.error("Respuesta incorrecta");
+      }
+      return;
+    }
+
+    if (!rangeValue.trim() || Number.isNaN(Number(rangeValue))) {
+      toast.error("Escribe un valor numérico válido.");
+      return;
+    }
+
+    setCheckedValue(rangeValue);
+    if (
+      (selectedTask.rangeAnswers ?? []).some(
+        (rangeAnswer) =>
+          Number(rangeValue) >= rangeAnswer.min &&
+          Number(rangeValue) <= rangeAnswer.max,
+      )
+    ) {
       toast.success("Respuesta correcta");
-      return;
+    } else {
+      toast.error("Respuesta incorrecta");
     }
-
-    toast.error("Respuesta incorrecta");
   };
 
   const handleReset = () => {
     setSelectedAnswerId("");
-    setCheckedAnswerId("");
+    setCheckedValue("");
+    setShortAnswer("");
+    setRangeValue("");
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Probador</CardTitle>
-          <CardDescription>
-            Selecciona una tarea cargada y pruébala con el render final.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="max-w-sm">
-            <Select
-              value={selectedTaskId}
-              onValueChange={(value) => {
-                setSelectedTaskId(value);
-                setSelectedAnswerId("");
-                setCheckedAnswerId("");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona una tarea" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {tasks.map((task) => (
-                    <SelectItem key={task.id} value={task.id}>
-                      {task.title}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex w-full flex-col gap-6">
+      {!selectedTask && (
+        <Alert>
+          <AlertCircleIcon />
+          <AlertTitle>No hay una tarea seleccionada</AlertTitle>
+          <AlertDescription>
+            Abre el probador desde una tarea específica para verla en esta vista.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {selectedTask && (
-        <Card>
-          <CardHeader className="border-b">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">{selectedTask.category}</Badge>
-              <Badge variant="outline">
-                {buildAgeSummary(selectedTask.difficulties)}
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 sm:gap-5">
+          <div className="flex flex-wrap gap-2">
+            {selectedTask.categories.map((category) => (
+              <Badge key={category} variant="secondary">
+                {category}
               </Badge>
-            </div>
-            <CardTitle className="pt-2 text-3xl font-semibold">
+            ))}
+            <Badge variant="outline">{buildAgeSummary(selectedTask.difficulties)}</Badge>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               {selectedTask.title}
-            </CardTitle>
-          </CardHeader>
+            </h1>
+            <TaskContentRenderer blocks={selectedTask.bodyBlocks} />
+          </div>
 
-          <CardContent className="flex flex-col gap-10 pt-8">
-            <section className="flex flex-col gap-4">
-              <TaskContentRenderer blocks={selectedTask.bodyBlocks} />
-            </section>
+          <section className="flex flex-col gap-2">
+            <h2 className="text-xl font-semibold sm:text-2xl">Pregunta o desafío</h2>
+            <TaskContentRenderer blocks={selectedTask.challengeBlocks} />
+          </section>
 
-            <section className="flex flex-col gap-4">
-              <h2 className="text-2xl font-semibold">Pregunta o desafío</h2>
-              <TaskContentRenderer blocks={selectedTask.challengeBlocks} />
-            </section>
+          <section className="flex flex-col gap-4">
+            <h2 className="text-xl font-semibold sm:text-2xl">Respuestas</h2>
 
-            <section className="flex flex-col gap-4">
-              <h2 className="text-2xl font-semibold">Respuestas</h2>
-              <div className="flex flex-col gap-4">
-                {selectedTask.answers.map((answer) => {
+            {(selectedTask.answerType ?? "multiple_choice") === "multiple_choice" && (
+              <div className="flex flex-col gap-3 sm:gap-4">
+                {displayedAnswers.map((answer) => {
                   const selected = selectedAnswerId === answer.id;
-                  const checked = checkedAnswerId === answer.id;
-                  const correct = checked && answer.id === selectedTask.correctAnswerId;
+                  const checked = checkedValue === answer.id;
+                  const correct =
+                    checked && answer.id === selectedTask.correctAnswerId;
                   const incorrect =
                     checked && answer.id !== selectedTask.correctAnswerId;
 
                   return (
                     <button
                       key={answer.id}
-                      className={[
-                        "rounded-2xl border px-5 py-4 text-left transition",
-                        selected ? "border-primary bg-accent/50" : "border-border/70",
-                        correct ? "border-primary" : "",
-                        incorrect ? "border-destructive/50" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
+                      className={cn(
+                        "rounded-xl border bg-background px-3 py-3 text-left transition sm:px-5 sm:py-4",
+                        selected ? "border-primary bg-accent/40" : "border-border",
+                        correct && "border-primary",
+                        incorrect && "border-destructive/50",
+                      )}
                       type="button"
                       onClick={() => setSelectedAnswerId(answer.id)}
                     >
-                      <div className="flex items-start gap-4">
-                        <div className="pt-1">
-                          <span className="block size-4 rounded-full border border-muted-foreground">
-                            {selected && (
-                              <span className="m-[3px] block size-2 rounded-full bg-primary" />
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <TaskContentRenderer blocks={answer.blocks} />
-                        </div>
+                      <div className="min-w-0">
+                        <TaskContentRenderer blocks={answer.blocks} />
                       </div>
                     </button>
                   );
                 })}
               </div>
-            </section>
-
-            {checkedAnswerId && (
-              <section className="flex flex-col gap-3 rounded-2xl bg-muted/50 px-5 py-4">
-                <h2 className="text-lg font-semibold">
-                  {isCorrect ? "Correcto" : "Incorrecto"}
-                </h2>
-                <p className="leading-7">{selectedTask.explanation}</p>
-              </section>
             )}
-          </CardContent>
 
-          <CardFooter className="justify-between border-t pt-6">
+            {(selectedTask.answerType ?? "multiple_choice") === "short_text" && (
+              <div className="flex max-w-md flex-col gap-3">
+                <Input
+                  placeholder="Escribe tu respuesta"
+                  value={shortAnswer}
+                  onChange={(event) => setShortAnswer(event.target.value)}
+                />
+              </div>
+            )}
+
+            {(selectedTask.answerType ?? "multiple_choice") === "range" && (
+              <div className="flex max-w-md flex-col gap-4">
+                <Input
+                  placeholder="Escribe un valor numérico"
+                  type="number"
+                  value={rangeValue}
+                  onChange={(event) => setRangeValue(event.target.value)}
+                />
+                <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                  {(selectedTask.rangeAnswers ?? []).map((rangeAnswer) => (
+                    <p key={rangeAnswer.id}>
+                      {rangeAnswer.label}: {rangeAnswer.min} a {rangeAnswer.max}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {checkedValue && (
+            <Alert
+              variant={isCorrect ? "default" : "destructive"}
+              className="gap-3"
+            >
+              <AlertCircleIcon />
+              <AlertTitle>{isCorrect ? "Correcto" : "Incorrecto"}</AlertTitle>
+              <AlertDescription>{selectedTask.explanation}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               {getQuestionSummary(selectedTask.challengeBlocks)}
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Button type="button" variant="outline" onClick={handleReset}>
                 <RotateCcwIcon data-icon="inline-start" />
                 Reiniciar
@@ -222,8 +311,8 @@ export function TaskTester() {
                 Probar respuesta
               </Button>
             </div>
-          </CardFooter>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );

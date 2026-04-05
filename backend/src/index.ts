@@ -10,19 +10,37 @@ function serializeJson(value: unknown) {
   return JSON.stringify(value);
 }
 
+function deserializeCategories(value: unknown) {
+  const rawValue = String(value ?? "[]");
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return rawValue ? [rawValue] : [];
+  }
+}
+
 function deserializeTask(task: {
+  category: unknown;
   difficulties: unknown;
   bodyBlocks: unknown;
   challengeBlocks: unknown;
   answers: unknown;
+  multipleChoiceOrderMode?: unknown;
   [key: string]: unknown;
 }) {
   return {
     ...task,
+    categories: deserializeCategories(task.category),
     difficulties: JSON.parse(String(task.difficulties ?? "{}")),
     bodyBlocks: JSON.parse(String(task.bodyBlocks ?? "[]")),
     challengeBlocks: JSON.parse(String(task.challengeBlocks ?? "[]")),
     answers: JSON.parse(String(task.answers ?? "[]")),
+    multipleChoiceOrderMode:
+      task.multipleChoiceOrderMode === "random" ? "random" : "fixed",
   };
 }
 
@@ -86,10 +104,12 @@ app.get("/api/tasks/:id", async (req, res) => {
 app.post("/api/tasks", async (req, res) => {
   const {
     title,
+    categories,
     category,
     difficulties,
     bodyBlocks,
     challengeBlocks,
+    multipleChoiceOrderMode,
     answers,
     correctAnswerId,
     explanation,
@@ -99,10 +119,18 @@ app.post("/api/tasks", async (req, res) => {
   const task = await prisma.taskDraft.create({
     data: {
       title,
-      category,
+      category: serializeJson(
+        Array.isArray(categories)
+          ? categories
+          : category
+            ? [category]
+            : [],
+      ),
       difficulties: serializeJson(difficulties),
       bodyBlocks: serializeJson(bodyBlocks),
       challengeBlocks: serializeJson(challengeBlocks),
+      multipleChoiceOrderMode:
+        multipleChoiceOrderMode === "random" ? "random" : "fixed",
       answers: serializeJson(answers),
       correctAnswerId,
       explanation,
@@ -116,10 +144,12 @@ app.post("/api/tasks", async (req, res) => {
 app.put("/api/tasks/:id", async (req, res) => {
   const {
     title,
+    categories,
     category,
     difficulties,
     bodyBlocks,
     challengeBlocks,
+    multipleChoiceOrderMode,
     answers,
     correctAnswerId,
     explanation,
@@ -132,10 +162,18 @@ app.put("/api/tasks/:id", async (req, res) => {
     },
     data: {
       title,
-      category,
+      category: serializeJson(
+        Array.isArray(categories)
+          ? categories
+          : category
+            ? [category]
+            : [],
+      ),
       difficulties: serializeJson(difficulties),
       bodyBlocks: serializeJson(bodyBlocks),
       challengeBlocks: serializeJson(challengeBlocks),
+      multipleChoiceOrderMode:
+        multipleChoiceOrderMode === "random" ? "random" : "fixed",
       answers: serializeJson(answers),
       correctAnswerId,
       explanation,

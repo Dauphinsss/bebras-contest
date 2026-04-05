@@ -33,6 +33,9 @@ type TaskContentBuilderProps = {
   onUpdateBlockImage: (blockId: string, files: FileList | null) => void;
   onUpdateBlockWidth: (blockId: string, widthPercent: number) => void;
   showChallengeErrors: boolean;
+  allowAddingBlocks?: boolean;
+  allowRemovingBlocks?: boolean;
+  allowReorderingBlocks?: boolean;
 };
 
 export function TaskContentBuilder({
@@ -47,6 +50,9 @@ export function TaskContentBuilder({
   onUpdateBlockImage,
   onUpdateBlockWidth,
   showChallengeErrors,
+  allowAddingBlocks = true,
+  allowRemovingBlocks = true,
+  allowReorderingBlocks = true,
 }: TaskContentBuilderProps) {
   const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const imageAreaRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -190,22 +196,26 @@ export function TaskContentBuilder({
             dropIndicator.position === "before" && (
               <div className="absolute inset-x-2 -top-2 h-1 rounded-full bg-primary/35" />
             )}
-          <Button
-            className="cursor-grab"
-            draggable
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-            onDragEnd={() => {
-              draggingBlockIdRef.current = null;
-              setDropIndicator(null);
-            }}
-            onDragStart={() => {
-              draggingBlockIdRef.current = block.id;
-            }}
-          >
-            <GripVerticalIcon />
-          </Button>
+          {allowReorderingBlocks ? (
+            <Button
+              className="cursor-grab"
+              draggable
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+              onDragEnd={() => {
+                draggingBlockIdRef.current = null;
+                setDropIndicator(null);
+              }}
+              onDragStart={() => {
+                draggingBlockIdRef.current = block.id;
+              }}
+            >
+              <GripVerticalIcon />
+            </Button>
+          ) : (
+            <div className="size-8 shrink-0" />
+          )}
           <div className="min-w-0 flex-1">
             {block.type === "image" ? (
               <Field>
@@ -313,44 +323,50 @@ export function TaskContentBuilder({
               </Field>
             )}
           </div>
-          <Button
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-            onClick={() => onRemoveBlock(block.id)}
-          >
-            <XIcon />
-          </Button>
+          {allowRemovingBlocks ? (
+            <Button
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+              onClick={() => onRemoveBlock(block.id)}
+            >
+              <XIcon />
+            </Button>
+          ) : (
+            <div className="size-8 shrink-0" />
+          )}
           {dropIndicator?.blockId === block.id &&
             dropIndicator.position === "after" && (
               <div className="absolute inset-x-2 -bottom-2 h-1 rounded-full bg-primary/35" />
             )}
         </div>
       ))}
-      <div className="flex flex-wrap gap-3">
-        {allowedBlockTypes.includes("text") && (
-          <Button type="button" variant="outline" onClick={() => onAddBlock("text")}>
-            <PlusIcon data-icon="inline-start" />
-            Agregar texto
-          </Button>
-        )}
-        {allowedBlockTypes.includes("image") && (
-          <Button type="button" variant="outline" onClick={handleAddImage}>
-            <PlusIcon data-icon="inline-start" />
-            Agregar imagen
-          </Button>
-        )}
-        {allowedBlockTypes.includes("challenge") && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onAddBlock("challenge")}
-          >
-            <PlusIcon data-icon="inline-start" />
-            Agregar pregunta o desafio
-          </Button>
-        )}
-      </div>
+      {allowAddingBlocks && (
+        <div className="flex flex-wrap gap-3">
+          {allowedBlockTypes.includes("text") && (
+            <Button type="button" variant="outline" onClick={() => onAddBlock("text")}>
+              <PlusIcon data-icon="inline-start" />
+              Agregar texto
+            </Button>
+          )}
+          {allowedBlockTypes.includes("image") && (
+            <Button type="button" variant="outline" onClick={handleAddImage}>
+              <PlusIcon data-icon="inline-start" />
+              Agregar imagen
+            </Button>
+          )}
+          {allowedBlockTypes.includes("challenge") && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onAddBlock("challenge")}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Agregar pregunta o desafio
+            </Button>
+          )}
+        </div>
+      )}
     </FieldGroup>
   );
 }

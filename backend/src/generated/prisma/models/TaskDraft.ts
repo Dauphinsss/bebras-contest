@@ -31,6 +31,7 @@ export type TaskDraftMinAggregateOutputType = {
   difficulties: string | null
   bodyBlocks: string | null
   challengeBlocks: string | null
+  multipleChoiceOrderMode: string | null
   answers: string | null
   correctAnswerId: string | null
   explanation: string | null
@@ -46,6 +47,7 @@ export type TaskDraftMaxAggregateOutputType = {
   difficulties: string | null
   bodyBlocks: string | null
   challengeBlocks: string | null
+  multipleChoiceOrderMode: string | null
   answers: string | null
   correctAnswerId: string | null
   explanation: string | null
@@ -61,6 +63,7 @@ export type TaskDraftCountAggregateOutputType = {
   difficulties: number
   bodyBlocks: number
   challengeBlocks: number
+  multipleChoiceOrderMode: number
   answers: number
   correctAnswerId: number
   explanation: number
@@ -78,6 +81,7 @@ export type TaskDraftMinAggregateInputType = {
   difficulties?: true
   bodyBlocks?: true
   challengeBlocks?: true
+  multipleChoiceOrderMode?: true
   answers?: true
   correctAnswerId?: true
   explanation?: true
@@ -93,6 +97,7 @@ export type TaskDraftMaxAggregateInputType = {
   difficulties?: true
   bodyBlocks?: true
   challengeBlocks?: true
+  multipleChoiceOrderMode?: true
   answers?: true
   correctAnswerId?: true
   explanation?: true
@@ -108,6 +113,7 @@ export type TaskDraftCountAggregateInputType = {
   difficulties?: true
   bodyBlocks?: true
   challengeBlocks?: true
+  multipleChoiceOrderMode?: true
   answers?: true
   correctAnswerId?: true
   explanation?: true
@@ -196,6 +202,7 @@ export type TaskDraftGroupByOutputType = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  multipleChoiceOrderMode: string
   answers: string
   correctAnswerId: string
   explanation: string
@@ -232,6 +239,7 @@ export type TaskDraftWhereInput = {
   difficulties?: Prisma.StringFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringFilter<"TaskDraft"> | string
   challengeBlocks?: Prisma.StringFilter<"TaskDraft"> | string
+  multipleChoiceOrderMode?: Prisma.StringFilter<"TaskDraft"> | string
   answers?: Prisma.StringFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringFilter<"TaskDraft"> | string
   explanation?: Prisma.StringFilter<"TaskDraft"> | string
@@ -247,6 +255,7 @@ export type TaskDraftOrderByWithRelationInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
@@ -265,6 +274,7 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
   difficulties?: Prisma.StringFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringFilter<"TaskDraft"> | string
   challengeBlocks?: Prisma.StringFilter<"TaskDraft"> | string
+  multipleChoiceOrderMode?: Prisma.StringFilter<"TaskDraft"> | string
   answers?: Prisma.StringFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringFilter<"TaskDraft"> | string
   explanation?: Prisma.StringFilter<"TaskDraft"> | string
@@ -280,6 +290,7 @@ export type TaskDraftOrderByWithAggregationInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
@@ -301,6 +312,7 @@ export type TaskDraftScalarWhereWithAggregatesInput = {
   difficulties?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   challengeBlocks?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  multipleChoiceOrderMode?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   answers?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   explanation?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
@@ -316,6 +328,7 @@ export type TaskDraftCreateInput = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  multipleChoiceOrderMode?: string
   answers: string
   correctAnswerId: string
   explanation: string
@@ -331,6 +344,7 @@ export type TaskDraftUncheckedCreateInput = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  multipleChoiceOrderMode?: string
   answers: string
   correctAnswerId: string
   explanation: string
@@ -346,6 +360,7 @@ export type TaskDraftUpdateInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
@@ -361,6 +376,7 @@ export type TaskDraftUncheckedUpdateInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
@@ -376,6 +392,7 @@ export type TaskDraftCreateManyInput = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  multipleChoiceOrderMode?: string
   answers: string
   correctAnswerId: string
   explanation: string
@@ -391,6 +408,7 @@ export type TaskDraftUpdateManyMutationInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
@@ -406,6 +424,7 @@ export type TaskDraftUncheckedUpdateManyInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
@@ -421,6 +440,7 @@ export type TaskDraftCountOrderByAggregateInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
@@ -436,6 +456,7 @@ export type TaskDraftMaxOrderByAggregateInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
@@ -451,6 +472,7 @@ export type TaskDraftMinOrderByAggregateInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
@@ -468,6 +490,7 @@ export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
   explanation?: boolean
@@ -483,6 +506,7 @@ export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
   explanation?: boolean
@@ -498,6 +522,7 @@ export type TaskDraftSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
   explanation?: boolean
@@ -513,6 +538,7 @@ export type TaskDraftSelectScalar = {
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
   explanation?: boolean
@@ -521,7 +547,7 @@ export type TaskDraftSelectScalar = {
   updatedAt?: boolean
 }
 
-export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answers" | "correctAnswerId" | "explanation" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
+export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "explanation" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
 
 export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "TaskDraft"
@@ -533,6 +559,7 @@ export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     difficulties: string
     bodyBlocks: string
     challengeBlocks: string
+    multipleChoiceOrderMode: string
     answers: string
     correctAnswerId: string
     explanation: string
@@ -968,6 +995,7 @@ export interface TaskDraftFieldRefs {
   readonly difficulties: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly bodyBlocks: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly challengeBlocks: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly multipleChoiceOrderMode: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly answers: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly correctAnswerId: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly explanation: Prisma.FieldRef<"TaskDraft", 'String'>

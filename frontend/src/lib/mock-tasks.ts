@@ -4,7 +4,7 @@ export const seedTasks: StoredTask[] = [
   {
     id: "draft-1",
     title: "Secuencia incorrecta de transformaciones",
-    category: "Algoritmos y programación",
+    categories: ["Algoritmos y programación"],
     difficulties: {
       "6–8": "",
       "8–10": "",
@@ -41,6 +41,7 @@ export const seedTasks: StoredTask[] = [
         widthPercent: 100,
       },
     ],
+    multipleChoiceOrderMode: "fixed",
     answers: [
       {
         id: "A",
@@ -100,7 +101,7 @@ export const seedTasks: StoredTask[] = [
   {
     id: "draft-2",
     title: "Mensajes en cadena",
-    category: "Comunicación y redes",
+    categories: ["Comunicación y redes"],
     difficulties: {
       "6–8": "",
       "8–10": "",
@@ -129,6 +130,7 @@ export const seedTasks: StoredTask[] = [
         widthPercent: 100,
       },
     ],
+    multipleChoiceOrderMode: "fixed",
     answers: [
       {
         id: "A",
