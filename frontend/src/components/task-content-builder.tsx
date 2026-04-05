@@ -344,13 +344,13 @@ export function TaskContentBuilder({
       {allowAddingBlocks && (
         <div className="flex flex-wrap gap-3">
           {allowedBlockTypes.includes("text") && (
-            <Button type="button" variant="outline" onClick={() => onAddBlock("text")}>
+            <Button type="button" onClick={() => onAddBlock("text")}>
               <PlusIcon data-icon="inline-start" />
               Agregar texto
             </Button>
           )}
           {allowedBlockTypes.includes("image") && (
-            <Button type="button" variant="outline" onClick={handleAddImage}>
+            <Button type="button" onClick={handleAddImage}>
               <PlusIcon data-icon="inline-start" />
               Agregar imagen
             </Button>
@@ -358,7 +358,6 @@ export function TaskContentBuilder({
           {allowedBlockTypes.includes("challenge") && (
             <Button
               type="button"
-              variant="outline"
               onClick={() => onAddBlock("challenge")}
             >
               <PlusIcon data-icon="inline-start" />

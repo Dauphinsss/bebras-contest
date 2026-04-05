@@ -1016,7 +1016,7 @@ export function TaskUploadForm({
                                               event.target.value = "";
                                             }}
                                           />
-                                          <Button type="button" variant="outline" asChild>
+                                          <Button type="button" asChild>
                                             <span>Reemplazar imagen</span>
                                           </Button>
                                         </label>
@@ -1035,7 +1035,6 @@ export function TaskUploadForm({
                 {form.answerCount < optionLabels.length && (
                   <Button
                     type="button"
-                    variant="outline"
                     onClick={() =>
                       setForm((current) => ({
                         ...current,
@@ -1179,7 +1178,6 @@ export function TaskUploadForm({
                         {form.rangeAnswers.length > 1 && (
                           <Button
                             type="button"
-                            variant="outline"
                             onClick={() =>
                               setForm((current) => ({
                                 ...current,
@@ -1197,7 +1195,6 @@ export function TaskUploadForm({
                   ))}
                   <Button
                     type="button"
-                    variant="outline"
                     onClick={() =>
                       setForm((current) => ({
                         ...current,

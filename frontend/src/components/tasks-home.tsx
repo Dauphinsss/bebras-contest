@@ -104,6 +104,7 @@ export function TasksHome() {
             tasks.map((task) => (
               <Card
                 key={task.id}
+                variant="soft-gradient"
                 className="cursor-pointer transition hover:border-primary/40"
                 onDoubleClick={() => {
                   window.location.href = `/tareas/editar?id=${task.id}`;
