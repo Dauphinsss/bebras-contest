@@ -104,6 +104,17 @@ export function TaskTester() {
     return answers;
   }, [selectedTask]);
 
+  const multipleChoiceCorrectness = useMemo(() => {
+    if (!selectedTask || (selectedTask.answerType ?? "multiple_choice") !== "multiple_choice") {
+      return {
+        mode: "single" as const,
+        correctOptionIds: [] as OptionKey[],
+      };
+    }
+
+    return parseMultipleChoiceCorrectness(selectedTask.correctAnswerId);
+  }, [selectedTask]);
+
   const isCorrect = useMemo(() => {
     if (!selectedTask || !checkedValue) {
       return false;
@@ -112,27 +123,30 @@ export function TaskTester() {
     const answerType = selectedTask.answerType ?? "multiple_choice";
 
     if (answerType === "multiple_choice") {
-      const { mode, correctOptionIds } = parseMultipleChoiceCorrectness(
-        selectedTask.correctAnswerId,
-      );
       const checkedIds = checkedValue
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean) as OptionKey[];
 
-      if (mode === "single") {
-        return checkedIds[0] === correctOptionIds[0];
+      if (multipleChoiceCorrectness.mode === "single") {
+        return (
+          checkedIds.length === 1 &&
+          checkedIds[0] === multipleChoiceCorrectness.correctOptionIds[0]
+        );
       }
 
-      if (mode === "any") {
-        return checkedIds.some((id) => correctOptionIds.includes(id));
+      if (multipleChoiceCorrectness.mode === "any") {
+        return (
+          checkedIds.length === 1 &&
+          multipleChoiceCorrectness.correctOptionIds.includes(checkedIds[0])
+        );
       }
 
-      if (checkedIds.length !== correctOptionIds.length) {
+      if (checkedIds.length !== multipleChoiceCorrectness.correctOptionIds.length) {
         return false;
       }
 
-      return checkedIds.every((id) => correctOptionIds.includes(id));
+      return checkedIds.every((id) => multipleChoiceCorrectness.correctOptionIds.includes(id));
     }
 
     if (answerType === "short_text") {
@@ -166,7 +180,7 @@ export function TaskTester() {
       (rangeAnswer) =>
         numericValue >= rangeAnswer.min && numericValue <= rangeAnswer.max,
     );
-  }, [checkedValue, dragDropPlacements, selectedTask]);
+  }, [checkedValue, dragDropPlacements, multipleChoiceCorrectness, selectedTask]);
 
   const handleCheckAnswer = () => {
     if (!selectedTask) {
@@ -181,22 +195,23 @@ export function TaskTester() {
         return;
       }
 
-      const { mode, correctOptionIds } = parseMultipleChoiceCorrectness(
-        selectedTask.correctAnswerId,
-      );
       const nextCheckedValue = [...selectedAnswerIds].sort().join(",");
       setCheckedValue(nextCheckedValue);
 
-      const hasAnyCorrect = selectedAnswerIds.some((id) => correctOptionIds.includes(id));
+      const hasAnyCorrect =
+        selectedAnswerIds.length === 1 &&
+        multipleChoiceCorrectness.correctOptionIds.includes(selectedAnswerIds[0]);
       const hasAllCorrect =
-        selectedAnswerIds.length === correctOptionIds.length &&
-        selectedAnswerIds.every((id) => correctOptionIds.includes(id));
-      const correctInSingleMode = selectedAnswerIds[0] === correctOptionIds[0];
+        selectedAnswerIds.length === multipleChoiceCorrectness.correctOptionIds.length &&
+        selectedAnswerIds.every((id) => multipleChoiceCorrectness.correctOptionIds.includes(id));
+      const correctInSingleMode =
+        selectedAnswerIds.length === 1 &&
+        selectedAnswerIds[0] === multipleChoiceCorrectness.correctOptionIds[0];
 
       const success =
-        mode === "single"
+        multipleChoiceCorrectness.mode === "single"
           ? correctInSingleMode
-          : mode === "any"
+          : multipleChoiceCorrectness.mode === "any"
             ? hasAnyCorrect
             : hasAllCorrect;
 
@@ -327,16 +342,15 @@ export function TaskTester() {
               {(selectedTask.answerType ?? "multiple_choice") === "multiple_choice" && (
                 <div className="flex flex-col gap-3 sm:gap-4">
                   {displayedAnswers.map((answer) => {
-                    const { mode, correctOptionIds } = parseMultipleChoiceCorrectness(
-                      selectedTask.correctAnswerId,
-                    );
                     const selected = selectedAnswerIds.includes(answer.id);
                     const checkedIds = checkedValue
                       .split(",")
                       .map((value) => value.trim())
                       .filter(Boolean) as OptionKey[];
                     const checked = checkedIds.includes(answer.id);
-                    const isCorrectOption = correctOptionIds.includes(answer.id);
+                    const isCorrectOption = multipleChoiceCorrectness.correctOptionIds.includes(
+                      answer.id,
+                    );
                     const correct = checked && isCorrectOption;
                     const incorrect = checked && !isCorrectOption;
 
@@ -344,18 +358,21 @@ export function TaskTester() {
                       <Card
                         key={answer.id}
                         className={cn(
-                          "cursor-pointer transition",
+                          "cursor-pointer gap-0 py-0 transition",
                           selected ? "border-primary bg-primary/5" : "border-border",
                           correct && "border-primary bg-primary/5",
                           incorrect && "border-destructive/50 bg-destructive/5",
                         )}
                       >
                         <button
-                          className="block w-full text-left"
+                          className="flex w-full items-center justify-center text-center"
                           type="button"
                           onClick={() =>
                             setSelectedAnswerIds((current) => {
-                              if (mode === "single") {
+                              if (
+                                multipleChoiceCorrectness.mode === "single" ||
+                                multipleChoiceCorrectness.mode === "any"
+                              ) {
                                 return [answer.id];
                               }
 
@@ -365,11 +382,11 @@ export function TaskTester() {
                             })
                           }
                         >
-                          <CardContent className="pt-6">
-                            <div className="min-w-0">
+                          <CardContent className="w-full py-5">
+                            <div className="min-w-0 text-center">
                               <TaskContentRenderer
                                 blocks={answer.blocks}
-                                className="gap-3"
+                                className="gap-3 text-lg leading-8 sm:text-xl"
                               />
                             </div>
                           </CardContent>
