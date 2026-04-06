@@ -442,11 +442,11 @@ export function TaskTester() {
               </Alert>
             )}
 
-            <div className="flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col gap-4 border-t pt-5 md:flex-row md:items-center md:justify-between">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
                 {getQuestionSummary(selectedTask.challengeBlocks)}
               </p>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex shrink-0 flex-wrap items-center gap-3 md:flex-nowrap">
                 <Button type="button" variant="outline" onClick={handleReset}>
                   <RotateCcwIcon data-icon="inline-start" />
                   Reiniciar
