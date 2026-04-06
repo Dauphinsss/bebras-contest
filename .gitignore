@@ -36,3 +36,6 @@ Thumbs.db
 # Nested repos / temp artifacts
 frontend/.git/
 temp-*/
+
+# Different skills
+skills*

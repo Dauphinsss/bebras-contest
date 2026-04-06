@@ -28,6 +28,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Field,
   FieldContent,
   FieldDescription,
@@ -430,6 +439,7 @@ export function TaskUploadForm({
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [loadedTask, setLoadedTask] = useState<StoredTask | null>(initialTask);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const activeOptionLabels = form.answerOrder.slice(0, form.answerCount);
 
   const completedOptionsCount = useMemo(
@@ -468,13 +478,10 @@ export function TaskUploadForm({
     );
   };
 
-  const handleReset = () => {
-    setForm(
-      loadedTask
-        ? createStateFromTask(loadedTask)
-        : createInitialState(),
-    );
+  const handleClearForm = () => {
+    setForm(createInitialState());
     setErrors([]);
+    setClearDialogOpen(false);
   };
 
   const updateSectionBlocks = (
@@ -668,7 +675,6 @@ export function TaskUploadForm({
     <form
       className="flex flex-col gap-5 sm:gap-6"
       onSubmit={handleSubmit}
-      onReset={handleReset}
     >
       {errors.length > 0 && (
         <Alert variant="destructive">
@@ -1483,9 +1489,34 @@ export function TaskUploadForm({
             Las tareas se guardan con sus imágenes.
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="reset" variant="outline">
-              Limpiar
-            </Button>
+            <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline">
+                  Limpiar
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Limpiar todo el formulario</DialogTitle>
+                  <DialogDescription>
+                    Se eliminará todo el contenido cargado en esta tarea. Esta acción
+                    no se puede deshacer.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setClearDialogOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={handleClearForm}>
+                    Sí, limpiar todo
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Button type="submit">
               <UploadIcon data-icon="inline-start" />
               {loadedTask ? "Guardar cambios" : "Guardar borrador"}
