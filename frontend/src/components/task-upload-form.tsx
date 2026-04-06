@@ -67,15 +67,18 @@ import {
   categories,
   createContentBlock,
   createContentImages,
+  encodeMultipleChoiceCorrectness,
   getBlocksSummary,
   getNonEmptyBlocks,
   normalizeCategories,
   optionLabels,
+  parseMultipleChoiceCorrectness,
   type AnswerType,
   type CategoryItem,
   type ContentBlock,
   type ContentBlockType,
   type DifficultyKey,
+  type MultipleChoiceCorrectnessMode,
   type MultipleChoiceOrderMode,
   type OptionKey,
   type StoredTaskRangeAnswer,
@@ -105,7 +108,8 @@ type FormState = {
   answerOrder: OptionKey[];
   multipleChoiceContentType: "text" | "image";
   options: Record<OptionKey, ContentBlock[]>;
-  correctOption: string;
+  multipleChoiceCorrectnessMode: MultipleChoiceCorrectnessMode;
+  correctOptions: OptionKey[];
   shortAnswer: string;
   rangeAnswers: StoredTaskRangeAnswer[];
   dragDropBackground: {
@@ -158,7 +162,8 @@ const createInitialState = (): FormState => ({
   answerOrder: [...optionLabels],
   multipleChoiceContentType: "text",
   options: createInitialOptions(),
-  correctOption: "",
+  multipleChoiceCorrectnessMode: "single",
+  correctOptions: [],
   shortAnswer: "",
   rangeAnswers: [
     {
@@ -185,6 +190,14 @@ const createInitialState = (): FormState => ({
 function createStateFromTask(task: StoredTask): FormState {
   const nextOptions = createInitialOptions();
   let multipleChoiceContentType: "text" | "image" = "text";
+  const parsedCorrectness = parseMultipleChoiceCorrectness(task.correctAnswerId);
+  const inferredCorrectOptionIds = task.answers
+    .filter((answer) => answer.isCorrect)
+    .map((answer) => answer.id);
+  const correctOptionIds =
+    parsedCorrectness.correctOptionIds.length > 0
+      ? parsedCorrectness.correctOptionIds
+      : inferredCorrectOptionIds;
 
   for (const answer of task.answers) {
     nextOptions[answer.id] = answer.blocks;
@@ -221,7 +234,8 @@ function createStateFromTask(task: StoredTask): FormState {
     ],
     multipleChoiceContentType,
     options: nextOptions,
-    correctOption: task.correctAnswerId,
+    multipleChoiceCorrectnessMode: parsedCorrectness.mode,
+    correctOptions: correctOptionIds,
     shortAnswer: task.shortAnswer ?? "",
     rangeAnswers:
       (task.rangeAnswers ?? []).length > 0
@@ -292,16 +306,23 @@ function validateForm(state: FormState) {
       errors.push("Debes completar al menos dos respuestas.");
     }
 
-    if (!state.correctOption) {
-      errors.push("Debes marcar una respuesta correcta.");
+    const activeCorrectOptions = state.correctOptions.filter((option) =>
+      activeOptionLabels.includes(option),
+    );
+    const completedCorrectOptions = activeCorrectOptions.filter(
+      (option) => getNonEmptyBlocks(state.options[option]).length > 0,
+    );
+
+    if (state.multipleChoiceCorrectnessMode === "single") {
+      if (activeCorrectOptions.length !== 1) {
+        errors.push("Debes marcar exactamente una respuesta correcta.");
+      }
+    } else if (activeCorrectOptions.length < 2) {
+      errors.push("Debes marcar al menos dos respuestas correctas.");
     }
 
-    if (
-      state.correctOption &&
-      (!activeOptionLabels.includes(state.correctOption as OptionKey) ||
-        getNonEmptyBlocks(state.options[state.correctOption as OptionKey]).length === 0)
-    ) {
-      errors.push("La respuesta marcada como correcta debe tener contenido.");
+    if (activeCorrectOptions.length > completedCorrectOptions.length) {
+      errors.push("Las respuestas marcadas como correctas deben tener contenido.");
     }
 
     const normalizedValues = completedOptions
@@ -373,6 +394,9 @@ function validateForm(state: FormState) {
 
 function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask {
   const activeOptionLabels = state.answerOrder.slice(0, state.answerCount);
+  const activeCorrectOptions = state.correctOptions.filter((option) =>
+    activeOptionLabels.includes(option),
+  );
 
   return {
     id: existingTaskId ?? crypto.randomUUID(),
@@ -401,11 +425,15 @@ function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask 
         ? activeOptionLabels.map((label) => ({
             id: label,
             blocks: state.options[label],
+            isCorrect: activeCorrectOptions.includes(label),
           }))
         : [],
     correctAnswerId:
       state.answerType === "multiple_choice"
-        ? (state.correctOption as OptionKey)
+        ? encodeMultipleChoiceCorrectness(
+            state.multipleChoiceCorrectnessMode,
+            activeCorrectOptions,
+          )
         : "A",
     shortAnswer: state.answerType === "short_text" ? state.shortAnswer.trim() : "",
     rangeAnswers:
@@ -992,7 +1020,7 @@ export function TaskUploadForm({
               <FieldSet>
                 <FieldLegend variant="label">Respuestas disponibles</FieldLegend>
                 <FieldDescription>
-                  Marca una sola respuesta como correcta.
+                  Configura cómo se valida la respuesta correcta en opción múltiple.
                 </FieldDescription>
                 <FieldSet>
                   <FieldLegend variant="label">Tipo de contenido</FieldLegend>
@@ -1084,132 +1112,179 @@ export function TaskUploadForm({
                     </Field>
                   </RadioGroup>
                 </FieldSet>
-                <RadioGroup
-                  value={form.correctOption}
-                  onValueChange={(value) =>
-                    setForm((current) => ({ ...current, correctOption: value }))
-                  }
-                >
-                  <div className="flex flex-col gap-6">
-                    {activeOptionLabels.map((label, index) => {
-                      const invalid =
-                        errors.length > 0 &&
-                        (completedOptionsCount < minimumAnswerCount ||
-                          (form.correctOption === label &&
-                            getNonEmptyBlocks(form.options[label]).length === 0));
-                      const optionBlock =
-                        form.options[label][0] ??
-                        createContentBlock(form.multipleChoiceContentType);
+                <FieldSet>
+                  <FieldLegend variant="label">Criterio de corrección</FieldLegend>
+                  <FieldDescription>
+                    Elige si basta una opción correcta o si se deben marcar todas.
+                  </FieldDescription>
+                  <RadioGroup
+                    value={form.multipleChoiceCorrectnessMode}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        multipleChoiceCorrectnessMode:
+                          value as MultipleChoiceCorrectnessMode,
+                        correctOptions:
+                          value === "single"
+                            ? current.correctOptions.slice(0, 1)
+                            : current.correctOptions,
+                      }))
+                    }
+                  >
+                    <Field orientation="horizontal">
+                      <RadioGroupItem id="multiple-choice-correctness-single" value="single" />
+                      <FieldLabel htmlFor="multiple-choice-correctness-single">
+                        Respuesta única correcta
+                      </FieldLabel>
+                    </Field>
+                    <Field orientation="horizontal">
+                      <RadioGroupItem id="multiple-choice-correctness-any" value="any" />
+                      <FieldLabel htmlFor="multiple-choice-correctness-any">
+                        Varias correctas (cualquiera suma)
+                      </FieldLabel>
+                    </Field>
+                    <Field orientation="horizontal">
+                      <RadioGroupItem id="multiple-choice-correctness-all" value="all" />
+                      <FieldLabel htmlFor="multiple-choice-correctness-all">
+                        Varias correctas (debe marcar todas)
+                      </FieldLabel>
+                    </Field>
+                  </RadioGroup>
+                </FieldSet>
+                <div className="flex flex-col gap-6">
+                  {activeOptionLabels.map((label, index) => {
+                    const optionBlock =
+                      form.options[label][0] ??
+                      createContentBlock(form.multipleChoiceContentType);
+                    const optionHasContent =
+                      getNonEmptyBlocks(form.options[label]).length > 0;
+                    const markedAsCorrect = form.correctOptions.includes(label);
+                    const invalid =
+                      errors.length > 0 &&
+                      (completedOptionsCount < minimumAnswerCount ||
+                        (markedAsCorrect && !optionHasContent));
 
-                      return (
-                        <Field key={label} data-invalid={invalid}>
-                          <Card className="rounded-xl border bg-card shadow-sm">
-                            <CardHeader className="border-b">
-                              <div className="flex items-center justify-between gap-4">
-                                <Field orientation="horizontal">
-                                  <RadioGroupItem
-                                    id={`correct-${label}`}
-                                    value={label}
-                                  />
-                                  <FieldContent className="gap-1">
-                                    <FieldLabel htmlFor={`correct-${label}`}>
-                                      Respuesta {index + 1}
-                                    </FieldLabel>
-                                  </FieldContent>
-                                </Field>
-                                {form.multipleChoiceOrderMode === "fixed" && (
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="icon-sm"
-                                      type="button"
-                                      variant="outline"
-                                      disabled={index === 0}
-                                      onClick={() => moveAnswer(label, "up")}
-                                    >
-                                      <ArrowUpIcon />
-                                    </Button>
-                                    <Button
-                                      size="icon-sm"
-                                      type="button"
-                                      variant="outline"
-                                      disabled={index === activeOptionLabels.length - 1}
-                                      onClick={() => moveAnswer(label, "down")}
-                                    >
-                                      <ArrowDownIcon />
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            </CardHeader>
-                            <CardContent className="pt-6">
-                              {form.multipleChoiceContentType === "text" ? (
-                                <Input
-                                  aria-invalid={invalid}
-                                  placeholder="Escribe la respuesta."
-                                  value={optionBlock.content}
-                                  onChange={(event) =>
-                                    updateOptionBlocks(label, optionBlock.id, (current) => ({
+                    return (
+                      <Field key={label} data-invalid={invalid}>
+                        <Card className="rounded-xl border bg-card shadow-sm">
+                          <CardHeader className="border-b">
+                            <div className="flex items-center justify-between gap-4">
+                              <Field orientation="horizontal">
+                                <Checkbox
+                                  checked={markedAsCorrect}
+                                  id={`correct-${label}`}
+                                  onCheckedChange={(checked) =>
+                                    setForm((current) => ({
                                       ...current,
-                                      content: event.target.value,
+                                      correctOptions:
+                                        checked === true
+                                          ? current.multipleChoiceCorrectnessMode === "single"
+                                            ? [label]
+                                            : [...new Set([...current.correctOptions, label])]
+                                          : current.correctOptions.filter(
+                                              (option) => option !== label,
+                                            ),
                                     }))
                                   }
                                 />
-                              ) : (
-                                <div className="flex flex-col gap-4">
-                                  {!optionBlock.image && (
-                                    <Input
-                                      accept="image/*"
-                                      type="file"
-                                      onChange={(event) => {
-                                        void updateOptionBlockImage(
-                                          label,
-                                          optionBlock.id,
-                                          event.target.files,
-                                        );
-                                        event.target.value = "";
-                                      }}
-                                    />
-                                  )}
-                                  {optionBlock.image && (
-                                    <div className="flex flex-col gap-4">
-                                      <div className="flex justify-center">
-                                        <img
-                                          alt={optionBlock.image.name}
-                                          className="block h-auto max-h-72 max-w-full rounded-lg"
-                                          src={optionBlock.image.url}
-                                        />
-                                      </div>
-                                      <div className="flex justify-start">
-                                        <label>
-                                          <input
-                                            accept="image/*"
-                                            className="sr-only"
-                                            type="file"
-                                            onChange={(event) => {
-                                              void updateOptionBlockImage(
-                                                label,
-                                                optionBlock.id,
-                                                event.target.files,
-                                              );
-                                              event.target.value = "";
-                                            }}
-                                          />
-                                          <Button type="button" variant="outline" asChild>
-                                            <span>Reemplazar imagen</span>
-                                          </Button>
-                                        </label>
-                                      </div>
-                                    </div>
-                                  )}
+                                <FieldContent className="gap-1">
+                                  <FieldLabel htmlFor={`correct-${label}`}>
+                                    Respuesta {index + 1}
+                                  </FieldLabel>
+                                </FieldContent>
+                              </Field>
+                              {form.multipleChoiceOrderMode === "fixed" && (
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    disabled={index === 0}
+                                    onClick={() => moveAnswer(label, "up")}
+                                  >
+                                    <ArrowUpIcon />
+                                  </Button>
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    disabled={index === activeOptionLabels.length - 1}
+                                    onClick={() => moveAnswer(label, "down")}
+                                  >
+                                    <ArrowDownIcon />
+                                  </Button>
                                 </div>
                               )}
-                            </CardContent>
-                          </Card>
-                        </Field>
-                      );
-                    })}
-                  </div>
-                </RadioGroup>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="pt-6">
+                            {form.multipleChoiceContentType === "text" ? (
+                              <Input
+                                aria-invalid={invalid}
+                                placeholder="Escribe la respuesta."
+                                value={optionBlock.content}
+                                onChange={(event) =>
+                                  updateOptionBlocks(label, optionBlock.id, (current) => ({
+                                    ...current,
+                                    content: event.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              <div className="flex flex-col gap-4">
+                                {!optionBlock.image && (
+                                  <Input
+                                    accept="image/*"
+                                    type="file"
+                                    onChange={(event) => {
+                                      void updateOptionBlockImage(
+                                        label,
+                                        optionBlock.id,
+                                        event.target.files,
+                                      );
+                                      event.target.value = "";
+                                    }}
+                                  />
+                                )}
+                                {optionBlock.image && (
+                                  <div className="flex flex-col gap-4">
+                                    <div className="flex justify-center">
+                                      <img
+                                        alt={optionBlock.image.name}
+                                        className="block h-auto max-h-72 max-w-full rounded-lg"
+                                        src={optionBlock.image.url}
+                                      />
+                                    </div>
+                                    <div className="flex justify-start">
+                                      <label>
+                                        <input
+                                          accept="image/*"
+                                          className="sr-only"
+                                          type="file"
+                                          onChange={(event) => {
+                                            void updateOptionBlockImage(
+                                              label,
+                                              optionBlock.id,
+                                              event.target.files,
+                                            );
+                                            event.target.value = "";
+                                          }}
+                                        />
+                                        <Button type="button" variant="outline" asChild>
+                                          <span>Reemplazar imagen</span>
+                                        </Button>
+                                      </label>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </Field>
+                    );
+                  })}
+                </div>
                 {form.answerCount < optionLabels.length && (
                   <Button
                     type="button"

@@ -18,6 +18,8 @@ import { listTasks } from "@/lib/tasks-api";
 import {
   buildAgeSummary,
   getQuestionSummary,
+  parseMultipleChoiceCorrectness,
+  type OptionKey,
   type StoredTask,
 } from "@/lib/task-schema";
 import { cn } from "@/lib/utils";
@@ -39,7 +41,7 @@ function nextSeed(seed: number) {
 export function TaskTester() {
   const [tasks, setTasks] = useState<StoredTask[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [selectedAnswerId, setSelectedAnswerId] = useState("");
+  const [selectedAnswerIds, setSelectedAnswerIds] = useState<OptionKey[]>([]);
   const [checkedValue, setCheckedValue] = useState("");
   const [shortAnswer, setShortAnswer] = useState("");
   const [rangeValue, setRangeValue] = useState("");
@@ -110,7 +112,27 @@ export function TaskTester() {
     const answerType = selectedTask.answerType ?? "multiple_choice";
 
     if (answerType === "multiple_choice") {
-      return checkedValue === selectedTask.correctAnswerId;
+      const { mode, correctOptionIds } = parseMultipleChoiceCorrectness(
+        selectedTask.correctAnswerId,
+      );
+      const checkedIds = checkedValue
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean) as OptionKey[];
+
+      if (mode === "single") {
+        return checkedIds[0] === correctOptionIds[0];
+      }
+
+      if (mode === "any") {
+        return checkedIds.some((id) => correctOptionIds.includes(id));
+      }
+
+      if (checkedIds.length !== correctOptionIds.length) {
+        return false;
+      }
+
+      return checkedIds.every((id) => correctOptionIds.includes(id));
     }
 
     if (answerType === "short_text") {
@@ -154,13 +176,31 @@ export function TaskTester() {
     const answerType = selectedTask.answerType ?? "multiple_choice";
 
     if (answerType === "multiple_choice") {
-      if (!selectedAnswerId) {
+      if (selectedAnswerIds.length === 0) {
         toast.error("Selecciona una respuesta antes de probar la tarea.");
         return;
       }
 
-      setCheckedValue(selectedAnswerId);
-      if (selectedAnswerId === selectedTask.correctAnswerId) {
+      const { mode, correctOptionIds } = parseMultipleChoiceCorrectness(
+        selectedTask.correctAnswerId,
+      );
+      const nextCheckedValue = [...selectedAnswerIds].sort().join(",");
+      setCheckedValue(nextCheckedValue);
+
+      const hasAnyCorrect = selectedAnswerIds.some((id) => correctOptionIds.includes(id));
+      const hasAllCorrect =
+        selectedAnswerIds.length === correctOptionIds.length &&
+        selectedAnswerIds.every((id) => correctOptionIds.includes(id));
+      const correctInSingleMode = selectedAnswerIds[0] === correctOptionIds[0];
+
+      const success =
+        mode === "single"
+          ? correctInSingleMode
+          : mode === "any"
+            ? hasAnyCorrect
+            : hasAllCorrect;
+
+      if (success) {
         toast.success("Respuesta correcta");
       } else {
         toast.error("Respuesta incorrecta");
@@ -230,7 +270,7 @@ export function TaskTester() {
   };
 
   const handleReset = () => {
-    setSelectedAnswerId("");
+    setSelectedAnswerIds([]);
     setCheckedValue("");
     setShortAnswer("");
     setRangeValue("");
@@ -287,12 +327,18 @@ export function TaskTester() {
               {(selectedTask.answerType ?? "multiple_choice") === "multiple_choice" && (
                 <div className="flex flex-col gap-3 sm:gap-4">
                   {displayedAnswers.map((answer) => {
-                    const selected = selectedAnswerId === answer.id;
-                    const checked = checkedValue === answer.id;
-                    const correct =
-                      checked && answer.id === selectedTask.correctAnswerId;
-                    const incorrect =
-                      checked && answer.id !== selectedTask.correctAnswerId;
+                    const { mode, correctOptionIds } = parseMultipleChoiceCorrectness(
+                      selectedTask.correctAnswerId,
+                    );
+                    const selected = selectedAnswerIds.includes(answer.id);
+                    const checkedIds = checkedValue
+                      .split(",")
+                      .map((value) => value.trim())
+                      .filter(Boolean) as OptionKey[];
+                    const checked = checkedIds.includes(answer.id);
+                    const isCorrectOption = correctOptionIds.includes(answer.id);
+                    const correct = checked && isCorrectOption;
+                    const incorrect = checked && !isCorrectOption;
 
                     return (
                       <Card
@@ -307,7 +353,17 @@ export function TaskTester() {
                         <button
                           className="block w-full text-left"
                           type="button"
-                          onClick={() => setSelectedAnswerId(answer.id)}
+                          onClick={() =>
+                            setSelectedAnswerIds((current) => {
+                              if (mode === "single") {
+                                return [answer.id];
+                              }
+
+                              return current.includes(answer.id)
+                                ? current.filter((item) => item !== answer.id)
+                                : [...current, answer.id];
+                            })
+                          }
                         >
                           <CardContent className="pt-6">
                             <div className="min-w-0">

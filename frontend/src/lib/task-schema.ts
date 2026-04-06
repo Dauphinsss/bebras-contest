@@ -23,6 +23,11 @@ export const answerTypes = [
   "drag_drop",
 ] as const;
 export const multipleChoiceOrderModes = ["fixed", "random"] as const;
+export const multipleChoiceCorrectnessModes = [
+  "single",
+  "any",
+  "all",
+] as const;
 
 export type ContentBlockType = "text" | "image" | "challenge";
 
@@ -46,10 +51,13 @@ export type CategoryValue = (typeof categories)[number] | "";
 export type CategoryItem = Exclude<CategoryValue, "">;
 export type AnswerType = (typeof answerTypes)[number];
 export type MultipleChoiceOrderMode = (typeof multipleChoiceOrderModes)[number];
+export type MultipleChoiceCorrectnessMode =
+  (typeof multipleChoiceCorrectnessModes)[number];
 
 export type StoredTaskAnswer = {
   id: OptionKey;
   blocks: ContentBlock[];
+  isCorrect?: boolean;
 };
 
 export type StoredTaskRangeAnswer = {
@@ -78,7 +86,7 @@ export type StoredTask = {
   answerType: AnswerType;
   multipleChoiceOrderMode: MultipleChoiceOrderMode;
   answers: StoredTaskAnswer[];
-  correctAnswerId: OptionKey;
+  correctAnswerId: string;
   shortAnswer: string;
   rangeAnswers: StoredTaskRangeAnswer[];
   dragDropBackground: ContentImage | null;
@@ -186,4 +194,65 @@ export function normalizeCategories(value: unknown): CategoryItem[] {
     typeof item === "string" &&
     (categories as readonly string[]).includes(item),
   );
+}
+
+function isOptionKey(value: string): value is OptionKey {
+  return (optionLabels as readonly string[]).includes(value);
+}
+
+function normalizeOptionKeys(values: string[]) {
+  return values.filter(isOptionKey);
+}
+
+export function encodeMultipleChoiceCorrectness(
+  mode: MultipleChoiceCorrectnessMode,
+  correctOptionIds: OptionKey[],
+) {
+  const uniqueOptions = [...new Set(correctOptionIds)].filter(isOptionKey);
+
+  if (mode === "single") {
+    return uniqueOptions[0] ?? "A";
+  }
+
+  const prefix = mode === "all" ? "all" : "any";
+  return `${prefix}:${uniqueOptions.join(",")}`;
+}
+
+export function parseMultipleChoiceCorrectness(value: string | null | undefined) {
+  const rawValue = String(value ?? "").trim();
+
+  if (rawValue.startsWith("any:")) {
+    const correctOptionIds = normalizeOptionKeys(
+      rawValue
+        .slice(4)
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+
+    return {
+      mode: "any" as MultipleChoiceCorrectnessMode,
+      correctOptionIds,
+    };
+  }
+
+  if (rawValue.startsWith("all:")) {
+    const correctOptionIds = normalizeOptionKeys(
+      rawValue
+        .slice(4)
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+
+    return {
+      mode: "all" as MultipleChoiceCorrectnessMode,
+      correctOptionIds,
+    };
+  }
+
+  return {
+    mode: "single" as MultipleChoiceCorrectnessMode,
+    correctOptionIds: isOptionKey(rawValue) ? [rawValue] : [],
+  };
 }
