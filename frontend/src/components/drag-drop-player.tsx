@@ -77,7 +77,7 @@ export function DragDropPlayer({
             <button
               key={item.id}
               className={cn(
-                "absolute flex -translate-x-1/2 -translate-y-1/2 cursor-grab flex-col items-center gap-2 rounded-sm border bg-background/95 p-2 text-xs font-medium [box-shadow:var(--shadow-hard)]",
+                "absolute -translate-x-1/2 -translate-y-1/2 cursor-grab",
                 draggingItemId === item.id && "opacity-70",
               )}
               draggable
@@ -95,7 +95,6 @@ export function DragDropPlayer({
                 className="block max-h-20 max-w-24 object-contain"
                 src={item.image.url}
               />
-              <span>{item.label || "Objeto"}</span>
             </button>
           );
         })}

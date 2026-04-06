@@ -125,7 +125,7 @@ export function DragDropEditor({
                     return (
                       <button
                         key={item.id}
-                        className="absolute flex -translate-x-1/2 -translate-y-1/2 cursor-grab flex-col items-center gap-1 rounded-sm border bg-background/95 p-2 text-xs font-medium [box-shadow:var(--shadow-hard)]"
+                        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab"
                         style={{
                           left: `${item.targetX}%`,
                           top: `${item.targetY}%`,
@@ -141,7 +141,6 @@ export function DragDropEditor({
                           className="block max-h-16 max-w-20 object-contain"
                           src={item.image.url}
                         />
-                        <span>{item.label || "Objeto"}</span>
                       </button>
                     );
                   })}
