@@ -23,9 +23,14 @@ model TaskDraft {
   difficulties    String
   bodyBlocks      String
   challengeBlocks String
+  answerType      String   @default("multiple_choice")
   multipleChoiceOrderMode String @default("fixed")
   answers         String
   correctAnswerId String
+  shortAnswer     String   @default("")
+  rangeAnswers    String   @default("[]")
+  dragDropBackground String @default("null")
+  dragDropItems   String   @default("[]")
   explanation     String
   status          String   @default("Borrador")
   createdAt       DateTime @default(now())

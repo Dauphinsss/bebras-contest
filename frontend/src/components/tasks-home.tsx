@@ -44,7 +44,7 @@ export function TasksHome() {
         setTasks(loadedTasks.map(mapTaskToHomeItem));
       })
       .catch(() => {
-        toast.error("No se pudieron cargar las tareas desde el backend.");
+        toast.error("No se pudieron cargar las tareas.");
       });
 
     return () => {
@@ -88,7 +88,7 @@ export function TasksHome() {
         <CardHeader className="border-b">
           <CardTitle>Tareas</CardTitle>
           <CardDescription>
-            Estas son las tareas cargadas actualmente en el backend.
+            Estas son las tareas registradas actualmente.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-6">
@@ -140,7 +140,7 @@ export function TasksHome() {
                               setTasks((current) =>
                                 current.filter((currentTask) => currentTask.id !== task.id),
                               );
-                              toast.success("La tarea se eliminó del backend.");
+                              toast.success("La tarea se eliminó correctamente.");
                             })
                             .catch(() => {
                               toast.error("No se pudo eliminar la tarea.");

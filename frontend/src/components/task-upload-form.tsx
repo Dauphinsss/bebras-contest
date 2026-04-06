@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
   BetweenHorizonalStartIcon,
   CircleHelpIcon,
   FileTextIcon,
@@ -47,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DragDropEditor } from "@/components/drag-drop-editor";
 import { TaskContentBuilder } from "@/components/task-content-builder";
 import { createTask, updateTask } from "@/lib/tasks-api";
 import {
@@ -67,6 +70,7 @@ import {
   type MultipleChoiceOrderMode,
   type OptionKey,
   type StoredTaskRangeAnswer,
+  type StoredTaskDragDropItem,
   type StoredTask,
 } from "@/lib/task-schema";
 
@@ -89,11 +93,18 @@ type FormState = {
   answerType: AnswerType;
   multipleChoiceOrderMode: MultipleChoiceOrderMode;
   answerCount: number;
+  answerOrder: OptionKey[];
   multipleChoiceContentType: "text" | "image";
   options: Record<OptionKey, ContentBlock[]>;
   correctOption: string;
   shortAnswer: string;
   rangeAnswers: StoredTaskRangeAnswer[];
+  dragDropBackground: {
+    id: string;
+    name: string;
+    url: string;
+  } | null;
+  dragDropItems: StoredTaskDragDropItem[];
   explanation: string;
 };
 
@@ -135,6 +146,7 @@ const createInitialState = (): FormState => ({
   answerType: "multiple_choice",
   multipleChoiceOrderMode: "fixed",
   answerCount: minimumAnswerCount,
+  answerOrder: [...optionLabels],
   multipleChoiceContentType: "text",
   options: createInitialOptions(),
   correctOption: "",
@@ -145,6 +157,17 @@ const createInitialState = (): FormState => ({
       label: "Rango válido",
       min: 0,
       max: 10,
+    },
+  ],
+  dragDropBackground: null,
+  dragDropItems: [
+    {
+      id: crypto.randomUUID(),
+      label: "Objeto 1",
+      image: null,
+      targetX: 50,
+      targetY: 50,
+      tolerance: 10,
     },
   ],
   explanation: "",
@@ -181,6 +204,12 @@ function createStateFromTask(task: StoredTask): FormState {
       task.answerType === "multiple_choice"
         ? Math.max(task.answers.length, minimumAnswerCount)
         : minimumAnswerCount,
+    answerOrder: [
+      ...task.answers.map((answer) => answer.id),
+      ...optionLabels.filter(
+        (label) => !task.answers.some((answer) => answer.id === label),
+      ),
+    ],
     multipleChoiceContentType,
     options: nextOptions,
     correctOption: task.correctAnswerId,
@@ -196,13 +225,27 @@ function createStateFromTask(task: StoredTask): FormState {
               max: 10,
             },
           ],
+    dragDropBackground: task.dragDropBackground ?? null,
+    dragDropItems:
+      (task.dragDropItems ?? []).length > 0
+        ? task.dragDropItems
+        : [
+            {
+              id: crypto.randomUUID(),
+              label: "Objeto 1",
+              image: null,
+              targetX: 50,
+              targetY: 50,
+              tolerance: 10,
+            },
+          ],
     explanation: task.explanation,
   };
 }
 
 function validateForm(state: FormState) {
   const errors: string[] = [];
-  const activeOptionLabels = optionLabels.slice(0, state.answerCount);
+  const activeOptionLabels = state.answerOrder.slice(0, state.answerCount);
   const completedOptions = activeOptionLabels.filter(
     (label) => getNonEmptyBlocks(state.options[label]).length > 0,
   );
@@ -284,6 +327,34 @@ function validateForm(state: FormState) {
     }
   }
 
+  if (state.answerType === "drag_drop") {
+    if (!state.dragDropBackground) {
+      errors.push("Debes agregar la imagen de fondo para arrastrar y soltar.");
+    }
+
+    if (state.dragDropItems.length === 0) {
+      errors.push("Debes agregar al menos un objeto arrastrable.");
+    }
+
+    for (const item of state.dragDropItems) {
+      if (!item.label.trim()) {
+        errors.push("Cada objeto arrastrable debe tener un nombre.");
+      }
+
+      if (!item.image) {
+        errors.push("Cada objeto arrastrable debe tener una imagen.");
+      }
+
+      if (item.targetX < 0 || item.targetX > 100 || item.targetY < 0 || item.targetY > 100) {
+        errors.push("La posición correcta de cada objeto debe estar entre 0 y 100.");
+      }
+
+      if (item.tolerance <= 0 || item.tolerance > 100) {
+        errors.push("El margen permitido de cada objeto debe estar entre 1 y 100.");
+      }
+    }
+  }
+
   if (!state.explanation.trim()) {
     errors.push("La explicación de la respuesta es obligatoria.");
   }
@@ -292,7 +363,7 @@ function validateForm(state: FormState) {
 }
 
 function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask {
-  const activeOptionLabels = optionLabels.slice(0, state.answerCount);
+  const activeOptionLabels = state.answerOrder.slice(0, state.answerCount);
 
   return {
     id: existingTaskId ?? crypto.randomUUID(),
@@ -335,6 +406,15 @@ function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask 
             label: rangeAnswer.label.trim(),
           }))
         : [],
+    dragDropBackground:
+      state.answerType === "drag_drop" ? state.dragDropBackground : null,
+    dragDropItems:
+      state.answerType === "drag_drop"
+        ? state.dragDropItems.map((item) => ({
+            ...item,
+            label: item.label.trim(),
+          }))
+        : [],
     explanation: state.explanation.trim(),
     status: "Borrador",
     updatedAt: new Date().toISOString(),
@@ -350,7 +430,7 @@ export function TaskUploadForm({
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [loadedTask, setLoadedTask] = useState<StoredTask | null>(initialTask);
-  const activeOptionLabels = optionLabels.slice(0, form.answerCount);
+  const activeOptionLabels = form.answerOrder.slice(0, form.answerCount);
 
   const completedOptionsCount = useMemo(
     () =>
@@ -380,8 +460,8 @@ export function TaskUploadForm({
     setErrors([]);
     toast.success(
       loadedTask
-        ? "La tarea se actualizó en el frontend."
-        : "La tarea se guardó en el frontend.",
+        ? "La tarea se actualizó correctamente."
+        : "La tarea se guardó correctamente.",
       {
       description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
       },
@@ -519,6 +599,68 @@ export function TaskUploadForm({
     updateSectionBlocks(section, blockId, (block) => ({
       ...block,
       widthPercent,
+    }));
+  };
+
+  const moveAnswer = (optionKey: OptionKey, direction: "up" | "down") => {
+    setForm((current) => {
+      const activeOrder = current.answerOrder.slice(0, current.answerCount);
+      const inactiveOrder = current.answerOrder.slice(current.answerCount);
+      const currentIndex = activeOrder.indexOf(optionKey);
+
+      if (currentIndex === -1) {
+        return current;
+      }
+
+      const targetIndex =
+        direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+      if (targetIndex < 0 || targetIndex >= activeOrder.length) {
+        return current;
+      }
+
+      const nextActiveOrder = [...activeOrder];
+      [nextActiveOrder[currentIndex], nextActiveOrder[targetIndex]] = [
+        nextActiveOrder[targetIndex],
+        nextActiveOrder[currentIndex],
+      ];
+
+      return {
+        ...current,
+        answerOrder: [...nextActiveOrder, ...inactiveOrder],
+      };
+    });
+  };
+
+  const updateDragDropBackground = async (files: FileList | null) => {
+    const nextImage = (await createContentImages(files))[0] ?? null;
+
+    setForm((current) => ({
+      ...current,
+      dragDropBackground: nextImage,
+    }));
+  };
+
+  const updateDragDropItemImage = async (itemId: string, files: FileList | null) => {
+    const nextImage = (await createContentImages(files))[0] ?? null;
+
+    setForm((current) => ({
+      ...current,
+      dragDropItems: current.dragDropItems.map((item) =>
+        item.id === itemId ? { ...item, image: nextImage } : item,
+      ),
+    }));
+  };
+
+  const updateDragDropItem = (
+    itemId: string,
+    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "targetX" | "targetY" | "tolerance">>,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      dragDropItems: current.dragDropItems.map((item) =>
+        item.id === itemId ? { ...item, ...patch } : item,
+      ),
     }));
   };
 
@@ -831,6 +973,12 @@ export function TaskUploadForm({
                     Respuesta por rangos
                   </FieldLabel>
                 </Field>
+                <Field orientation="horizontal">
+                  <RadioGroupItem id="answer-type-drag-drop" value="drag_drop" />
+                  <FieldLabel htmlFor="answer-type-drag-drop">
+                    Arrastrar y soltar
+                  </FieldLabel>
+                </Field>
               </RadioGroup>
             </FieldSet>
 
@@ -853,7 +1001,7 @@ export function TaskUploadForm({
                         multipleChoiceContentType: value as "text" | "image",
                         options: optionLabels.reduce<Record<OptionKey, ContentBlock[]>>(
                           (acc, optionLabel) => {
-                            acc[optionLabel] = optionLabels
+                            acc[optionLabel] = current.answerOrder
                               .slice(0, current.answerCount)
                               .includes(optionLabel)
                               ? [
@@ -951,17 +1099,41 @@ export function TaskUploadForm({
                         <Field key={label} data-invalid={invalid}>
                           <Card className="rounded-xl border bg-card shadow-sm">
                             <CardHeader className="border-b">
-                              <Field orientation="horizontal">
-                                <RadioGroupItem
-                                  id={`correct-${label}`}
-                                  value={label}
-                                />
-                                <FieldContent className="gap-1">
-                                  <FieldLabel htmlFor={`correct-${label}`}>
-                                    Respuesta {index + 1}
-                                  </FieldLabel>
-                                </FieldContent>
-                              </Field>
+                              <div className="flex items-center justify-between gap-4">
+                                <Field orientation="horizontal">
+                                  <RadioGroupItem
+                                    id={`correct-${label}`}
+                                    value={label}
+                                  />
+                                  <FieldContent className="gap-1">
+                                    <FieldLabel htmlFor={`correct-${label}`}>
+                                      Respuesta {index + 1}
+                                    </FieldLabel>
+                                  </FieldContent>
+                                </Field>
+                                {form.multipleChoiceOrderMode === "fixed" && (
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="outline"
+                                      disabled={index === 0}
+                                      onClick={() => moveAnswer(label, "up")}
+                                    >
+                                      <ArrowUpIcon />
+                                    </Button>
+                                    <Button
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="outline"
+                                      disabled={index === activeOptionLabels.length - 1}
+                                      onClick={() => moveAnswer(label, "down")}
+                                    >
+                                      <ArrowDownIcon />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
                             </CardHeader>
                             <CardContent className="pt-6">
                               {form.multipleChoiceContentType === "text" ? (
@@ -1016,7 +1188,7 @@ export function TaskUploadForm({
                                               event.target.value = "";
                                             }}
                                           />
-                                          <Button type="button" asChild>
+                                          <Button type="button" variant="outline" asChild>
                                             <span>Reemplazar imagen</span>
                                           </Button>
                                         </label>
@@ -1217,6 +1389,51 @@ export function TaskUploadForm({
               </FieldSet>
             )}
 
+            {form.answerType === "drag_drop" && (
+              <FieldSet>
+                <FieldLegend variant="label">Escenario interactivo</FieldLegend>
+                <FieldDescription>
+                  Define la imagen de fondo, los objetos y la posición correcta de cada uno.
+                </FieldDescription>
+                <DragDropEditor
+                  backgroundUrl={form.dragDropBackground?.url ?? null}
+                  items={form.dragDropItems}
+                  onUploadBackground={(files) => {
+                    void updateDragDropBackground(files);
+                  }}
+                  onReplaceItemImage={(itemId, files) => {
+                    void updateDragDropItemImage(itemId, files);
+                  }}
+                  onAddItem={() =>
+                    setForm((current) => ({
+                      ...current,
+                      dragDropItems: [
+                        ...current.dragDropItems,
+                        {
+                          id: crypto.randomUUID(),
+                          label: `Objeto ${current.dragDropItems.length + 1}`,
+                          image: null,
+                          targetX: 50,
+                          targetY: 50,
+                          tolerance: 10,
+                        },
+                      ],
+                    }))
+                  }
+                  onRemoveItem={(itemId) =>
+                    setForm((current) => ({
+                      ...current,
+                      dragDropItems:
+                        current.dragDropItems.length > 1
+                          ? current.dragDropItems.filter((item) => item.id !== itemId)
+                          : current.dragDropItems,
+                    }))
+                  }
+                  onUpdateItem={updateDragDropItem}
+                />
+              </FieldSet>
+            )}
+
             {errors.length > 0 && (
               <FieldError errors={errors.map((message) => ({ message }))} />
             )}
@@ -1263,7 +1480,7 @@ export function TaskUploadForm({
         <CardFooter className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ImagePlusIcon />
-            Las tareas se guardan en el frontend con sus imágenes.
+            Las tareas se guardan con sus imágenes.
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="reset" variant="outline">

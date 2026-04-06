@@ -20,6 +20,7 @@ export const answerTypes = [
   "multiple_choice",
   "short_text",
   "range",
+  "drag_drop",
 ] as const;
 export const multipleChoiceOrderModes = ["fixed", "random"] as const;
 
@@ -58,6 +59,15 @@ export type StoredTaskRangeAnswer = {
   max: number;
 };
 
+export type StoredTaskDragDropItem = {
+  id: string;
+  label: string;
+  image: ContentImage | null;
+  targetX: number;
+  targetY: number;
+  tolerance: number;
+};
+
 export type StoredTask = {
   id: string;
   title: string;
@@ -71,6 +81,8 @@ export type StoredTask = {
   correctAnswerId: OptionKey;
   shortAnswer: string;
   rangeAnswers: StoredTaskRangeAnswer[];
+  dragDropBackground: ContentImage | null;
+  dragDropItems: StoredTaskDragDropItem[];
   explanation: string;
   status: "Borrador";
   updatedAt: string;

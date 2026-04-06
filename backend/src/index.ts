@@ -28,7 +28,12 @@ function deserializeTask(task: {
   difficulties: unknown;
   bodyBlocks: unknown;
   challengeBlocks: unknown;
+  answerType?: unknown;
   answers: unknown;
+  shortAnswer?: unknown;
+  rangeAnswers?: unknown;
+  dragDropBackground?: unknown;
+  dragDropItems?: unknown;
   multipleChoiceOrderMode?: unknown;
   [key: string]: unknown;
 }) {
@@ -38,7 +43,12 @@ function deserializeTask(task: {
     difficulties: JSON.parse(String(task.difficulties ?? "{}")),
     bodyBlocks: JSON.parse(String(task.bodyBlocks ?? "[]")),
     challengeBlocks: JSON.parse(String(task.challengeBlocks ?? "[]")),
+    answerType: String(task.answerType ?? "multiple_choice"),
     answers: JSON.parse(String(task.answers ?? "[]")),
+    shortAnswer: String(task.shortAnswer ?? ""),
+    rangeAnswers: JSON.parse(String(task.rangeAnswers ?? "[]")),
+    dragDropBackground: JSON.parse(String(task.dragDropBackground ?? "null")),
+    dragDropItems: JSON.parse(String(task.dragDropItems ?? "[]")),
     multipleChoiceOrderMode:
       task.multipleChoiceOrderMode === "random" ? "random" : "fixed",
   };
@@ -109,9 +119,14 @@ app.post("/api/tasks", async (req, res) => {
     difficulties,
     bodyBlocks,
     challengeBlocks,
+    answerType,
     multipleChoiceOrderMode,
     answers,
     correctAnswerId,
+    shortAnswer,
+    rangeAnswers,
+    dragDropBackground,
+    dragDropItems,
     explanation,
     status,
   } = req.body;
@@ -129,10 +144,15 @@ app.post("/api/tasks", async (req, res) => {
       difficulties: serializeJson(difficulties),
       bodyBlocks: serializeJson(bodyBlocks),
       challengeBlocks: serializeJson(challengeBlocks),
+      answerType: answerType ?? "multiple_choice",
       multipleChoiceOrderMode:
         multipleChoiceOrderMode === "random" ? "random" : "fixed",
       answers: serializeJson(answers),
       correctAnswerId,
+      shortAnswer: shortAnswer ?? "",
+      rangeAnswers: serializeJson(rangeAnswers ?? []),
+      dragDropBackground: serializeJson(dragDropBackground ?? null),
+      dragDropItems: serializeJson(dragDropItems ?? []),
       explanation,
       status: status ?? "Borrador",
     },
@@ -149,9 +169,14 @@ app.put("/api/tasks/:id", async (req, res) => {
     difficulties,
     bodyBlocks,
     challengeBlocks,
+    answerType,
     multipleChoiceOrderMode,
     answers,
     correctAnswerId,
+    shortAnswer,
+    rangeAnswers,
+    dragDropBackground,
+    dragDropItems,
     explanation,
     status,
   } = req.body;
@@ -172,10 +197,15 @@ app.put("/api/tasks/:id", async (req, res) => {
       difficulties: serializeJson(difficulties),
       bodyBlocks: serializeJson(bodyBlocks),
       challengeBlocks: serializeJson(challengeBlocks),
+      answerType: answerType ?? "multiple_choice",
       multipleChoiceOrderMode:
         multipleChoiceOrderMode === "random" ? "random" : "fixed",
       answers: serializeJson(answers),
       correctAnswerId,
+      shortAnswer: shortAnswer ?? "",
+      rangeAnswers: serializeJson(rangeAnswers ?? []),
+      dragDropBackground: serializeJson(dragDropBackground ?? null),
+      dragDropItems: serializeJson(dragDropItems ?? []),
       explanation,
       status: status ?? "Borrador",
     },

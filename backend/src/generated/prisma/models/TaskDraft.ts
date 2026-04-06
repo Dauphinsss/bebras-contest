@@ -31,9 +31,14 @@ export type TaskDraftMinAggregateOutputType = {
   difficulties: string | null
   bodyBlocks: string | null
   challengeBlocks: string | null
+  answerType: string | null
   multipleChoiceOrderMode: string | null
   answers: string | null
   correctAnswerId: string | null
+  shortAnswer: string | null
+  rangeAnswers: string | null
+  dragDropBackground: string | null
+  dragDropItems: string | null
   explanation: string | null
   status: string | null
   createdAt: Date | null
@@ -47,9 +52,14 @@ export type TaskDraftMaxAggregateOutputType = {
   difficulties: string | null
   bodyBlocks: string | null
   challengeBlocks: string | null
+  answerType: string | null
   multipleChoiceOrderMode: string | null
   answers: string | null
   correctAnswerId: string | null
+  shortAnswer: string | null
+  rangeAnswers: string | null
+  dragDropBackground: string | null
+  dragDropItems: string | null
   explanation: string | null
   status: string | null
   createdAt: Date | null
@@ -63,9 +73,14 @@ export type TaskDraftCountAggregateOutputType = {
   difficulties: number
   bodyBlocks: number
   challengeBlocks: number
+  answerType: number
   multipleChoiceOrderMode: number
   answers: number
   correctAnswerId: number
+  shortAnswer: number
+  rangeAnswers: number
+  dragDropBackground: number
+  dragDropItems: number
   explanation: number
   status: number
   createdAt: number
@@ -81,9 +96,14 @@ export type TaskDraftMinAggregateInputType = {
   difficulties?: true
   bodyBlocks?: true
   challengeBlocks?: true
+  answerType?: true
   multipleChoiceOrderMode?: true
   answers?: true
   correctAnswerId?: true
+  shortAnswer?: true
+  rangeAnswers?: true
+  dragDropBackground?: true
+  dragDropItems?: true
   explanation?: true
   status?: true
   createdAt?: true
@@ -97,9 +117,14 @@ export type TaskDraftMaxAggregateInputType = {
   difficulties?: true
   bodyBlocks?: true
   challengeBlocks?: true
+  answerType?: true
   multipleChoiceOrderMode?: true
   answers?: true
   correctAnswerId?: true
+  shortAnswer?: true
+  rangeAnswers?: true
+  dragDropBackground?: true
+  dragDropItems?: true
   explanation?: true
   status?: true
   createdAt?: true
@@ -113,9 +138,14 @@ export type TaskDraftCountAggregateInputType = {
   difficulties?: true
   bodyBlocks?: true
   challengeBlocks?: true
+  answerType?: true
   multipleChoiceOrderMode?: true
   answers?: true
   correctAnswerId?: true
+  shortAnswer?: true
+  rangeAnswers?: true
+  dragDropBackground?: true
+  dragDropItems?: true
   explanation?: true
   status?: true
   createdAt?: true
@@ -202,9 +232,14 @@ export type TaskDraftGroupByOutputType = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  answerType: string
   multipleChoiceOrderMode: string
   answers: string
   correctAnswerId: string
+  shortAnswer: string
+  rangeAnswers: string
+  dragDropBackground: string
+  dragDropItems: string
   explanation: string
   status: string
   createdAt: Date
@@ -239,9 +274,14 @@ export type TaskDraftWhereInput = {
   difficulties?: Prisma.StringFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringFilter<"TaskDraft"> | string
   challengeBlocks?: Prisma.StringFilter<"TaskDraft"> | string
+  answerType?: Prisma.StringFilter<"TaskDraft"> | string
   multipleChoiceOrderMode?: Prisma.StringFilter<"TaskDraft"> | string
   answers?: Prisma.StringFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringFilter<"TaskDraft"> | string
+  shortAnswer?: Prisma.StringFilter<"TaskDraft"> | string
+  rangeAnswers?: Prisma.StringFilter<"TaskDraft"> | string
+  dragDropBackground?: Prisma.StringFilter<"TaskDraft"> | string
+  dragDropItems?: Prisma.StringFilter<"TaskDraft"> | string
   explanation?: Prisma.StringFilter<"TaskDraft"> | string
   status?: Prisma.StringFilter<"TaskDraft"> | string
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
@@ -255,9 +295,14 @@ export type TaskDraftOrderByWithRelationInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  answerType?: Prisma.SortOrder
   multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
+  shortAnswer?: Prisma.SortOrder
+  rangeAnswers?: Prisma.SortOrder
+  dragDropBackground?: Prisma.SortOrder
+  dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -274,9 +319,14 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
   difficulties?: Prisma.StringFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringFilter<"TaskDraft"> | string
   challengeBlocks?: Prisma.StringFilter<"TaskDraft"> | string
+  answerType?: Prisma.StringFilter<"TaskDraft"> | string
   multipleChoiceOrderMode?: Prisma.StringFilter<"TaskDraft"> | string
   answers?: Prisma.StringFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringFilter<"TaskDraft"> | string
+  shortAnswer?: Prisma.StringFilter<"TaskDraft"> | string
+  rangeAnswers?: Prisma.StringFilter<"TaskDraft"> | string
+  dragDropBackground?: Prisma.StringFilter<"TaskDraft"> | string
+  dragDropItems?: Prisma.StringFilter<"TaskDraft"> | string
   explanation?: Prisma.StringFilter<"TaskDraft"> | string
   status?: Prisma.StringFilter<"TaskDraft"> | string
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
@@ -290,9 +340,14 @@ export type TaskDraftOrderByWithAggregationInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  answerType?: Prisma.SortOrder
   multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
+  shortAnswer?: Prisma.SortOrder
+  rangeAnswers?: Prisma.SortOrder
+  dragDropBackground?: Prisma.SortOrder
+  dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -312,9 +367,14 @@ export type TaskDraftScalarWhereWithAggregatesInput = {
   difficulties?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   challengeBlocks?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  answerType?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   multipleChoiceOrderMode?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   answers?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  shortAnswer?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  rangeAnswers?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  dragDropBackground?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  dragDropItems?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   explanation?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   status?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"TaskDraft"> | Date | string
@@ -328,9 +388,14 @@ export type TaskDraftCreateInput = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  answerType?: string
   multipleChoiceOrderMode?: string
   answers: string
   correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
   explanation: string
   status?: string
   createdAt?: Date | string
@@ -344,9 +409,14 @@ export type TaskDraftUncheckedCreateInput = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  answerType?: string
   multipleChoiceOrderMode?: string
   answers: string
   correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
   explanation: string
   status?: string
   createdAt?: Date | string
@@ -360,9 +430,14 @@ export type TaskDraftUpdateInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
   multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -376,9 +451,14 @@ export type TaskDraftUncheckedUpdateInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
   multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -392,9 +472,14 @@ export type TaskDraftCreateManyInput = {
   difficulties: string
   bodyBlocks: string
   challengeBlocks: string
+  answerType?: string
   multipleChoiceOrderMode?: string
   answers: string
   correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
   explanation: string
   status?: string
   createdAt?: Date | string
@@ -408,9 +493,14 @@ export type TaskDraftUpdateManyMutationInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
   multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -424,9 +514,14 @@ export type TaskDraftUncheckedUpdateManyInput = {
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
   challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
   multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -440,9 +535,14 @@ export type TaskDraftCountOrderByAggregateInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  answerType?: Prisma.SortOrder
   multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
+  shortAnswer?: Prisma.SortOrder
+  rangeAnswers?: Prisma.SortOrder
+  dragDropBackground?: Prisma.SortOrder
+  dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -456,9 +556,14 @@ export type TaskDraftMaxOrderByAggregateInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  answerType?: Prisma.SortOrder
   multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
+  shortAnswer?: Prisma.SortOrder
+  rangeAnswers?: Prisma.SortOrder
+  dragDropBackground?: Prisma.SortOrder
+  dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -472,9 +577,14 @@ export type TaskDraftMinOrderByAggregateInput = {
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
   challengeBlocks?: Prisma.SortOrder
+  answerType?: Prisma.SortOrder
   multipleChoiceOrderMode?: Prisma.SortOrder
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
+  shortAnswer?: Prisma.SortOrder
+  rangeAnswers?: Prisma.SortOrder
+  dragDropBackground?: Prisma.SortOrder
+  dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -490,9 +600,14 @@ export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  answerType?: boolean
   multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
+  shortAnswer?: boolean
+  rangeAnswers?: boolean
+  dragDropBackground?: boolean
+  dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
   createdAt?: boolean
@@ -506,9 +621,14 @@ export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  answerType?: boolean
   multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
+  shortAnswer?: boolean
+  rangeAnswers?: boolean
+  dragDropBackground?: boolean
+  dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
   createdAt?: boolean
@@ -522,9 +642,14 @@ export type TaskDraftSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  answerType?: boolean
   multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
+  shortAnswer?: boolean
+  rangeAnswers?: boolean
+  dragDropBackground?: boolean
+  dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
   createdAt?: boolean
@@ -538,16 +663,21 @@ export type TaskDraftSelectScalar = {
   difficulties?: boolean
   bodyBlocks?: boolean
   challengeBlocks?: boolean
+  answerType?: boolean
   multipleChoiceOrderMode?: boolean
   answers?: boolean
   correctAnswerId?: boolean
+  shortAnswer?: boolean
+  rangeAnswers?: boolean
+  dragDropBackground?: boolean
+  dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "explanation" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
+export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeAnswers" | "dragDropBackground" | "dragDropItems" | "explanation" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
 
 export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "TaskDraft"
@@ -559,9 +689,14 @@ export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     difficulties: string
     bodyBlocks: string
     challengeBlocks: string
+    answerType: string
     multipleChoiceOrderMode: string
     answers: string
     correctAnswerId: string
+    shortAnswer: string
+    rangeAnswers: string
+    dragDropBackground: string
+    dragDropItems: string
     explanation: string
     status: string
     createdAt: Date
@@ -995,9 +1130,14 @@ export interface TaskDraftFieldRefs {
   readonly difficulties: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly bodyBlocks: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly challengeBlocks: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly answerType: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly multipleChoiceOrderMode: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly answers: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly correctAnswerId: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly shortAnswer: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly rangeAnswers: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly dragDropBackground: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly dragDropItems: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly explanation: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly status: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly createdAt: Prisma.FieldRef<"TaskDraft", 'DateTime'>

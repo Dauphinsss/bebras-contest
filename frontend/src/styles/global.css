@@ -195,6 +195,10 @@
     box-shadow: none;
   }
 
+  [data-slot="badge"][data-variant="secondary"] {
+    border-color: transparent !important;
+  }
+
   [data-slot="radio-group-indicator"] {
     filter: none !important;
   }
@@ -209,5 +213,36 @@
 
   [data-slot="separator"] {
     background: var(--border) !important;
+  }
+
+  [data-sonner-toaster] [data-sonner-toast] {
+    border-color: var(--border) !important;
+    box-shadow: var(--shadow-hard) !important;
+  }
+
+  [data-sonner-toaster] [data-button],
+  [data-sonner-toaster] [data-close-button] {
+    border-radius: 0 !important;
+  }
+
+  [data-sonner-toaster] [data-close-button] {
+    top: 0.75rem !important;
+    right: 0.75rem !important;
+  }
+
+  [data-sonner-toaster] [data-type="success"] {
+    background: color-mix(in srgb, var(--background) 94%, var(--primary) 6%) !important;
+  }
+
+  [data-sonner-toaster] [data-type="error"] {
+    background: color-mix(in srgb, var(--background) 94%, var(--destructive) 6%) !important;
+  }
+
+  [data-sonner-toaster] [data-type="warning"] {
+    background: color-mix(in srgb, var(--background) 92%, var(--secondary) 8%) !important;
+  }
+
+  [data-sonner-toaster] [data-type="info"] {
+    background: color-mix(in srgb, var(--background) 94%, var(--accent) 6%) !important;
   }
 }

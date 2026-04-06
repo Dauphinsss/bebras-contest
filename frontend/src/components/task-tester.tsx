@@ -5,6 +5,7 @@ import { AlertCircleIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
+import { DragDropPlayer } from "@/components/drag-drop-player";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,9 @@ export function TaskTester() {
   const [checkedValue, setCheckedValue] = useState("");
   const [shortAnswer, setShortAnswer] = useState("");
   const [rangeValue, setRangeValue] = useState("");
+  const [dragDropPlacements, setDragDropPlacements] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
 
   useEffect(() => {
     const taskIdFromUrl = new URLSearchParams(window.location.search).get("id");
@@ -61,7 +65,7 @@ export function TaskTester() {
         );
       })
       .catch(() => {
-        toast.error("No se pudieron cargar las tareas desde el backend.");
+        toast.error("No se pudieron cargar las tareas.");
       });
 
     return () => {
@@ -116,6 +120,21 @@ export function TaskTester() {
       );
     }
 
+    if (answerType === "drag_drop") {
+      return (selectedTask.dragDropItems ?? []).every((item) => {
+        const placement = dragDropPlacements[item.id];
+
+        if (!placement) {
+          return false;
+        }
+
+        return (
+          Math.abs(placement.x - item.targetX) <= item.tolerance &&
+          Math.abs(placement.y - item.targetY) <= item.tolerance
+        );
+      });
+    }
+
     const numericValue = Number(checkedValue);
     if (Number.isNaN(numericValue)) {
       return false;
@@ -125,7 +144,7 @@ export function TaskTester() {
       (rangeAnswer) =>
         numericValue >= rangeAnswer.min && numericValue <= rangeAnswer.max,
     );
-  }, [checkedValue, selectedTask]);
+  }, [checkedValue, dragDropPlacements, selectedTask]);
 
   const handleCheckAnswer = () => {
     if (!selectedTask) {
@@ -167,6 +186,30 @@ export function TaskTester() {
       return;
     }
 
+    if (answerType === "drag_drop") {
+      if ((selectedTask.dragDropItems ?? []).some((item) => !dragDropPlacements[item.id])) {
+        toast.error("Debes colocar todos los objetos antes de verificar.");
+        return;
+      }
+
+      setCheckedValue("drag_drop");
+      if (
+        (selectedTask.dragDropItems ?? []).every((item) => {
+          const placement = dragDropPlacements[item.id];
+          return (
+            placement &&
+            Math.abs(placement.x - item.targetX) <= item.tolerance &&
+            Math.abs(placement.y - item.targetY) <= item.tolerance
+          );
+        })
+      ) {
+        toast.success("Respuesta correcta");
+      } else {
+        toast.error("Respuesta incorrecta");
+      }
+      return;
+    }
+
     if (!rangeValue.trim() || Number.isNaN(Number(rangeValue))) {
       toast.error("Escribe un valor numérico válido.");
       return;
@@ -191,6 +234,7 @@ export function TaskTester() {
     setCheckedValue("");
     setShortAnswer("");
     setRangeValue("");
+    setDragDropPlacements({});
   };
 
   return (
@@ -307,6 +351,28 @@ export function TaskTester() {
                   </div>
                 </div>
               )}
+
+              {(selectedTask.answerType ?? "multiple_choice") === "drag_drop" &&
+                selectedTask.dragDropBackground && (
+                  <DragDropPlayer
+                    backgroundUrl={selectedTask.dragDropBackground.url}
+                    items={selectedTask.dragDropItems}
+                    placements={dragDropPlacements}
+                    onPlaceItem={(itemId, placement) =>
+                      setDragDropPlacements((current) => ({
+                        ...current,
+                        [itemId]: placement,
+                      }))
+                    }
+                    onResetItem={(itemId) =>
+                      setDragDropPlacements((current) => {
+                        const next = { ...current };
+                        delete next[itemId];
+                        return next;
+                      })
+                    }
+                  />
+                )}
             </section>
 
             {checkedValue && (
