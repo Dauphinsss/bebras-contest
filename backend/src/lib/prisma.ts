@@ -1,4 +1,4 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaBunSqlite } from "prisma-adapter-bun-sqlite";
 import { PrismaClient } from "../generated/prisma/client";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -7,9 +7,7 @@ if (!databaseUrl) {
   throw new Error("DATABASE_URL is not defined");
 }
 
-const adapter = new PrismaBetterSqlite3({
-  url: databaseUrl,
-});
+const adapter = new PrismaBunSqlite({ url: databaseUrl });
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;

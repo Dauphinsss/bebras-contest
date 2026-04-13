@@ -39,3 +39,5 @@ temp-*/
 
 # Different skills
 skills*
+
+backend/src/generated

@@ -17,7 +17,7 @@ import type * as Prisma from "./prismaNamespace"
 
 const config: runtime.GetPrismaClientConfig = {
   "previewFeatures": [],
-  "clientVersion": "7.6.0",
+  "clientVersion": "7.7.0",
   "engineVersion": "75cbdc1eb7150937890ad5465d861175c6624711",
   "activeProvider": "sqlite",
   "inlineSchema": "generator client {\n  provider     = \"prisma-client\"\n  output       = \"../src/generated/prisma\"\n  moduleFormat = \"cjs\"\n}\n\ndatasource db {\n  provider = \"sqlite\"\n}\n\nmodel User {\n  id        Int      @id @default(autoincrement())\n  email     String   @unique\n  name      String?\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n}\n\nmodel TaskDraft {\n  id                      String   @id @default(cuid())\n  title                   String\n  category                String\n  difficulties            String\n  bodyBlocks              String\n  challengeBlocks         String\n  answerType              String   @default(\"multiple_choice\")\n  multipleChoiceOrderMode String   @default(\"fixed\")\n  answers                 String\n  correctAnswerId         String\n  shortAnswer             String   @default(\"\")\n  rangeAnswers            String   @default(\"[]\")\n  dragDropBackground      String   @default(\"null\")\n  dragDropItems           String   @default(\"[]\")\n  explanation             String\n  status                  String   @default(\"Borrador\")\n  createdAt               DateTime @default(now())\n  updatedAt               DateTime @updatedAt\n}\n",
