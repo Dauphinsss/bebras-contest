@@ -155,10 +155,64 @@ function parseTaskIds(value: unknown) {
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
-function buildContestTaskWrites(taskIds: string[]) {
-  return taskIds.map((taskDraftId, index) => ({
-    taskDraftId,
+type ContestTaskInput = {
+  taskId: string;
+  minScore: number;
+  noAnswerScore: number;
+  maxScore: number;
+  options: string;
+};
+
+function parseScore(value: unknown, fallback: number) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.trunc(score) : fallback;
+}
+
+function parseContestTasks(body: Record<string, unknown>) {
+  const rawTasks = Array.isArray(body.tasks) ? body.tasks : [];
+  const taskInputs = rawTasks
+    .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
+    .map((item) => ({
+      taskId: typeof item.taskId === "string" ? item.taskId.trim() : "",
+      minScore: parseScore(item.minScore, 0),
+      noAnswerScore: parseScore(item.noAnswerScore, 0),
+      maxScore: parseScore(item.maxScore, 10),
+      options:
+        typeof item.options === "string" && item.options.trim()
+          ? item.options.trim()
+          : "{}",
+    }))
+    .filter((item) => item.taskId);
+
+  const fallbackTaskInputs = parseTaskIds(body.taskIds).map((taskId) => ({
+    taskId,
+    minScore: 0,
+    noAnswerScore: 0,
+    maxScore: 10,
+    options: "{}",
+  }));
+
+  const uniqueTasks = new Map<string, ContestTaskInput>();
+
+  for (const task of taskInputs.length > 0 ? taskInputs : fallbackTaskInputs) {
+    if (task.maxScore < task.minScore) {
+      throw new Error("El puntaje máximo no puede ser menor que el puntaje mínimo.");
+    }
+
+    uniqueTasks.set(task.taskId, task);
+  }
+
+  return [...uniqueTasks.values()];
+}
+
+function buildContestTaskWrites(tasks: ContestTaskInput[]) {
+  return tasks.map((task, index) => ({
+    taskDraftId: task.taskId,
     position: index + 1,
+    minScore: task.minScore,
+    noAnswerScore: task.noAnswerScore,
+    maxScore: task.maxScore,
+    options: task.options,
   }));
 }
 
@@ -166,18 +220,27 @@ function deserializeContest(contest: {
   id: string;
   title: string;
   level: string;
+  year: number;
   durationMinutes: number;
   startsAt: Date;
   endsAt: Date;
+  isOpen: boolean;
   allowPairs: boolean;
   showFeedback: boolean;
+  showSolutions: boolean;
+  showTotalScore: boolean;
   isVisible: boolean;
   status: string;
+  folderSecret: string;
   createdAt: Date;
   updatedAt: Date;
   tasks?: Array<{
     id: string;
     position: number;
+    minScore: number;
+    noAnswerScore: number;
+    maxScore: number;
+    options: string;
     taskDraft: {
       id: string;
       title: string;
@@ -191,13 +254,18 @@ function deserializeContest(contest: {
     id: contest.id,
     title: contest.title,
     level: contest.level,
+    year: contest.year,
     durationMinutes: contest.durationMinutes,
     startsAt: contest.startsAt.toISOString(),
     endsAt: contest.endsAt.toISOString(),
+    isOpen: contest.isOpen,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
+    showSolutions: contest.showSolutions,
+    showTotalScore: contest.showTotalScore,
     isVisible: contest.isVisible,
     status: contest.status,
+    folderSecret: contest.folderSecret,
     createdAt: contest.createdAt.toISOString(),
     updatedAt: contest.updatedAt.toISOString(),
     taskCount: contest.tasks?.length ?? 0,
@@ -205,6 +273,11 @@ function deserializeContest(contest: {
       contest.tasks?.map((task) => ({
         id: task.id,
         position: task.position,
+        taskId: task.taskDraft.id,
+        minScore: task.minScore,
+        noAnswerScore: task.noAnswerScore,
+        maxScore: task.maxScore,
+        options: task.options,
         task: deserializeTaskSummary(task.taskDraft),
       })) ?? [],
   };
@@ -213,8 +286,9 @@ function deserializeContest(contest: {
 function parseContestPayload(body: Record<string, unknown>) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const level = typeof body.level === "string" ? body.level.trim() : "";
+  const year = Number(body.year);
   const durationMinutes = Number(body.durationMinutes);
-  const taskIds = [...new Set(parseTaskIds(body.taskIds))];
+  const tasks = parseContestTasks(body);
 
   if (!title) {
     throw new Error("El nombre de la competencia es obligatorio.");
@@ -222,6 +296,10 @@ function parseContestPayload(body: Record<string, unknown>) {
 
   if (!level) {
     throw new Error("El nivel de la competencia es obligatorio.");
+  }
+
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new Error("El año de la competencia debe ser válido.");
   }
 
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
@@ -238,17 +316,23 @@ function parseContestPayload(body: Record<string, unknown>) {
   return {
     title,
     level,
+    year,
     durationMinutes,
     startsAt,
     endsAt,
+    isOpen: body.isOpen === true,
     allowPairs: body.allowPairs === true,
     showFeedback: body.showFeedback === true,
+    showSolutions: body.showSolutions === true,
+    showTotalScore: body.showTotalScore === true,
     isVisible: body.isVisible === true,
     status:
       typeof body.status === "string" && body.status.trim()
         ? body.status.trim()
         : "draft",
-    taskIds,
+    folderSecret:
+      typeof body.folderSecret === "string" ? body.folderSecret.trim() : "",
+    tasks,
   };
 }
 
@@ -495,12 +579,12 @@ app.post("/api/contests", async (req, res) => {
   const taskCount = await prisma.taskDraft.count({
     where: {
       id: {
-        in: payload.taskIds,
+        in: payload.tasks.map((task) => task.taskId),
       },
     },
   });
 
-  if (taskCount !== payload.taskIds.length) {
+  if (taskCount !== payload.tasks.length) {
     res.status(400).json({
       message: "Una o más tareas seleccionadas no existen.",
     });
@@ -511,15 +595,20 @@ app.post("/api/contests", async (req, res) => {
     data: {
       title: payload.title,
       level: payload.level,
+      year: payload.year,
       durationMinutes: payload.durationMinutes,
       startsAt: payload.startsAt,
       endsAt: payload.endsAt,
+      isOpen: payload.isOpen,
       allowPairs: payload.allowPairs,
       showFeedback: payload.showFeedback,
+      showSolutions: payload.showSolutions,
+      showTotalScore: payload.showTotalScore,
       isVisible: payload.isVisible,
       status: payload.status,
+      folderSecret: payload.folderSecret,
       tasks: {
-        create: buildContestTaskWrites(payload.taskIds),
+        create: buildContestTaskWrites(payload.tasks),
       },
     },
     include: {
@@ -568,12 +657,12 @@ app.put("/api/contests/:id", async (req, res) => {
   const taskCount = await prisma.taskDraft.count({
     where: {
       id: {
-        in: payload.taskIds,
+        in: payload.tasks.map((task) => task.taskId),
       },
     },
   });
 
-  if (taskCount !== payload.taskIds.length) {
+  if (taskCount !== payload.tasks.length) {
     res.status(400).json({
       message: "Una o más tareas seleccionadas no existen.",
     });
@@ -594,15 +683,20 @@ app.put("/api/contests/:id", async (req, res) => {
       data: {
         title: payload.title,
         level: payload.level,
+        year: payload.year,
         durationMinutes: payload.durationMinutes,
         startsAt: payload.startsAt,
         endsAt: payload.endsAt,
+        isOpen: payload.isOpen,
         allowPairs: payload.allowPairs,
         showFeedback: payload.showFeedback,
+        showSolutions: payload.showSolutions,
+        showTotalScore: payload.showTotalScore,
         isVisible: payload.isVisible,
         status: payload.status,
+        folderSecret: payload.folderSecret,
         tasks: {
-          create: buildContestTaskWrites(payload.taskIds),
+          create: buildContestTaskWrites(payload.tasks),
         },
       },
       include: {
@@ -619,6 +713,88 @@ app.put("/api/contests/:id", async (req, res) => {
   });
 
   res.json(deserializeContest(contest));
+});
+
+app.post("/api/contests/:id/publish", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: {
+      id: req.params.id,
+    },
+    include: {
+      tasks: {
+        orderBy: {
+          position: "asc",
+        },
+        include: {
+          taskDraft: true,
+        },
+      },
+    },
+  });
+
+  if (!contest) {
+    res.status(404).json({
+      message: "Contest not found",
+    });
+    return;
+  }
+
+  const readinessErrors: string[] = [];
+
+  if (!contest.title.trim()) {
+    readinessErrors.push("La competencia necesita nombre.");
+  }
+
+  if (!contest.level.trim()) {
+    readinessErrors.push("La competencia necesita nivel.");
+  }
+
+  if (contest.endsAt <= contest.startsAt) {
+    readinessErrors.push("La ventana de ejecución no es válida.");
+  }
+
+  if (contest.durationMinutes <= 0) {
+    readinessErrors.push("La duración debe ser mayor que cero.");
+  }
+
+  if (contest.tasks.length === 0) {
+    readinessErrors.push("La competencia necesita al menos una tarea.");
+  }
+
+  if (contest.tasks.some((task) => task.maxScore < task.minScore)) {
+    readinessErrors.push("Hay tareas con puntajes mal configurados.");
+  }
+
+  if (readinessErrors.length > 0) {
+    res.status(400).json({
+      message: readinessErrors[0],
+      errors: readinessErrors,
+    });
+    return;
+  }
+
+  const publishedContest = await prisma.contest.update({
+    where: {
+      id: contest.id,
+    },
+    data: {
+      status: "published",
+      isOpen: true,
+      isVisible: true,
+    },
+    include: {
+      tasks: {
+        orderBy: {
+          position: "asc",
+        },
+        include: {
+          taskDraft: true,
+        },
+      },
+    },
+  });
+
+  res.json(deserializeContest(publishedContest));
 });
 
 app.delete("/api/contests/:id", async (req, res) => {

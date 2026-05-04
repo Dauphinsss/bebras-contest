@@ -4,20 +4,26 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CalendarIcon,
   CheckCircle2Icon,
+  Clock8Icon,
   FileStackIcon,
   FolderTreeIcon,
   LoaderCircleIcon,
   SaveIcon,
 } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
+import type { DateRange } from "react-day-picker";
 
 import {
   createContest,
   getContest,
+  publishContest,
   updateContest,
 } from "@/lib/contests-api";
 import {
+  type ContestTaskConfigInput,
   toDatetimeLocalValue,
   type ContestDraftInput,
 } from "@/lib/contest-schema";
@@ -26,6 +32,7 @@ import { buildAgeSummary, type StoredTask } from "@/lib/task-schema";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Card,
   CardContent,
@@ -35,14 +42,39 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 type ContestFormPageProps = {
   contestId?: string | null;
 };
 
 type FormState = ContestDraftInput;
+
+function createDefaultTaskConfig(taskId: string): ContestTaskConfigInput {
+  return {
+    taskId,
+    minScore: 0,
+    noAnswerScore: 0,
+    maxScore: 10,
+    options: "{}",
+  };
+}
 
 function createInitialState(): FormState {
   const now = new Date();
@@ -52,14 +84,19 @@ function createInitialState(): FormState {
   return {
     title: "",
     level: "",
+    year: new Date().getFullYear(),
     durationMinutes: 90,
     startsAt: toDatetimeLocalValue(start.toISOString()),
     endsAt: toDatetimeLocalValue(end.toISOString()),
+    isOpen: false,
     allowPairs: false,
     showFeedback: false,
+    showSolutions: false,
+    showTotalScore: false,
     isVisible: false,
     status: "draft",
-    taskIds: [],
+    folderSecret: "",
+    tasks: [],
   };
 }
 
@@ -67,17 +104,28 @@ function createStateFromContest(contest: Awaited<ReturnType<typeof getContest>>)
   return {
     title: contest.title,
     level: contest.level,
+    year: contest.year,
     durationMinutes: contest.durationMinutes,
     startsAt: toDatetimeLocalValue(contest.startsAt),
     endsAt: toDatetimeLocalValue(contest.endsAt),
+    isOpen: contest.isOpen,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
+    showSolutions: contest.showSolutions,
+    showTotalScore: contest.showTotalScore,
     isVisible: contest.isVisible,
     status: contest.status,
-    taskIds: contest.tasks
+    folderSecret: contest.folderSecret,
+    tasks: contest.tasks
       .slice()
       .sort((left, right) => left.position - right.position)
-      .map((task) => task.task.id),
+      .map((task) => ({
+        taskId: task.taskId,
+        minScore: task.minScore,
+        noAnswerScore: task.noAnswerScore,
+        maxScore: task.maxScore,
+        options: task.options,
+      })),
   };
 }
 
@@ -85,6 +133,198 @@ function formatTaskMeta(task: StoredTask) {
   return `${buildAgeSummary(task.difficulties)} · ${
     task.categories.join(", ") || "Sin categoría"
   }`;
+}
+
+function parseDateTimeLocal(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function toTimeValue(value: string) {
+  const date = parseDateTimeLocal(value);
+
+  if (!date) {
+    return "09:00:00";
+  }
+
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function updateDatePart(currentValue: string, nextDate: Date | undefined) {
+  if (!nextDate) {
+    return currentValue;
+  }
+
+  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
+  const nextValue = new Date(nextDate);
+  nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+  return toDatetimeLocalValue(nextValue.toISOString());
+}
+
+function updateDateRangeParts(
+  currentStartsAt: string,
+  currentEndsAt: string,
+  nextRange: DateRange | undefined,
+) {
+  return {
+    startsAt: updateDatePart(currentStartsAt, nextRange?.from),
+    endsAt: updateDatePart(currentEndsAt, nextRange?.to),
+  };
+}
+
+function updateTimePart(currentValue: string, nextTime: string) {
+  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
+  const [hours, minutes] = nextTime.split(":").map((part) => Number(part));
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return currentValue;
+  }
+
+  const nextValue = new Date(currentDate);
+  nextValue.setHours(hours, minutes, 0, 0);
+  return toDatetimeLocalValue(nextValue.toISOString());
+}
+
+function TimeInput({
+  label,
+  value,
+  invalid = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  invalid?: boolean;
+  onChange: (nextValue: string) => void;
+}) {
+  const currentTime = toTimeValue(value);
+  const [draftValue, setDraftValue] = useState(currentTime);
+
+  useEffect(() => {
+    setDraftValue(currentTime);
+  }, [currentTime]);
+
+  return (
+    <div className="relative sm:w-40">
+      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3 text-muted-foreground peer-disabled:opacity-50">
+        <Clock8Icon className="size-4" />
+        <span className="sr-only">{label} hora</span>
+      </div>
+      <Input
+        aria-invalid={invalid}
+        aria-label={`${label} hora`}
+        className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+        step="1"
+        type="time"
+        value={draftValue}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          setDraftValue(nextValue);
+
+          if (nextValue) {
+            onChange(updateTimePart(value, nextValue));
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function DateRangeField({
+  startsAt,
+  endsAt,
+  invalid = false,
+  onDateChange,
+  onStartsAtChange,
+  onEndsAtChange,
+}: {
+  startsAt: string;
+  endsAt: string;
+  invalid?: boolean;
+  onDateChange: (nextStartsAt: string, nextEndsAt: string) => void;
+  onStartsAtChange: (nextValue: string) => void;
+  onEndsAtChange: (nextValue: string) => void;
+}) {
+  const startDate = parseDateTimeLocal(startsAt);
+  const endDate = parseDateTimeLocal(endsAt);
+  const selectedRange: DateRange | undefined = startDate
+    ? { from: startDate, to: endDate ?? undefined }
+    : undefined;
+  const rangeLabel =
+    startDate && endDate
+      ? `${format(startDate, "dd/MM/yyyy")} - ${format(endDate, "dd/MM/yyyy")}`
+      : "Selecciona rango";
+
+  return (
+    <Field data-invalid={invalid || undefined}>
+      <FieldLabel htmlFor="contest-date-range">Ventana de ejecución</FieldLabel>
+      <FieldContent>
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="contest-date-range"
+                type="button"
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal lg:flex-1",
+                  (!startDate || !endDate) && "text-muted-foreground",
+                )}
+                aria-invalid={invalid}
+              >
+                <CalendarIcon data-icon="inline-start" />
+                {rangeLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              data-calendar-popover
+              className="w-auto rounded-sm p-0"
+              align="start"
+            >
+              <Calendar
+                initialFocus
+                mode="range"
+                selected={selectedRange}
+                onSelect={(nextRange) => {
+                  const nextValues = updateDateRangeParts(startsAt, endsAt, nextRange);
+                  onDateChange(nextValues.startsAt, nextValues.endsAt);
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <FieldLabel>Hora de inicio</FieldLabel>
+              <TimeInput
+                invalid={invalid}
+                label="Hora de inicio"
+                value={startsAt}
+                onChange={onStartsAtChange}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <FieldLabel>Hora de fin</FieldLabel>
+              <TimeInput
+                invalid={invalid}
+                label="Hora de fin"
+                value={endsAt}
+                onChange={onEndsAtChange}
+              />
+            </div>
+          </div>
+        </div>
+        <FieldDescription>
+          Selecciona el rango de fechas y define la hora exacta de inicio y fin.
+        </FieldDescription>
+      </FieldContent>
+    </Field>
+  );
 }
 
 export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
@@ -97,6 +337,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const [tasks, setTasks] = useState<StoredTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -141,14 +382,14 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
   const selectedTasks = useMemo(() => {
     const tasksById = new Map(tasks.map((task) => [task.id, task]));
-    return form.taskIds
-      .map((taskId) => tasksById.get(taskId))
+    return form.tasks
+      .map((taskConfig) => tasksById.get(taskConfig.taskId))
       .filter((task): task is StoredTask => task !== undefined);
-  }, [form.taskIds, tasks]);
+  }, [form.tasks, tasks]);
 
   const availableTasks = useMemo(
-    () => tasks.filter((task) => !form.taskIds.includes(task.id)),
-    [form.taskIds, tasks],
+    () => tasks.filter((task) => !form.tasks.some((taskConfig) => taskConfig.taskId === task.id)),
+    [form.tasks, tasks],
   );
 
   const validationErrors = useMemo(() => {
@@ -172,25 +413,68 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       errors.push("La fecha de fin debe ser posterior a la de inicio.");
     }
 
-    if (form.taskIds.length === 0) {
+    if (form.tasks.length === 0) {
       errors.push("Debes seleccionar al menos una tarea.");
+    }
+
+    if (form.tasks.some((task) => task.maxScore < task.minScore)) {
+      errors.push("El puntaje máximo no puede ser menor que el puntaje mínimo.");
     }
 
     return errors;
   }, [form]);
 
+  const hasTitleError = !form.title.trim();
+  const hasLevelError = !form.level.trim();
+  const hasDurationError =
+    !Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0;
+  const hasDateError =
+    !form.startsAt ||
+    !form.endsAt ||
+    new Date(form.endsAt) <= new Date(form.startsAt);
+
+  const handlePublish = async () => {
+    if (!resolvedContestId) {
+      toast.error("Primero guarda la competencia antes de publicarla.");
+      return;
+    }
+
+    if (validationErrors.length > 0) {
+      toast.error(validationErrors[0]);
+      return;
+    }
+
+    setPublishing(true);
+
+    try {
+      const savedContest = await updateContest(resolvedContestId, {
+        ...form,
+        title: form.title.trim(),
+        level: form.level.trim(),
+      });
+      const publishedContest = await publishContest(savedContest.id);
+
+      setForm(createStateFromContest(publishedContest));
+      toast.success("La competencia quedó publicada y abierta.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo publicar la competencia.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const toggleTask = (taskId: string) => {
     setForm((current) => ({
       ...current,
-      taskIds: current.taskIds.includes(taskId)
-        ? current.taskIds.filter((currentTaskId) => currentTaskId !== taskId)
-        : [...current.taskIds, taskId],
+      tasks: current.tasks.some((task) => task.taskId === taskId)
+        ? current.tasks.filter((task) => task.taskId !== taskId)
+        : [...current.tasks, createDefaultTaskConfig(taskId)],
     }));
   };
 
   const moveTask = (taskId: string, direction: "up" | "down") => {
     setForm((current) => {
-      const index = current.taskIds.indexOf(taskId);
+      const index = current.tasks.findIndex((task) => task.taskId === taskId);
 
       if (index === -1) {
         return current;
@@ -198,21 +482,33 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
       const targetIndex = direction === "up" ? index - 1 : index + 1;
 
-      if (targetIndex < 0 || targetIndex >= current.taskIds.length) {
+      if (targetIndex < 0 || targetIndex >= current.tasks.length) {
         return current;
       }
 
-      const nextTaskIds = [...current.taskIds];
-      [nextTaskIds[index], nextTaskIds[targetIndex]] = [
-        nextTaskIds[targetIndex],
-        nextTaskIds[index],
+      const nextTasks = [...current.tasks];
+      [nextTasks[index], nextTasks[targetIndex]] = [
+        nextTasks[targetIndex],
+        nextTasks[index],
       ];
 
       return {
         ...current,
-        taskIds: nextTaskIds,
+        tasks: nextTasks,
       };
     });
+  };
+
+  const updateTaskConfig = (
+    taskId: string,
+    patch: Partial<Omit<ContestTaskConfigInput, "taskId">>,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) =>
+        task.taskId === taskId ? { ...task, ...patch } : task,
+      ),
+    }));
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -283,106 +579,216 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="contest-title">Nombre</Label>
-            <Input
-              id="contest-title"
-              value={form.title}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, title: event.target.value }))
-              }
-              placeholder="Ej. Bebras Secundaria 2026"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="contest-level">Nivel</Label>
-            <Input
-              id="contest-level"
-              value={form.level}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, level: event.target.value }))
-              }
-              placeholder="Ej. 12-14"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="contest-duration">Duración en minutos</Label>
-            <Input
-              id="contest-duration"
-              min={1}
-              type="number"
-              value={String(form.durationMinutes)}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  durationMinutes: Number(event.target.value || 0),
-                }))
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="contest-status">Estado</Label>
-            <Input
-              id="contest-status"
-              value={form.status}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, status: event.target.value }))
-              }
-              placeholder="draft"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="contest-starts-at">Inicio</Label>
-            <Input
-              id="contest-starts-at"
-              type="datetime-local"
-              value={form.startsAt}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, startsAt: event.target.value }))
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="contest-ends-at">Fin</Label>
-            <Input
-              id="contest-ends-at"
-              type="datetime-local"
-              value={form.endsAt}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, endsAt: event.target.value }))
-              }
-            />
-          </div>
+        <CardContent className="pt-6">
+          <FieldGroup>
+            <FieldGroup className="grid gap-4 md:grid-cols-2">
+              <Field data-invalid={hasTitleError || undefined}>
+                <FieldLabel htmlFor="contest-title">Nombre</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="contest-title"
+                    aria-invalid={hasTitleError}
+                    value={form.title}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, title: event.target.value }))
+                    }
+                    placeholder="Ej. Bebras Secundaria 2026"
+                  />
+                </FieldContent>
+              </Field>
+              <Field data-invalid={hasLevelError || undefined}>
+                <FieldLabel htmlFor="contest-level">Nivel</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="contest-level"
+                    aria-invalid={hasLevelError}
+                    value={form.level}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, level: event.target.value }))
+                    }
+                    placeholder="Ej. 12-14"
+                  />
+                </FieldContent>
+              </Field>
+              <Field data-invalid={hasDurationError || undefined}>
+                <FieldLabel htmlFor="contest-duration">Duración en minutos</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="contest-duration"
+                    aria-invalid={hasDurationError}
+                    min={1}
+                    type="number"
+                    value={String(form.durationMinutes)}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        durationMinutes: Number(event.target.value || 0),
+                      }))
+                    }
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contest-year">Año</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="contest-year"
+                    min={2000}
+                    max={2100}
+                    type="number"
+                    value={String(form.year)}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        year: Number(event.target.value || new Date().getFullYear()),
+                      }))
+                    }
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contest-status">Estado</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="contest-status"
+                    value={form.status}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, status: event.target.value }))
+                    }
+                    placeholder="draft"
+                  />
+                  <FieldDescription>
+                    Usa valores como draft, ready, published o closed.
+                  </FieldDescription>
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contest-folder-secret">Carpeta secreta</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="contest-folder-secret"
+                    value={form.folderSecret}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        folderSecret: event.target.value,
+                      }))
+                    }
+                    placeholder="Ej. bebras-secundaria-2026"
+                  />
+                </FieldContent>
+              </Field>
+            </FieldGroup>
+            <FieldGroup>
+              <DateRangeField
+                startsAt={form.startsAt}
+                endsAt={form.endsAt}
+                invalid={hasDateError}
+                onDateChange={(nextStartsAt, nextEndsAt) =>
+                  setForm((current) => ({
+                    ...current,
+                    startsAt: nextStartsAt,
+                    endsAt: nextEndsAt,
+                  }))
+                }
+                onStartsAtChange={(nextValue) =>
+                  setForm((current) => ({ ...current, startsAt: nextValue }))
+                }
+                onEndsAtChange={(nextValue) =>
+                  setForm((current) => ({ ...current, endsAt: nextValue }))
+                }
+              />
+            </FieldGroup>
+            {hasDateError && (
+              <FieldError
+                errors={[
+                  { message: "La fecha de fin debe ser posterior a la de inicio." },
+                ]}
+              />
+            )}
+          </FieldGroup>
         </CardContent>
-        <CardFooter className="flex flex-wrap gap-6 border-t pt-5">
-          <label className="flex items-center gap-3 text-sm">
-            <Checkbox
-              checked={form.allowPairs}
-              onCheckedChange={(checked) =>
-                setForm((current) => ({ ...current, allowPairs: checked === true }))
-              }
-            />
-            Permitir parejas
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <Checkbox
-              checked={form.showFeedback}
-              onCheckedChange={(checked) =>
-                setForm((current) => ({ ...current, showFeedback: checked === true }))
-              }
-            />
-            Mostrar feedback
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <Checkbox
-              checked={form.isVisible}
-              onCheckedChange={(checked) =>
-                setForm((current) => ({ ...current, isVisible: checked === true }))
-              }
-            />
-            Visible al público
-          </label>
+        <CardFooter className="border-t pt-5">
+          <FieldSet className="w-full">
+            <FieldLegend variant="label">Opciones de participación</FieldLegend>
+            <FieldDescription>
+              Ajusta la visibilidad y las reglas generales de la competencia.
+            </FieldDescription>
+            <FieldGroup className="gap-3">
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="contest-allow-pairs"
+                  checked={form.allowPairs}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, allowPairs: checked === true }))
+                  }
+                />
+                <FieldLabel htmlFor="contest-allow-pairs" className="font-normal">
+                  Permitir parejas
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="contest-is-open"
+                  checked={form.isOpen}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, isOpen: checked === true }))
+                  }
+                />
+                <FieldLabel htmlFor="contest-is-open" className="font-normal">
+                  Abierta para participar
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="contest-show-feedback"
+                  checked={form.showFeedback}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, showFeedback: checked === true }))
+                  }
+                />
+                <FieldLabel htmlFor="contest-show-feedback" className="font-normal">
+                  Mostrar feedback
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="contest-show-solutions"
+                  checked={form.showSolutions}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, showSolutions: checked === true }))
+                  }
+                />
+                <FieldLabel htmlFor="contest-show-solutions" className="font-normal">
+                  Mostrar soluciones
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="contest-show-total-score"
+                  checked={form.showTotalScore}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, showTotalScore: checked === true }))
+                  }
+                />
+                <FieldLabel htmlFor="contest-show-total-score" className="font-normal">
+                  Mostrar puntaje total
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="contest-is-visible"
+                  checked={form.isVisible}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, isVisible: checked === true }))
+                  }
+                />
+                <FieldLabel htmlFor="contest-is-visible" className="font-normal">
+                  Visible al público
+                </FieldLabel>
+              </Field>
+            </FieldGroup>
+          </FieldSet>
         </CardFooter>
       </Card>
 
@@ -409,7 +815,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </Alert>
             ) : (
               availableTasks.concat(selectedTasks).map((task) => {
-                const selected = form.taskIds.includes(task.id);
+                const selected = form.tasks.some((taskConfig) => taskConfig.taskId === task.id);
 
                 return (
                   <Card
@@ -462,49 +868,105 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 </AlertDescription>
               </Alert>
             ) : (
-              selectedTasks.map((task, index) => (
-                <Card key={task.id} variant="soft-gradient" className="gap-3 py-4">
-                  <CardHeader className="gap-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">#{index + 1}</Badge>
-                          <Badge variant="outline">{buildAgeSummary(task.difficulties)}</Badge>
+              selectedTasks.map((task, index) => {
+                const taskConfig =
+                  form.tasks.find((currentTask) => currentTask.taskId === task.id) ??
+                  createDefaultTaskConfig(task.id);
+
+                return (
+                  <Card key={task.id} variant="soft-gradient" className="gap-3 py-4">
+                    <CardHeader className="gap-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">#{index + 1}</Badge>
+                            <Badge variant="outline">{buildAgeSummary(task.difficulties)}</Badge>
+                          </div>
+                          <CardTitle className="text-lg">{task.title}</CardTitle>
+                          <CardDescription>{task.categories.join(", ") || "Sin categoría"}</CardDescription>
                         </div>
-                        <CardTitle className="text-lg">{task.title}</CardTitle>
-                        <CardDescription>{task.categories.join(", ") || "Sin categoría"}</CardDescription>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="icon-sm"
+                            type="button"
+                            variant="outline"
+                            disabled={index === 0}
+                            onClick={() => moveTask(task.id, "up")}
+                          >
+                            <ArrowUpIcon />
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            type="button"
+                            variant="outline"
+                            disabled={index === selectedTasks.length - 1}
+                            onClick={() => moveTask(task.id, "down")}
+                          >
+                            <ArrowDownIcon />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => toggleTask(task.id)}
+                          >
+                            Quitar
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="icon-sm"
-                          type="button"
-                          variant="outline"
-                          disabled={index === 0}
-                          onClick={() => moveTask(task.id, "up")}
-                        >
-                          <ArrowUpIcon />
-                        </Button>
-                        <Button
-                          size="icon-sm"
-                          type="button"
-                          variant="outline"
-                          disabled={index === selectedTasks.length - 1}
-                          onClick={() => moveTask(task.id, "down")}
-                        >
-                          <ArrowDownIcon />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => toggleTask(task.id)}
-                        >
-                          Quitar
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))
+                    </CardHeader>
+                    <CardContent className="grid gap-3 pt-0 md:grid-cols-4">
+                      <Field>
+                        <FieldLabel>Mínimo</FieldLabel>
+                        <Input
+                          type="number"
+                          value={String(taskConfig.minScore)}
+                          onChange={(event) =>
+                            updateTaskConfig(task.id, {
+                              minScore: Number(event.target.value || 0),
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Sin respuesta</FieldLabel>
+                        <Input
+                          type="number"
+                          value={String(taskConfig.noAnswerScore)}
+                          onChange={(event) =>
+                            updateTaskConfig(task.id, {
+                              noAnswerScore: Number(event.target.value || 0),
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Máximo</FieldLabel>
+                        <Input
+                          type="number"
+                          value={String(taskConfig.maxScore)}
+                          onChange={(event) =>
+                            updateTaskConfig(task.id, {
+                              maxScore: Number(event.target.value || 0),
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Opciones</FieldLabel>
+                        <Input
+                          value={taskConfig.options}
+                          onChange={(event) =>
+                            updateTaskConfig(task.id, {
+                              options: event.target.value,
+                            })
+                          }
+                          placeholder="{}"
+                        />
+                      </Field>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </CardContent>
         </Card>
@@ -522,7 +984,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-sm font-medium">
-                {form.taskIds.length} tarea(s) seleccionada(s)
+                {form.tasks.length} tarea(s) seleccionada(s)
               </div>
               <div className="text-sm text-muted-foreground">
                 Guarda la competencia para dejar persistido el orden actual.
@@ -535,6 +997,14 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 : resolvedContestId
                   ? "Guardar competencia"
                   : "Crear competencia"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saving || publishing}
+              onClick={handlePublish}
+            >
+              {publishing ? "Publicando..." : "Publicar competencia"}
             </Button>
           </div>
         </CardContent>

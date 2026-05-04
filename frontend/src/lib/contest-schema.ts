@@ -11,20 +11,38 @@ export type ContestTaskSummary = {
 export type StoredContestTask = {
   id: string;
   position: number;
+  taskId: string;
+  minScore: number;
+  noAnswerScore: number;
+  maxScore: number;
+  options: string;
   task: ContestTaskSummary;
+};
+
+export type ContestTaskConfigInput = {
+  taskId: string;
+  minScore: number;
+  noAnswerScore: number;
+  maxScore: number;
+  options: string;
 };
 
 export type StoredContest = {
   id: string;
   title: string;
   level: string;
+  year: number;
   durationMinutes: number;
   startsAt: string;
   endsAt: string;
+  isOpen: boolean;
   allowPairs: boolean;
   showFeedback: boolean;
+  showSolutions: boolean;
+  showTotalScore: boolean;
   isVisible: boolean;
   status: string;
+  folderSecret: string;
   createdAt: string;
   updatedAt: string;
   taskCount: number;
@@ -34,14 +52,19 @@ export type StoredContest = {
 export type ContestDraftInput = {
   title: string;
   level: string;
+  year: number;
   durationMinutes: number;
   startsAt: string;
   endsAt: string;
+  isOpen: boolean;
   allowPairs: boolean;
   showFeedback: boolean;
+  showSolutions: boolean;
+  showTotalScore: boolean;
   isVisible: boolean;
   status: string;
-  taskIds: string[];
+  folderSecret: string;
+  tasks: ContestTaskConfigInput[];
 };
 
 export function formatContestWindow(startsAt: string, endsAt: string) {

@@ -60,6 +60,12 @@ export function updateContest(contestId: string, contest: ContestDraftInput) {
   });
 }
 
+export function publishContest(contestId: string) {
+  return request<StoredContest>(`/api/contests/${contestId}/publish`, {
+    method: "POST",
+  });
+}
+
 export function removeContest(contestId: string) {
   return request<null>(`/api/contests/${contestId}`, {
     method: "DELETE",

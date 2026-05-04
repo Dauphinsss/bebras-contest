@@ -114,13 +114,18 @@ export const ContestScalarFieldEnum = {
   id: 'id',
   title: 'title',
   level: 'level',
+  year: 'year',
   durationMinutes: 'durationMinutes',
   startsAt: 'startsAt',
   endsAt: 'endsAt',
+  isOpen: 'isOpen',
   allowPairs: 'allowPairs',
   showFeedback: 'showFeedback',
+  showSolutions: 'showSolutions',
+  showTotalScore: 'showTotalScore',
   isVisible: 'isVisible',
   status: 'status',
+  folderSecret: 'folderSecret',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -133,6 +138,10 @@ export const ContestTaskScalarFieldEnum = {
   contestId: 'contestId',
   taskDraftId: 'taskDraftId',
   position: 'position',
+  minScore: 'minScore',
+  noAnswerScore: 'noAnswerScore',
+  maxScore: 'maxScore',
+  options: 'options',
   createdAt: 'createdAt'
 } as const
 

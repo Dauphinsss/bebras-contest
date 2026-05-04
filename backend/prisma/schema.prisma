@@ -43,13 +43,18 @@ model Contest {
   id               String         @id @default(cuid())
   title            String
   level            String
+  year             Int            @default(2026)
   durationMinutes  Int
   startsAt         DateTime
   endsAt           DateTime
+  isOpen           Boolean        @default(false)
   allowPairs       Boolean        @default(false)
   showFeedback     Boolean        @default(false)
+  showSolutions    Boolean        @default(false)
+  showTotalScore   Boolean        @default(false)
   isVisible        Boolean        @default(false)
   status           String         @default("draft")
+  folderSecret     String         @default("")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   tasks            ContestTask[]
@@ -61,6 +66,10 @@ model ContestTask {
   contestId    String
   taskDraftId  String
   position     Int
+  minScore     Int       @default(0)
+  noAnswerScore Int      @default(0)
+  maxScore     Int       @default(10)
+  options      String    @default("{}")
   createdAt    DateTime  @default(now())
   contest      Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
   taskDraft    TaskDraft @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
