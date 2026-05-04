@@ -52,7 +52,14 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
-  TaskDraft: 'TaskDraft'
+  TaskDraft: 'TaskDraft',
+  Contest: 'Contest',
+  ContestTask: 'ContestTask',
+  ContestGroup: 'ContestGroup',
+  Team: 'Team',
+  Attempt: 'Attempt',
+  AttemptAnswer: 'AttemptAnswer',
+  Result: 'Result'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -101,6 +108,109 @@ export const TaskDraftScalarFieldEnum = {
 } as const
 
 export type TaskDraftScalarFieldEnum = (typeof TaskDraftScalarFieldEnum)[keyof typeof TaskDraftScalarFieldEnum]
+
+
+export const ContestScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  level: 'level',
+  durationMinutes: 'durationMinutes',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  allowPairs: 'allowPairs',
+  showFeedback: 'showFeedback',
+  isVisible: 'isVisible',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContestScalarFieldEnum = (typeof ContestScalarFieldEnum)[keyof typeof ContestScalarFieldEnum]
+
+
+export const ContestTaskScalarFieldEnum = {
+  id: 'id',
+  contestId: 'contestId',
+  taskDraftId: 'taskDraftId',
+  position: 'position',
+  createdAt: 'createdAt'
+} as const
+
+export type ContestTaskScalarFieldEnum = (typeof ContestTaskScalarFieldEnum)[keyof typeof ContestTaskScalarFieldEnum]
+
+
+export const ContestGroupScalarFieldEnum = {
+  id: 'id',
+  contestId: 'contestId',
+  name: 'name',
+  accessCode: 'accessCode',
+  recoveryCode: 'recoveryCode',
+  firstUsedAt: 'firstUsedAt',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContestGroupScalarFieldEnum = (typeof ContestGroupScalarFieldEnum)[keyof typeof ContestGroupScalarFieldEnum]
+
+
+export const TeamScalarFieldEnum = {
+  id: 'id',
+  groupId: 'groupId',
+  participationMode: 'participationMode',
+  memberOneName: 'memberOneName',
+  memberTwoName: 'memberTwoName',
+  personalCode: 'personalCode',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TeamScalarFieldEnum = (typeof TeamScalarFieldEnum)[keyof typeof TeamScalarFieldEnum]
+
+
+export const AttemptScalarFieldEnum = {
+  id: 'id',
+  teamId: 'teamId',
+  startedAt: 'startedAt',
+  endsAt: 'endsAt',
+  finishedAt: 'finishedAt',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AttemptScalarFieldEnum = (typeof AttemptScalarFieldEnum)[keyof typeof AttemptScalarFieldEnum]
+
+
+export const AttemptAnswerScalarFieldEnum = {
+  id: 'id',
+  attemptId: 'attemptId',
+  taskDraftId: 'taskDraftId',
+  responsePayload: 'responsePayload',
+  isCorrect: 'isCorrect',
+  score: 'score',
+  answeredAt: 'answeredAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AttemptAnswerScalarFieldEnum = (typeof AttemptAnswerScalarFieldEnum)[keyof typeof AttemptAnswerScalarFieldEnum]
+
+
+export const ResultScalarFieldEnum = {
+  id: 'id',
+  attemptId: 'attemptId',
+  totalScore: 'totalScore',
+  correctCount: 'correctCount',
+  answeredCount: 'answeredCount',
+  rankPosition: 'rankPosition',
+  calculatedAt: 'calculatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ResultScalarFieldEnum = (typeof ResultScalarFieldEnum)[keyof typeof ResultScalarFieldEnum]
 
 
 export const SortOrder = {

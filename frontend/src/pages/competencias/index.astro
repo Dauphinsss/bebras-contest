@@ -1,0 +1,12 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { ContestsHome } from "../../components/contests-home";
+
+const title = "Competencias";
+---
+
+<Layout title={title}>
+  <main class="mx-auto flex min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <ContestsHome client:load />
+  </main>
+</Layout>

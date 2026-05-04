@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircleIcon,
+  FolderKanbanIcon,
   FilePenLineIcon,
   FilePlus2Icon,
   PlayCircleIcon,
@@ -73,6 +74,12 @@ export function TasksHome() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <Button asChild variant="outline">
+                <a href="/competencias">
+                  <FolderKanbanIcon data-icon="inline-start" />
+                  Competencias
+                </a>
+              </Button>
               <Button asChild>
                 <a href="/tareas/nueva">
                   <FilePlus2Icon data-icon="inline-start" />

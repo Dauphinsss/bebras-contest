@@ -10,4 +10,11 @@
  */
 export type * from './models/User'
 export type * from './models/TaskDraft'
+export type * from './models/Contest'
+export type * from './models/ContestTask'
+export type * from './models/ContestGroup'
+export type * from './models/Team'
+export type * from './models/Attempt'
+export type * from './models/AttemptAnswer'
+export type * from './models/Result'
 export type * from './commonInputTypes'

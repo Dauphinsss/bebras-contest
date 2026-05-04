@@ -286,6 +286,8 @@ export type TaskDraftWhereInput = {
   status?: Prisma.StringFilter<"TaskDraft"> | string
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
+  contestTasks?: Prisma.ContestTaskListRelationFilter
+  attemptAnswers?: Prisma.AttemptAnswerListRelationFilter
 }
 
 export type TaskDraftOrderByWithRelationInput = {
@@ -307,6 +309,8 @@ export type TaskDraftOrderByWithRelationInput = {
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  contestTasks?: Prisma.ContestTaskOrderByRelationAggregateInput
+  attemptAnswers?: Prisma.AttemptAnswerOrderByRelationAggregateInput
 }
 
 export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
@@ -331,6 +335,8 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
   status?: Prisma.StringFilter<"TaskDraft"> | string
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
+  contestTasks?: Prisma.ContestTaskListRelationFilter
+  attemptAnswers?: Prisma.AttemptAnswerListRelationFilter
 }, "id">
 
 export type TaskDraftOrderByWithAggregationInput = {
@@ -400,6 +406,8 @@ export type TaskDraftCreateInput = {
   status?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  contestTasks?: Prisma.ContestTaskCreateNestedManyWithoutTaskDraftInput
+  attemptAnswers?: Prisma.AttemptAnswerCreateNestedManyWithoutTaskDraftInput
 }
 
 export type TaskDraftUncheckedCreateInput = {
@@ -421,6 +429,8 @@ export type TaskDraftUncheckedCreateInput = {
   status?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  contestTasks?: Prisma.ContestTaskUncheckedCreateNestedManyWithoutTaskDraftInput
+  attemptAnswers?: Prisma.AttemptAnswerUncheckedCreateNestedManyWithoutTaskDraftInput
 }
 
 export type TaskDraftUpdateInput = {
@@ -442,6 +452,8 @@ export type TaskDraftUpdateInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  contestTasks?: Prisma.ContestTaskUpdateManyWithoutTaskDraftNestedInput
+  attemptAnswers?: Prisma.AttemptAnswerUpdateManyWithoutTaskDraftNestedInput
 }
 
 export type TaskDraftUncheckedUpdateInput = {
@@ -463,6 +475,8 @@ export type TaskDraftUncheckedUpdateInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  contestTasks?: Prisma.ContestTaskUncheckedUpdateManyWithoutTaskDraftNestedInput
+  attemptAnswers?: Prisma.AttemptAnswerUncheckedUpdateManyWithoutTaskDraftNestedInput
 }
 
 export type TaskDraftCreateManyInput = {
@@ -591,6 +605,285 @@ export type TaskDraftMinOrderByAggregateInput = {
   updatedAt?: Prisma.SortOrder
 }
 
+export type TaskDraftScalarRelationFilter = {
+  is?: Prisma.TaskDraftWhereInput
+  isNot?: Prisma.TaskDraftWhereInput
+}
+
+export type TaskDraftCreateNestedOneWithoutContestTasksInput = {
+  create?: Prisma.XOR<Prisma.TaskDraftCreateWithoutContestTasksInput, Prisma.TaskDraftUncheckedCreateWithoutContestTasksInput>
+  connectOrCreate?: Prisma.TaskDraftCreateOrConnectWithoutContestTasksInput
+  connect?: Prisma.TaskDraftWhereUniqueInput
+}
+
+export type TaskDraftUpdateOneRequiredWithoutContestTasksNestedInput = {
+  create?: Prisma.XOR<Prisma.TaskDraftCreateWithoutContestTasksInput, Prisma.TaskDraftUncheckedCreateWithoutContestTasksInput>
+  connectOrCreate?: Prisma.TaskDraftCreateOrConnectWithoutContestTasksInput
+  upsert?: Prisma.TaskDraftUpsertWithoutContestTasksInput
+  connect?: Prisma.TaskDraftWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.TaskDraftUpdateToOneWithWhereWithoutContestTasksInput, Prisma.TaskDraftUpdateWithoutContestTasksInput>, Prisma.TaskDraftUncheckedUpdateWithoutContestTasksInput>
+}
+
+export type TaskDraftCreateNestedOneWithoutAttemptAnswersInput = {
+  create?: Prisma.XOR<Prisma.TaskDraftCreateWithoutAttemptAnswersInput, Prisma.TaskDraftUncheckedCreateWithoutAttemptAnswersInput>
+  connectOrCreate?: Prisma.TaskDraftCreateOrConnectWithoutAttemptAnswersInput
+  connect?: Prisma.TaskDraftWhereUniqueInput
+}
+
+export type TaskDraftUpdateOneRequiredWithoutAttemptAnswersNestedInput = {
+  create?: Prisma.XOR<Prisma.TaskDraftCreateWithoutAttemptAnswersInput, Prisma.TaskDraftUncheckedCreateWithoutAttemptAnswersInput>
+  connectOrCreate?: Prisma.TaskDraftCreateOrConnectWithoutAttemptAnswersInput
+  upsert?: Prisma.TaskDraftUpsertWithoutAttemptAnswersInput
+  connect?: Prisma.TaskDraftWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.TaskDraftUpdateToOneWithWhereWithoutAttemptAnswersInput, Prisma.TaskDraftUpdateWithoutAttemptAnswersInput>, Prisma.TaskDraftUncheckedUpdateWithoutAttemptAnswersInput>
+}
+
+export type TaskDraftCreateWithoutContestTasksInput = {
+  id?: string
+  title: string
+  category: string
+  difficulties: string
+  bodyBlocks: string
+  challengeBlocks: string
+  answerType?: string
+  multipleChoiceOrderMode?: string
+  answers: string
+  correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
+  explanation: string
+  status?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  attemptAnswers?: Prisma.AttemptAnswerCreateNestedManyWithoutTaskDraftInput
+}
+
+export type TaskDraftUncheckedCreateWithoutContestTasksInput = {
+  id?: string
+  title: string
+  category: string
+  difficulties: string
+  bodyBlocks: string
+  challengeBlocks: string
+  answerType?: string
+  multipleChoiceOrderMode?: string
+  answers: string
+  correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
+  explanation: string
+  status?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  attemptAnswers?: Prisma.AttemptAnswerUncheckedCreateNestedManyWithoutTaskDraftInput
+}
+
+export type TaskDraftCreateOrConnectWithoutContestTasksInput = {
+  where: Prisma.TaskDraftWhereUniqueInput
+  create: Prisma.XOR<Prisma.TaskDraftCreateWithoutContestTasksInput, Prisma.TaskDraftUncheckedCreateWithoutContestTasksInput>
+}
+
+export type TaskDraftUpsertWithoutContestTasksInput = {
+  update: Prisma.XOR<Prisma.TaskDraftUpdateWithoutContestTasksInput, Prisma.TaskDraftUncheckedUpdateWithoutContestTasksInput>
+  create: Prisma.XOR<Prisma.TaskDraftCreateWithoutContestTasksInput, Prisma.TaskDraftUncheckedCreateWithoutContestTasksInput>
+  where?: Prisma.TaskDraftWhereInput
+}
+
+export type TaskDraftUpdateToOneWithWhereWithoutContestTasksInput = {
+  where?: Prisma.TaskDraftWhereInput
+  data: Prisma.XOR<Prisma.TaskDraftUpdateWithoutContestTasksInput, Prisma.TaskDraftUncheckedUpdateWithoutContestTasksInput>
+}
+
+export type TaskDraftUpdateWithoutContestTasksInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.StringFieldUpdateOperationsInput | string
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  difficulties?: Prisma.StringFieldUpdateOperationsInput | string
+  bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
+  answers?: Prisma.StringFieldUpdateOperationsInput | string
+  correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
+  explanation?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  attemptAnswers?: Prisma.AttemptAnswerUpdateManyWithoutTaskDraftNestedInput
+}
+
+export type TaskDraftUncheckedUpdateWithoutContestTasksInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.StringFieldUpdateOperationsInput | string
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  difficulties?: Prisma.StringFieldUpdateOperationsInput | string
+  bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
+  answers?: Prisma.StringFieldUpdateOperationsInput | string
+  correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
+  explanation?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  attemptAnswers?: Prisma.AttemptAnswerUncheckedUpdateManyWithoutTaskDraftNestedInput
+}
+
+export type TaskDraftCreateWithoutAttemptAnswersInput = {
+  id?: string
+  title: string
+  category: string
+  difficulties: string
+  bodyBlocks: string
+  challengeBlocks: string
+  answerType?: string
+  multipleChoiceOrderMode?: string
+  answers: string
+  correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
+  explanation: string
+  status?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  contestTasks?: Prisma.ContestTaskCreateNestedManyWithoutTaskDraftInput
+}
+
+export type TaskDraftUncheckedCreateWithoutAttemptAnswersInput = {
+  id?: string
+  title: string
+  category: string
+  difficulties: string
+  bodyBlocks: string
+  challengeBlocks: string
+  answerType?: string
+  multipleChoiceOrderMode?: string
+  answers: string
+  correctAnswerId: string
+  shortAnswer?: string
+  rangeAnswers?: string
+  dragDropBackground?: string
+  dragDropItems?: string
+  explanation: string
+  status?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  contestTasks?: Prisma.ContestTaskUncheckedCreateNestedManyWithoutTaskDraftInput
+}
+
+export type TaskDraftCreateOrConnectWithoutAttemptAnswersInput = {
+  where: Prisma.TaskDraftWhereUniqueInput
+  create: Prisma.XOR<Prisma.TaskDraftCreateWithoutAttemptAnswersInput, Prisma.TaskDraftUncheckedCreateWithoutAttemptAnswersInput>
+}
+
+export type TaskDraftUpsertWithoutAttemptAnswersInput = {
+  update: Prisma.XOR<Prisma.TaskDraftUpdateWithoutAttemptAnswersInput, Prisma.TaskDraftUncheckedUpdateWithoutAttemptAnswersInput>
+  create: Prisma.XOR<Prisma.TaskDraftCreateWithoutAttemptAnswersInput, Prisma.TaskDraftUncheckedCreateWithoutAttemptAnswersInput>
+  where?: Prisma.TaskDraftWhereInput
+}
+
+export type TaskDraftUpdateToOneWithWhereWithoutAttemptAnswersInput = {
+  where?: Prisma.TaskDraftWhereInput
+  data: Prisma.XOR<Prisma.TaskDraftUpdateWithoutAttemptAnswersInput, Prisma.TaskDraftUncheckedUpdateWithoutAttemptAnswersInput>
+}
+
+export type TaskDraftUpdateWithoutAttemptAnswersInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.StringFieldUpdateOperationsInput | string
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  difficulties?: Prisma.StringFieldUpdateOperationsInput | string
+  bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
+  answers?: Prisma.StringFieldUpdateOperationsInput | string
+  correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
+  explanation?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  contestTasks?: Prisma.ContestTaskUpdateManyWithoutTaskDraftNestedInput
+}
+
+export type TaskDraftUncheckedUpdateWithoutAttemptAnswersInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.StringFieldUpdateOperationsInput | string
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  difficulties?: Prisma.StringFieldUpdateOperationsInput | string
+  bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  challengeBlocks?: Prisma.StringFieldUpdateOperationsInput | string
+  answerType?: Prisma.StringFieldUpdateOperationsInput | string
+  multipleChoiceOrderMode?: Prisma.StringFieldUpdateOperationsInput | string
+  answers?: Prisma.StringFieldUpdateOperationsInput | string
+  correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
+  shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
+  dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
+  explanation?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  contestTasks?: Prisma.ContestTaskUncheckedUpdateManyWithoutTaskDraftNestedInput
+}
+
+
+/**
+ * Count Type TaskDraftCountOutputType
+ */
+
+export type TaskDraftCountOutputType = {
+  contestTasks: number
+  attemptAnswers: number
+}
+
+export type TaskDraftCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  contestTasks?: boolean | TaskDraftCountOutputTypeCountContestTasksArgs
+  attemptAnswers?: boolean | TaskDraftCountOutputTypeCountAttemptAnswersArgs
+}
+
+/**
+ * TaskDraftCountOutputType without action
+ */
+export type TaskDraftCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the TaskDraftCountOutputType
+   */
+  select?: Prisma.TaskDraftCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * TaskDraftCountOutputType without action
+ */
+export type TaskDraftCountOutputTypeCountContestTasksArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ContestTaskWhereInput
+}
+
+/**
+ * TaskDraftCountOutputType without action
+ */
+export type TaskDraftCountOutputTypeCountAttemptAnswersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AttemptAnswerWhereInput
+}
 
 
 export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -612,6 +905,9 @@ export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  contestTasks?: boolean | Prisma.TaskDraft$contestTasksArgs<ExtArgs>
+  attemptAnswers?: boolean | Prisma.TaskDraft$attemptAnswersArgs<ExtArgs>
+  _count?: boolean | Prisma.TaskDraftCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["taskDraft"]>
 
 export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -678,10 +974,20 @@ export type TaskDraftSelectScalar = {
 }
 
 export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeAnswers" | "dragDropBackground" | "dragDropItems" | "explanation" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
+export type TaskDraftInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  contestTasks?: boolean | Prisma.TaskDraft$contestTasksArgs<ExtArgs>
+  attemptAnswers?: boolean | Prisma.TaskDraft$attemptAnswersArgs<ExtArgs>
+  _count?: boolean | Prisma.TaskDraftCountOutputTypeDefaultArgs<ExtArgs>
+}
+export type TaskDraftIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
+export type TaskDraftIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
 
 export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "TaskDraft"
-  objects: {}
+  objects: {
+    contestTasks: Prisma.$ContestTaskPayload<ExtArgs>[]
+    attemptAnswers: Prisma.$AttemptAnswerPayload<ExtArgs>[]
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     title: string
@@ -1095,6 +1401,8 @@ readonly fields: TaskDraftFieldRefs;
  */
 export interface Prisma__TaskDraftClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  contestTasks<T extends Prisma.TaskDraft$contestTasksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.TaskDraft$contestTasksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContestTaskPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  attemptAnswers<T extends Prisma.TaskDraft$attemptAnswersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.TaskDraft$attemptAnswersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AttemptAnswerPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1159,6 +1467,10 @@ export type TaskDraftFindUniqueArgs<ExtArgs extends runtime.Types.Extensions.Int
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
+  /**
    * Filter, which TaskDraft to fetch.
    */
   where: Prisma.TaskDraftWhereUniqueInput
@@ -1177,6 +1489,10 @@ export type TaskDraftFindUniqueOrThrowArgs<ExtArgs extends runtime.Types.Extensi
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
+  /**
    * Filter, which TaskDraft to fetch.
    */
   where: Prisma.TaskDraftWhereUniqueInput
@@ -1194,6 +1510,10 @@ export type TaskDraftFindFirstArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * Omit specific fields from the TaskDraft
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
   /**
    * Filter, which TaskDraft to fetch.
    */
@@ -1243,6 +1563,10 @@ export type TaskDraftFindFirstOrThrowArgs<ExtArgs extends runtime.Types.Extensio
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
+  /**
    * Filter, which TaskDraft to fetch.
    */
   where?: Prisma.TaskDraftWhereInput
@@ -1290,6 +1614,10 @@ export type TaskDraftFindManyArgs<ExtArgs extends runtime.Types.Extensions.Inter
    * Omit specific fields from the TaskDraft
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
   /**
    * Filter, which TaskDrafts to fetch.
    */
@@ -1339,6 +1667,10 @@ export type TaskDraftCreateArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
+  /**
    * The data needed to create a TaskDraft.
    */
   data: Prisma.XOR<Prisma.TaskDraftCreateInput, Prisma.TaskDraftUncheckedCreateInput>
@@ -1384,6 +1716,10 @@ export type TaskDraftUpdateArgs<ExtArgs extends runtime.Types.Extensions.Interna
    * Omit specific fields from the TaskDraft
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
   /**
    * The data needed to update a TaskDraft.
    */
@@ -1451,6 +1787,10 @@ export type TaskDraftUpsertArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
+  /**
    * The filter to search for the TaskDraft to update in case it exists.
    */
   where: Prisma.TaskDraftWhereUniqueInput
@@ -1477,6 +1817,10 @@ export type TaskDraftDeleteArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
+  /**
    * Filter which TaskDraft to delete.
    */
   where: Prisma.TaskDraftWhereUniqueInput
@@ -1497,6 +1841,54 @@ export type TaskDraftDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Int
 }
 
 /**
+ * TaskDraft.contestTasks
+ */
+export type TaskDraft$contestTasksArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ContestTask
+   */
+  select?: Prisma.ContestTaskSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ContestTask
+   */
+  omit?: Prisma.ContestTaskOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContestTaskInclude<ExtArgs> | null
+  where?: Prisma.ContestTaskWhereInput
+  orderBy?: Prisma.ContestTaskOrderByWithRelationInput | Prisma.ContestTaskOrderByWithRelationInput[]
+  cursor?: Prisma.ContestTaskWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ContestTaskScalarFieldEnum | Prisma.ContestTaskScalarFieldEnum[]
+}
+
+/**
+ * TaskDraft.attemptAnswers
+ */
+export type TaskDraft$attemptAnswersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AttemptAnswer
+   */
+  select?: Prisma.AttemptAnswerSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AttemptAnswer
+   */
+  omit?: Prisma.AttemptAnswerOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AttemptAnswerInclude<ExtArgs> | null
+  where?: Prisma.AttemptAnswerWhereInput
+  orderBy?: Prisma.AttemptAnswerOrderByWithRelationInput | Prisma.AttemptAnswerOrderByWithRelationInput[]
+  cursor?: Prisma.AttemptAnswerWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AttemptAnswerScalarFieldEnum | Prisma.AttemptAnswerScalarFieldEnum[]
+}
+
+/**
  * TaskDraft without action
  */
 export type TaskDraftDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1508,4 +1900,8 @@ export type TaskDraftDefaultArgs<ExtArgs extends runtime.Types.Extensions.Intern
    * Omit specific fields from the TaskDraft
    */
   omit?: Prisma.TaskDraftOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TaskDraftInclude<ExtArgs> | null
 }

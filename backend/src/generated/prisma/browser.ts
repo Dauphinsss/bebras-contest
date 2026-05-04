@@ -27,3 +27,38 @@ export type User = Prisma.UserModel
  * 
  */
 export type TaskDraft = Prisma.TaskDraftModel
+/**
+ * Model Contest
+ * 
+ */
+export type Contest = Prisma.ContestModel
+/**
+ * Model ContestTask
+ * 
+ */
+export type ContestTask = Prisma.ContestTaskModel
+/**
+ * Model ContestGroup
+ * 
+ */
+export type ContestGroup = Prisma.ContestGroupModel
+/**
+ * Model Team
+ * 
+ */
+export type Team = Prisma.TeamModel
+/**
+ * Model Attempt
+ * 
+ */
+export type Attempt = Prisma.AttemptModel
+/**
+ * Model AttemptAnswer
+ * 
+ */
+export type AttemptAnswer = Prisma.AttemptAnswerModel
+/**
+ * Model Result
+ * 
+ */
+export type Result = Prisma.ResultModel

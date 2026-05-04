@@ -35,4 +35,113 @@ model TaskDraft {
   status          String   @default("Borrador")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  contestTasks    ContestTask[]
+  attemptAnswers  AttemptAnswer[]
+}
+
+model Contest {
+  id               String         @id @default(cuid())
+  title            String
+  level            String
+  durationMinutes  Int
+  startsAt         DateTime
+  endsAt           DateTime
+  allowPairs       Boolean        @default(false)
+  showFeedback     Boolean        @default(false)
+  isVisible        Boolean        @default(false)
+  status           String         @default("draft")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tasks            ContestTask[]
+  groups           ContestGroup[]
+}
+
+model ContestTask {
+  id           String    @id @default(cuid())
+  contestId    String
+  taskDraftId  String
+  position     Int
+  createdAt    DateTime  @default(now())
+  contest      Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  taskDraft    TaskDraft @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
+
+  @@unique([contestId, taskDraftId])
+  @@unique([contestId, position])
+  @@index([contestId, position])
+}
+
+model ContestGroup {
+  id            String    @id @default(cuid())
+  contestId     String
+  name          String
+  accessCode    String    @unique
+  recoveryCode  String
+  firstUsedAt   DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  contest       Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  teams         Team[]
+
+  @@index([contestId])
+}
+
+model Team {
+  id                 String        @id @default(cuid())
+  groupId            String
+  participationMode  String        @default("individual")
+  memberOneName      String
+  memberTwoName      String?
+  personalCode       String        @unique
+  status             String        @default("registered")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  group              ContestGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  attempt            Attempt?
+
+  @@index([groupId])
+}
+
+model Attempt {
+  id            String          @id @default(cuid())
+  teamId        String          @unique
+  startedAt     DateTime?
+  endsAt        DateTime?
+  finishedAt    DateTime?
+  status        String          @default("pending")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  team          Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  answers       AttemptAnswer[]
+  result        Result?
+}
+
+model AttemptAnswer {
+  id             String     @id @default(cuid())
+  attemptId      String
+  taskDraftId    String
+  responsePayload String
+  isCorrect      Boolean?
+  score          Int        @default(0)
+  answeredAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  attempt        Attempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  taskDraft      TaskDraft  @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, taskDraftId])
+  @@index([attemptId])
+}
+
+model Result {
+  id            String    @id @default(cuid())
+  attemptId     String    @unique
+  totalScore    Int       @default(0)
+  correctCount  Int       @default(0)
+  answeredCount Int       @default(0)
+  rankPosition  Int?
+  calculatedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  attempt       Attempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 }
