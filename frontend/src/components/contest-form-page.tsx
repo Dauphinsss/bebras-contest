@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowDownIcon,
-  ArrowUpIcon,
   CalendarIcon,
   CheckCircle2Icon,
   Clock8Icon,
   FileStackIcon,
-  FolderTreeIcon,
+  ArrowUpIcon,
   LoaderCircleIcon,
   SaveIcon,
+  SlidersHorizontalIcon,
 } from "lucide-react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import type { DateRange } from "react-day-picker";
 
@@ -23,12 +24,19 @@ import {
   updateContest,
 } from "@/lib/contests-api";
 import {
+  CONTEST_CATEGORIES,
   type ContestTaskConfigInput,
   toDatetimeLocalValue,
   type ContestDraftInput,
 } from "@/lib/contest-schema";
 import { listTasks } from "@/lib/tasks-api";
 import { buildAgeSummary, type StoredTask } from "@/lib/task-schema";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +45,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -49,10 +56,15 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
@@ -72,30 +84,20 @@ function createDefaultTaskConfig(taskId: string): ContestTaskConfigInput {
     minScore: 0,
     noAnswerScore: 0,
     maxScore: 10,
-    options: "{}",
   };
 }
 
 function createInitialState(): FormState {
-  const now = new Date();
-  const start = new Date(now.getTime() + 60 * 60 * 1000);
-  const end = new Date(start.getTime() + 90 * 60 * 1000);
-
   return {
     title: "",
-    level: "",
-    year: new Date().getFullYear(),
-    durationMinutes: 90,
-    startsAt: toDatetimeLocalValue(start.toISOString()),
-    endsAt: toDatetimeLocalValue(end.toISOString()),
-    isOpen: false,
+    category: "",
+    durationMinutes: 45,
+    startsAt: "",
+    endsAt: "",
     allowPairs: false,
     showFeedback: false,
     showSolutions: false,
     showTotalScore: false,
-    isVisible: false,
-    status: "draft",
-    folderSecret: "",
     tasks: [],
   };
 }
@@ -103,19 +105,14 @@ function createInitialState(): FormState {
 function createStateFromContest(contest: Awaited<ReturnType<typeof getContest>>): FormState {
   return {
     title: contest.title,
-    level: contest.level,
-    year: contest.year,
+    category: contest.category,
     durationMinutes: contest.durationMinutes,
     startsAt: toDatetimeLocalValue(contest.startsAt),
     endsAt: toDatetimeLocalValue(contest.endsAt),
-    isOpen: contest.isOpen,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
     showSolutions: contest.showSolutions,
     showTotalScore: contest.showTotalScore,
-    isVisible: contest.isVisible,
-    status: contest.status,
-    folderSecret: contest.folderSecret,
     tasks: contest.tasks
       .slice()
       .sort((left, right) => left.position - right.position)
@@ -124,7 +121,6 @@ function createStateFromContest(contest: Awaited<ReturnType<typeof getContest>>)
         minScore: task.minScore,
         noAnswerScore: task.noAnswerScore,
         maxScore: task.maxScore,
-        options: task.options,
       })),
   };
 }
@@ -148,13 +144,12 @@ function toTimeValue(value: string) {
   const date = parseDateTimeLocal(value);
 
   if (!date) {
-    return "09:00:00";
+    return "";
   }
 
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${hours}:${minutes}:${seconds}`;
+  return `${hours}:${minutes}`;
 }
 
 function updateDatePart(currentValue: string, nextDate: Date | undefined) {
@@ -220,7 +215,6 @@ function TimeInput({
         aria-invalid={invalid}
         aria-label={`${label} hora`}
         className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-        step="1"
         type="time"
         value={draftValue}
         onChange={(event) => {
@@ -258,12 +252,18 @@ function DateRangeField({
     : undefined;
   const rangeLabel =
     startDate && endDate
-      ? `${format(startDate, "dd/MM/yyyy")} - ${format(endDate, "dd/MM/yyyy")}`
+      ? `${format(startDate, "d 'de' MMMM 'de' yyyy", { locale: es })} - ${format(
+          endDate,
+          "d 'de' MMMM 'de' yyyy",
+          { locale: es },
+        )}`
       : "Selecciona rango";
 
   return (
     <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor="contest-date-range">Ventana de ejecución</FieldLabel>
+      <FieldLabel htmlFor="contest-date-range">
+        Ventana de disponibilidad <span className="text-destructive">*</span>
+      </FieldLabel>
       <FieldContent>
         <div className="flex flex-col gap-3 lg:flex-row">
           <Popover>
@@ -320,7 +320,7 @@ function DateRangeField({
           </div>
         </div>
         <FieldDescription>
-          Selecciona el rango de fechas y define la hora exacta de inicio y fin.
+          La competencia se abre y cierra automáticamente dentro de esta ventana.
         </FieldDescription>
       </FieldContent>
     </Field>
@@ -339,6 +339,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -399,10 +400,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       errors.push("El nombre de la competencia es obligatorio.");
     }
 
-    if (!form.level.trim()) {
-      errors.push("El nivel de la competencia es obligatorio.");
-    }
-
     if (!Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0) {
       errors.push("La duración debe ser mayor que cero.");
     }
@@ -424,20 +421,23 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     return errors;
   }, [form]);
 
-  const hasTitleError = !form.title.trim();
-  const hasLevelError = !form.level.trim();
+  const hasTitleError = submitAttempted && !form.title.trim();
   const hasDurationError =
-    !Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0;
+    submitAttempted &&
+    (!Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0);
   const hasDateError =
-    !form.startsAt ||
-    !form.endsAt ||
-    new Date(form.endsAt) <= new Date(form.startsAt);
+    submitAttempted &&
+    (!form.startsAt ||
+      !form.endsAt ||
+      new Date(form.endsAt) <= new Date(form.startsAt));
 
   const handlePublish = async () => {
     if (!resolvedContestId) {
       toast.error("Primero guarda la competencia antes de publicarla.");
       return;
     }
+
+    setSubmitAttempted(true);
 
     if (validationErrors.length > 0) {
       toast.error(validationErrors[0]);
@@ -450,12 +450,11 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       const savedContest = await updateContest(resolvedContestId, {
         ...form,
         title: form.title.trim(),
-        level: form.level.trim(),
       });
       const publishedContest = await publishContest(savedContest.id);
 
       setForm(createStateFromContest(publishedContest));
-      toast.success("La competencia quedó publicada y abierta.");
+      toast.success("La competencia quedó publicada.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo publicar la competencia.");
     } finally {
@@ -499,20 +498,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     });
   };
 
-  const updateTaskConfig = (
-    taskId: string,
-    patch: Partial<Omit<ContestTaskConfigInput, "taskId">>,
-  ) => {
-    setForm((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) =>
-        task.taskId === taskId ? { ...task, ...patch } : task,
-      ),
-    }));
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSubmitAttempted(true);
 
     if (validationErrors.length > 0) {
       toast.error(validationErrors[0]);
@@ -525,7 +513,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       const payload: ContestDraftInput = {
         ...form,
         title: form.title.trim(),
-        level: form.level.trim(),
       };
 
       const savedContest = resolvedContestId
@@ -569,21 +556,18 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
       <Card>
         <CardHeader className="border-b">
-          <div className="flex items-center gap-3">
-            <FolderTreeIcon className="text-muted-foreground" />
-            <div>
-              <CardTitle>Datos generales</CardTitle>
-              <CardDescription>
-                Define el marco básico de la competencia antes de asignar tareas.
-              </CardDescription>
-            </div>
-          </div>
+          <CardTitle>Datos generales</CardTitle>
+          <CardDescription>
+            Define el nombre, la duración y la ventana de la competencia.
+          </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <FieldGroup>
             <FieldGroup className="grid gap-4 md:grid-cols-2">
               <Field data-invalid={hasTitleError || undefined}>
-                <FieldLabel htmlFor="contest-title">Nombre</FieldLabel>
+                <FieldLabel htmlFor="contest-title">
+                  Nombre <span className="text-destructive">*</span>
+                </FieldLabel>
                 <FieldContent>
                   <Input
                     id="contest-title"
@@ -596,22 +580,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   />
                 </FieldContent>
               </Field>
-              <Field data-invalid={hasLevelError || undefined}>
-                <FieldLabel htmlFor="contest-level">Nivel</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="contest-level"
-                    aria-invalid={hasLevelError}
-                    value={form.level}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, level: event.target.value }))
-                    }
-                    placeholder="Ej. 12-14"
-                  />
-                </FieldContent>
-              </Field>
               <Field data-invalid={hasDurationError || undefined}>
-                <FieldLabel htmlFor="contest-duration">Duración en minutos</FieldLabel>
+                <FieldLabel htmlFor="contest-duration">
+                  Duración por equipo (minutos) <span className="text-destructive">*</span>
+                </FieldLabel>
                 <FieldContent>
                   <Input
                     id="contest-duration"
@@ -626,56 +598,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                       }))
                     }
                   />
-                </FieldContent>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="contest-year">Año</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="contest-year"
-                    min={2000}
-                    max={2100}
-                    type="number"
-                    value={String(form.year)}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        year: Number(event.target.value || new Date().getFullYear()),
-                      }))
-                    }
-                  />
-                </FieldContent>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="contest-status">Estado</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="contest-status"
-                    value={form.status}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, status: event.target.value }))
-                    }
-                    placeholder="draft"
-                  />
                   <FieldDescription>
-                    Usa valores como draft, ready, published o closed.
+                    Tiempo que tiene cada equipo desde que entra.
                   </FieldDescription>
-                </FieldContent>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="contest-folder-secret">Carpeta secreta</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="contest-folder-secret"
-                    value={form.folderSecret}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        folderSecret: event.target.value,
-                      }))
-                    }
-                    placeholder="Ej. bebras-secundaria-2026"
-                  />
                 </FieldContent>
               </Field>
             </FieldGroup>
@@ -708,13 +633,44 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
             )}
           </FieldGroup>
         </CardContent>
-        <CardFooter className="border-t pt-5">
-          <FieldSet className="w-full">
-            <FieldLegend variant="label">Opciones de participación</FieldLegend>
-            <FieldDescription>
-              Ajusta la visibilidad y las reglas generales de la competencia.
-            </FieldDescription>
-            <FieldGroup className="gap-3">
+      </Card>
+
+      <Accordion type="single" collapsible>
+        <AccordionItem value="advanced">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
+              Opciones avanzadas
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor="contest-category">Categoría</FieldLabel>
+                <FieldContent>
+                  <Select
+                    value={form.category || "none"}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        category: value === "none" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="contest-category" className="w-full">
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin categoría</SelectItem>
+                      {CONTEST_CATEGORIES.map((category) => (
+                        <SelectItem key={category.name} value={category.name}>
+                          {category.name} ({category.age})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldContent>
+              </Field>
               <Field orientation="horizontal">
                 <Checkbox
                   id="contest-allow-pairs"
@@ -729,14 +685,14 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </Field>
               <Field orientation="horizontal">
                 <Checkbox
-                  id="contest-is-open"
-                  checked={form.isOpen}
+                  id="contest-show-total-score"
+                  checked={form.showTotalScore}
                   onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, isOpen: checked === true }))
+                    setForm((current) => ({ ...current, showTotalScore: checked === true }))
                   }
                 />
-                <FieldLabel htmlFor="contest-is-open" className="font-normal">
-                  Abierta para participar
+                <FieldLabel htmlFor="contest-show-total-score" className="font-normal">
+                  Mostrar puntaje total al terminar
                 </FieldLabel>
               </Field>
               <Field orientation="horizontal">
@@ -748,7 +704,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   }
                 />
                 <FieldLabel htmlFor="contest-show-feedback" className="font-normal">
-                  Mostrar feedback
+                  Mostrar feedback al terminar
                 </FieldLabel>
               </Field>
               <Field orientation="horizontal">
@@ -760,37 +716,13 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   }
                 />
                 <FieldLabel htmlFor="contest-show-solutions" className="font-normal">
-                  Mostrar soluciones
-                </FieldLabel>
-              </Field>
-              <Field orientation="horizontal">
-                <Checkbox
-                  id="contest-show-total-score"
-                  checked={form.showTotalScore}
-                  onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, showTotalScore: checked === true }))
-                  }
-                />
-                <FieldLabel htmlFor="contest-show-total-score" className="font-normal">
-                  Mostrar puntaje total
-                </FieldLabel>
-              </Field>
-              <Field orientation="horizontal">
-                <Checkbox
-                  id="contest-is-visible"
-                  checked={form.isVisible}
-                  onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, isVisible: checked === true }))
-                  }
-                />
-                <FieldLabel htmlFor="contest-is-visible" className="font-normal">
-                  Visible al público
+                  Mostrar soluciones al terminar
                 </FieldLabel>
               </Field>
             </FieldGroup>
-          </FieldSet>
-        </CardFooter>
-      </Card>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
@@ -868,111 +800,55 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 </AlertDescription>
               </Alert>
             ) : (
-              selectedTasks.map((task, index) => {
-                const taskConfig =
-                  form.tasks.find((currentTask) => currentTask.taskId === task.id) ??
-                  createDefaultTaskConfig(task.id);
-
-                return (
-                  <Card key={task.id} variant="soft-gradient" className="gap-3 py-4">
-                    <CardHeader className="gap-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">#{index + 1}</Badge>
-                            <Badge variant="outline">{buildAgeSummary(task.difficulties)}</Badge>
-                          </div>
-                          <CardTitle className="text-lg">{task.title}</CardTitle>
-                          <CardDescription>{task.categories.join(", ") || "Sin categoría"}</CardDescription>
+              selectedTasks.map((task, index) => (
+                <Card key={task.id} variant="soft-gradient" className="gap-3 py-4">
+                  <CardHeader className="gap-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">#{index + 1}</Badge>
+                          <Badge variant="outline">{buildAgeSummary(task.difficulties)}</Badge>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="icon-sm"
-                            type="button"
-                            variant="outline"
-                            disabled={index === 0}
-                            onClick={() => moveTask(task.id, "up")}
-                          >
-                            <ArrowUpIcon />
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            type="button"
-                            variant="outline"
-                            disabled={index === selectedTasks.length - 1}
-                            onClick={() => moveTask(task.id, "down")}
-                          >
-                            <ArrowDownIcon />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => toggleTask(task.id)}
-                          >
-                            Quitar
-                          </Button>
-                        </div>
+                        <CardTitle className="text-lg">{task.title}</CardTitle>
+                        <CardDescription>{task.categories.join(", ") || "Sin categoría"}</CardDescription>
                       </div>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 pt-0 md:grid-cols-4">
-                      <Field>
-                        <FieldLabel>Mínimo</FieldLabel>
-                        <Input
-                          type="number"
-                          value={String(taskConfig.minScore)}
-                          onChange={(event) =>
-                            updateTaskConfig(task.id, {
-                              minScore: Number(event.target.value || 0),
-                            })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel>Sin respuesta</FieldLabel>
-                        <Input
-                          type="number"
-                          value={String(taskConfig.noAnswerScore)}
-                          onChange={(event) =>
-                            updateTaskConfig(task.id, {
-                              noAnswerScore: Number(event.target.value || 0),
-                            })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel>Máximo</FieldLabel>
-                        <Input
-                          type="number"
-                          value={String(taskConfig.maxScore)}
-                          onChange={(event) =>
-                            updateTaskConfig(task.id, {
-                              maxScore: Number(event.target.value || 0),
-                            })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel>Opciones</FieldLabel>
-                        <Input
-                          value={taskConfig.options}
-                          onChange={(event) =>
-                            updateTaskConfig(task.id, {
-                              options: event.target.value,
-                            })
-                          }
-                          placeholder="{}"
-                        />
-                      </Field>
-                    </CardContent>
-                  </Card>
-                );
-              })
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="icon-sm"
+                          type="button"
+                          variant="outline"
+                          disabled={index === 0}
+                          onClick={() => moveTask(task.id, "up")}
+                        >
+                          <ArrowUpIcon />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          type="button"
+                          variant="outline"
+                          disabled={index === selectedTasks.length - 1}
+                          onClick={() => moveTask(task.id, "down")}
+                        >
+                          <ArrowDownIcon />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => toggleTask(task.id)}
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              ))
             )}
           </CardContent>
         </Card>
       </div>
 
-      {validationErrors.length > 0 && (
+      {submitAttempted && validationErrors.length > 0 && (
         <Alert variant="destructive">
           <AlertTitle>Faltan datos</AlertTitle>
           <AlertDescription>{validationErrors[0]}</AlertDescription>
@@ -990,22 +866,24 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 Guarda la competencia para dejar persistido el orden actual.
               </div>
             </div>
-            <Button type="submit" disabled={saving}>
-              <SaveIcon data-icon="inline-start" />
-              {saving
-                ? "Guardando..."
-                : resolvedContestId
-                  ? "Guardar competencia"
-                  : "Crear competencia"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={saving || publishing}
-              onClick={handlePublish}
-            >
-              {publishing ? "Publicando..." : "Publicar competencia"}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" disabled={saving}>
+                <SaveIcon data-icon="inline-start" />
+                {saving
+                  ? "Guardando..."
+                  : resolvedContestId
+                    ? "Guardar competencia"
+                    : "Crear competencia"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={saving || publishing}
+                onClick={handlePublish}
+              >
+                {publishing ? "Publicando..." : "Publicar competencia"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

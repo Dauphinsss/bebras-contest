@@ -27,7 +27,7 @@
   --muted-foreground: #333333;
   --accent: #0066ff;
   --accent-foreground: #ffffff;
-  --destructive: #000000;
+  --destructive: #ff3333;
   --destructive-foreground: #ffffff;
   --border: #000000;
   --input: #000000;
@@ -71,7 +71,7 @@
   --muted-foreground: #333333;
   --accent: #0066ff;
   --accent-foreground: #ffffff;
-  --destructive: #000000;
+  --destructive: #ff3333;
   --destructive-foreground: #ffffff;
   --border: #000000;
   --input: #000000;
@@ -462,4 +462,37 @@
   [data-sonner-toaster] [data-type="info"] {
     background: color-mix(in srgb, var(--background) 94%, var(--accent) 6%) !important;
   }
+}
+
+/* Scrollbar global: siempre visible y estilizado con los colores del tema. */
+html {
+  overflow-y: scroll;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) var(--background);
+}
+
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+  border-left: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--background);
 }

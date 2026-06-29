@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
+import bcrypt from "bcryptjs";
 import { prisma } from "./lib/prisma";
+import { requireAdmin, requireAuth, signToken } from "./lib/auth";
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
@@ -160,7 +162,6 @@ type ContestTaskInput = {
   minScore: number;
   noAnswerScore: number;
   maxScore: number;
-  options: string;
 };
 
 function parseScore(value: unknown, fallback: number) {
@@ -177,10 +178,6 @@ function parseContestTasks(body: Record<string, unknown>) {
       minScore: parseScore(item.minScore, 0),
       noAnswerScore: parseScore(item.noAnswerScore, 0),
       maxScore: parseScore(item.maxScore, 10),
-      options:
-        typeof item.options === "string" && item.options.trim()
-          ? item.options.trim()
-          : "{}",
     }))
     .filter((item) => item.taskId);
 
@@ -189,7 +186,6 @@ function parseContestTasks(body: Record<string, unknown>) {
     minScore: 0,
     noAnswerScore: 0,
     maxScore: 10,
-    options: "{}",
   }));
 
   const uniqueTasks = new Map<string, ContestTaskInput>();
@@ -212,26 +208,53 @@ function buildContestTaskWrites(tasks: ContestTaskInput[]) {
     minScore: task.minScore,
     noAnswerScore: task.noAnswerScore,
     maxScore: task.maxScore,
-    options: task.options,
   }));
+}
+
+const CONTEST_CATEGORY_NAMES = [
+  "Guacamayo",
+  "Capibara",
+  "Titi",
+  "Jucumari",
+  "Yaguareté",
+];
+
+type ContestState = "borrador" | "programada" | "abierta" | "cerrada";
+
+function computeContestState(contest: {
+  publishedAt: Date | null;
+  startsAt: Date;
+  endsAt: Date;
+}): { state: ContestState; isOpen: boolean } {
+  const now = new Date();
+
+  if (!contest.publishedAt) {
+    return { state: "borrador", isOpen: false };
+  }
+
+  if (now < contest.startsAt) {
+    return { state: "programada", isOpen: false };
+  }
+
+  if (now > contest.endsAt) {
+    return { state: "cerrada", isOpen: false };
+  }
+
+  return { state: "abierta", isOpen: true };
 }
 
 function deserializeContest(contest: {
   id: string;
   title: string;
-  level: string;
-  year: number;
+  category: string;
   durationMinutes: number;
   startsAt: Date;
   endsAt: Date;
-  isOpen: boolean;
   allowPairs: boolean;
   showFeedback: boolean;
   showSolutions: boolean;
   showTotalScore: boolean;
-  isVisible: boolean;
-  status: string;
-  folderSecret: string;
+  publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   tasks?: Array<{
@@ -240,7 +263,6 @@ function deserializeContest(contest: {
     minScore: number;
     noAnswerScore: number;
     maxScore: number;
-    options: string;
     taskDraft: {
       id: string;
       title: string;
@@ -250,22 +272,22 @@ function deserializeContest(contest: {
     };
   }>;
 }) {
+  const { state, isOpen } = computeContestState(contest);
+
   return {
     id: contest.id,
     title: contest.title,
-    level: contest.level,
-    year: contest.year,
+    category: contest.category,
     durationMinutes: contest.durationMinutes,
     startsAt: contest.startsAt.toISOString(),
     endsAt: contest.endsAt.toISOString(),
-    isOpen: contest.isOpen,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
     showSolutions: contest.showSolutions,
     showTotalScore: contest.showTotalScore,
-    isVisible: contest.isVisible,
-    status: contest.status,
-    folderSecret: contest.folderSecret,
+    publishedAt: contest.publishedAt?.toISOString() ?? null,
+    state,
+    isOpen,
     createdAt: contest.createdAt.toISOString(),
     updatedAt: contest.updatedAt.toISOString(),
     taskCount: contest.tasks?.length ?? 0,
@@ -277,7 +299,6 @@ function deserializeContest(contest: {
         minScore: task.minScore,
         noAnswerScore: task.noAnswerScore,
         maxScore: task.maxScore,
-        options: task.options,
         task: deserializeTaskSummary(task.taskDraft),
       })) ?? [],
   };
@@ -285,8 +306,7 @@ function deserializeContest(contest: {
 
 function parseContestPayload(body: Record<string, unknown>) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
-  const level = typeof body.level === "string" ? body.level.trim() : "";
-  const year = Number(body.year);
+  const category = typeof body.category === "string" ? body.category.trim() : "";
   const durationMinutes = Number(body.durationMinutes);
   const tasks = parseContestTasks(body);
 
@@ -294,12 +314,8 @@ function parseContestPayload(body: Record<string, unknown>) {
     throw new Error("El nombre de la competencia es obligatorio.");
   }
 
-  if (!level) {
-    throw new Error("El nivel de la competencia es obligatorio.");
-  }
-
-  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-    throw new Error("El año de la competencia debe ser válido.");
+  if (category && !CONTEST_CATEGORY_NAMES.includes(category)) {
+    throw new Error("La categoría seleccionada no es válida.");
   }
 
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
@@ -315,23 +331,14 @@ function parseContestPayload(body: Record<string, unknown>) {
 
   return {
     title,
-    level,
-    year,
+    category,
     durationMinutes,
     startsAt,
     endsAt,
-    isOpen: body.isOpen === true,
     allowPairs: body.allowPairs === true,
     showFeedback: body.showFeedback === true,
     showSolutions: body.showSolutions === true,
     showTotalScore: body.showTotalScore === true,
-    isVisible: body.isVisible === true,
-    status:
-      typeof body.status === "string" && body.status.trim()
-        ? body.status.trim()
-        : "draft",
-    folderSecret:
-      typeof body.folderSecret === "string" ? body.folderSecret.trim() : "",
     tasks,
   };
 }
@@ -376,6 +383,60 @@ app.get("/health", async (_req, res) => {
     database: "connected",
   });
 });
+
+app.post("/api/auth/login", async (req, res) => {
+  const email =
+    typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "";
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : "";
+
+  if (!email || !password) {
+    res.status(400).json({ message: "Correo y contraseña son obligatorios." });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || !user.passwordHash) {
+    res.status(401).json({ message: "Credenciales inválidas." });
+    return;
+  }
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+
+  if (!valid) {
+    res.status(401).json({ message: "Credenciales inválidas." });
+    return;
+  }
+
+  if (user.role !== "admin") {
+    res.status(403).json({ message: "Acceso solo para administradores." });
+    return;
+  }
+
+  const token = signToken({ id: user.id, email: user.email, role: user.role });
+
+  res.json({
+    token,
+    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+  });
+});
+
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+
+  if (!user) {
+    res.status(404).json({ message: "Usuario no encontrado." });
+    return;
+  }
+
+  res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
+});
+
+// A partir de aquí, el banco de tareas y las competencias son solo para admin.
+app.use(["/api/tasks", "/api/contests"], requireAdmin);
 
 app.get("/api/tasks", async (_req, res) => {
   const tasks = await prisma.taskDraft.findMany({
@@ -594,19 +655,14 @@ app.post("/api/contests", async (req, res) => {
   const contest = await prisma.contest.create({
     data: {
       title: payload.title,
-      level: payload.level,
-      year: payload.year,
+      category: payload.category,
       durationMinutes: payload.durationMinutes,
       startsAt: payload.startsAt,
       endsAt: payload.endsAt,
-      isOpen: payload.isOpen,
       allowPairs: payload.allowPairs,
       showFeedback: payload.showFeedback,
       showSolutions: payload.showSolutions,
       showTotalScore: payload.showTotalScore,
-      isVisible: payload.isVisible,
-      status: payload.status,
-      folderSecret: payload.folderSecret,
       tasks: {
         create: buildContestTaskWrites(payload.tasks),
       },
@@ -682,19 +738,14 @@ app.put("/api/contests/:id", async (req, res) => {
       },
       data: {
         title: payload.title,
-        level: payload.level,
-        year: payload.year,
+        category: payload.category,
         durationMinutes: payload.durationMinutes,
         startsAt: payload.startsAt,
         endsAt: payload.endsAt,
-        isOpen: payload.isOpen,
         allowPairs: payload.allowPairs,
         showFeedback: payload.showFeedback,
         showSolutions: payload.showSolutions,
         showTotalScore: payload.showTotalScore,
-        isVisible: payload.isVisible,
-        status: payload.status,
-        folderSecret: payload.folderSecret,
         tasks: {
           create: buildContestTaskWrites(payload.tasks),
         },
@@ -745,10 +796,6 @@ app.post("/api/contests/:id/publish", async (req, res) => {
     readinessErrors.push("La competencia necesita nombre.");
   }
 
-  if (!contest.level.trim()) {
-    readinessErrors.push("La competencia necesita nivel.");
-  }
-
   if (contest.endsAt <= contest.startsAt) {
     readinessErrors.push("La ventana de ejecución no es válida.");
   }
@@ -778,9 +825,7 @@ app.post("/api/contests/:id/publish", async (req, res) => {
       id: contest.id,
     },
     data: {
-      status: "published",
-      isOpen: true,
-      isVisible: true,
+      publishedAt: contest.publishedAt ?? new Date(),
     },
     include: {
       tasks: {

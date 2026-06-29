@@ -1,0 +1,98 @@
+---
+interface Props {
+  heading?: string;
+  backHref?: string;
+}
+
+const { heading, backHref } = Astro.props;
+const pathname = Astro.url.pathname;
+const isTasks = pathname.startsWith("/tareas");
+const isContests = pathname.startsWith("/competencias");
+
+const links = [
+  { href: "/tareas", label: "Tareas", active: isTasks },
+  { href: "/competencias", label: "Competencias", active: isContests },
+];
+---
+
+<header class="border-b bg-background">
+  <div
+    class="flex w-full items-center justify-between gap-4 px-6 py-3 sm:px-8 lg:px-12"
+  >
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-lg font-semibold tracking-tight">Bebras</a>
+      {
+        heading && (
+          <div class="flex items-center gap-2 border-l pl-3">
+            {backHref && (
+              <a
+                href={backHref}
+                aria-label="Volver"
+                class="text-muted-foreground transition hover:text-foreground"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="size-4"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </a>
+            )}
+            <span class="text-sm font-medium">{heading}</span>
+          </div>
+        )
+      }
+    </div>
+    <div class="flex items-center gap-2">
+      <nav class="flex items-center gap-1">
+        {
+          links.map((link) => (
+            <a
+              href={link.href}
+              aria-current={link.active ? "page" : undefined}
+              class:list={[
+                "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                link.active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              ]}
+            >
+              {link.label}
+            </a>
+          ))
+        }
+      </nav>
+      <a
+        id="auth-link"
+        href="/login"
+        class="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+      >
+        Iniciar sesión
+      </a>
+    </div>
+  </div>
+</header>
+
+<script is:inline>
+  (function () {
+    var link = document.getElementById("auth-link");
+    if (!link) return;
+    if (localStorage.getItem("bebras_token")) {
+      link.textContent = "Salir";
+      link.setAttribute("href", "#");
+      link.addEventListener("click", function (event) {
+        event.preventDefault();
+        localStorage.removeItem("bebras_token");
+        window.location.href = "/";
+      });
+    }
+  })();
+</script>

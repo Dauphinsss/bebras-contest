@@ -1,12 +1,22 @@
 ---
 import "../styles/global.css";
 import { AppToaster } from "../components/app-toaster";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
 
 interface Props {
   title?: string;
+  heading?: string;
+  backHref?: string;
+  requireAuth?: boolean;
 }
 
-const { title = "Bebras" } = Astro.props;
+const {
+  title = "Bebras",
+  heading,
+  backHref,
+  requireAuth = false,
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -15,9 +25,24 @@ const { title = "Bebras" } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    {
+      requireAuth && (
+        <script is:inline>
+          if (!localStorage.getItem("bebras_token")) {
+            window.location.replace("/login");
+          }
+        </script>
+      )
+    }
   </head>
   <body>
-    <slot />
+    <div class="flex min-h-screen flex-col">
+      <SiteHeader heading={heading} backHref={backHref} />
+      <div class="flex-1">
+        <slot />
+      </div>
+      <SiteFooter />
+    </div>
     <AppToaster client:load />
   </body>
 </html>

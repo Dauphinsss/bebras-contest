@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { removeContest, listContests } from "@/lib/contests-api";
 import {
+  CONTEST_STATE_LABELS,
   formatContestTaskSummary,
   formatContestWindow,
   type StoredContest,
@@ -105,8 +106,10 @@ export function ContestsHome() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-2">
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{contest.status}</Badge>
-                        <Badge variant="outline">{contest.level}</Badge>
+                        <Badge variant="secondary">{CONTEST_STATE_LABELS[contest.state]}</Badge>
+                        {contest.category && (
+                          <Badge variant="outline">{contest.category}</Badge>
+                        )}
                         <Badge variant="outline">{contest.taskCount} tareas</Badge>
                       </div>
                       <div className="space-y-1">

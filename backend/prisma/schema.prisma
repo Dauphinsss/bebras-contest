@@ -9,11 +9,13 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String?
+  passwordHash String   @default("")
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model TaskDraft {
@@ -42,19 +44,15 @@ model TaskDraft {
 model Contest {
   id               String         @id @default(cuid())
   title            String
-  level            String
-  year             Int            @default(2026)
+  category         String         @default("")
   durationMinutes  Int
   startsAt         DateTime
   endsAt           DateTime
-  isOpen           Boolean        @default(false)
   allowPairs       Boolean        @default(false)
   showFeedback     Boolean        @default(false)
   showSolutions    Boolean        @default(false)
   showTotalScore   Boolean        @default(false)
-  isVisible        Boolean        @default(false)
-  status           String         @default("draft")
-  folderSecret     String         @default("")
+  publishedAt      DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   tasks            ContestTask[]

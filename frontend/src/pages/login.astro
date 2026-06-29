@@ -1,0 +1,12 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { LoginForm } from "../components/login-form";
+
+const title = "Iniciar sesión";
+---
+
+<Layout title={title} heading="Iniciar sesión" backHref="/">
+  <main class="mx-auto w-full max-w-md px-4 py-16 sm:py-24">
+    <LoginForm client:load />
+  </main>
+</Layout>

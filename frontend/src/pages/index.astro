@@ -1,12 +1,102 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { TasksHome } from "../components/tasks-home";
 
-const title = "Gestión de tareas Bebras";
+const title = "Desafío Bebras Bolivia";
 ---
 
 <Layout title={title}>
-  <main class="mx-auto flex min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-    <TasksHome client:load />
+  <section class="border-b">
+    <div class="mx-auto w-full max-w-5xl px-6 py-16 text-center sm:px-8">
+      <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">
+        Bienvenido al Desafío Bebras Bolivia
+      </h1>
+      <p class="mx-auto mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
+        Pon a prueba tu lógica y pensamiento computacional con problemas
+        divertidos y desafiantes.
+      </p>
+    </div>
+  </section>
+
+  <main class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10 sm:px-8">
+    <div class="rounded-lg border bg-secondary/30 px-5 py-4 text-center">
+      <p class="text-lg font-medium">
+        Bienvenido al Desafío Bebras Bolivia 2026.
+      </p>
+    </div>
+
+    <div class="rounded-lg border px-5 py-5 text-center">
+      <h2 class="text-xl font-semibold sm:text-2xl">
+        El Desafío Bebras Bolivia 2026 se viene este noviembre
+      </h2>
+      <p class="mt-2 text-sm text-muted-foreground">
+        Regístrate como coordinador y prepara a tu colegio.
+      </p>
+    </div>
+
+    <p class="text-sm leading-6 text-muted-foreground">
+      Maestros: aún pueden registrar a sus estudiantes hasta el último día de la
+      competencia. Inicien sesión o regístrense con el botón de abajo. Una vez
+      aprobado el registro, podrán crear las cuentas de sus estudiantes.
+    </p>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <a
+        href="/competencias"
+        class="flex items-center justify-center rounded-lg bg-primary px-6 py-6 text-center text-base font-semibold text-primary-foreground transition hover:opacity-90"
+      >
+        Estudiantes: ir a las competencias de práctica
+      </a>
+      <a
+        href="/login"
+        class="flex items-center justify-center rounded-lg bg-accent px-6 py-6 text-center text-base font-semibold text-accent-foreground transition hover:opacity-90"
+      >
+        Maestros: iniciar sesión o registrarse
+      </a>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <p class="text-sm leading-6 text-muted-foreground">
+        El Desafío Bebras evalúa tu lógica y habilidades computacionales con
+        problemas divertidos. Durante el desafío oficial, los problemas vienen en
+        tres niveles de dificultad: A, B y C. Los de nivel A son más fáciles que
+        los de nivel B, y estos más fáciles que los de nivel C.
+      </p>
+      <p class="text-sm leading-6 text-muted-foreground">
+        La dificultad de cada problema determina cómo se puntúa, según estas
+        reglas:
+      </p>
+      <div class="overflow-x-auto rounded-lg border">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b text-left">
+              <th class="px-4 py-3 font-semibold">Dificultad</th>
+              <th class="px-4 py-3 font-semibold">Correcto</th>
+              <th class="px-4 py-3 font-semibold">Incorrecto</th>
+              <th class="px-4 py-3 font-semibold">Sin responder</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b">
+              <td class="px-4 py-3">A</td>
+              <td class="px-4 py-3">+6 puntos</td>
+              <td class="px-4 py-3">-2 puntos</td>
+              <td class="px-4 py-3">0 puntos</td>
+            </tr>
+            <tr class="border-b">
+              <td class="px-4 py-3">B</td>
+              <td class="px-4 py-3">+9 puntos</td>
+              <td class="px-4 py-3">-3 puntos</td>
+              <td class="px-4 py-3">0 puntos</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3">C</td>
+              <td class="px-4 py-3">+12 puntos</td>
+              <td class="px-4 py-3">-4 puntos</td>
+              <td class="px-4 py-3">0 puntos</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </main>
 </Layout>

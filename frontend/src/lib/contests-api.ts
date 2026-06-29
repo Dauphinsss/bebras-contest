@@ -2,6 +2,7 @@ import {
   type ContestDraftInput,
   type StoredContest,
 } from "@/lib/contest-schema";
+import { authHeaders, handleUnauthorized } from "@/lib/auth";
 
 const API_BASE_URL =
   import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -11,10 +12,16 @@ async function request<T>(path: string, init?: RequestInit) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       ...(init?.headers ?? {}),
     },
     ...init,
   });
+
+  if (response.status === 401 || response.status === 403) {
+    handleUnauthorized();
+    throw new Error("Sesión expirada. Inicia sesión de nuevo.");
+  }
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;

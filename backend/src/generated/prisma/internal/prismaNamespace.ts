@@ -1118,6 +1118,8 @@ export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
   name: 'name',
+  passwordHash: 'passwordHash',
+  role: 'role',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1152,19 +1154,15 @@ export type TaskDraftScalarFieldEnum = (typeof TaskDraftScalarFieldEnum)[keyof t
 export const ContestScalarFieldEnum = {
   id: 'id',
   title: 'title',
-  level: 'level',
-  year: 'year',
+  category: 'category',
   durationMinutes: 'durationMinutes',
   startsAt: 'startsAt',
   endsAt: 'endsAt',
-  isOpen: 'isOpen',
   allowPairs: 'allowPairs',
   showFeedback: 'showFeedback',
   showSolutions: 'showSolutions',
   showTotalScore: 'showTotalScore',
-  isVisible: 'isVisible',
-  status: 'status',
-  folderSecret: 'folderSecret',
+  publishedAt: 'publishedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

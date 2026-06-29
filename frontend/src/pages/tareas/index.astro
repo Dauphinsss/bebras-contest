@@ -1,16 +1,16 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import Breadcrumb from "../../components/Breadcrumb.astro";
-import { ContestsHome } from "../../components/contests-home";
+import { TasksHome } from "../../components/tasks-home";
 
-const title = "Competencias";
+const title = "Gestión de tareas Bebras";
 ---
 
 <Layout title={title} requireAuth>
   <main class="mx-auto flex w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="flex w-full flex-col gap-6">
-      <Breadcrumb items={[{ label: "Competencias" }]} />
-      <ContestsHome client:load />
+      <Breadcrumb items={[{ label: "Tareas" }]} />
+      <TasksHome client:load />
     </div>
   </main>
 </Layout>
