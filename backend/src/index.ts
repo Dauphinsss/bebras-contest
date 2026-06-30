@@ -1495,6 +1495,485 @@ app.get("/api/play/team/:personalCode", async (req, res) => {
   });
 });
 
+function parseMcCorrectness(value: string) {
+  const raw = String(value ?? "").trim();
+  if (raw.startsWith("any:")) {
+    return {
+      mode: "any",
+      ids: raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+    };
+  }
+  if (raw.startsWith("all:")) {
+    return {
+      mode: "all",
+      ids: raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+    };
+  }
+  return { mode: "single", ids: raw ? [raw] : [] };
+}
+
+function answerHasResponse(answerType: string, payload: any) {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  if (answerType === "multiple_choice") {
+    return Array.isArray(payload.selected) && payload.selected.length > 0;
+  }
+  if (answerType === "short_text") {
+    return typeof payload.text === "string" && payload.text.trim().length > 0;
+  }
+  if (answerType === "range") {
+    const value = String(payload.value ?? "").trim();
+    return value !== "" && !Number.isNaN(Number(value));
+  }
+  if (answerType === "drag_drop") {
+    return (
+      payload.placements &&
+      typeof payload.placements === "object" &&
+      Object.keys(payload.placements).length > 0
+    );
+  }
+  return false;
+}
+
+function answerIsCorrect(task: any, payload: any) {
+  const type = task.answerType;
+  if (type === "multiple_choice") {
+    const selected = Array.isArray(payload?.selected)
+      ? payload.selected.map(String)
+      : [];
+    if (selected.length === 0) {
+      return false;
+    }
+    const { mode, ids } = parseMcCorrectness(task.correctAnswerId);
+    if (mode === "single") {
+      return selected.length === 1 && selected[0] === ids[0];
+    }
+    if (mode === "any") {
+      return selected.length === 1 && ids.includes(selected[0]);
+    }
+    return (
+      selected.length === ids.length &&
+      selected.every((item: string) => ids.includes(item))
+    );
+  }
+  if (type === "short_text") {
+    const text = typeof payload?.text === "string" ? payload.text : "";
+    return (
+      text.trim().toLowerCase() ===
+      String(task.shortAnswer ?? "").trim().toLowerCase()
+    );
+  }
+  if (type === "range") {
+    const value = Number(payload?.value);
+    if (Number.isNaN(value)) {
+      return false;
+    }
+    return (task.rangeAnswers ?? []).some(
+      (range: any) => value >= range.min && value <= range.max,
+    );
+  }
+  if (type === "drag_drop") {
+    const placements = payload?.placements ?? {};
+    const items = task.dragDropItems ?? [];
+    if (items.length === 0) {
+      return false;
+    }
+    return items.every((item: any) => {
+      const placement = placements[item.id];
+      return (
+        placement &&
+        Math.abs(placement.x - item.targetX) <= item.tolerance &&
+        Math.abs(placement.y - item.targetY) <= item.tolerance
+      );
+    });
+  }
+  return false;
+}
+
+function renderSafeTask(contestTask: any, task: any) {
+  return {
+    taskId: task.id,
+    position: contestTask.position,
+    title: task.title,
+    bodyBlocks: task.bodyBlocks,
+    challengeBlocks: task.challengeBlocks,
+    answerType: task.answerType,
+    multipleChoiceOrderMode: task.multipleChoiceOrderMode,
+    multipleChoiceMode: parseMcCorrectness(task.correctAnswerId).mode,
+    answers: (task.answers ?? []).map((answer: any) => ({
+      id: answer.id,
+      blocks: answer.blocks,
+    })),
+    dragDropBackground: task.dragDropBackground,
+    dragDropItems: (task.dragDropItems ?? []).map((item: any) => ({
+      id: item.id,
+      label: item.label,
+      image: item.image,
+    })),
+  };
+}
+
+async function recomputeRanking(contestId: string) {
+  const results = await prisma.result.findMany({
+    where: { attempt: { team: { group: { contestId } } } },
+    orderBy: [{ totalScore: "desc" }, { calculatedAt: "asc" }],
+    select: { id: true },
+  });
+  for (let i = 0; i < results.length; i += 1) {
+    await prisma.result.update({
+      where: { id: results[i].id },
+      data: { rankPosition: i + 1 },
+    });
+  }
+}
+
+async function finalizeAttempt(attemptId: string) {
+  const attempt = await prisma.attempt.findUnique({
+    where: { id: attemptId },
+    include: {
+      answers: true,
+      team: {
+        include: {
+          group: {
+            include: {
+              contest: { include: { tasks: { include: { taskDraft: true } } } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!attempt) {
+    return null;
+  }
+
+  const contest = attempt.team.group.contest;
+  const answersByTask = new Map(
+    attempt.answers.map((answer) => [answer.taskDraftId, answer]),
+  );
+
+  let totalScore = 0;
+  let correctCount = 0;
+  let answeredCount = 0;
+
+  for (const contestTask of contest.tasks) {
+    const task = deserializeTask(contestTask.taskDraft) as any;
+    const existing = answersByTask.get(contestTask.taskDraftId);
+    let payload: any = null;
+    if (existing) {
+      try {
+        payload = JSON.parse(existing.responsePayload);
+      } catch {
+        payload = null;
+      }
+    }
+    const answered = answerHasResponse(task.answerType, payload);
+    const correct = answered ? answerIsCorrect(task, payload) : false;
+    let score = contestTask.noAnswerScore;
+    if (answered) {
+      score = correct ? contestTask.maxScore : contestTask.minScore;
+      answeredCount += 1;
+    }
+    if (correct) {
+      correctCount += 1;
+    }
+    totalScore += score;
+
+    if (existing) {
+      await prisma.attemptAnswer.update({
+        where: { id: existing.id },
+        data: { isCorrect: answered ? correct : null, score },
+      });
+    }
+  }
+
+  await prisma.attempt.update({
+    where: { id: attempt.id },
+    data: { status: "finished", finishedAt: new Date() },
+  });
+  await prisma.result.upsert({
+    where: { attemptId: attempt.id },
+    update: { totalScore, correctCount, answeredCount, calculatedAt: new Date() },
+    create: {
+      attemptId: attempt.id,
+      totalScore,
+      correctCount,
+      answeredCount,
+      calculatedAt: new Date(),
+    },
+  });
+
+  await recomputeRanking(contest.id);
+  return { totalScore, correctCount, answeredCount };
+}
+
+function findTeamForPlay(personalCode: string) {
+  return prisma.team.findUnique({
+    where: { personalCode },
+    include: {
+      attempt: true,
+      group: {
+        include: {
+          contest: {
+            include: {
+              tasks: {
+                orderBy: { position: "asc" },
+                include: { taskDraft: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+app.post("/api/play/start", async (req, res) => {
+  const personalCode =
+    typeof req.body?.personalCode === "string"
+      ? req.body.personalCode.trim().toUpperCase()
+      : "";
+  const team = await findTeamForPlay(personalCode);
+
+  if (!team || !team.attempt) {
+    res.status(404).json({ message: "Registro no encontrado." });
+    return;
+  }
+
+  const contest = team.group.contest;
+  if (computeContestState(contest).state !== "abierta") {
+    res
+      .status(409)
+      .json({ message: "La competencia no está abierta en este momento." });
+    return;
+  }
+
+  if (team.attempt.status === "finished") {
+    res.status(409).json({ message: "Ya entregaste esta competencia." });
+    return;
+  }
+
+  if (team.attempt.status === "pending") {
+    const now = new Date();
+    const byDuration = new Date(now.getTime() + contest.durationMinutes * 60000);
+    const endsAt = byDuration < contest.endsAt ? byDuration : contest.endsAt;
+    await prisma.attempt.update({
+      where: { id: team.attempt.id },
+      data: { status: "in_progress", startedAt: now, endsAt },
+    });
+  }
+
+  res.json({ ok: true });
+});
+
+app.get("/api/play/attempt/:personalCode", async (req, res) => {
+  const personalCode = String(req.params.personalCode ?? "")
+    .trim()
+    .toUpperCase();
+  const team = await findTeamForPlay(personalCode);
+
+  if (!team || !team.attempt) {
+    res.status(404).json({ message: "Registro no encontrado." });
+    return;
+  }
+
+  let attempt = team.attempt;
+  const contest = team.group.contest;
+
+  if (
+    attempt.status === "in_progress" &&
+    attempt.endsAt &&
+    new Date() > attempt.endsAt
+  ) {
+    await finalizeAttempt(attempt.id);
+    attempt = (await prisma.attempt.findUnique({
+      where: { id: attempt.id },
+    }))!;
+  }
+
+  const savedAnswers = await prisma.attemptAnswer.findMany({
+    where: { attemptId: attempt.id },
+  });
+  const answers: Record<string, unknown> = {};
+  for (const answer of savedAnswers) {
+    try {
+      answers[answer.taskDraftId] = JSON.parse(answer.responsePayload);
+    } catch {
+      answers[answer.taskDraftId] = null;
+    }
+  }
+
+  const finished = attempt.status === "finished";
+  const tasks = contest.tasks.map((contestTask) => {
+    const task = deserializeTask(contestTask.taskDraft) as any;
+    const safe = renderSafeTask(contestTask, task) as any;
+    if (finished && contest.showSolutions) {
+      safe.explanation = task.explanation;
+      safe.correctAnswerId = task.correctAnswerId;
+      safe.shortAnswer = task.shortAnswer;
+      safe.rangeAnswers = task.rangeAnswers;
+    }
+    return safe;
+  });
+
+  const result =
+    finished && contest.showTotalScore
+      ? await prisma.result.findUnique({ where: { attemptId: attempt.id } })
+      : null;
+
+  res.json({
+    contestTitle: contest.title,
+    durationMinutes: contest.durationMinutes,
+    state: computeContestState(contest).state,
+    status: attempt.status,
+    startedAt: attempt.startedAt?.toISOString() ?? null,
+    endsAt: attempt.endsAt?.toISOString() ?? null,
+    showFeedback: contest.showFeedback,
+    showSolutions: contest.showSolutions,
+    showTotalScore: contest.showTotalScore,
+    tasks,
+    answers,
+    result: result
+      ? {
+          totalScore: result.totalScore,
+          correctCount: result.correctCount,
+          answeredCount: result.answeredCount,
+          rankPosition: result.rankPosition,
+        }
+      : null,
+  });
+});
+
+app.post("/api/play/answer", async (req, res) => {
+  const personalCode =
+    typeof req.body?.personalCode === "string"
+      ? req.body.personalCode.trim().toUpperCase()
+      : "";
+  const taskId = typeof req.body?.taskId === "string" ? req.body.taskId : "";
+  const payload = req.body?.payload ?? null;
+
+  const team = await prisma.team.findUnique({
+    where: { personalCode },
+    include: { attempt: true },
+  });
+
+  if (!team || !team.attempt) {
+    res.status(404).json({ message: "Registro no encontrado." });
+    return;
+  }
+
+  if (team.attempt.status !== "in_progress") {
+    res.status(409).json({ message: "La competencia no está en curso." });
+    return;
+  }
+
+  if (team.attempt.endsAt && new Date() > team.attempt.endsAt) {
+    await finalizeAttempt(team.attempt.id);
+    res.status(409).json({ message: "El tiempo terminó." });
+    return;
+  }
+
+  await prisma.attemptAnswer.upsert({
+    where: {
+      attemptId_taskDraftId: { attemptId: team.attempt.id, taskDraftId: taskId },
+    },
+    update: { responsePayload: JSON.stringify(payload), answeredAt: new Date() },
+    create: {
+      attemptId: team.attempt.id,
+      taskDraftId: taskId,
+      responsePayload: JSON.stringify(payload),
+      answeredAt: new Date(),
+    },
+  });
+
+  res.status(204).send();
+});
+
+app.post("/api/play/submit", async (req, res) => {
+  const personalCode =
+    typeof req.body?.personalCode === "string"
+      ? req.body.personalCode.trim().toUpperCase()
+      : "";
+  const team = await prisma.team.findUnique({
+    where: { personalCode },
+    include: { attempt: true },
+  });
+
+  if (!team || !team.attempt) {
+    res.status(404).json({ message: "Registro no encontrado." });
+    return;
+  }
+
+  if (team.attempt.status === "finished") {
+    res.json({ ok: true });
+    return;
+  }
+
+  if (team.attempt.status !== "in_progress") {
+    res.status(409).json({ message: "La competencia no está en curso." });
+    return;
+  }
+
+  await finalizeAttempt(team.attempt.id);
+  res.json({ ok: true });
+});
+
+app.get("/api/contests/:id/results", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    include: {
+      tasks: true,
+      groups: {
+        include: {
+          teams: { include: { attempt: { include: { result: true } } } },
+        },
+      },
+    },
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Competencia no encontrada." });
+    return;
+  }
+
+  const rows = contest.groups.flatMap((group) =>
+    group.teams.map((team) => ({
+      teamId: team.id,
+      groupName: group.name,
+      participationMode: team.participationMode,
+      memberOneFirstName: team.memberOneFirstName,
+      memberOneLastName: team.memberOneLastName,
+      memberTwoFirstName: team.memberTwoFirstName,
+      memberTwoLastName: team.memberTwoLastName,
+      status: team.attempt?.status ?? "pending",
+      totalScore: team.attempt?.result?.totalScore ?? null,
+      correctCount: team.attempt?.result?.correctCount ?? null,
+      answeredCount: team.attempt?.result?.answeredCount ?? null,
+      rankPosition: team.attempt?.result?.rankPosition ?? null,
+    })),
+  );
+
+  rows.sort((left, right) => {
+    if (left.rankPosition && right.rankPosition) {
+      return left.rankPosition - right.rankPosition;
+    }
+    if (left.rankPosition) {
+      return -1;
+    }
+    if (right.rankPosition) {
+      return 1;
+    }
+    return 0;
+  });
+
+  res.json({
+    contestTitle: contest.title,
+    taskCount: contest.tasks.length,
+    rows,
+  });
+});
+
 const startServer = async () => {
   await prisma.$connect();
 

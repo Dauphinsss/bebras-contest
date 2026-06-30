@@ -78,3 +78,28 @@ export function removeContest(contestId: string) {
     method: "DELETE",
   });
 }
+
+export type ContestResultRow = {
+  teamId: string;
+  groupName: string;
+  participationMode: string;
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName: string | null;
+  memberTwoLastName: string | null;
+  status: string;
+  totalScore: number | null;
+  correctCount: number | null;
+  answeredCount: number | null;
+  rankPosition: number | null;
+};
+
+export type ContestResults = {
+  contestTitle: string;
+  taskCount: number;
+  rows: ContestResultRow[];
+};
+
+export function getContestResults(contestId: string) {
+  return request<ContestResults>(`/api/contests/${contestId}/results`);
+}

@@ -261,9 +261,13 @@ export function JoinForm() {
               {result.personalCode}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            La competencia se abrirá cuando tu maestro lo indique. (El rendir
-            estará disponible pronto.)
+          <Button asChild className="w-full">
+            <a href={`/rendir?code=${result.personalCode}`}>
+              Ir a la competencia
+            </a>
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Si aún no inicia, podrás empezar cuando tu maestro la abra.
           </p>
         </CardContent>
       </Card>
@@ -305,9 +309,11 @@ export function JoinForm() {
               {recovered.personalCode}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            La competencia se abrirá cuando tu maestro lo indique.
-          </p>
+          <Button asChild className="w-full">
+            <a href={`/rendir?code=${recovered.personalCode}`}>
+              Continuar a la competencia
+            </a>
+          </Button>
           <button
             type="button"
             onClick={registerAnother}

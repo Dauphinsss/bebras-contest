@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlarmClockIcon,
+  BarChart3Icon,
   CalendarRangeIcon,
   FilePlus2Icon,
   FilePenLineIcon,
@@ -129,6 +130,14 @@ export function ContestsHome() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                      {contest.state !== "borrador" && (
+                        <Button asChild size="sm" variant="outline">
+                          <a href={`/competencias/resultados?id=${contest.id}`}>
+                            <BarChart3Icon data-icon="inline-start" />
+                            Resultados
+                          </a>
+                        </Button>
+                      )}
                       <Button asChild size="sm" variant="outline">
                         <a href={`/competencias/editar?id=${contest.id}`}>
                           <FilePenLineIcon data-icon="inline-start" />
