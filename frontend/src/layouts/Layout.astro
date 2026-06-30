@@ -28,9 +28,17 @@ const {
     {
       requireAuth && (
         <script is:inline>
-          if (!localStorage.getItem("bebras_token")) {
-            window.location.replace("/login");
-          }
+          (function () {
+            var raw = localStorage.getItem("bebras_user");
+            var user = raw ? JSON.parse(raw) : null;
+            if (!localStorage.getItem("bebras_token") || !user) {
+              window.location.replace("/login");
+              return;
+            }
+            if (user.role !== "admin") {
+              window.location.replace("/");
+            }
+          })();
         </script>
       )
     }

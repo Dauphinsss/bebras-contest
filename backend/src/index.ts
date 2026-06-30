@@ -355,8 +355,9 @@ app.use((req, res, next) => {
     );
   });
 
-  res.header("Access-Control-Allow-Origin", frontendOrigin);
-  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Origin", req.headers.origin ?? frontendOrigin);
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
 
   if (req.method === "OPTIONS") {
@@ -408,11 +409,6 @@ app.post("/api/auth/login", async (req, res) => {
 
   if (!valid) {
     res.status(401).json({ message: "Credenciales inválidas." });
-    return;
-  }
-
-  if (user.role !== "admin") {
-    res.status(403).json({ message: "Acceso solo para administradores." });
     return;
   }
 

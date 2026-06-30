@@ -152,14 +152,24 @@ function toTimeValue(value: string) {
   return `${hours}:${minutes}`;
 }
 
-function updateDatePart(currentValue: string, nextDate: Date | undefined) {
+function updateDatePart(
+  currentValue: string,
+  nextDate: Date | undefined,
+  fallbackHour: number,
+) {
   if (!nextDate) {
     return currentValue;
   }
 
-  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
+  const currentDate = parseDateTimeLocal(currentValue);
   const nextValue = new Date(nextDate);
-  nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+
+  if (currentDate) {
+    nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+  } else {
+    nextValue.setHours(fallbackHour, 0, 0, 0);
+  }
+
   return toDatetimeLocalValue(nextValue.toISOString());
 }
 
@@ -169,8 +179,8 @@ function updateDateRangeParts(
   nextRange: DateRange | undefined,
 ) {
   return {
-    startsAt: updateDatePart(currentStartsAt, nextRange?.from),
-    endsAt: updateDatePart(currentEndsAt, nextRange?.to),
+    startsAt: updateDatePart(currentStartsAt, nextRange?.from, 8),
+    endsAt: updateDatePart(currentEndsAt, nextRange?.to, 18),
   };
 }
 

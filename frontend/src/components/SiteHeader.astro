@@ -4,6 +4,8 @@ interface Props {
   backHref?: string;
 }
 
+import { UserMenu } from "./user-menu";
+
 const { heading, backHref } = Astro.props;
 const pathname = Astro.url.pathname;
 const isTasks = pathname.startsWith("/tareas");
@@ -52,7 +54,7 @@ const links = [
       }
     </div>
     <div class="flex items-center gap-2">
-      <nav class="flex items-center gap-1">
+      <nav id="admin-nav" class="hidden items-center gap-1">
         {
           links.map((link) => (
             <a
@@ -70,29 +72,19 @@ const links = [
           ))
         }
       </nav>
-      <a
-        id="auth-link"
-        href="/login"
-        class="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-      >
-        Iniciar sesión
-      </a>
+      <UserMenu client:load />
     </div>
   </div>
 </header>
 
 <script is:inline>
   (function () {
-    var link = document.getElementById("auth-link");
-    if (!link) return;
-    if (localStorage.getItem("bebras_token")) {
-      link.textContent = "Salir";
-      link.setAttribute("href", "#");
-      link.addEventListener("click", function (event) {
-        event.preventDefault();
-        localStorage.removeItem("bebras_token");
-        window.location.href = "/";
-      });
+    var raw = localStorage.getItem("bebras_user");
+    var user = raw ? JSON.parse(raw) : null;
+    var adminNav = document.getElementById("admin-nav");
+    if (adminNav && user && user.role === "admin") {
+      adminNav.classList.remove("hidden");
+      adminNav.classList.add("flex");
     }
   })();
 </script>

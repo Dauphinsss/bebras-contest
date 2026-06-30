@@ -145,8 +145,10 @@
   [data-slot="select-trigger"],
   [data-slot="select-content"],
   [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"],
   [data-slot="alert"] {
-    border-color: var(--border) !important;
+    border: 1px solid var(--border) !important;
     box-shadow: var(--shadow-hard);
   }
 
@@ -160,6 +162,8 @@
   [data-slot="select-trigger"],
   [data-slot="select-content"],
   [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"],
   [data-slot="alert"] {
     border-radius: 0 !important;
   }

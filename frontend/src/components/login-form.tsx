@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { setToken } from "@/lib/auth";
+import { setToken, setUser, type AuthUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +23,7 @@ const API_BASE_URL =
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -43,17 +45,20 @@ export function LoginForm() {
 
       const data = (await response.json().catch(() => ({}))) as {
         token?: string;
+        user?: AuthUser;
         message?: string;
       };
 
-      if (!response.ok || !data.token) {
+      if (!response.ok || !data.token || !data.user) {
         toast.error(data.message ?? "No se pudo iniciar sesión.");
         return;
       }
 
       setToken(data.token);
+      setUser(data.user);
       toast.success("Sesión iniciada.");
-      window.location.href = "/competencias";
+      window.location.href =
+        data.user.role === "admin" ? "/competencias" : "/";
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {
@@ -84,12 +89,29 @@ export function LoginForm() {
           <Field>
             <FieldLabel htmlFor="login-password">Contraseña</FieldLabel>
             <FieldContent>
-              <Input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  className="pr-10"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={
+                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
+                >
+                  {showPassword ? (
+                    <EyeOffIcon className="size-4" />
+                  ) : (
+                    <EyeIcon className="size-4" />
+                  )}
+                </button>
+              </div>
             </FieldContent>
           </Field>
           <Button type="submit" className="w-full" disabled={submitting}>
