@@ -97,8 +97,10 @@ model Team {
   id                 String        @id @default(cuid())
   groupId            String
   participationMode  String        @default("individual")
-  memberOneName      String
-  memberTwoName      String?
+  memberOneFirstName String
+  memberOneLastName  String
+  memberTwoFirstName String?
+  memberTwoLastName  String?
   personalCode       String        @unique
   status             String        @default("registered")
   createdAt          DateTime      @default(now())

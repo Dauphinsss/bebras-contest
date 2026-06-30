@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   CopyIcon,
+  LinkIcon,
   LoaderCircleIcon,
   PlusIcon,
   Trash2Icon,
@@ -114,6 +115,16 @@ export function GroupsHome() {
       toast.success("Código copiado.");
     } catch {
       toast.error("No se pudo copiar el código.");
+    }
+  };
+
+  const copyLink = async (code: string) => {
+    const url = `${window.location.origin}/entrar?code=${code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Enlace copiado. Compártelo con tus estudiantes.");
+    } catch {
+      toast.error("No se pudo copiar el enlace.");
     }
   };
 
@@ -244,6 +255,15 @@ export function GroupsHome() {
                           <CopyIcon />
                         </Button>
                       </div>
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => copyLink(group.accessCode)}
+                      >
+                        <LinkIcon data-icon="inline-start" />
+                        Copiar enlace
+                      </Button>
                       <Button
                         size="sm"
                         type="button"

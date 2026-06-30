@@ -7,8 +7,10 @@ const API_BASE_URL =
 export type GroupTeam = {
   id: string;
   participationMode: string;
-  memberOneName: string;
-  memberTwoName: string | null;
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName: string | null;
+  memberTwoLastName: string | null;
   status: string;
   createdAt: string;
 };

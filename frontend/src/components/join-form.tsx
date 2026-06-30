@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2Icon, LoaderCircleIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,22 +34,27 @@ type JoinResult = {
   contestTitle: string;
 };
 
+type Step = "code" | "register" | "confirm" | "done";
+
 export function JoinForm() {
-  const [step, setStep] = useState<"code" | "register" | "done">("code");
+  const [step, setStep] = useState<Step>("code");
   const [accessCode, setAccessCode] = useState("");
   const [group, setGroup] = useState<GroupInfo | null>(null);
-  const [memberOneName, setMemberOneName] = useState("");
-  const [memberTwoName, setMemberTwoName] = useState("");
   const [mode, setMode] = useState<"individual" | "pareja">("individual");
+  const [oneFirst, setOneFirst] = useState("");
+  const [oneLast, setOneLast] = useState("");
+  const [twoFirst, setTwoFirst] = useState("");
+  const [twoLast, setTwoLast] = useState("");
   const [result, setResult] = useState<JoinResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const lookupCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const code = accessCode.trim().toUpperCase();
+  const performLookup = async (rawCode: string, silent = false) => {
+    const code = rawCode.trim().toUpperCase();
 
     if (!code) {
-      toast.error("Escribe el código que te dio tu maestro.");
+      if (!silent) {
+        toast.error("Escribe el código que te dio tu maestro.");
+      }
       return;
     }
 
@@ -62,9 +67,11 @@ export function JoinForm() {
         | { message?: string };
 
       if (!response.ok) {
-        toast.error(
-          ("message" in data && data.message) || "No se pudo validar el código.",
-        );
+        if (!silent) {
+          toast.error(
+            ("message" in data && data.message) || "No se pudo validar el código.",
+          );
+        }
         return;
       }
 
@@ -72,25 +79,50 @@ export function JoinForm() {
       setMode("individual");
       setStep("register");
     } catch {
-      toast.error("No se pudo conectar con el servidor.");
+      if (!silent) {
+        toast.error("No se pudo conectar con el servidor.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const join = async (event: FormEvent<HTMLFormElement>) => {
+  // Si llega ?code=XXXX en el enlace, prellena y valida automáticamente.
+  useEffect(() => {
+    const urlCode = new URLSearchParams(window.location.search)
+      .get("code")
+      ?.trim()
+      .toUpperCase();
+
+    if (urlCode) {
+      setAccessCode(urlCode);
+      void performLookup(urlCode, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const lookupCode = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void performLookup(accessCode);
+  };
+
+  const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!memberOneName.trim()) {
-      toast.error("Tu nombre es obligatorio.");
+    if (!oneFirst.trim() || !oneLast.trim()) {
+      toast.error("Tu nombre y apellido son obligatorios.");
       return;
     }
 
-    if (mode === "pareja" && !memberTwoName.trim()) {
-      toast.error("Falta el nombre del segundo integrante.");
+    if (mode === "pareja" && (!twoFirst.trim() || !twoLast.trim())) {
+      toast.error("Faltan el nombre y apellido del segundo integrante.");
       return;
     }
 
+    setStep("confirm");
+  };
+
+  const join = async () => {
     setLoading(true);
 
     try {
@@ -100,8 +132,10 @@ export function JoinForm() {
         body: JSON.stringify({
           accessCode: accessCode.trim().toUpperCase(),
           participationMode: mode,
-          memberOneName: memberOneName.trim(),
-          memberTwoName: memberTwoName.trim(),
+          memberOneFirstName: oneFirst.trim(),
+          memberOneLastName: oneLast.trim(),
+          memberTwoFirstName: twoFirst.trim(),
+          memberTwoLastName: twoLast.trim(),
         }),
       });
 
@@ -110,9 +144,7 @@ export function JoinForm() {
         | { message?: string };
 
       if (!response.ok) {
-        toast.error(
-          ("message" in data && data.message) || "No se pudo registrar.",
-        );
+        toast.error(("message" in data && data.message) || "No se pudo registrar.");
         return;
       }
 
@@ -164,6 +196,60 @@ export function JoinForm() {
     );
   }
 
+  if (step === "confirm" && group) {
+    return (
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Confirma tus datos</CardTitle>
+          <CardDescription>
+            Revisa que esté todo correcto antes de entrar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <dl className="flex flex-col gap-2 rounded-md border bg-background px-4 py-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Competencia</dt>
+              <dd className="text-right font-medium">{group.contestTitle}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Modalidad</dt>
+              <dd className="font-medium">
+                {mode === "pareja" ? "Pareja" : "Individual"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Integrante 1</dt>
+              <dd className="text-right font-medium">
+                {oneFirst.trim()} {oneLast.trim()}
+              </dd>
+            </div>
+            {mode === "pareja" && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Integrante 2</dt>
+                <dd className="text-right font-medium">
+                  {twoFirst.trim()} {twoLast.trim()}
+                </dd>
+              </div>
+            )}
+          </dl>
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={loading}
+              onClick={() => setStep("register")}
+            >
+              Editar
+            </Button>
+            <Button type="button" disabled={loading} onClick={() => void join()}>
+              {loading ? "Entrando..." : "Confirmar y entrar"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (step === "register" && group) {
     return (
       <Card className="mx-auto w-full max-w-md">
@@ -176,18 +262,29 @@ export function JoinForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={join}>
-            <Field>
-              <FieldLabel htmlFor="member-one">Tu nombre</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="member-one"
-                  value={memberOneName}
-                  onChange={(event) => setMemberOneName(event.target.value)}
-                  placeholder="Nombre y apellido"
-                />
-              </FieldContent>
-            </Field>
+          <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="one-first">Nombre</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="one-first"
+                    value={oneFirst}
+                    onChange={(event) => setOneFirst(event.target.value)}
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="one-last">Apellido</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="one-last"
+                    value={oneLast}
+                    onChange={(event) => setOneLast(event.target.value)}
+                  />
+                </FieldContent>
+              </Field>
+            </div>
 
             {group.allowPairs && (
               <Field>
@@ -214,19 +311,32 @@ export function JoinForm() {
             )}
 
             {mode === "pareja" && (
-              <Field>
-                <FieldLabel htmlFor="member-two">
-                  Nombre del segundo integrante
-                </FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="member-two"
-                    value={memberTwoName}
-                    onChange={(event) => setMemberTwoName(event.target.value)}
-                    placeholder="Nombre y apellido"
-                  />
-                </FieldContent>
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="two-first">
+                    Nombre del 2.º integrante
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="two-first"
+                      value={twoFirst}
+                      onChange={(event) => setTwoFirst(event.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="two-last">
+                    Apellido del 2.º integrante
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="two-last"
+                      value={twoLast}
+                      onChange={(event) => setTwoLast(event.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
             )}
 
             <div className="flex items-center justify-between gap-3">
@@ -237,9 +347,7 @@ export function JoinForm() {
               >
                 Volver
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Entrando..." : "Entrar"}
-              </Button>
+              <Button type="submit">Continuar</Button>
             </div>
           </form>
         </CardContent>

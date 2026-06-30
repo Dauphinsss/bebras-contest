@@ -895,8 +895,10 @@ function serializeGroup(group: {
   teams?: Array<{
     id: string;
     participationMode: string;
-    memberOneName: string;
-    memberTwoName: string | null;
+    memberOneFirstName: string;
+    memberOneLastName: string;
+    memberTwoFirstName: string | null;
+    memberTwoLastName: string | null;
     status: string;
     createdAt: Date;
   }>;
@@ -915,8 +917,10 @@ function serializeGroup(group: {
       group.teams?.map((team) => ({
         id: team.id,
         participationMode: team.participationMode,
-        memberOneName: team.memberOneName,
-        memberTwoName: team.memberTwoName,
+        memberOneFirstName: team.memberOneFirstName,
+        memberOneLastName: team.memberOneLastName,
+        memberTwoFirstName: team.memberTwoFirstName,
+        memberTwoLastName: team.memberTwoLastName,
         status: team.status,
         createdAt: team.createdAt.toISOString(),
       })) ?? [],
@@ -1037,17 +1041,15 @@ app.post("/api/play/join", async (req, res) => {
       : "";
   const mode =
     req.body?.participationMode === "pareja" ? "pareja" : "individual";
-  const memberOneName =
-    typeof req.body?.memberOneName === "string"
-      ? req.body.memberOneName.trim()
-      : "";
-  const memberTwoName =
-    typeof req.body?.memberTwoName === "string"
-      ? req.body.memberTwoName.trim()
-      : "";
+  const readField = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+  const memberOneFirstName = readField(req.body?.memberOneFirstName);
+  const memberOneLastName = readField(req.body?.memberOneLastName);
+  const memberTwoFirstName = readField(req.body?.memberTwoFirstName);
+  const memberTwoLastName = readField(req.body?.memberTwoLastName);
 
-  if (!memberOneName) {
-    res.status(400).json({ message: "Tu nombre es obligatorio." });
+  if (!memberOneFirstName || !memberOneLastName) {
+    res.status(400).json({ message: "Tu nombre y apellido son obligatorios." });
     return;
   }
 
@@ -1076,8 +1078,10 @@ app.post("/api/play/join", async (req, res) => {
     return;
   }
 
-  if (mode === "pareja" && !memberTwoName) {
-    res.status(400).json({ message: "Falta el nombre del segundo integrante." });
+  if (mode === "pareja" && (!memberTwoFirstName || !memberTwoLastName)) {
+    res
+      .status(400)
+      .json({ message: "Faltan el nombre y apellido del segundo integrante." });
     return;
   }
 
@@ -1087,8 +1091,10 @@ app.post("/api/play/join", async (req, res) => {
     data: {
       groupId: group.id,
       participationMode: mode,
-      memberOneName,
-      memberTwoName: mode === "pareja" ? memberTwoName : null,
+      memberOneFirstName,
+      memberOneLastName,
+      memberTwoFirstName: mode === "pareja" ? memberTwoFirstName : null,
+      memberTwoLastName: mode === "pareja" ? memberTwoLastName : null,
       personalCode,
       attempt: { create: { status: "pending" } },
     },
