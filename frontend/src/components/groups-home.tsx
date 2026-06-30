@@ -34,6 +34,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function teamName(team: GroupTeam) {
   const one = `${team.memberOneFirstName} ${team.memberOneLastName}`.trim();
@@ -85,6 +95,11 @@ export function GroupsHome() {
   const [editTwoFirst, setEditTwoFirst] = useState("");
   const [editTwoLast, setEditTwoLast] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [confirming, setConfirming] = useState<
+    | { type: "group"; group: StoredGroup }
+    | { type: "team"; groupId: string; team: GroupTeam }
+    | null
+  >(null);
 
   useEffect(() => {
     let active = true;
@@ -250,6 +265,17 @@ export function GroupsHome() {
     }
   };
 
+  const confirmDelete = () => {
+    if (!confirming) {
+      return;
+    }
+    if (confirming.type === "group") {
+      handleDelete(confirming.group);
+    } else {
+      deleteTeam(confirming.groupId, confirming.team);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[18rem] items-center justify-center">
@@ -394,7 +420,9 @@ export function GroupsHome() {
                         size="sm"
                         type="button"
                         variant="outline"
-                        onClick={() => handleDelete(group)}
+                        onClick={() =>
+                          setConfirming({ type: "group", group })
+                        }
                       >
                         <Trash2Icon data-icon="inline-start" />
                         Eliminar
@@ -446,7 +474,13 @@ export function GroupsHome() {
                                   type="button"
                                   variant="outline"
                                   aria-label="Eliminar participante"
-                                  onClick={() => deleteTeam(group.id, team)}
+                                  onClick={() =>
+                                    setConfirming({
+                                      type: "team",
+                                      groupId: group.id,
+                                      team,
+                                    })
+                                  }
                                 >
                                   <Trash2Icon />
                                 </Button>
@@ -550,6 +584,41 @@ export function GroupsHome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirming(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirming?.type === "group"
+                ? "¿Eliminar el grupo?"
+                : "¿Eliminar al participante?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirming?.type === "group"
+                ? `Se eliminará "${confirming.group.name}" y todos sus equipos registrados. Esta acción no se puede deshacer.`
+                : confirming
+                  ? `Se eliminará a ${teamName(confirming.team)}. Esta acción no se puede deshacer.`
+                  : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
