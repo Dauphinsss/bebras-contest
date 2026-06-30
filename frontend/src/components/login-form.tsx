@@ -58,7 +58,7 @@ export function LoginForm() {
       setUser(data.user);
       toast.success("Sesión iniciada.");
       window.location.href =
-        data.user.role === "admin" ? "/competencias" : "/";
+        data.user.role === "admin" ? "/competencias" : "/grupos";
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {
@@ -70,7 +70,9 @@ export function LoginForm() {
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle>Iniciar sesión</CardTitle>
-        <CardDescription>Ingresa con tu cuenta para continuar.</CardDescription>
+        <CardDescription>
+          Acceso para maestros y organizadores.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -118,14 +120,25 @@ export function LoginForm() {
             {submitting ? "Entrando..." : "Entrar"}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          ¿Eres maestro?{" "}
+
+        <div className="mt-6 border-t pt-5 text-center">
+          <p className="text-sm text-muted-foreground">
+            ¿Todavía no tienes una cuenta de maestro?
+          </p>
+          <Button asChild variant="outline" className="mt-3 w-full">
+            <a href="/registro">Registrarme como maestro</a>
+          </Button>
+        </div>
+
+        <p className="mt-5 text-center text-xs text-muted-foreground">
+          ¿Eres estudiante? No necesitas cuenta: entra con el{" "}
           <a
-            href="/registro"
+            href="/entrar"
             className="underline underline-offset-2 hover:text-foreground"
           >
-            Regístrate
+            código de tu maestro
           </a>
+          .
         </p>
       </CardContent>
     </Card>

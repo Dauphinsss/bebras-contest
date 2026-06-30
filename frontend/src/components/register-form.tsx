@@ -222,12 +222,29 @@ export function RegisterForm() {
           <Field>
             <FieldLabel htmlFor="reg-confirm">Confirmar contraseña</FieldLabel>
             <FieldContent>
-              <Input
-                id="reg-confirm"
-                type={showPassword ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="reg-confirm"
+                  type={showPassword ? "text" : "password"}
+                  className="pr-10"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={
+                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
+                >
+                  {showPassword ? (
+                    <EyeOffIcon className="size-4" />
+                  ) : (
+                    <EyeIcon className="size-4" />
+                  )}
+                </button>
+              </div>
             </FieldContent>
           </Field>
           <Button type="submit" className="w-full">
