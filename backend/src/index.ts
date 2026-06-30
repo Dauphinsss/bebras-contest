@@ -497,6 +497,7 @@ app.post("/api/auth/register", async (req, res) => {
 app.use(["/api/tasks", "/api/contests", "/api/users"], requireAdmin);
 // Grupos: admin y maestro (con sesión); el alcance se filtra por rol.
 app.use("/api/groups", requireAuth);
+app.use("/api/teams", requireAuth);
 
 app.get("/api/tasks", async (_req, res) => {
   const tasks = await prisma.taskDraft.findMany({
@@ -1152,6 +1153,137 @@ app.delete("/api/groups/:id", async (req, res) => {
 
   await prisma.contestGroup.delete({ where: { id: req.params.id } });
   res.status(204).send();
+});
+
+function serializeTeam(team: {
+  id: string;
+  participationMode: string;
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName: string | null;
+  memberTwoLastName: string | null;
+  status: string;
+  createdAt: Date;
+}) {
+  return {
+    id: team.id,
+    participationMode: team.participationMode,
+    memberOneFirstName: team.memberOneFirstName,
+    memberOneLastName: team.memberOneLastName,
+    memberTwoFirstName: team.memberTwoFirstName,
+    memberTwoLastName: team.memberTwoLastName,
+    status: team.status,
+    createdAt: team.createdAt.toISOString(),
+  };
+}
+
+app.delete("/api/teams/:id", async (req, res) => {
+  const team = await prisma.team.findUnique({
+    where: { id: req.params.id },
+    include: { group: { select: { createdById: true } } },
+  });
+
+  if (
+    !team ||
+    (req.user?.role === "maestro" && team.group.createdById !== req.user.id)
+  ) {
+    res.status(404).json({ message: "Participante no encontrado." });
+    return;
+  }
+
+  await prisma.team.delete({ where: { id: team.id } });
+  res.status(204).send();
+});
+
+app.put("/api/teams/:id", async (req, res) => {
+  const team = await prisma.team.findUnique({
+    where: { id: req.params.id },
+    include: { group: { include: { contest: true } } },
+  });
+
+  if (
+    !team ||
+    (req.user?.role === "maestro" && team.group.createdById !== req.user.id)
+  ) {
+    res.status(404).json({ message: "Participante no encontrado." });
+    return;
+  }
+
+  const readField = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+  const oneFirst = readField(req.body?.memberOneFirstName);
+  const oneLast = readField(req.body?.memberOneLastName);
+  const isPareja = team.participationMode === "pareja";
+  const twoFirst = readField(req.body?.memberTwoFirstName);
+  const twoLast = readField(req.body?.memberTwoLastName);
+
+  if (!oneFirst || !oneLast) {
+    res
+      .status(400)
+      .json({ message: "Los nombres y apellidos son obligatorios." });
+    return;
+  }
+
+  if (isPareja && (!twoFirst || !twoLast)) {
+    res
+      .status(400)
+      .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    return;
+  }
+
+  const keyOne = nameKey(oneFirst, oneLast);
+  const keyTwo = isPareja ? nameKey(twoFirst, twoLast) : "";
+
+  if (isPareja && keyOne === keyTwo) {
+    res
+      .status(400)
+      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    return;
+  }
+
+  const others = await prisma.team.findMany({
+    where: { group: { contestId: team.group.contestId }, id: { not: team.id } },
+    select: {
+      memberOneFirstName: true,
+      memberOneLastName: true,
+      memberTwoFirstName: true,
+      memberTwoLastName: true,
+    },
+  });
+
+  const takenKeys = new Set<string>();
+  for (const other of others) {
+    takenKeys.add(nameKey(other.memberOneFirstName, other.memberOneLastName));
+    if (other.memberTwoFirstName && other.memberTwoLastName) {
+      takenKeys.add(nameKey(other.memberTwoFirstName, other.memberTwoLastName));
+    }
+  }
+
+  if (takenKeys.has(keyOne)) {
+    res.status(409).json({
+      message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en esta competencia.`,
+    });
+    return;
+  }
+
+  if (isPareja && takenKeys.has(keyTwo)) {
+    res.status(409).json({
+      message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en esta competencia.`,
+    });
+    return;
+  }
+
+  const updated = await prisma.team.update({
+    where: { id: team.id },
+    data: {
+      memberOneFirstName: formatName(oneFirst),
+      memberOneLastName: formatName(oneLast),
+      memberTwoFirstName: isPareja ? formatName(twoFirst) : null,
+      memberTwoLastName: isPareja ? formatName(twoLast) : null,
+    },
+  });
+
+  res.json(serializeTeam(updated));
 });
 
 // ---- Entrada del estudiante (público, sin login) ----

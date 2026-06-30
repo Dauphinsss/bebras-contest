@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { LogOutIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -26,17 +25,7 @@ function getInitials(user: AuthUser) {
 }
 
 export function UserMenu() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setUser(getUser());
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
+  const [user] = useState<AuthUser | null>(() => getUser());
 
   if (!user) {
     return (
@@ -60,19 +49,31 @@ export function UserMenu() {
         <button
           type="button"
           aria-label="Menú de usuario"
-          className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-ring/50"
         >
-          <Avatar>
-            <AvatarFallback className="bg-primary text-primary-foreground">
+          <Avatar className="after:hidden">
+            <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
               {getInitials(user)}
             </AvatarFallback>
           </Avatar>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel className="text-sm font-medium text-foreground">
-          {user.name ?? user.email}
-        </DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-64 p-2">
+        <div className="flex items-center gap-3 px-1 py-1.5">
+          <Avatar className="after:hidden">
+            <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
+              {getInitials(user)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">
+              {user.name ?? "Cuenta"}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {user.email}
+            </p>
+          </div>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={handleLogout}>
           <LogOutIcon />

@@ -2,24 +2,38 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  ChevronDownIcon,
   CopyIcon,
   LinkIcon,
   LoaderCircleIcon,
+  PencilIcon,
   PlusIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
+
 import {
   createGroup,
   listGroups,
   listPublishedContests,
   removeGroup,
+  removeTeam,
+  updateTeam,
   type GroupTeam,
   type PublishedContest,
   type StoredGroup,
 } from "@/lib/groups-api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function teamName(team: GroupTeam) {
   const one = `${team.memberOneFirstName} ${team.memberOneLastName}`.trim();
@@ -62,6 +76,15 @@ export function GroupsHome() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{
+    groupId: string;
+    team: GroupTeam;
+  } | null>(null);
+  const [editOneFirst, setEditOneFirst] = useState("");
+  const [editOneLast, setEditOneLast] = useState("");
+  const [editTwoFirst, setEditTwoFirst] = useState("");
+  const [editTwoLast, setEditTwoLast] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -145,6 +168,86 @@ export function GroupsHome() {
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : "No se pudo eliminar el grupo.");
       });
+  };
+
+  const deleteTeam = (groupId: string, team: GroupTeam) => {
+    void removeTeam(team.id)
+      .then(() => {
+        setGroups((current) =>
+          current.map((group) =>
+            group.id === groupId
+              ? {
+                  ...group,
+                  teams: group.teams.filter((item) => item.id !== team.id),
+                  teamCount: Math.max(0, group.teamCount - 1),
+                }
+              : group,
+          ),
+        );
+        toast.success("Participante eliminado.");
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo eliminar.",
+        );
+      });
+  };
+
+  const openEdit = (groupId: string, team: GroupTeam) => {
+    setEditing({ groupId, team });
+    setEditOneFirst(team.memberOneFirstName);
+    setEditOneLast(team.memberOneLastName);
+    setEditTwoFirst(team.memberTwoFirstName ?? "");
+    setEditTwoLast(team.memberTwoLastName ?? "");
+  };
+
+  const saveEdit = async () => {
+    if (!editing) {
+      return;
+    }
+
+    const isPareja = editing.team.participationMode === "pareja";
+
+    if (!editOneFirst.trim() || !editOneLast.trim()) {
+      toast.error("Los nombres y apellidos son obligatorios.");
+      return;
+    }
+
+    if (isPareja && (!editTwoFirst.trim() || !editTwoLast.trim())) {
+      toast.error("Faltan los nombres y apellidos del segundo integrante.");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    try {
+      const updated = await updateTeam(editing.team.id, {
+        memberOneFirstName: editOneFirst.trim(),
+        memberOneLastName: editOneLast.trim(),
+        memberTwoFirstName: editTwoFirst.trim(),
+        memberTwoLastName: editTwoLast.trim(),
+      });
+      setGroups((current) =>
+        current.map((group) =>
+          group.id === editing.groupId
+            ? {
+                ...group,
+                teams: group.teams.map((item) =>
+                  item.id === updated.id ? updated : item,
+                ),
+              }
+            : group,
+        ),
+      );
+      toast.success("Participante actualizado.");
+      setEditing(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo actualizar.",
+      );
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   if (loading) {
@@ -232,7 +335,7 @@ export function GroupsHome() {
             </Alert>
           ) : (
             groups.map((group) => (
-              <Card key={group.id} variant="soft-gradient" className="gap-3 py-4">
+              <Card key={group.id} variant="soft-gradient" className="gap-0 py-4">
                 <CardHeader className="gap-3">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="space-y-2">
@@ -243,15 +346,22 @@ export function GroupsHome() {
                         )}
                         <button
                           type="button"
+                          aria-expanded={openGroupId === group.id}
                           onClick={() =>
                             setOpenGroupId(
                               openGroupId === group.id ? null : group.id,
                             )
                           }
-                          className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline"
+                          className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground"
                         >
                           <UsersIcon className="size-4" />
                           {group.teamCount} equipo(s)
+                          <ChevronDownIcon
+                            className={cn(
+                              "size-4 transition-transform duration-300",
+                              openGroupId === group.id && "rotate-180",
+                            )}
+                          />
                         </button>
                       </div>
                       <CardTitle className="text-lg">{group.name}</CardTitle>
@@ -292,36 +402,154 @@ export function GroupsHome() {
                     </div>
                   </div>
                 </CardHeader>
-                {openGroupId === group.id && (
-                  <CardContent className="pt-0">
-                    {group.teams.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Aún no hay equipos registrados en este grupo.
-                      </p>
-                    ) : (
-                      <ul className="flex flex-col gap-2">
-                        {group.teams.map((team) => (
-                          <li
-                            key={team.id}
-                            className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-sm"
-                          >
-                            <span className="font-medium">{teamName(team)}</span>
-                            <Badge variant="outline">
-                              {team.participationMode === "pareja"
-                                ? "Pareja"
-                                : "Individual"}
-                            </Badge>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </CardContent>
-                )}
+                <div
+                  className={cn(
+                    "grid transition-[grid-template-rows] duration-300 ease-out",
+                    openGroupId === group.id
+                      ? "grid-rows-[1fr]"
+                      : "grid-rows-[0fr]",
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <CardContent className="pt-4">
+                      {group.teams.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          Aún no hay equipos registrados en este grupo.
+                        </p>
+                      ) : (
+                        <ul className="flex flex-col gap-2">
+                          {group.teams.map((team) => (
+                            <li
+                              key={team.id}
+                              className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-sm"
+                            >
+                              <span className="min-w-0 truncate font-medium">
+                                {teamName(team)}
+                              </span>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <Badge variant="outline">
+                                  {team.participationMode === "pareja"
+                                    ? "Pareja"
+                                    : "Individual"}
+                                </Badge>
+                                <Button
+                                  size="icon-sm"
+                                  type="button"
+                                  variant="outline"
+                                  aria-label="Editar participante"
+                                  onClick={() => openEdit(group.id, team)}
+                                >
+                                  <PencilIcon />
+                                </Button>
+                                <Button
+                                  size="icon-sm"
+                                  type="button"
+                                  variant="outline"
+                                  aria-label="Eliminar participante"
+                                  onClick={() => deleteTeam(group.id, team)}
+                                >
+                                  <Trash2Icon />
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </CardContent>
+                  </div>
+                </div>
               </Card>
             ))
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditing(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar participante</DialogTitle>
+            <DialogDescription>
+              Corrige los nombres y apellidos del equipo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="edit-one-first">Nombres</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="edit-one-first"
+                    value={editOneFirst}
+                    onChange={(event) => setEditOneFirst(event.target.value)}
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="edit-one-last">Apellidos</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="edit-one-last"
+                    value={editOneLast}
+                    onChange={(event) => setEditOneLast(event.target.value)}
+                  />
+                </FieldContent>
+              </Field>
+            </div>
+            {editing?.team.participationMode === "pareja" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="edit-two-first">
+                    Nombres del 2.º integrante
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="edit-two-first"
+                      value={editTwoFirst}
+                      onChange={(event) => setEditTwoFirst(event.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="edit-two-last">
+                    Apellidos del 2.º integrante
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="edit-two-last"
+                      value={editTwoLast}
+                      onChange={(event) => setEditTwoLast(event.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={savingEdit}
+              onClick={() => setEditing(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={savingEdit}
+              onClick={() => void saveEdit()}
+            >
+              {savingEdit ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -147,12 +147,14 @@
   [data-slot="popover-content"],
   [data-slot="dropdown-menu-content"],
   [data-slot="dropdown-menu-sub-content"],
+  [data-slot="dialog-content"],
   [data-slot="alert"] {
     border: 1px solid var(--border) !important;
     box-shadow: var(--shadow-hard);
   }
 
-  [data-slot="card"] {
+  [data-slot="card"],
+  [data-slot="dialog-content"] {
     border-radius: 0.25rem !important;
   }
 
@@ -166,6 +168,12 @@
   [data-slot="dropdown-menu-sub-content"],
   [data-slot="alert"] {
     border-radius: 0 !important;
+  }
+
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"] {
+    border-color: color-mix(in srgb, var(--border) 45%, transparent) !important;
+    box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.22);
   }
 
   [data-slot="input"]:focus-visible,
@@ -471,6 +479,11 @@
 /* Scrollbar global: siempre visible y estilizado con los colores del tema. */
 html {
   overflow-y: scroll;
+}
+
+body {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
 }
 
 * {

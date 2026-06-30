@@ -14,7 +14,6 @@ const isGroups = pathname.startsWith("/grupos");
 const isMaestros = pathname.startsWith("/maestros");
 const isPractice = pathname.startsWith("/practica");
 
-// role: "admin" = solo admin; "staff" = admin y maestro.
 const links = [
   { href: "/tareas", label: "Tareas", active: isTasks, role: "admin" },
   { href: "/competencias", label: "Competencias", active: isContests, role: "admin" },
@@ -90,7 +89,7 @@ const links = [
           ))
         }
       </nav>
-      <UserMenu client:load />
+      <UserMenu client:only="react" />
     </div>
   </div>
 </header>

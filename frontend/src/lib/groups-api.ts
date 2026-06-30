@@ -98,3 +98,23 @@ export function removeGroup(groupId: string) {
     method: "DELETE",
   });
 }
+
+export type TeamUpdateInput = {
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName: string;
+  memberTwoLastName: string;
+};
+
+export function updateTeam(teamId: string, data: TeamUpdateInput) {
+  return request<GroupTeam>(`/api/teams/${teamId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function removeTeam(teamId: string) {
+  return request<null>(`/api/teams/${teamId}`, {
+    method: "DELETE",
+  });
+}
