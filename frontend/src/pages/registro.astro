@@ -1,0 +1,12 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { RegisterForm } from "../components/register-form";
+
+const title = "Registro de maestro";
+---
+
+<Layout title={title} heading="Registro de maestro" backHref="/login">
+  <main class="mx-auto w-full max-w-md px-4 py-16 sm:py-24">
+    <RegisterForm client:load />
+  </main>
+</Layout>

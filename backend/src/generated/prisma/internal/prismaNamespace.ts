@@ -1120,6 +1120,7 @@ export const UserScalarFieldEnum = {
   name: 'name',
   passwordHash: 'passwordHash',
   role: 'role',
+  status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1188,6 +1189,7 @@ export type ContestTaskScalarFieldEnum = (typeof ContestTaskScalarFieldEnum)[key
 export const ContestGroupScalarFieldEnum = {
   id: 'id',
   contestId: 'contestId',
+  createdById: 'createdById',
   name: 'name',
   accessCode: 'accessCode',
   recoveryCode: 'recoveryCode',

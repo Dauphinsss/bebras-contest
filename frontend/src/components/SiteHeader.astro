@@ -11,12 +11,15 @@ const pathname = Astro.url.pathname;
 const isTasks = pathname.startsWith("/tareas");
 const isContests = pathname.startsWith("/competencias");
 const isGroups = pathname.startsWith("/grupos");
+const isMaestros = pathname.startsWith("/maestros");
 const isPractice = pathname.startsWith("/practica");
 
+// role: "admin" = solo admin; "staff" = admin y maestro.
 const links = [
-  { href: "/tareas", label: "Tareas", active: isTasks },
-  { href: "/competencias", label: "Competencias", active: isContests },
-  { href: "/grupos", label: "Grupos", active: isGroups },
+  { href: "/tareas", label: "Tareas", active: isTasks, role: "admin" },
+  { href: "/competencias", label: "Competencias", active: isContests, role: "admin" },
+  { href: "/grupos", label: "Grupos", active: isGroups, role: "staff" },
+  { href: "/maestros", label: "Maestros", active: isMaestros, role: "admin" },
 ];
 ---
 
@@ -68,14 +71,15 @@ const links = [
       >
         Desafíos
       </a>
-      <nav id="admin-nav" class="hidden items-center gap-1">
+      <nav class="flex items-center gap-1">
         {
           links.map((link) => (
             <a
               href={link.href}
+              data-nav-role={link.role}
               aria-current={link.active ? "page" : undefined}
               class:list={[
-                "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "hidden rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
                 link.active
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -95,10 +99,17 @@ const links = [
   (function () {
     var raw = localStorage.getItem("bebras_user");
     var user = raw ? JSON.parse(raw) : null;
-    var adminNav = document.getElementById("admin-nav");
-    if (adminNav && user && user.role === "admin") {
-      adminNav.classList.remove("hidden");
-      adminNav.classList.add("flex");
-    }
+    if (!user) return;
+
+    document.querySelectorAll("[data-nav-role]").forEach(function (el) {
+      var role = el.getAttribute("data-nav-role");
+      var show =
+        user.role === "admin"
+          ? role === "admin" || role === "staff"
+          : user.role === "maestro" && role === "staff";
+      if (show) {
+        el.classList.remove("hidden");
+      }
+    });
   })();
 </script>

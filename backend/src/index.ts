@@ -412,6 +412,16 @@ app.post("/api/auth/login", async (req, res) => {
     return;
   }
 
+  if (user.status !== "approved") {
+    res.status(403).json({
+      message:
+        user.status === "rejected"
+          ? "Tu cuenta fue rechazada. Contacta al administrador."
+          : "Tu cuenta está pendiente de aprobación.",
+    });
+    return;
+  }
+
   const token = signToken({ id: user.id, email: user.email, role: user.role });
 
   res.json({
@@ -431,8 +441,51 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
 });
 
-// A partir de aquí, el banco de tareas, competencias y grupos son solo para admin.
-app.use(["/api/tasks", "/api/contests", "/api/groups"], requireAdmin);
+app.post("/api/auth/register", async (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const email =
+    typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "";
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : "";
+
+  if (!name || !email || !password) {
+    res
+      .status(400)
+      .json({ message: "Nombre, correo y contraseña son obligatorios." });
+    return;
+  }
+
+  if (password.length < 6) {
+    res
+      .status(400)
+      .json({ message: "La contraseña debe tener al menos 6 caracteres." });
+    return;
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+
+  if (existing) {
+    res.status(409).json({ message: "Ya existe una cuenta con ese correo." });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  await prisma.user.create({
+    data: { name, email, passwordHash, role: "maestro", status: "pending" },
+  });
+
+  res.status(201).json({
+    message: "Cuenta de maestro creada. Queda pendiente de aprobación.",
+  });
+});
+
+// Banco de tareas, competencias y gestión de usuarios: solo admin.
+app.use(["/api/tasks", "/api/contests", "/api/users"], requireAdmin);
+// Grupos: admin y maestro (con sesión); el alcance se filtra por rol.
+app.use("/api/groups", requireAuth);
 
 app.get("/api/tasks", async (_req, res) => {
   const tasks = await prisma.taskDraft.findMany({
@@ -931,8 +984,60 @@ const groupContestSelect = {
   contest: { select: { title: true, category: true } },
 };
 
-app.get("/api/groups", async (_req, res) => {
+// ---- Gestión de maestros (solo admin) ----
+
+app.get("/api/users/maestros", async (_req, res) => {
+  const maestros = await prisma.user.findMany({
+    where: { role: "maestro" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, email: true, status: true, createdAt: true },
+  });
+
+  res.json(
+    maestros.map((maestro) => ({
+      ...maestro,
+      createdAt: maestro.createdAt.toISOString(),
+    })),
+  );
+});
+
+app.post("/api/users/:id/approve", async (req, res) => {
+  const user = await prisma.user.update({
+    where: { id: Number(req.params.id) },
+    data: { status: "approved" },
+    select: { id: true, status: true },
+  });
+  res.json(user);
+});
+
+app.post("/api/users/:id/reject", async (req, res) => {
+  const user = await prisma.user.update({
+    where: { id: Number(req.params.id) },
+    data: { status: "rejected" },
+    select: { id: true, status: true },
+  });
+  res.json(user);
+});
+
+// ---- Competencias publicadas para armar grupos (admin y maestro) ----
+
+app.get("/api/published-contests", requireAuth, async (_req, res) => {
+  const contests = await prisma.contest.findMany({
+    where: { publishedAt: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, category: true },
+  });
+  res.json(contests);
+});
+
+// ---- Grupos: el admin ve todos; el maestro solo los suyos ----
+
+app.get("/api/groups", async (req, res) => {
+  const where =
+    req.user?.role === "maestro" ? { createdById: req.user.id } : {};
+
   const groups = await prisma.contestGroup.findMany({
+    where,
     include: { ...groupContestSelect, teams: true },
     orderBy: { createdAt: "desc" },
   });
@@ -950,6 +1055,11 @@ app.get("/api/groups/:id", async (req, res) => {
   });
 
   if (!group) {
+    res.status(404).json({ message: "Grupo no encontrado." });
+    return;
+  }
+
+  if (req.user?.role === "maestro" && group.createdById !== req.user.id) {
     res.status(404).json({ message: "Grupo no encontrado." });
     return;
   }
@@ -985,7 +1095,13 @@ app.post("/api/groups", async (req, res) => {
   const recoveryCode = generateCode(10);
 
   const group = await prisma.contestGroup.create({
-    data: { contestId, name, accessCode, recoveryCode },
+    data: {
+      contestId,
+      name,
+      accessCode,
+      recoveryCode,
+      createdById: req.user?.id ?? null,
+    },
     include: { ...groupContestSelect, teams: true },
   });
 
@@ -993,6 +1109,17 @@ app.post("/api/groups", async (req, res) => {
 });
 
 app.delete("/api/groups/:id", async (req, res) => {
+  if (req.user?.role === "maestro") {
+    const group = await prisma.contestGroup.findUnique({
+      where: { id: req.params.id },
+      select: { createdById: true },
+    });
+    if (!group || group.createdById !== req.user.id) {
+      res.status(404).json({ message: "Grupo no encontrado." });
+      return;
+    }
+  }
+
   await prisma.contestGroup.delete({ where: { id: req.params.id } });
   res.status(204).send();
 });
@@ -1049,7 +1176,9 @@ app.post("/api/play/join", async (req, res) => {
   const memberTwoLastName = readField(req.body?.memberTwoLastName);
 
   if (!memberOneFirstName || !memberOneLastName) {
-    res.status(400).json({ message: "Tu nombre y apellido son obligatorios." });
+    res
+      .status(400)
+      .json({ message: "Tus nombres y apellidos son obligatorios." });
     return;
   }
 
@@ -1081,7 +1210,7 @@ app.post("/api/play/join", async (req, res) => {
   if (mode === "pareja" && (!memberTwoFirstName || !memberTwoLastName)) {
     res
       .status(400)
-      .json({ message: "Faltan el nombre y apellido del segundo integrante." });
+      .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
     return;
   }
 

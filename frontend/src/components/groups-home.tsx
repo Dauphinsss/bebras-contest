@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   CopyIcon,
   LinkIcon,
@@ -14,10 +14,11 @@ import { toast } from "sonner";
 import {
   createGroup,
   listGroups,
+  listPublishedContests,
   removeGroup,
+  type PublishedContest,
   type StoredGroup,
 } from "@/lib/groups-api";
-import { listContests, type StoredContest } from "@/lib/contests-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,9 @@ import {
 
 export function GroupsHome() {
   const [groups, setGroups] = useState<StoredGroup[]>([]);
-  const [contests, setContests] = useState<StoredContest[]>([]);
+  const [publishedContests, setPublishedContests] = useState<PublishedContest[]>(
+    [],
+  );
   const [contestId, setContestId] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,13 +56,13 @@ export function GroupsHome() {
   useEffect(() => {
     let active = true;
 
-    void Promise.all([listGroups(), listContests()])
+    void Promise.all([listGroups(), listPublishedContests()])
       .then(([loadedGroups, loadedContests]) => {
         if (!active) {
           return;
         }
         setGroups(loadedGroups);
-        setContests(loadedContests);
+        setPublishedContests(loadedContests);
       })
       .catch((error: unknown) => {
         toast.error(
@@ -76,11 +79,6 @@ export function GroupsHome() {
       active = false;
     };
   }, []);
-
-  const publishedContests = useMemo(
-    () => contests.filter((contest) => contest.state !== "borrador"),
-    [contests],
-  );
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

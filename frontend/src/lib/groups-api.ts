@@ -33,6 +33,12 @@ export type GroupDraftInput = {
   name: string;
 };
 
+export type PublishedContest = {
+  id: string;
+  title: string;
+  category: string;
+};
+
 async function request<T>(path: string, init?: RequestInit) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -66,6 +72,10 @@ async function request<T>(path: string, init?: RequestInit) {
   }
 
   return (await response.json()) as T;
+}
+
+export function listPublishedContests() {
+  return request<PublishedContest[]>("/api/published-contests");
 }
 
 export function listGroups() {

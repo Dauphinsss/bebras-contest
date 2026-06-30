@@ -110,12 +110,12 @@ export function JoinForm() {
     event.preventDefault();
 
     if (!oneFirst.trim() || !oneLast.trim()) {
-      toast.error("Tu nombre y apellido son obligatorios.");
+      toast.error("Tus nombres y apellidos son obligatorios.");
       return;
     }
 
     if (mode === "pareja" && (!twoFirst.trim() || !twoLast.trim())) {
-      toast.error("Faltan el nombre y apellido del segundo integrante.");
+      toast.error("Faltan los nombres y apellidos del segundo integrante.");
       return;
     }
 
@@ -265,7 +265,7 @@ export function JoinForm() {
           <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="one-first">Nombre</FieldLabel>
+                <FieldLabel htmlFor="one-first">Nombres</FieldLabel>
                 <FieldContent>
                   <Input
                     id="one-first"
@@ -275,7 +275,7 @@ export function JoinForm() {
                 </FieldContent>
               </Field>
               <Field>
-                <FieldLabel htmlFor="one-last">Apellido</FieldLabel>
+                <FieldLabel htmlFor="one-last">Apellidos</FieldLabel>
                 <FieldContent>
                   <Input
                     id="one-last"
@@ -314,7 +314,7 @@ export function JoinForm() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="two-first">
-                    Nombre del 2.º integrante
+                    Nombres del 2.º integrante
                   </FieldLabel>
                   <FieldContent>
                     <Input
@@ -326,7 +326,7 @@ export function JoinForm() {
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="two-last">
-                    Apellido del 2.º integrante
+                    Apellidos del 2.º integrante
                   </FieldLabel>
                   <FieldContent>
                     <Input

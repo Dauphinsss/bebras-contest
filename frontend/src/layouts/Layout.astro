@@ -9,6 +9,7 @@ interface Props {
   heading?: string;
   backHref?: string;
   requireAuth?: boolean;
+  allowMaestro?: boolean;
 }
 
 const {
@@ -16,6 +17,7 @@ const {
   heading,
   backHref,
   requireAuth = false,
+  allowMaestro = false,
 } = Astro.props;
 ---
 
@@ -27,7 +29,7 @@ const {
     <title>{title}</title>
     {
       requireAuth && (
-        <script is:inline>
+        <script is:inline define:vars={{ allowMaestro }}>
           (function () {
             var raw = localStorage.getItem("bebras_user");
             var user = raw ? JSON.parse(raw) : null;
@@ -35,7 +37,10 @@ const {
               window.location.replace("/login");
               return;
             }
-            if (user.role !== "admin") {
+            var ok =
+              user.role === "admin" ||
+              (allowMaestro && user.role === "maestro");
+            if (!ok) {
               window.location.replace("/");
             }
           })();
