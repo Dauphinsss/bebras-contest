@@ -79,6 +79,8 @@ export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
   name: 'name',
+  firstName: 'firstName',
+  lastName: 'lastName',
   passwordHash: 'passwordHash',
   role: 'role',
   status: 'status',

@@ -12,6 +12,8 @@ model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   name         String?
+  firstName    String?
+  lastName     String?
   passwordHash String   @default("")
   role         String   @default("admin")
   status       String   @default("approved")

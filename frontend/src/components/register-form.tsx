@@ -20,17 +20,19 @@ const API_BASE_URL =
   "http://localhost:3000";
 
 export function RegisterForm() {
-  const [name, setName] = useState("");
+  const [step, setStep] = useState<"form" | "confirm" | "done">("form");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!name.trim() || !email.trim() || !password) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
       toast.error("Completa todos los campos.");
       return;
     }
@@ -40,6 +42,15 @@ export function RegisterForm() {
       return;
     }
 
+    if (password !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setStep("confirm");
+  };
+
+  const submit = async () => {
     setSubmitting(true);
 
     try {
@@ -47,7 +58,8 @@ export function RegisterForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
           email: email.trim(),
           password,
         }),
@@ -62,7 +74,7 @@ export function RegisterForm() {
         return;
       }
 
-      setDone(true);
+      setStep("done");
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {
@@ -70,7 +82,7 @@ export function RegisterForm() {
     }
   };
 
-  if (done) {
+  if (step === "done") {
     return (
       <Card className="mx-auto w-full max-w-md">
         <CardHeader>
@@ -92,6 +104,48 @@ export function RegisterForm() {
     );
   }
 
+  if (step === "confirm") {
+    return (
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Confirma tus datos</CardTitle>
+          <CardDescription>
+            Revisa que esté todo correcto antes de crear tu cuenta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <dl className="flex flex-col gap-2 rounded-md border bg-background px-4 py-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Nombres</dt>
+              <dd className="text-right font-medium">{firstName.trim()}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Apellidos</dt>
+              <dd className="text-right font-medium">{lastName.trim()}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Correo</dt>
+              <dd className="text-right font-medium">{email.trim()}</dd>
+            </div>
+          </dl>
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={submitting}
+              onClick={() => setStep("form")}
+            >
+              Editar
+            </Button>
+            <Button type="button" disabled={submitting} onClick={() => void submit()}>
+              {submitting ? "Creando cuenta..." : "Confirmar y crear cuenta"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
@@ -102,17 +156,29 @@ export function RegisterForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <Field>
-            <FieldLabel htmlFor="reg-name">Nombre completo</FieldLabel>
-            <FieldContent>
-              <Input
-                id="reg-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </FieldContent>
-          </Field>
+        <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="reg-first">Nombres</FieldLabel>
+              <FieldContent>
+                <Input
+                  id="reg-first"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                />
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="reg-last">Apellidos</FieldLabel>
+              <FieldContent>
+                <Input
+                  id="reg-last"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                />
+              </FieldContent>
+            </Field>
+          </div>
           <Field>
             <FieldLabel htmlFor="reg-email">Correo</FieldLabel>
             <FieldContent>
@@ -153,8 +219,19 @@ export function RegisterForm() {
               </div>
             </FieldContent>
           </Field>
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? "Creando cuenta..." : "Crear cuenta"}
+          <Field>
+            <FieldLabel htmlFor="reg-confirm">Confirmar contraseña</FieldLabel>
+            <FieldContent>
+              <Input
+                id="reg-confirm"
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+              />
+            </FieldContent>
+          </Field>
+          <Button type="submit" className="w-full">
+            Continuar
           </Button>
         </form>
       </CardContent>

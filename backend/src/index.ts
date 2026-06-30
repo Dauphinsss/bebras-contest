@@ -442,7 +442,10 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
-  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const firstName =
+    typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
+  const lastName =
+    typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
   const email =
     typeof req.body?.email === "string"
       ? req.body.email.trim().toLowerCase()
@@ -450,10 +453,10 @@ app.post("/api/auth/register", async (req, res) => {
   const password =
     typeof req.body?.password === "string" ? req.body.password : "";
 
-  if (!name || !email || !password) {
-    res
-      .status(400)
-      .json({ message: "Nombre, correo y contraseña son obligatorios." });
+  if (!firstName || !lastName || !email || !password) {
+    res.status(400).json({
+      message: "Nombres, apellidos, correo y contraseña son obligatorios.",
+    });
     return;
   }
 
@@ -474,7 +477,15 @@ app.post("/api/auth/register", async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
 
   await prisma.user.create({
-    data: { name, email, passwordHash, role: "maestro", status: "pending" },
+    data: {
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`,
+      email,
+      passwordHash,
+      role: "maestro",
+      status: "pending",
+    },
   });
 
   res.status(201).json({
