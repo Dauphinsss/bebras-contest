@@ -12,7 +12,7 @@ const categories = [
 ];
 ---
 
-<Layout title={title} heading="Desafíos de práctica">
+<Layout title={title} heading="Desafíos de práctica" backHref="/">
   <main class="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 sm:px-8">
     <div class="flex flex-col gap-2">
       <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -25,10 +25,9 @@ const categories = [
     </div>
 
     <div class="rounded-lg border bg-secondary/30 px-5 py-4 text-center text-sm">
-      Para participar del <strong>desafío oficial</strong> necesitas iniciar
-      sesión cuando tu maestro te lo indique.{" "}
-      <a href="/login" class="underline underline-offset-2 hover:text-foreground">
-        Iniciar sesión
+      ¿Tu maestro te dio un <strong>código</strong> para el desafío oficial?{" "}
+      <a href="/entrar" class="underline underline-offset-2 hover:text-foreground">
+        Entrar con el código
       </a>.
     </div>
 

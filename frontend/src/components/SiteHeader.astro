@@ -10,11 +10,13 @@ const { heading, backHref } = Astro.props;
 const pathname = Astro.url.pathname;
 const isTasks = pathname.startsWith("/tareas");
 const isContests = pathname.startsWith("/competencias");
+const isGroups = pathname.startsWith("/grupos");
 const isPractice = pathname.startsWith("/practica");
 
 const links = [
   { href: "/tareas", label: "Tareas", active: isTasks },
   { href: "/competencias", label: "Competencias", active: isContests },
+  { href: "/grupos", label: "Grupos", active: isGroups },
 ];
 ---
 

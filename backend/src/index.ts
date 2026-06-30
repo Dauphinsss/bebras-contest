@@ -431,8 +431,8 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
 });
 
-// A partir de aquí, el banco de tareas y las competencias son solo para admin.
-app.use(["/api/tasks", "/api/contests"], requireAdmin);
+// A partir de aquí, el banco de tareas, competencias y grupos son solo para admin.
+app.use(["/api/tasks", "/api/contests", "/api/groups"], requireAdmin);
 
 app.get("/api/tasks", async (_req, res) => {
   const tasks = await prisma.taskDraft.findMany({
@@ -846,6 +846,267 @@ app.delete("/api/contests/:id", async (req, res) => {
   });
 
   res.status(204).send();
+});
+
+function generateCode(length: number) {
+  // Sin caracteres ambiguos (O/0, I/1/L).
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < length; i += 1) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code;
+}
+
+async function generateUniqueAccessCode() {
+  for (let i = 0; i < 12; i += 1) {
+    const code = generateCode(6);
+    const existing = await prisma.contestGroup.findUnique({
+      where: { accessCode: code },
+    });
+    if (!existing) {
+      return code;
+    }
+  }
+  throw new Error("No se pudo generar un código de acceso único.");
+}
+
+async function generateUniquePersonalCode() {
+  for (let i = 0; i < 12; i += 1) {
+    const code = generateCode(8);
+    const existing = await prisma.team.findUnique({
+      where: { personalCode: code },
+    });
+    if (!existing) {
+      return code;
+    }
+  }
+  throw new Error("No se pudo generar un código de equipo único.");
+}
+
+function serializeGroup(group: {
+  id: string;
+  name: string;
+  accessCode: string;
+  contestId: string;
+  expiresAt: Date | null;
+  createdAt: Date;
+  contest?: { title: string; category: string } | null;
+  teams?: Array<{
+    id: string;
+    participationMode: string;
+    memberOneName: string;
+    memberTwoName: string | null;
+    status: string;
+    createdAt: Date;
+  }>;
+}) {
+  return {
+    id: group.id,
+    name: group.name,
+    accessCode: group.accessCode,
+    contestId: group.contestId,
+    contestTitle: group.contest?.title ?? "",
+    contestCategory: group.contest?.category ?? "",
+    expiresAt: group.expiresAt?.toISOString() ?? null,
+    createdAt: group.createdAt.toISOString(),
+    teamCount: group.teams?.length ?? 0,
+    teams:
+      group.teams?.map((team) => ({
+        id: team.id,
+        participationMode: team.participationMode,
+        memberOneName: team.memberOneName,
+        memberTwoName: team.memberTwoName,
+        status: team.status,
+        createdAt: team.createdAt.toISOString(),
+      })) ?? [],
+  };
+}
+
+const groupContestSelect = {
+  contest: { select: { title: true, category: true } },
+};
+
+app.get("/api/groups", async (_req, res) => {
+  const groups = await prisma.contestGroup.findMany({
+    include: { ...groupContestSelect, teams: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json(groups.map(serializeGroup));
+});
+
+app.get("/api/groups/:id", async (req, res) => {
+  const group = await prisma.contestGroup.findUnique({
+    where: { id: req.params.id },
+    include: {
+      ...groupContestSelect,
+      teams: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
+  if (!group) {
+    res.status(404).json({ message: "Grupo no encontrado." });
+    return;
+  }
+
+  res.json(serializeGroup(group));
+});
+
+app.post("/api/groups", async (req, res) => {
+  const contestId =
+    typeof req.body?.contestId === "string" ? req.body.contestId : "";
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+
+  if (!name) {
+    res.status(400).json({ message: "El nombre del grupo es obligatorio." });
+    return;
+  }
+
+  const contest = await prisma.contest.findUnique({ where: { id: contestId } });
+
+  if (!contest) {
+    res.status(400).json({ message: "La competencia no existe." });
+    return;
+  }
+
+  if (!contest.publishedAt) {
+    res
+      .status(400)
+      .json({ message: "La competencia debe estar publicada para crear grupos." });
+    return;
+  }
+
+  const accessCode = await generateUniqueAccessCode();
+  const recoveryCode = generateCode(10);
+
+  const group = await prisma.contestGroup.create({
+    data: { contestId, name, accessCode, recoveryCode },
+    include: { ...groupContestSelect, teams: true },
+  });
+
+  res.status(201).json(serializeGroup(group));
+});
+
+app.delete("/api/groups/:id", async (req, res) => {
+  await prisma.contestGroup.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
+
+// ---- Entrada del estudiante (público, sin login) ----
+
+app.get("/api/play/group/:code", async (req, res) => {
+  const code = String(req.params.code ?? "").trim().toUpperCase();
+
+  const group = await prisma.contestGroup.findUnique({
+    where: { accessCode: code },
+    include: { contest: true },
+  });
+
+  if (!group) {
+    res.status(404).json({ message: "Código no encontrado." });
+    return;
+  }
+
+  if (group.expiresAt && group.expiresAt < new Date()) {
+    res.status(410).json({ message: "El código ya expiró." });
+    return;
+  }
+
+  if (!group.contest.publishedAt) {
+    res.status(409).json({ message: "La competencia aún no está disponible." });
+    return;
+  }
+
+  const { state } = computeContestState(group.contest);
+
+  res.json({
+    groupName: group.name,
+    contestTitle: group.contest.title,
+    contestCategory: group.contest.category,
+    allowPairs: group.contest.allowPairs,
+    durationMinutes: group.contest.durationMinutes,
+    state,
+  });
+});
+
+app.post("/api/play/join", async (req, res) => {
+  const code =
+    typeof req.body?.accessCode === "string"
+      ? req.body.accessCode.trim().toUpperCase()
+      : "";
+  const mode =
+    req.body?.participationMode === "pareja" ? "pareja" : "individual";
+  const memberOneName =
+    typeof req.body?.memberOneName === "string"
+      ? req.body.memberOneName.trim()
+      : "";
+  const memberTwoName =
+    typeof req.body?.memberTwoName === "string"
+      ? req.body.memberTwoName.trim()
+      : "";
+
+  if (!memberOneName) {
+    res.status(400).json({ message: "Tu nombre es obligatorio." });
+    return;
+  }
+
+  const group = await prisma.contestGroup.findUnique({
+    where: { accessCode: code },
+    include: { contest: true },
+  });
+
+  if (!group) {
+    res.status(404).json({ message: "Código no encontrado." });
+    return;
+  }
+
+  if (group.expiresAt && group.expiresAt < new Date()) {
+    res.status(410).json({ message: "El código ya expiró." });
+    return;
+  }
+
+  if (!group.contest.publishedAt) {
+    res.status(409).json({ message: "La competencia aún no está disponible." });
+    return;
+  }
+
+  if (mode === "pareja" && !group.contest.allowPairs) {
+    res.status(400).json({ message: "Esta competencia no permite parejas." });
+    return;
+  }
+
+  if (mode === "pareja" && !memberTwoName) {
+    res.status(400).json({ message: "Falta el nombre del segundo integrante." });
+    return;
+  }
+
+  const personalCode = await generateUniquePersonalCode();
+
+  const team = await prisma.team.create({
+    data: {
+      groupId: group.id,
+      participationMode: mode,
+      memberOneName,
+      memberTwoName: mode === "pareja" ? memberTwoName : null,
+      personalCode,
+      attempt: { create: { status: "pending" } },
+    },
+  });
+
+  if (!group.firstUsedAt) {
+    await prisma.contestGroup.update({
+      where: { id: group.id },
+      data: { firstUsedAt: new Date() },
+    });
+  }
+
+  res.status(201).json({
+    personalCode,
+    teamId: team.id,
+    groupName: group.name,
+    contestTitle: group.contest.title,
+  });
 });
 
 const startServer = async () => {

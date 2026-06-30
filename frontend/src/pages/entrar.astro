@@ -1,0 +1,12 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { JoinForm } from "../components/join-form";
+
+const title = "Entrar a la competencia";
+---
+
+<Layout title={title} heading="Entrar a la competencia" backHref="/">
+  <main class="mx-auto w-full max-w-md px-4 py-16 sm:py-24">
+    <JoinForm client:load />
+  </main>
+</Layout>
