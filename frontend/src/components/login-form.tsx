@@ -70,7 +70,7 @@ export function LoginForm() {
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle>Iniciar sesión</CardTitle>
-        <CardDescription>Accede al panel de administración.</CardDescription>
+        <CardDescription>Ingresa con tu cuenta para continuar.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>

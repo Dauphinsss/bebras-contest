@@ -10,6 +10,7 @@ const { heading, backHref } = Astro.props;
 const pathname = Astro.url.pathname;
 const isTasks = pathname.startsWith("/tareas");
 const isContests = pathname.startsWith("/competencias");
+const isPractice = pathname.startsWith("/practica");
 
 const links = [
   { href: "/tareas", label: "Tareas", active: isTasks },
@@ -54,6 +55,17 @@ const links = [
       }
     </div>
     <div class="flex items-center gap-2">
+      <a
+        href="/practica"
+        class:list={[
+          "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+          isPractice
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        ]}
+      >
+        Desafíos
+      </a>
       <nav id="admin-nav" class="hidden items-center gap-1">
         {
           links.map((link) => (

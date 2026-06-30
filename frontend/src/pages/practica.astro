@@ -1,0 +1,54 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const title = "Desafíos de práctica";
+
+const categories = [
+  { name: "Guacamayo", age: "5-8 años" },
+  { name: "Capibara", age: "8-10 años" },
+  { name: "Titi", age: "10-12 años" },
+  { name: "Jucumari", age: "12-14 años" },
+  { name: "Yaguareté", age: "14-18 años" },
+];
+---
+
+<Layout title={title} heading="Desafíos de práctica">
+  <main class="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 sm:px-8">
+    <div class="flex flex-col gap-2">
+      <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">
+        Desafíos de práctica
+      </h1>
+      <p class="text-sm leading-6 text-muted-foreground sm:text-base">
+        Elige tu categoría según tu edad y empieza a practicar. No necesitas una
+        cuenta para practicar.
+      </p>
+    </div>
+
+    <div class="rounded-lg border bg-secondary/30 px-5 py-4 text-center text-sm">
+      Para participar del <strong>desafío oficial</strong> necesitas iniciar
+      sesión cuando tu maestro te lo indique.{" "}
+      <a href="/login" class="underline underline-offset-2 hover:text-foreground">
+        Iniciar sesión
+      </a>.
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <h2 class="text-lg font-semibold">Categorías</h2>
+      <div class="grid gap-3 sm:grid-cols-2">
+        {
+          categories.map((category) => (
+            <div class="flex items-center justify-between gap-4 rounded-lg border px-4 py-4">
+              <div>
+                <div class="font-medium">{category.name}</div>
+                <div class="text-sm text-muted-foreground">{category.age}</div>
+              </div>
+              <span class="text-xs font-medium text-muted-foreground">
+                Próximamente
+              </span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </main>
+</Layout>
