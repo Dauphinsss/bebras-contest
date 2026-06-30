@@ -48,6 +48,25 @@ type RecoveredTeam = {
 
 type Step = "code" | "register" | "confirm" | "recovered" | "done";
 
+function fmt(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/(^|\s|-)(\p{L})/gu, (_match, sep, letter) => sep + letter.toUpperCase());
+}
+
+function nameKey(first: string, last: string) {
+  const norm = (value: string) =>
+    value
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
+  return `${norm(first)} ${norm(last)}`;
+}
+
 export function JoinForm() {
   const [step, setStep] = useState<Step>("code");
   const [accessCode, setAccessCode] = useState("");
@@ -165,6 +184,14 @@ export function JoinForm() {
       return;
     }
 
+    if (
+      mode === "pareja" &&
+      nameKey(oneFirst, oneLast) === nameKey(twoFirst, twoLast)
+    ) {
+      toast.error("Los dos integrantes no pueden ser la misma persona.");
+      return;
+    }
+
     setStep("confirm");
   };
 
@@ -178,10 +205,10 @@ export function JoinForm() {
         body: JSON.stringify({
           accessCode: accessCode.trim().toUpperCase(),
           participationMode: mode,
-          memberOneFirstName: oneFirst.trim(),
-          memberOneLastName: oneLast.trim(),
-          memberTwoFirstName: twoFirst.trim(),
-          memberTwoLastName: twoLast.trim(),
+          memberOneFirstName: fmt(oneFirst),
+          memberOneLastName: fmt(oneLast),
+          memberTwoFirstName: fmt(twoFirst),
+          memberTwoLastName: fmt(twoLast),
         }),
       });
 
@@ -191,6 +218,7 @@ export function JoinForm() {
 
       if (!response.ok) {
         toast.error(("message" in data && data.message) || "No se pudo registrar.");
+        setStep("register");
         return;
       }
 
@@ -316,14 +344,14 @@ export function JoinForm() {
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Integrante 1</dt>
               <dd className="text-right font-medium">
-                {oneFirst.trim()} {oneLast.trim()}
+                {fmt(oneFirst)} {fmt(oneLast)}
               </dd>
             </div>
             {mode === "pareja" && (
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Integrante 2</dt>
                 <dd className="text-right font-medium">
-                  {twoFirst.trim()} {twoLast.trim()}
+                  {fmt(twoFirst)} {fmt(twoLast)}
                 </dd>
               </div>
             )}

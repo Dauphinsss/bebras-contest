@@ -948,6 +948,25 @@ async function generateUniquePersonalCode() {
   throw new Error("No se pudo generar un código de equipo único.");
 }
 
+function cleanName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function formatName(value: string) {
+  return cleanName(value)
+    .toLowerCase()
+    .replace(/(^|\s|-)(\p{L})/gu, (_match, sep, letter) => sep + letter.toUpperCase());
+}
+
+function nameKey(first: string, last: string) {
+  const norm = (value: string) =>
+    cleanName(value)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
+  return `${norm(first)} ${norm(last)}`;
+}
+
 function serializeGroup(group: {
   id: string;
   name: string;
@@ -1237,16 +1256,65 @@ app.post("/api/play/join", async (req, res) => {
     return;
   }
 
+  const keyOne = nameKey(memberOneFirstName, memberOneLastName);
+  const keyTwo =
+    mode === "pareja" ? nameKey(memberTwoFirstName, memberTwoLastName) : "";
+
+  if (mode === "pareja" && keyOne === keyTwo) {
+    res
+      .status(400)
+      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    return;
+  }
+
+  const existingTeams = await prisma.team.findMany({
+    where: { group: { contestId: group.contestId } },
+    select: {
+      memberOneFirstName: true,
+      memberOneLastName: true,
+      memberTwoFirstName: true,
+      memberTwoLastName: true,
+    },
+  });
+
+  const takenKeys = new Set<string>();
+  for (const existing of existingTeams) {
+    takenKeys.add(nameKey(existing.memberOneFirstName, existing.memberOneLastName));
+    if (existing.memberTwoFirstName && existing.memberTwoLastName) {
+      takenKeys.add(
+        nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
+      );
+    }
+  }
+
+  const oneName = `${formatName(memberOneFirstName)} ${formatName(memberOneLastName)}`;
+  if (takenKeys.has(keyOne)) {
+    res.status(409).json({
+      message: `${oneName} ya está registrado en esta competencia.`,
+    });
+    return;
+  }
+
+  if (mode === "pareja" && takenKeys.has(keyTwo)) {
+    const twoName = `${formatName(memberTwoFirstName)} ${formatName(memberTwoLastName)}`;
+    res.status(409).json({
+      message: `${twoName} ya está registrado en esta competencia.`,
+    });
+    return;
+  }
+
   const personalCode = await generateUniquePersonalCode();
 
   const team = await prisma.team.create({
     data: {
       groupId: group.id,
       participationMode: mode,
-      memberOneFirstName,
-      memberOneLastName,
-      memberTwoFirstName: mode === "pareja" ? memberTwoFirstName : null,
-      memberTwoLastName: mode === "pareja" ? memberTwoLastName : null,
+      memberOneFirstName: formatName(memberOneFirstName),
+      memberOneLastName: formatName(memberOneLastName),
+      memberTwoFirstName:
+        mode === "pareja" ? formatName(memberTwoFirstName) : null,
+      memberTwoLastName:
+        mode === "pareja" ? formatName(memberTwoLastName) : null,
       personalCode,
       attempt: { create: { status: "pending" } },
     },
