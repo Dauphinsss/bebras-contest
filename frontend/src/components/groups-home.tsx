@@ -16,9 +16,18 @@ import {
   listGroups,
   listPublishedContests,
   removeGroup,
+  type GroupTeam,
   type PublishedContest,
   type StoredGroup,
 } from "@/lib/groups-api";
+
+function teamName(team: GroupTeam) {
+  const one = `${team.memberOneFirstName} ${team.memberOneLastName}`.trim();
+  if (team.participationMode === "pareja" && team.memberTwoFirstName) {
+    return `${one} · ${team.memberTwoFirstName} ${team.memberTwoLastName ?? ""}`.trim();
+  }
+  return one;
+}
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +61,7 @@ export function GroupsHome() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -231,10 +241,18 @@ export function GroupsHome() {
                         {group.contestCategory && (
                           <Badge variant="outline">{group.contestCategory}</Badge>
                         )}
-                        <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenGroupId(
+                              openGroupId === group.id ? null : group.id,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline"
+                        >
                           <UsersIcon className="size-4" />
                           {group.teamCount} equipo(s)
-                        </span>
+                        </button>
                       </div>
                       <CardTitle className="text-lg">{group.name}</CardTitle>
                     </div>
@@ -274,6 +292,31 @@ export function GroupsHome() {
                     </div>
                   </div>
                 </CardHeader>
+                {openGroupId === group.id && (
+                  <CardContent className="pt-0">
+                    {group.teams.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Aún no hay equipos registrados en este grupo.
+                      </p>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {group.teams.map((team) => (
+                          <li
+                            key={team.id}
+                            className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-sm"
+                          >
+                            <span className="font-medium">{teamName(team)}</span>
+                            <Badge variant="outline">
+                              {team.participationMode === "pareja"
+                                ? "Pareja"
+                                : "Individual"}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                )}
               </Card>
             ))
           )}

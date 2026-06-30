@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2Icon, LoaderCircleIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,7 +35,18 @@ type JoinResult = {
   contestTitle: string;
 };
 
-type Step = "code" | "register" | "confirm" | "done";
+type RecoveredTeam = {
+  personalCode: string;
+  participationMode: string;
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName: string | null;
+  memberTwoLastName: string | null;
+  groupName: string;
+  contestTitle: string;
+};
+
+type Step = "code" | "register" | "confirm" | "recovered" | "done";
 
 export function JoinForm() {
   const [step, setStep] = useState<Step>("code");
@@ -46,6 +58,7 @@ export function JoinForm() {
   const [twoFirst, setTwoFirst] = useState("");
   const [twoLast, setTwoLast] = useState("");
   const [result, setResult] = useState<JoinResult | null>(null);
+  const [recovered, setRecovered] = useState<RecoveredTeam | null>(null);
   const [loading, setLoading] = useState(false);
 
   const performLookup = async (rawCode: string, silent = false) => {
@@ -77,6 +90,26 @@ export function JoinForm() {
 
       setGroup(data as GroupInfo);
       setMode("individual");
+
+      // Recuperación: si en este navegador ya hay un registro para este código,
+      // lo validamos y mostramos el estado en vez de volver a registrar.
+      const storedCode = window.localStorage.getItem(`bebras_play_${code}`);
+      if (storedCode) {
+        try {
+          const teamResponse = await fetch(
+            `${API_BASE_URL}/api/play/team/${storedCode}`,
+          );
+          if (teamResponse.ok) {
+            setRecovered((await teamResponse.json()) as RecoveredTeam);
+            setStep("recovered");
+            return;
+          }
+          window.localStorage.removeItem(`bebras_play_${code}`);
+        } catch {
+          // Si falla la validación, seguimos al registro normal.
+        }
+      }
+
       setStep("register");
     } catch {
       if (!silent) {
@@ -85,6 +118,19 @@ export function JoinForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const registerAnother = () => {
+    window.localStorage.removeItem(
+      `bebras_play_${accessCode.trim().toUpperCase()}`,
+    );
+    setRecovered(null);
+    setMode("individual");
+    setOneFirst("");
+    setOneLast("");
+    setTwoFirst("");
+    setTwoLast("");
+    setStep("register");
   };
 
   // Si llega ?code=XXXX en el enlace, prellena y valida automáticamente.
@@ -196,6 +242,56 @@ export function JoinForm() {
     );
   }
 
+  if (step === "recovered" && recovered) {
+    const partner =
+      recovered.participationMode === "pareja" && recovered.memberTwoFirstName
+        ? ` y ${recovered.memberTwoFirstName} ${recovered.memberTwoLastName ?? ""}`.trim()
+        : "";
+
+    return (
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <CheckCircle2Icon className="size-5 text-primary" />
+            <CardTitle>Ya estás registrado</CardTitle>
+          </div>
+          <CardDescription>
+            En {recovered.contestTitle} ({recovered.groupName}).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="rounded-md border bg-background px-4 py-3 text-sm">
+            <div className="font-medium">
+              {recovered.memberOneFirstName} {recovered.memberOneLastName}
+              {partner}
+            </div>
+            <div className="text-muted-foreground">
+              {recovered.participationMode === "pareja" ? "Pareja" : "Individual"}
+            </div>
+          </div>
+          <div className="rounded-md border bg-secondary/30 px-4 py-3 text-center">
+            <div className="text-xs text-muted-foreground">
+              Tu código de equipo
+            </div>
+            <div className="font-mono text-xl font-semibold tracking-widest">
+              {recovered.personalCode}
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            La competencia se abrirá cuando tu maestro lo indique.
+          </p>
+          <button
+            type="button"
+            onClick={registerAnother}
+            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            ¿No eres tú? Registrar otro equipo
+          </button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (step === "confirm" && group) {
     return (
       <Card className="mx-auto w-full max-w-md">
@@ -263,6 +359,15 @@ export function JoinForm() {
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
+            {group.state === "programada" && (
+              <Alert>
+                <AlertTitle>La competencia aún no inicia</AlertTitle>
+                <AlertDescription>
+                  Puedes registrarte ahora; podrás rendir cuando tu maestro la
+                  abra.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="one-first">Nombres</FieldLabel>

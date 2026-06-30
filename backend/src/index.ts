@@ -1162,6 +1162,11 @@ app.get("/api/play/group/:code", async (req, res) => {
 
   const { state } = computeContestState(group.contest);
 
+  if (state === "cerrada") {
+    res.status(409).json({ message: "La competencia ya cerró." });
+    return;
+  }
+
   res.json({
     groupName: group.name,
     contestTitle: group.contest.title,
@@ -1213,6 +1218,13 @@ app.post("/api/play/join", async (req, res) => {
     return;
   }
 
+  if (computeContestState(group.contest).state === "cerrada") {
+    res
+      .status(409)
+      .json({ message: "La competencia ya cerró; no es posible registrarse." });
+    return;
+  }
+
   if (mode === "pareja" && !group.contest.allowPairs) {
     res.status(400).json({ message: "Esta competencia no permite parejas." });
     return;
@@ -1252,6 +1264,34 @@ app.post("/api/play/join", async (req, res) => {
     teamId: team.id,
     groupName: group.name,
     contestTitle: group.contest.title,
+  });
+});
+
+app.get("/api/play/team/:personalCode", async (req, res) => {
+  const personalCode = String(req.params.personalCode ?? "")
+    .trim()
+    .toUpperCase();
+
+  const team = await prisma.team.findUnique({
+    where: { personalCode },
+    include: { group: { include: { contest: true } } },
+  });
+
+  if (!team) {
+    res.status(404).json({ message: "Registro no encontrado." });
+    return;
+  }
+
+  res.json({
+    personalCode: team.personalCode,
+    participationMode: team.participationMode,
+    memberOneFirstName: team.memberOneFirstName,
+    memberOneLastName: team.memberOneLastName,
+    memberTwoFirstName: team.memberTwoFirstName,
+    memberTwoLastName: team.memberTwoLastName,
+    groupName: team.group.name,
+    contestTitle: team.group.contest.title,
+    accessCode: team.group.accessCode,
   });
 });
 
