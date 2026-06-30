@@ -40,4 +40,7 @@ temp-*/
 # Different skills
 skills*
 
-backend/src/generated
+# Playwright
+test-results/
+playwright-report/
+.playwright/

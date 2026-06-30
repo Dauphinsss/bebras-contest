@@ -6,6 +6,7 @@ import {
   ClockIcon,
   LoaderCircleIcon,
   SendIcon,
+  XCircleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -121,6 +122,16 @@ export function AttemptPage() {
     scheduleSave(taskId, payload);
   };
 
+  const flushSaves = async () => {
+    Object.values(saveTimers.current).forEach((timer) => clearTimeout(timer));
+    saveTimers.current = {};
+    await Promise.all(
+      Object.entries(answers).map(([taskId, payload]) =>
+        saveAnswer(personalCode, taskId, payload).catch(() => undefined),
+      ),
+    );
+  };
+
   const handleStart = async () => {
     setStarting(true);
     try {
@@ -139,6 +150,7 @@ export function AttemptPage() {
     setSubmitting(true);
     try {
       submittedRef.current = true;
+      await flushSaves();
       await submitAttempt(personalCode);
       await load();
       toast.success("Entregaste la competencia.");
@@ -228,15 +240,22 @@ export function AttemptPage() {
           </CardContent>
         </Card>
 
-        {attempt.showSolutions &&
+        {(attempt.showFeedback || attempt.showSolutions) &&
           attempt.tasks.map((task) => (
             <Card key={task.taskId}>
-              <CardContent className="flex flex-col gap-3 pt-6">
-                <h2 className="text-lg font-semibold">
-                  {task.position}. {task.title}
-                </h2>
-                {task.explanation && (
-                  <p className="text-sm text-muted-foreground">
+              <CardContent className="flex flex-col gap-2 pt-6">
+                <div className="flex items-center gap-2">
+                  {task.correct ? (
+                    <CheckCircle2Icon className="size-5 shrink-0 text-primary" />
+                  ) : (
+                    <XCircleIcon className="size-5 shrink-0 text-destructive" />
+                  )}
+                  <h2 className="text-lg font-semibold">
+                    {task.position}. {task.title}
+                  </h2>
+                </div>
+                {attempt.showSolutions && task.explanation && (
+                  <p className="pl-7 text-sm text-muted-foreground">
                     {task.explanation}
                   </p>
                 )}

@@ -4,9 +4,11 @@
   "packageManager": "bun@1.3.5",
   "scripts": {
     "dev": "concurrently -k -n backend,frontend -c blue,magenta \"cd backend && bun run dev\" \"cd frontend && bun run dev\"",
-    "setup": "bun install && cd backend && bun install && cd ../frontend && bun install"
+    "setup": "bun install && cd backend && bun install && cd ../frontend && bun install",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "concurrently": "^9.2.1"
   }
 }

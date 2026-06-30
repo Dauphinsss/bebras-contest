@@ -1591,7 +1591,34 @@ function answerIsCorrect(task: any, payload: any) {
   return false;
 }
 
+function seedFromText(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash || 1;
+}
+
+function shuffleWithSeed<T>(input: T[], seed: number) {
+  const result = [...input];
+  let state = seed;
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    const j = state % (i + 1);
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function renderSafeTask(contestTask: any, task: any) {
+  let answers = (task.answers ?? []).map((answer: any) => ({
+    id: answer.id,
+    blocks: answer.blocks,
+  }));
+  if (task.multipleChoiceOrderMode === "random") {
+    answers = shuffleWithSeed(answers, seedFromText(task.id));
+  }
+
   return {
     taskId: task.id,
     position: contestTask.position,
@@ -1601,10 +1628,7 @@ function renderSafeTask(contestTask: any, task: any) {
     answerType: task.answerType,
     multipleChoiceOrderMode: task.multipleChoiceOrderMode,
     multipleChoiceMode: parseMcCorrectness(task.correctAnswerId).mode,
-    answers: (task.answers ?? []).map((answer: any) => ({
-      id: answer.id,
-      blocks: answer.blocks,
-    })),
+    answers,
     dragDropBackground: task.dragDropBackground,
     dragDropItems: (task.dragDropItems ?? []).map((item: any) => ({
       id: item.id,
@@ -1796,23 +1820,27 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
     where: { attemptId: attempt.id },
   });
   const answers: Record<string, unknown> = {};
+  const correctnessByTask: Record<string, boolean | null> = {};
   for (const answer of savedAnswers) {
     try {
       answers[answer.taskDraftId] = JSON.parse(answer.responsePayload);
     } catch {
       answers[answer.taskDraftId] = null;
     }
+    correctnessByTask[answer.taskDraftId] = answer.isCorrect;
   }
 
   const finished = attempt.status === "finished";
+  const showResults =
+    finished && (contest.showFeedback || contest.showSolutions);
   const tasks = contest.tasks.map((contestTask) => {
     const task = deserializeTask(contestTask.taskDraft) as any;
     const safe = renderSafeTask(contestTask, task) as any;
+    if (showResults) {
+      safe.correct = correctnessByTask[task.id] ?? false;
+    }
     if (finished && contest.showSolutions) {
       safe.explanation = task.explanation;
-      safe.correctAnswerId = task.correctAnswerId;
-      safe.shortAnswer = task.shortAnswer;
-      safe.rangeAnswers = task.rangeAnswers;
     }
     return safe;
   });

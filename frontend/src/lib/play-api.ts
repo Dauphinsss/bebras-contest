@@ -26,6 +26,7 @@ export type PlayTask = {
   dragDropBackground: ContentImage | null;
   dragDropItems: Pick<StoredTaskDragDropItem, "id" | "label" | "image">[];
   explanation?: string;
+  correct?: boolean;
 };
 
 export type AttemptResult = {
