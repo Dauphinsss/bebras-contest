@@ -478,14 +478,11 @@
   }
 }
 
-/* Scrollbar global: siempre visible y estilizado con los colores del tema. */
-html {
-  overflow-y: scroll;
-}
-
+/* Scrollbar global: reserva su espacio en el body para que abrir un modal o
+   popover no desplace el contenido centrado. Se aplica al body (no al html)
+   para que el overlay fijo del modal siga cubriendo todo el ancho. */
 body {
-  margin-right: 0 !important;
-  padding-right: 0 !important;
+  scrollbar-gutter: stable;
 }
 
 * {

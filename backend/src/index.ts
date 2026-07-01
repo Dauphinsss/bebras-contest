@@ -136,6 +136,25 @@ function deserializeTaskSummary(task: {
   };
 }
 
+const GROUP_CODE_LIFETIME_MINUTES = 30;
+
+function parseOptionalDateInput(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error("La fecha de la sesión no es válida.");
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("La fecha de la sesión no es válida.");
+  }
+
+  return date;
+}
+
 function parseDateInput(value: unknown, fieldName: string) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`El campo ${fieldName} es obligatorio.`);
@@ -491,6 +510,38 @@ app.post("/api/auth/register", async (req, res) => {
   res.status(201).json({
     message: "Cuenta de maestro creada. Queda pendiente de aprobación.",
   });
+});
+
+app.get("/api/public-contests", async (_req, res) => {
+  const contests = await prisma.contest.findMany({
+    where: { publishedAt: { not: null } },
+    orderBy: { startsAt: "asc" },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      durationMinutes: true,
+      startsAt: true,
+      endsAt: true,
+      publishedAt: true,
+    },
+  });
+
+  res.json(
+    contests.map((contest) => {
+      const { state, isOpen } = computeContestState(contest);
+      return {
+        id: contest.id,
+        title: contest.title,
+        category: contest.category,
+        durationMinutes: contest.durationMinutes,
+        startsAt: contest.startsAt.toISOString(),
+        endsAt: contest.endsAt.toISOString(),
+        state,
+        isOpen,
+      };
+    }),
+  );
 });
 
 // Banco de tareas, competencias y gestión de usuarios: solo admin.
@@ -973,6 +1024,8 @@ function serializeGroup(group: {
   name: string;
   accessCode: string;
   contestId: string;
+  scheduledAt: Date | null;
+  firstUsedAt: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
   contest?: { title: string; category: string } | null;
@@ -994,6 +1047,8 @@ function serializeGroup(group: {
     contestId: group.contestId,
     contestTitle: group.contest?.title ?? "",
     contestCategory: group.contest?.category ?? "",
+    scheduledAt: group.scheduledAt?.toISOString() ?? null,
+    firstUsedAt: group.firstUsedAt?.toISOString() ?? null,
     expiresAt: group.expiresAt?.toISOString() ?? null,
     createdAt: group.createdAt.toISOString(),
     teamCount: group.teams?.length ?? 0,
@@ -1108,6 +1163,16 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
+  let scheduledAt: Date | null;
+  try {
+    scheduledAt = parseOptionalDateInput(req.body?.scheduledAt);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Fecha de sesión inválida.",
+    });
+    return;
+  }
+
   const contest = await prisma.contest.findUnique({ where: { id: contestId } });
 
   if (!contest) {
@@ -1129,6 +1194,7 @@ app.post("/api/groups", async (req, res) => {
     data: {
       contestId,
       name,
+      scheduledAt,
       accessCode,
       recoveryCode,
       createdById: req.user?.id ?? null,
@@ -1453,9 +1519,13 @@ app.post("/api/play/join", async (req, res) => {
   });
 
   if (!group.firstUsedAt) {
+    const firstUsedAt = new Date();
+    const expiresAt = new Date(
+      firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000,
+    );
     await prisma.contestGroup.update({
       where: { id: group.id },
-      data: { firstUsedAt: new Date() },
+      data: { firstUsedAt, expiresAt },
     });
   }
 

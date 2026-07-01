@@ -1,59 +1,80 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import { LiveContests } from "../components/live-contests";
 
 const title = "Desafío Bebras Bolivia";
 ---
 
 <Layout title={title}>
-  <section>
-    <div class="mx-auto w-full max-w-5xl px-6 py-16 text-center sm:px-8">
+  <div class="mx-auto w-full max-w-4xl px-6 py-14 sm:px-8">
+    <header class="text-center">
       <img
         src="/castor.png"
         alt="Desafío Bebras Bolivia"
-        class="mx-auto mb-6 h-28 w-auto"
+        class="mx-auto mb-6 h-24 w-auto"
       />
       <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">
         Bienvenido al Desafío Bebras Bolivia
       </h1>
-      <p class="mx-auto mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
+      <p class="mx-auto mt-3 max-w-2xl text-base text-muted-foreground sm:text-lg">
         Pon a prueba tu lógica y pensamiento computacional con problemas
         divertidos y desafiantes.
       </p>
-    </div>
-  </section>
+    </header>
 
-  <main class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10 sm:px-8">
-    <div class="rounded-lg border px-5 py-5 text-center">
-      <h2 class="text-xl font-semibold sm:text-2xl">
-        El Desafío Bebras Bolivia 2026 se viene este noviembre
-      </h2>
-      <p class="mt-2 text-sm text-muted-foreground">
-        Regístrate como coordinador y prepara a tu colegio.
-      </p>
-    </div>
+    <section class="mt-10">
+      <LiveContests client:only="react" />
+    </section>
 
-    <p class="text-sm leading-6 text-muted-foreground">
-      Maestros: aún pueden registrar a sus estudiantes hasta el último día de la
-      competencia. Inicien sesión o regístrense con el botón de abajo. Una vez
-      aprobado el registro, podrán crear las cuentas de sus estudiantes.
-    </p>
-
-    <div class="grid gap-4 sm:grid-cols-2">
+    <section class="mt-8 grid gap-4 sm:grid-cols-2">
       <a
         href="/entrar"
-        class="flex items-center justify-center rounded-lg bg-primary px-6 py-6 text-center text-base font-semibold text-primary-foreground transition hover:opacity-90"
+        class="flex items-center justify-center gap-3 rounded-lg bg-primary px-6 py-6 text-center text-base font-semibold text-primary-foreground transition hover:opacity-90"
       >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0"
+          aria-hidden="true"
+        >
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+          <polyline points="10 17 15 12 10 7"></polyline>
+          <line x1="15" x2="3" y1="12" y2="12"></line>
+        </svg>
         Estudiantes: entrar a la competencia
       </a>
       <a
         href="/login"
-        class="flex items-center justify-center rounded-lg bg-accent px-6 py-6 text-center text-base font-semibold text-accent-foreground transition hover:opacity-90"
+        class="flex items-center justify-center gap-3 rounded-lg bg-accent px-6 py-6 text-center text-base font-semibold text-accent-foreground transition hover:opacity-90"
       >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0"
+          aria-hidden="true"
+        >
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+        </svg>
         Maestros: iniciar sesión o registrarse
       </a>
-    </div>
+    </section>
 
-    <p class="text-center text-sm text-muted-foreground">
+    <p class="mt-4 text-center text-sm text-muted-foreground">
       ¿Solo quieres practicar?{" "}
       <a
         href="/practica"
@@ -63,7 +84,15 @@ const title = "Desafío Bebras Bolivia";
       </a>.
     </p>
 
-    <div class="flex flex-col gap-4">
+    <section class="mt-10 rounded-lg border bg-secondary/20 px-5 py-4">
+      <p class="text-sm leading-6 text-muted-foreground">
+        <span class="font-medium text-foreground">Maestros:</span> aún pueden
+        registrar a sus estudiantes hasta el último día de la competencia. Una
+        vez aprobado su registro, podrán crear las cuentas de sus estudiantes.
+      </p>
+    </section>
+
+    <section class="mt-10 flex flex-col gap-4">
       <p class="text-sm leading-6 text-muted-foreground">
         El Desafío Bebras evalúa tu lógica y habilidades computacionales con
         problemas divertidos. Durante el desafío oficial, los problemas vienen en
@@ -106,6 +135,6 @@ const title = "Desafío Bebras Bolivia";
           </tbody>
         </table>
       </div>
-    </div>
-  </main>
+    </section>
+  </div>
 </Layout>

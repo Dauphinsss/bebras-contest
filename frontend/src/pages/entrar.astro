@@ -3,10 +3,54 @@ import Layout from "../layouts/Layout.astro";
 import { JoinForm } from "../components/join-form";
 
 const title = "Entrar a la competencia";
+
+const categories = [
+  { name: "Guacamayo", age: "5-8 años" },
+  { name: "Capibara", age: "8-10 años" },
+  { name: "Titi", age: "10-12 años" },
+  { name: "Jucumari", age: "12-14 años" },
+  { name: "Yaguareté", age: "14-18 años" },
+];
 ---
 
 <Layout title={title} heading="Entrar a la competencia" backHref="/">
-  <main class="mx-auto w-full max-w-md px-4 py-16 sm:py-24">
-    <JoinForm client:load />
+  <main class="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-16 sm:py-20">
+    <section>
+      <JoinForm client:load />
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-px flex-1 bg-border"></div>
+        <span class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Mientras tanto
+        </span>
+        <div class="h-px flex-1 bg-border"></div>
+      </div>
+
+      <div class="flex flex-col gap-2 text-center">
+        <h2 class="text-xl font-semibold">Desafíos de práctica</h2>
+        <p class="text-sm leading-6 text-muted-foreground">
+          No necesitas código ni cuenta. Elige tu categoría según tu edad y
+          empieza a practicar.
+        </p>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        {
+          categories.map((category) => (
+            <div class="flex items-center justify-between gap-4 rounded-lg border px-4 py-4">
+              <div>
+                <div class="font-medium">{category.name}</div>
+                <div class="text-sm text-muted-foreground">{category.age}</div>
+              </div>
+              <span class="text-xs font-medium text-muted-foreground">
+                Próximamente
+              </span>
+            </div>
+          ))
+        }
+      </div>
+    </section>
   </main>
 </Layout>

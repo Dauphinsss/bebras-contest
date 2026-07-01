@@ -22,6 +22,8 @@ export type StoredGroup = {
   contestId: string;
   contestTitle: string;
   contestCategory: string;
+  scheduledAt: string | null;
+  firstUsedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
   teamCount: number;
@@ -31,6 +33,7 @@ export type StoredGroup = {
 export type GroupDraftInput = {
   contestId: string;
   name: string;
+  scheduledAt?: string | null;
 };
 
 export type PublishedContest = {

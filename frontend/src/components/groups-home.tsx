@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import {
+  CalendarClockIcon,
+  CalendarIcon,
   ChevronDownIcon,
+  Clock8Icon,
   CopyIcon,
   LinkIcon,
   LoaderCircleIcon,
@@ -14,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { toDatetimeLocalValue } from "@/lib/contest-schema";
 
 import {
   createGroup,
@@ -68,6 +74,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -76,6 +88,130 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const sessionFormatter = new Intl.DateTimeFormat("es-BO", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function formatSession(value: string) {
+  return sessionFormatter.format(new Date(value));
+}
+
+function parseDateTimeLocal(value: string) {
+  if (!value) {
+    return null;
+  }
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function toTimeValue(value: string) {
+  const date = parseDateTimeLocal(value);
+  if (!date) {
+    return "";
+  }
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function updateDatePart(currentValue: string, nextDate: Date | undefined) {
+  if (!nextDate) {
+    return currentValue;
+  }
+  const currentDate = parseDateTimeLocal(currentValue);
+  const nextValue = new Date(nextDate);
+  if (currentDate) {
+    nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+  } else {
+    nextValue.setHours(9, 0, 0, 0);
+  }
+  return toDatetimeLocalValue(nextValue.toISOString());
+}
+
+function updateTimePart(currentValue: string, nextTime: string) {
+  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
+  const [hours, minutes] = nextTime.split(":").map((part) => Number(part));
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return currentValue;
+  }
+  const nextValue = new Date(currentDate);
+  nextValue.setHours(hours, minutes, 0, 0);
+  return toDatetimeLocalValue(nextValue.toISOString());
+}
+
+function SessionDateTimeField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (nextValue: string) => void;
+}) {
+  const date = parseDateTimeLocal(value);
+  const dateLabel = date
+    ? format(date, "d 'de' MMMM 'de' yyyy", { locale: es })
+    : "Elige un día";
+  const [timeDraft, setTimeDraft] = useState(toTimeValue(value));
+
+  useEffect(() => {
+    setTimeDraft(toTimeValue(value));
+  }, [value]);
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              "w-full justify-start text-left font-normal sm:flex-1",
+              !date && "text-muted-foreground",
+            )}
+          >
+            <CalendarIcon data-icon="inline-start" />
+            {dateLabel}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          data-calendar-popover
+          className="w-auto rounded-sm p-0"
+          align="start"
+        >
+          <Calendar
+            initialFocus
+            mode="single"
+            selected={date ?? undefined}
+            onSelect={(nextDate) => onChange(updateDatePart(value, nextDate))}
+          />
+        </PopoverContent>
+      </Popover>
+      <div className="relative sm:w-36">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3 text-muted-foreground">
+          <Clock8Icon className="size-4" />
+          <span className="sr-only">Hora de la sesión</span>
+        </div>
+        <Input
+          aria-label="Hora de la sesión"
+          className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+          type="time"
+          value={timeDraft}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setTimeDraft(nextValue);
+            if (nextValue) {
+              onChange(updateTimePart(value, nextValue));
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function GroupsHome() {
   const [groups, setGroups] = useState<StoredGroup[]>([]);
   const [publishedContests, setPublishedContests] = useState<PublishedContest[]>(
@@ -83,6 +219,7 @@ export function GroupsHome() {
   );
   const [contestId, setContestId] = useState("");
   const [name, setName] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
@@ -144,9 +281,16 @@ export function GroupsHome() {
     setCreating(true);
 
     try {
-      const group = await createGroup({ contestId, name: name.trim() });
+      const group = await createGroup({
+        contestId,
+        name: name.trim(),
+        scheduledAt: scheduledAt
+          ? new Date(scheduledAt).toISOString()
+          : null,
+      });
       setGroups((current) => [group, ...current]);
       setName("");
+      setScheduledAt("");
       toast.success(`Grupo creado. Código: ${group.accessCode}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo crear el grupo.");
@@ -303,11 +447,9 @@ export function GroupsHome() {
               </AlertDescription>
             </Alert>
           ) : (
-            <form
-              className="flex flex-col gap-4 md:flex-row md:items-end"
-              onSubmit={handleCreate}
-            >
-              <Field className="md:flex-1">
+            <form className="flex flex-col gap-4" onSubmit={handleCreate}>
+              <div className="grid gap-4 md:grid-cols-2">
+              <Field>
                 <FieldLabel htmlFor="group-contest">Competencia</FieldLabel>
                 <FieldContent>
                   <Select value={contestId} onValueChange={setContestId}>
@@ -324,7 +466,7 @@ export function GroupsHome() {
                   </Select>
                 </FieldContent>
               </Field>
-              <Field className="md:flex-1">
+              <Field>
                 <FieldLabel htmlFor="group-name">Nombre del grupo</FieldLabel>
                 <FieldContent>
                   <Input
@@ -335,10 +477,24 @@ export function GroupsHome() {
                   />
                 </FieldContent>
               </Field>
-              <Button type="submit" disabled={creating}>
-                <PlusIcon data-icon="inline-start" />
-                {creating ? "Creando..." : "Crear grupo"}
-              </Button>
+              </div>
+              <Field>
+                <FieldLabel htmlFor="group-scheduled">
+                  Fecha y hora de la sesión
+                </FieldLabel>
+                <FieldContent>
+                  <SessionDateTimeField
+                    value={scheduledAt}
+                    onChange={setScheduledAt}
+                  />
+                </FieldContent>
+              </Field>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={creating}>
+                  <PlusIcon data-icon="inline-start" />
+                  {creating ? "Creando..." : "Crear grupo"}
+                </Button>
+              </div>
             </form>
           )}
         </CardContent>
@@ -391,6 +547,12 @@ export function GroupsHome() {
                         </button>
                       </div>
                       <CardTitle className="text-lg">{group.name}</CardTitle>
+                      {group.scheduledAt && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <CalendarClockIcon className="size-4" />
+                          Sesión: {formatSession(group.scheduledAt)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
