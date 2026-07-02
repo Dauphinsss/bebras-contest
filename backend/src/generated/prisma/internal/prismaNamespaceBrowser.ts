@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  School: 'School',
   TaskDraft: 'TaskDraft',
   Contest: 'Contest',
   ContestTask: 'ContestTask',
@@ -84,11 +85,32 @@ export const UserScalarFieldEnum = {
   passwordHash: 'passwordHash',
   role: 'role',
   status: 'status',
+  schoolCodUe: 'schoolCodUe',
+  schoolName: 'schoolName',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const SchoolScalarFieldEnum = {
+  codUe: 'codUe',
+  codLe: 'codLe',
+  name: 'name',
+  dep: 'dep',
+  pro: 'pro',
+  sec: 'sec',
+  dis: 'dis',
+  depend: 'depend',
+  nivel: 'nivel',
+  area: 'area',
+  latitud: 'latitud',
+  longitud: 'longitud',
+  matricula: 'matricula'
+} as const
+
+export type SchoolScalarFieldEnum = (typeof SchoolScalarFieldEnum)[keyof typeof SchoolScalarFieldEnum]
 
 
 export const TaskDraftScalarFieldEnum = {

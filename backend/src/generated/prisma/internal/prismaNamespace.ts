@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   User: 'User',
+  School: 'School',
   TaskDraft: 'TaskDraft',
   Contest: 'Contest',
   ContestTask: 'ContestTask',
@@ -408,7 +409,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "taskDraft" | "contest" | "contestTask" | "contestGroup" | "team" | "attempt" | "attemptAnswer" | "result"
+    modelProps: "user" | "school" | "taskDraft" | "contest" | "contestTask" | "contestGroup" | "team" | "attempt" | "attemptAnswer" | "result"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -483,6 +484,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UserCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UserCountAggregateOutputType> | number
+        }
+      }
+    }
+    School: {
+      payload: Prisma.$SchoolPayload<ExtArgs>
+      fields: Prisma.SchoolFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SchoolFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SchoolFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>
+        }
+        findFirst: {
+          args: Prisma.SchoolFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SchoolFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>
+        }
+        findMany: {
+          args: Prisma.SchoolFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>[]
+        }
+        create: {
+          args: Prisma.SchoolCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>
+        }
+        createMany: {
+          args: Prisma.SchoolCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SchoolCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>[]
+        }
+        delete: {
+          args: Prisma.SchoolDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>
+        }
+        update: {
+          args: Prisma.SchoolUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>
+        }
+        deleteMany: {
+          args: Prisma.SchoolDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SchoolUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SchoolUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>[]
+        }
+        upsert: {
+          args: Prisma.SchoolUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SchoolPayload>
+        }
+        aggregate: {
+          args: Prisma.SchoolAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSchool>
+        }
+        groupBy: {
+          args: Prisma.SchoolGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SchoolGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SchoolCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SchoolCountAggregateOutputType> | number
         }
       }
     }
@@ -1123,11 +1198,32 @@ export const UserScalarFieldEnum = {
   passwordHash: 'passwordHash',
   role: 'role',
   status: 'status',
+  schoolCodUe: 'schoolCodUe',
+  schoolName: 'schoolName',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const SchoolScalarFieldEnum = {
+  codUe: 'codUe',
+  codLe: 'codLe',
+  name: 'name',
+  dep: 'dep',
+  pro: 'pro',
+  sec: 'sec',
+  dis: 'dis',
+  depend: 'depend',
+  nivel: 'nivel',
+  area: 'area',
+  latitud: 'latitud',
+  longitud: 'longitud',
+  matricula: 'matricula'
+} as const
+
+export type SchoolScalarFieldEnum = (typeof SchoolScalarFieldEnum)[keyof typeof SchoolScalarFieldEnum]
 
 
 export const TaskDraftScalarFieldEnum = {
@@ -1311,16 +1407,16 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
 
 
 /**
- * Reference to a field of type 'Boolean'
+ * Reference to a field of type 'Float'
  */
-export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
     
 
 
 /**
- * Reference to a field of type 'Float'
+ * Reference to a field of type 'Boolean'
  */
-export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 /**
@@ -1419,6 +1515,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  school?: Prisma.SchoolOmit
   taskDraft?: Prisma.TaskDraftOmit
   contest?: Prisma.ContestOmit
   contestTask?: Prisma.ContestTaskOmit

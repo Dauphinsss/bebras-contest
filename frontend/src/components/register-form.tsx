@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
 
 const API_BASE_URL =
   import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -26,6 +27,7 @@ export function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [school, setSchool] = useState<SchoolValue>({ codUe: null, name: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,6 +49,11 @@ export function RegisterForm() {
       return;
     }
 
+    if (!school.name.trim()) {
+      toast.error("Indica tu colegio o el nombre de tu homeschool.");
+      return;
+    }
+
     setStep("confirm");
   };
 
@@ -62,6 +69,8 @@ export function RegisterForm() {
           lastName: lastName.trim(),
           email: email.trim(),
           password,
+          schoolCodUe: school.codUe,
+          schoolName: school.name.trim(),
         }),
       });
 
@@ -126,6 +135,10 @@ export function RegisterForm() {
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Correo</dt>
               <dd className="text-right font-medium">{email.trim()}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Colegio</dt>
+              <dd className="text-right font-medium">{school.name.trim()}</dd>
             </div>
           </dl>
           <div className="flex items-center justify-between gap-3">
@@ -245,6 +258,12 @@ export function RegisterForm() {
                   )}
                 </button>
               </div>
+            </FieldContent>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="school-search">Colegio</FieldLabel>
+            <FieldContent>
+              <SchoolPicker value={school} onChange={setSchool} />
             </FieldContent>
           </Field>
           <Button type="submit" className="w-full">

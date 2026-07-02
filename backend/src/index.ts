@@ -477,10 +477,23 @@ app.post("/api/auth/register", async (req, res) => {
       : "";
   const password =
     typeof req.body?.password === "string" ? req.body.password : "";
+  const schoolCodUe =
+    typeof req.body?.schoolCodUe === "string" && req.body.schoolCodUe.trim()
+      ? req.body.schoolCodUe.trim()
+      : null;
+  const schoolName =
+    typeof req.body?.schoolName === "string" ? req.body.schoolName.trim() : "";
 
   if (!firstName || !lastName || !email || !password) {
     res.status(400).json({
       message: "Nombres, apellidos, correo y contraseña son obligatorios.",
+    });
+    return;
+  }
+
+  if (!schoolName) {
+    res.status(400).json({
+      message: "Indica tu colegio o el nombre de tu homeschool.",
     });
     return;
   }
@@ -510,12 +523,42 @@ app.post("/api/auth/register", async (req, res) => {
       passwordHash,
       role: "maestro",
       status: "pending",
+      schoolCodUe,
+      schoolName,
     },
   });
 
   res.status(201).json({
     message: "Cuenta de maestro creada. Queda pendiente de aprobación.",
   });
+});
+
+app.get("/api/schools", async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const dep = typeof req.query.dep === "string" ? req.query.dep.trim() : "";
+
+  if (q.length < 2) {
+    res.json([]);
+    return;
+  }
+
+  const schools = await prisma.school.findMany({
+    where: {
+      name: { contains: q },
+      ...(dep ? { dep } : {}),
+    },
+    orderBy: { name: "asc" },
+    take: 20,
+    select: {
+      codUe: true,
+      name: true,
+      dep: true,
+      sec: true,
+      dis: true,
+    },
+  });
+
+  res.json(schools);
 });
 
 app.get("/api/public-contests", async (_req, res) => {
@@ -1087,7 +1130,14 @@ app.get("/api/users/maestros", async (_req, res) => {
   const maestros = await prisma.user.findMany({
     where: { role: "maestro" },
     orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, email: true, status: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      status: true,
+      schoolName: true,
+      createdAt: true,
+    },
   });
 
   res.json(

@@ -45,6 +45,11 @@ export { Prisma }
  */
 export type User = Prisma.UserModel
 /**
+ * Model School
+ * 
+ */
+export type School = Prisma.SchoolModel
+/**
  * Model TaskDraft
  * 
  */

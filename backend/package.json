@@ -14,7 +14,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "db:schools": "tsx ./scripts/import-schools.ts"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.6.0",

@@ -17,8 +17,29 @@ model User {
   passwordHash String   @default("")
   role         String   @default("admin")
   status       String   @default("approved")
+  schoolCodUe  String?
+  schoolName   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model School {
+  codUe     String  @id
+  codLe     String?
+  name      String
+  dep       String
+  pro       String
+  sec       String
+  dis       String
+  depend    String?
+  nivel     String?
+  area      String?
+  latitud   Float?
+  longitud  Float?
+  matricula Int?
+
+  @@index([name])
+  @@index([dep])
 }
 
 model TaskDraft {

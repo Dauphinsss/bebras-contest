@@ -547,14 +547,6 @@ export type ContestGroupUncheckedUpdateManyWithoutContestNestedInput = {
   deleteMany?: Prisma.ContestGroupScalarWhereInput | Prisma.ContestGroupScalarWhereInput[]
 }
 
-export type NullableIntFieldUpdateOperationsInput = {
-  set?: number | null
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type ContestGroupCreateNestedOneWithoutTeamsInput = {
   create?: Prisma.XOR<Prisma.ContestGroupCreateWithoutTeamsInput, Prisma.ContestGroupUncheckedCreateWithoutTeamsInput>
   connectOrCreate?: Prisma.ContestGroupCreateOrConnectWithoutTeamsInput
