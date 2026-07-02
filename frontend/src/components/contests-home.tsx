@@ -30,9 +30,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function ContestsHome() {
   const [contests, setContests] = useState<StoredContest[]>([]);
+  const [confirming, setConfirming] = useState<StoredContest | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -53,6 +64,26 @@ export function ContestsHome() {
       active = false;
     };
   }, []);
+
+  const handleDelete = (contest: StoredContest) => {
+    void removeContest(contest.id)
+      .then(() => {
+        setContests((current) =>
+          current.filter((currentContest) => currentContest.id !== contest.id),
+        );
+        toast.success("La competencia se eliminó correctamente.");
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar la competencia.",
+        );
+      })
+      .finally(() => {
+        setConfirming(null);
+      });
+  };
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -148,22 +179,7 @@ export function ContestsHome() {
                         size="sm"
                         type="button"
                         variant="outline"
-                        onClick={() => {
-                          void removeContest(contest.id)
-                            .then(() => {
-                              setContests((current) =>
-                                current.filter((currentContest) => currentContest.id !== contest.id),
-                              );
-                              toast.success("La competencia se eliminó correctamente.");
-                            })
-                            .catch((error) => {
-                              toast.error(
-                                error instanceof Error
-                                  ? error.message
-                                  : "No se pudo eliminar la competencia.",
-                              );
-                            });
-                        }}
+                        onClick={() => setConfirming(contest)}
                       >
                         <Trash2Icon data-icon="inline-start" />
                         Eliminar
@@ -196,6 +212,34 @@ export function ContestsHome() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirming(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta competencia?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirming
+                ? `Se eliminará "${confirming.title}" y sus grupos, equipos y resultados. Esta acción no se puede deshacer.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirming && handleDelete(confirming)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
