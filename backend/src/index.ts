@@ -493,7 +493,7 @@ app.post("/api/auth/register", async (req, res) => {
 
   if (!schoolName) {
     res.status(400).json({
-      message: "Indica tu colegio o el nombre de tu homeschool.",
+      message: "Indica tu colegio o el nombre de tu educación en casa.",
     });
     return;
   }

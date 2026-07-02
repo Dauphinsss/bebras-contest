@@ -64,7 +64,7 @@ export function SchoolPicker({
           id="school-manual"
           value={value.name}
           onChange={(event) => onChange({ codUe: null, name: event.target.value })}
-          placeholder="Nombre de tu colegio o homeschool"
+          placeholder="Nombre de tu colegio o de tu educación en casa"
         />
         <button
           type="button"
@@ -158,7 +158,7 @@ export function SchoolPicker({
         }}
         className="self-start text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
       >
-        No encuentro mi colegio / soy homeschool
+        No encuentro mi colegio o enseño en casa
       </button>
     </div>
   );

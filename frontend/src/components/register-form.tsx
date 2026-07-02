@@ -50,7 +50,7 @@ export function RegisterForm() {
     }
 
     if (!school.name.trim()) {
-      toast.error("Indica tu colegio o el nombre de tu homeschool.");
+      toast.error("Indica tu colegio o el nombre de tu educación en casa.");
       return;
     }
 
