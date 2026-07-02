@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircleIcon, RotateCcwIcon } from "lucide-react";
+import { AlertCircleIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
@@ -353,45 +353,58 @@ export function TaskTester() {
                     );
                     const correct = checked && isCorrectOption;
                     const incorrect = checked && !isCorrectOption;
+                    const multi = multipleChoiceCorrectness.mode === "all";
 
                     return (
-                      <Card
+                      <button
                         key={answer.id}
+                        type="button"
+                        aria-pressed={selected}
                         className={cn(
-                          "cursor-pointer gap-0 py-0 transition",
-                          selected ? "border-primary bg-primary/5" : "border-border",
-                          correct && "border-primary bg-primary/5",
-                          incorrect && "border-destructive/50 bg-destructive/5",
+                          "flex w-full items-center gap-3 rounded-md border-2 bg-card px-4 py-4 text-left transition",
+                          selected
+                            ? "border-primary bg-primary/10 shadow-hard"
+                            : "border-border hover:border-primary/50",
+                          correct && "border-primary bg-primary/10",
+                          incorrect && "border-destructive bg-destructive/10",
                         )}
-                      >
-                        <button
-                          className="flex w-full items-center justify-center text-center"
-                          type="button"
-                          onClick={() =>
-                            setSelectedAnswerIds((current) => {
-                              if (
-                                multipleChoiceCorrectness.mode === "single" ||
-                                multipleChoiceCorrectness.mode === "any"
-                              ) {
-                                return [answer.id];
-                              }
+                        onClick={() =>
+                          setSelectedAnswerIds((current) => {
+                            if (
+                              multipleChoiceCorrectness.mode === "single" ||
+                              multipleChoiceCorrectness.mode === "any"
+                            ) {
+                              return [answer.id];
+                            }
 
-                              return current.includes(answer.id)
-                                ? current.filter((item) => item !== answer.id)
-                                : [...current, answer.id];
-                            })
-                          }
+                            return current.includes(answer.id)
+                              ? current.filter((item) => item !== answer.id)
+                              : [...current, answer.id];
+                          })
+                        }
+                      >
+                        <span
+                          className={cn(
+                            "flex size-5 shrink-0 items-center justify-center border-2 border-foreground",
+                            multi ? "rounded-none" : "rounded-full",
+                            incorrect
+                              ? "border-destructive bg-destructive text-white"
+                              : selected || correct
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "bg-background",
+                          )}
                         >
-                          <CardContent className="w-full py-5">
-                            <div className="min-w-0 text-center">
-                              <TaskContentRenderer
-                                blocks={answer.blocks}
-                                className="gap-3 text-lg leading-8 sm:text-xl"
-                              />
-                            </div>
-                          </CardContent>
-                        </button>
-                      </Card>
+                          {(selected || checked) && (
+                            <CheckIcon className="size-3.5" strokeWidth={3} />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <TaskContentRenderer
+                            blocks={answer.blocks}
+                            className="gap-3 text-lg leading-8 sm:text-xl"
+                          />
+                        </div>
+                      </button>
                     );
                   })}
                 </div>

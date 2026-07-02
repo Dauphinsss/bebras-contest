@@ -11,8 +11,17 @@ export type GroupTeam = {
   memberOneLastName: string;
   memberTwoFirstName: string | null;
   memberTwoLastName: string | null;
+  personalCode: string;
   status: string;
   createdAt: string;
+};
+
+export type EnrollTeamInput = {
+  participationMode: "individual" | "pareja";
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName?: string;
+  memberTwoLastName?: string;
 };
 
 export type StoredGroup = {
@@ -22,6 +31,7 @@ export type StoredGroup = {
   contestId: string;
   contestTitle: string;
   contestCategory: string;
+  contestAllowPairs: boolean;
   scheduledAt: string | null;
   firstUsedAt: string | null;
   expiresAt: string | null;
@@ -40,6 +50,8 @@ export type PublishedContest = {
   id: string;
   title: string;
   category: string;
+  startsAt: string;
+  endsAt: string;
 };
 
 async function request<T>(path: string, init?: RequestInit) {
@@ -99,6 +111,13 @@ export function createGroup(group: GroupDraftInput) {
 export function removeGroup(groupId: string) {
   return request<null>(`/api/groups/${groupId}`, {
     method: "DELETE",
+  });
+}
+
+export function enrollTeam(groupId: string, data: EnrollTeamInput) {
+  return request<GroupTeam>(`/api/groups/${groupId}/teams`, {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }
 

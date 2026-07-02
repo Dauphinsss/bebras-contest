@@ -94,6 +94,7 @@ function createInitialState(): FormState {
     durationMinutes: 45,
     startsAt: "",
     endsAt: "",
+    questionDisplayMode: "one_by_one",
     allowPairs: false,
     showFeedback: false,
     showSolutions: false,
@@ -109,6 +110,7 @@ function createStateFromContest(contest: Awaited<ReturnType<typeof getContest>>)
     durationMinutes: contest.durationMinutes,
     startsAt: toDatetimeLocalValue(contest.startsAt),
     endsAt: toDatetimeLocalValue(contest.endsAt),
+    questionDisplayMode: contest.questionDisplayMode,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
     showSolutions: contest.showSolutions,
@@ -679,6 +681,39 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contest-display-mode">
+                  Forma de mostrar las preguntas
+                </FieldLabel>
+                <FieldContent>
+                  <Select
+                    value={form.questionDisplayMode}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        questionDisplayMode:
+                          value === "all" ? "all" : "one_by_one",
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="contest-display-mode" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="one_by_one">
+                        Una por una (con navegación)
+                      </SelectItem>
+                      <SelectItem value="all">
+                        Todas juntas en una lista
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Una por una muestra una pregunta a la vez; el estudiante
+                    navega entre ellas.
+                  </FieldDescription>
                 </FieldContent>
               </Field>
               <Field orientation="horizontal">

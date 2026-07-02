@@ -1161,6 +1161,7 @@ export const ContestScalarFieldEnum = {
   durationMinutes: 'durationMinutes',
   startsAt: 'startsAt',
   endsAt: 'endsAt',
+  questionDisplayMode: 'questionDisplayMode',
   allowPairs: 'allowPairs',
   showFeedback: 'showFeedback',
   showSolutions: 'showSolutions',

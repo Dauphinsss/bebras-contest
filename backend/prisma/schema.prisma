@@ -51,6 +51,7 @@ model Contest {
   durationMinutes  Int
   startsAt         DateTime
   endsAt           DateTime
+  questionDisplayMode String      @default("one_by_one")
   allowPairs       Boolean        @default(false)
   showFeedback     Boolean        @default(false)
   showSolutions    Boolean        @default(false)

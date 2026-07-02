@@ -23,6 +23,7 @@ import { toDatetimeLocalValue } from "@/lib/contest-schema";
 
 import {
   createGroup,
+  enrollTeam,
   listGroups,
   listPublishedContests,
   removeGroup,
@@ -71,6 +72,7 @@ import {
 import {
   Field,
   FieldContent,
+  FieldDescription,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -146,9 +148,15 @@ function updateTimePart(currentValue: string, nextTime: string) {
 function SessionDateTimeField({
   value,
   onChange,
+  minDate,
+  maxDate,
+  disabled = false,
 }: {
   value: string;
   onChange: (nextValue: string) => void;
+  minDate: Date | null;
+  maxDate: Date | null;
+  disabled?: boolean;
 }) {
   const date = parseDateTimeLocal(value);
   const dateLabel = date
@@ -160,6 +168,16 @@ function SessionDateTimeField({
     setTimeDraft(toTimeValue(value));
   }, [value]);
 
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const timeMin =
+    date && minDate && sameDay(date, minDate) ? toTimeValue(minDate.toISOString()) : undefined;
+  const timeMax =
+    date && maxDate && sameDay(date, maxDate) ? toTimeValue(maxDate.toISOString()) : undefined;
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
       <Popover>
@@ -167,6 +185,7 @@ function SessionDateTimeField({
           <Button
             type="button"
             variant="outline"
+            disabled={disabled}
             className={cn(
               "w-full justify-start text-left font-normal sm:flex-1",
               !date && "text-muted-foreground",
@@ -185,6 +204,11 @@ function SessionDateTimeField({
             initialFocus
             mode="single"
             selected={date ?? undefined}
+            defaultMonth={date ?? minDate ?? undefined}
+            disabled={[
+              ...(minDate ? [{ before: minDate }] : []),
+              ...(maxDate ? [{ after: maxDate }] : []),
+            ]}
             onSelect={(nextDate) => onChange(updateDatePart(value, nextDate))}
           />
         </PopoverContent>
@@ -198,6 +222,9 @@ function SessionDateTimeField({
           aria-label="Hora de la sesión"
           className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
           type="time"
+          disabled={disabled || !date}
+          min={timeMin}
+          max={timeMax}
           value={timeDraft}
           onChange={(event) => {
             const nextValue = event.target.value;
@@ -232,6 +259,15 @@ export function GroupsHome() {
   const [editTwoFirst, setEditTwoFirst] = useState("");
   const [editTwoLast, setEditTwoLast] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [enrolling, setEnrolling] = useState<StoredGroup | null>(null);
+  const [enrollMode, setEnrollMode] = useState<"individual" | "pareja">(
+    "individual",
+  );
+  const [enrollOneFirst, setEnrollOneFirst] = useState("");
+  const [enrollOneLast, setEnrollOneLast] = useState("");
+  const [enrollTwoFirst, setEnrollTwoFirst] = useState("");
+  const [enrollTwoLast, setEnrollTwoLast] = useState("");
+  const [savingEnroll, setSavingEnroll] = useState(false);
   const [confirming, setConfirming] = useState<
     | { type: "group"; group: StoredGroup }
     | { type: "team"; groupId: string; team: GroupTeam }
@@ -264,6 +300,16 @@ export function GroupsHome() {
       active = false;
     };
   }, []);
+
+  const selectedContest = publishedContests.find(
+    (contest) => contest.id === contestId,
+  );
+  const contestStartsAt = selectedContest
+    ? new Date(selectedContest.startsAt)
+    : null;
+  const contestEndsAt = selectedContest
+    ? new Date(selectedContest.endsAt)
+    : null;
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -409,6 +455,65 @@ export function GroupsHome() {
     }
   };
 
+  const openEnroll = (group: StoredGroup) => {
+    setEnrolling(group);
+    setEnrollMode("individual");
+    setEnrollOneFirst("");
+    setEnrollOneLast("");
+    setEnrollTwoFirst("");
+    setEnrollTwoLast("");
+  };
+
+  const saveEnroll = async () => {
+    if (!enrolling) {
+      return;
+    }
+
+    if (!enrollOneFirst.trim() || !enrollOneLast.trim()) {
+      toast.error("Los nombres y apellidos son obligatorios.");
+      return;
+    }
+
+    if (
+      enrollMode === "pareja" &&
+      (!enrollTwoFirst.trim() || !enrollTwoLast.trim())
+    ) {
+      toast.error("Faltan los nombres y apellidos del segundo integrante.");
+      return;
+    }
+
+    setSavingEnroll(true);
+
+    try {
+      const team = await enrollTeam(enrolling.id, {
+        participationMode: enrollMode,
+        memberOneFirstName: enrollOneFirst.trim(),
+        memberOneLastName: enrollOneLast.trim(),
+        memberTwoFirstName: enrollTwoFirst.trim(),
+        memberTwoLastName: enrollTwoLast.trim(),
+      });
+      setGroups((current) =>
+        current.map((group) =>
+          group.id === enrolling.id
+            ? {
+                ...group,
+                teamCount: group.teamCount + 1,
+                teams: [...group.teams, team],
+              }
+            : group,
+        ),
+      );
+      toast.success(`Participante inscrito. Código: ${team.personalCode}`);
+      setEnrolling(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo inscribir.",
+      );
+    } finally {
+      setSavingEnroll(false);
+    }
+  };
+
   const confirmDelete = () => {
     if (!confirming) {
       return;
@@ -452,7 +557,13 @@ export function GroupsHome() {
               <Field>
                 <FieldLabel htmlFor="group-contest">Competencia</FieldLabel>
                 <FieldContent>
-                  <Select value={contestId} onValueChange={setContestId}>
+                  <Select
+                    value={contestId}
+                    onValueChange={(value) => {
+                      setContestId(value);
+                      setScheduledAt("");
+                    }}
+                  >
                     <SelectTrigger id="group-contest" className="w-full">
                       <SelectValue placeholder="Elige una competencia" />
                     </SelectTrigger>
@@ -486,7 +597,16 @@ export function GroupsHome() {
                   <SessionDateTimeField
                     value={scheduledAt}
                     onChange={setScheduledAt}
+                    minDate={contestStartsAt}
+                    maxDate={contestEndsAt}
+                    disabled={!selectedContest}
                   />
+                  {!selectedContest && (
+                    <FieldDescription>
+                      Elige primero una competencia para fijar la sesión dentro
+                      de su horario.
+                    </FieldDescription>
+                  )}
                 </FieldContent>
               </Field>
               <div className="flex justify-end">
@@ -651,6 +771,17 @@ export function GroupsHome() {
                           ))}
                         </ul>
                       )}
+                      <div className="mt-4 pb-1.5 pl-0.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEnroll(group)}
+                        >
+                          <PlusIcon data-icon="inline-start" />
+                          Inscribir participante
+                        </Button>
+                      </div>
                     </CardContent>
                   </div>
                 </div>
@@ -742,6 +873,114 @@ export function GroupsHome() {
               onClick={() => void saveEdit()}
             >
               {savingEdit ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={enrolling !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEnrolling(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Inscribir participante</DialogTitle>
+            <DialogDescription>
+              {enrolling ? `En ${enrolling.name}.` : ""} Se generará su código
+              personal automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            {enrolling?.contestAllowPairs && (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={enrollMode === "individual" ? "default" : "outline"}
+                  onClick={() => setEnrollMode("individual")}
+                >
+                  Individual
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={enrollMode === "pareja" ? "default" : "outline"}
+                  onClick={() => setEnrollMode("pareja")}
+                >
+                  Pareja
+                </Button>
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="enroll-one-first">Nombres</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="enroll-one-first"
+                    value={enrollOneFirst}
+                    onChange={(event) => setEnrollOneFirst(event.target.value)}
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="enroll-one-last">Apellidos</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="enroll-one-last"
+                    value={enrollOneLast}
+                    onChange={(event) => setEnrollOneLast(event.target.value)}
+                  />
+                </FieldContent>
+              </Field>
+            </div>
+            {enrollMode === "pareja" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="enroll-two-first">
+                    Nombres del 2.º integrante
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="enroll-two-first"
+                      value={enrollTwoFirst}
+                      onChange={(event) => setEnrollTwoFirst(event.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="enroll-two-last">
+                    Apellidos del 2.º integrante
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="enroll-two-last"
+                      value={enrollTwoLast}
+                      onChange={(event) => setEnrollTwoLast(event.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={savingEnroll}
+              onClick={() => setEnrolling(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={savingEnroll}
+              onClick={() => void saveEnroll()}
+            >
+              {savingEnroll ? "Inscribiendo..." : "Inscribir"}
             </Button>
           </DialogFooter>
         </DialogContent>

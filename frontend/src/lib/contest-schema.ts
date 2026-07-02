@@ -41,6 +41,8 @@ export type ContestTaskConfigInput = {
   maxScore: number;
 };
 
+export type QuestionDisplayMode = "one_by_one" | "all";
+
 export type StoredContest = {
   id: string;
   title: string;
@@ -48,6 +50,7 @@ export type StoredContest = {
   durationMinutes: number;
   startsAt: string;
   endsAt: string;
+  questionDisplayMode: QuestionDisplayMode;
   allowPairs: boolean;
   showFeedback: boolean;
   showSolutions: boolean;
@@ -67,6 +70,7 @@ export type ContestDraftInput = {
   durationMinutes: number;
   startsAt: string;
   endsAt: string;
+  questionDisplayMode: QuestionDisplayMode;
   allowPairs: boolean;
   showFeedback: boolean;
   showSolutions: boolean;

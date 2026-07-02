@@ -269,6 +269,7 @@ function deserializeContest(contest: {
   durationMinutes: number;
   startsAt: Date;
   endsAt: Date;
+  questionDisplayMode: string;
   allowPairs: boolean;
   showFeedback: boolean;
   showSolutions: boolean;
@@ -300,6 +301,7 @@ function deserializeContest(contest: {
     durationMinutes: contest.durationMinutes,
     startsAt: contest.startsAt.toISOString(),
     endsAt: contest.endsAt.toISOString(),
+    questionDisplayMode: contest.questionDisplayMode,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
     showSolutions: contest.showSolutions,
@@ -348,12 +350,16 @@ function parseContestPayload(body: Record<string, unknown>) {
     throw new Error("La fecha de fin debe ser posterior a la fecha de inicio.");
   }
 
+  const questionDisplayMode =
+    body.questionDisplayMode === "all" ? "all" : "one_by_one";
+
   return {
     title,
     category,
     durationMinutes,
     startsAt,
     endsAt,
+    questionDisplayMode,
     allowPairs: body.allowPairs === true,
     showFeedback: body.showFeedback === true,
     showSolutions: body.showSolutions === true,
@@ -771,6 +777,7 @@ app.post("/api/contests", async (req, res) => {
       durationMinutes: payload.durationMinutes,
       startsAt: payload.startsAt,
       endsAt: payload.endsAt,
+      questionDisplayMode: payload.questionDisplayMode,
       allowPairs: payload.allowPairs,
       showFeedback: payload.showFeedback,
       showSolutions: payload.showSolutions,
@@ -854,6 +861,7 @@ app.put("/api/contests/:id", async (req, res) => {
         durationMinutes: payload.durationMinutes,
         startsAt: payload.startsAt,
         endsAt: payload.endsAt,
+        questionDisplayMode: payload.questionDisplayMode,
         allowPairs: payload.allowPairs,
         showFeedback: payload.showFeedback,
         showSolutions: payload.showSolutions,
@@ -1028,7 +1036,7 @@ function serializeGroup(group: {
   firstUsedAt: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
-  contest?: { title: string; category: string } | null;
+  contest?: { title: string; category: string; allowPairs: boolean } | null;
   teams?: Array<{
     id: string;
     participationMode: string;
@@ -1036,6 +1044,7 @@ function serializeGroup(group: {
     memberOneLastName: string;
     memberTwoFirstName: string | null;
     memberTwoLastName: string | null;
+    personalCode: string;
     status: string;
     createdAt: Date;
   }>;
@@ -1047,6 +1056,7 @@ function serializeGroup(group: {
     contestId: group.contestId,
     contestTitle: group.contest?.title ?? "",
     contestCategory: group.contest?.category ?? "",
+    contestAllowPairs: group.contest?.allowPairs ?? false,
     scheduledAt: group.scheduledAt?.toISOString() ?? null,
     firstUsedAt: group.firstUsedAt?.toISOString() ?? null,
     expiresAt: group.expiresAt?.toISOString() ?? null,
@@ -1060,6 +1070,7 @@ function serializeGroup(group: {
         memberOneLastName: team.memberOneLastName,
         memberTwoFirstName: team.memberTwoFirstName,
         memberTwoLastName: team.memberTwoLastName,
+        personalCode: team.personalCode,
         status: team.status,
         createdAt: team.createdAt.toISOString(),
       })) ?? [],
@@ -1067,7 +1078,7 @@ function serializeGroup(group: {
 }
 
 const groupContestSelect = {
-  contest: { select: { title: true, category: true } },
+  contest: { select: { title: true, category: true, allowPairs: true } },
 };
 
 // ---- Gestión de maestros (solo admin) ----
@@ -1111,9 +1122,21 @@ app.get("/api/published-contests", requireAuth, async (_req, res) => {
   const contests = await prisma.contest.findMany({
     where: { publishedAt: { not: null } },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, category: true },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      startsAt: true,
+      endsAt: true,
+    },
   });
-  res.json(contests);
+  res.json(
+    contests.map((contest) => ({
+      ...contest,
+      startsAt: contest.startsAt.toISOString(),
+      endsAt: contest.endsAt.toISOString(),
+    })),
+  );
 });
 
 // ---- Grupos: el admin ve todos; el maestro solo los suyos ----
@@ -1187,6 +1210,16 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
+  if (
+    scheduledAt &&
+    (scheduledAt < contest.startsAt || scheduledAt > contest.endsAt)
+  ) {
+    res.status(400).json({
+      message: "La sesión debe estar dentro del horario de la competencia.",
+    });
+    return;
+  }
+
   const accessCode = await generateUniqueAccessCode();
   const recoveryCode = generateCode(10);
 
@@ -1228,6 +1261,7 @@ function serializeTeam(team: {
   memberOneLastName: string;
   memberTwoFirstName: string | null;
   memberTwoLastName: string | null;
+  personalCode?: string;
   status: string;
   createdAt: Date;
 }) {
@@ -1238,6 +1272,7 @@ function serializeTeam(team: {
     memberOneLastName: team.memberOneLastName,
     memberTwoFirstName: team.memberTwoFirstName,
     memberTwoLastName: team.memberTwoLastName,
+    personalCode: team.personalCode,
     status: team.status,
     createdAt: team.createdAt.toISOString(),
   };
@@ -1350,6 +1385,117 @@ app.put("/api/teams/:id", async (req, res) => {
   });
 
   res.json(serializeTeam(updated));
+});
+
+app.post("/api/groups/:id/teams", async (req, res) => {
+  const group = await prisma.contestGroup.findUnique({
+    where: { id: req.params.id },
+    include: { contest: true },
+  });
+
+  if (
+    !group ||
+    (req.user?.role === "maestro" && group.createdById !== req.user.id)
+  ) {
+    res.status(404).json({ message: "Grupo no encontrado." });
+    return;
+  }
+
+  if (computeContestState(group.contest).state === "cerrada") {
+    res
+      .status(409)
+      .json({ message: "La competencia ya cerró; no es posible inscribir." });
+    return;
+  }
+
+  const mode =
+    req.body?.participationMode === "pareja" ? "pareja" : "individual";
+  const readField = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+  const oneFirst = readField(req.body?.memberOneFirstName);
+  const oneLast = readField(req.body?.memberOneLastName);
+  const twoFirst = readField(req.body?.memberTwoFirstName);
+  const twoLast = readField(req.body?.memberTwoLastName);
+
+  if (!oneFirst || !oneLast) {
+    res
+      .status(400)
+      .json({ message: "Los nombres y apellidos son obligatorios." });
+    return;
+  }
+
+  if (mode === "pareja" && !group.contest.allowPairs) {
+    res.status(400).json({ message: "Esta competencia no permite parejas." });
+    return;
+  }
+
+  if (mode === "pareja" && (!twoFirst || !twoLast)) {
+    res
+      .status(400)
+      .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    return;
+  }
+
+  const keyOne = nameKey(oneFirst, oneLast);
+  const keyTwo = mode === "pareja" ? nameKey(twoFirst, twoLast) : "";
+
+  if (mode === "pareja" && keyOne === keyTwo) {
+    res
+      .status(400)
+      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    return;
+  }
+
+  const existingTeams = await prisma.team.findMany({
+    where: { group: { contestId: group.contestId } },
+    select: {
+      memberOneFirstName: true,
+      memberOneLastName: true,
+      memberTwoFirstName: true,
+      memberTwoLastName: true,
+    },
+  });
+
+  const takenKeys = new Set<string>();
+  for (const existing of existingTeams) {
+    takenKeys.add(nameKey(existing.memberOneFirstName, existing.memberOneLastName));
+    if (existing.memberTwoFirstName && existing.memberTwoLastName) {
+      takenKeys.add(
+        nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
+      );
+    }
+  }
+
+  if (takenKeys.has(keyOne)) {
+    res.status(409).json({
+      message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en esta competencia.`,
+    });
+    return;
+  }
+
+  if (mode === "pareja" && takenKeys.has(keyTwo)) {
+    res.status(409).json({
+      message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en esta competencia.`,
+    });
+    return;
+  }
+
+  const personalCode = await generateUniquePersonalCode();
+
+  const team = await prisma.team.create({
+    data: {
+      groupId: group.id,
+      participationMode: mode,
+      memberOneFirstName: formatName(oneFirst),
+      memberOneLastName: formatName(oneLast),
+      memberTwoFirstName: mode === "pareja" ? formatName(twoFirst) : null,
+      memberTwoLastName: mode === "pareja" ? formatName(twoLast) : null,
+      personalCode,
+      attempt: { create: { status: "pending" } },
+    },
+  });
+
+  res.status(201).json(serializeTeam(team));
 });
 
 // ---- Entrada del estudiante (público, sin login) ----
@@ -1468,6 +1614,10 @@ app.post("/api/play/join", async (req, res) => {
   const existingTeams = await prisma.team.findMany({
     where: { group: { contestId: group.contestId } },
     select: {
+      id: true,
+      groupId: true,
+      personalCode: true,
+      participationMode: true,
       memberOneFirstName: true,
       memberOneLastName: true,
       memberTwoFirstName: true,
@@ -1475,13 +1625,39 @@ app.post("/api/play/join", async (req, res) => {
     },
   });
 
+  const teamKeys = (team: (typeof existingTeams)[number]) => {
+    const keys = [nameKey(team.memberOneFirstName, team.memberOneLastName)];
+    if (team.memberTwoFirstName && team.memberTwoLastName) {
+      keys.push(nameKey(team.memberTwoFirstName, team.memberTwoLastName));
+    }
+    return keys;
+  };
+
   const takenKeys = new Set<string>();
   for (const existing of existingTeams) {
-    takenKeys.add(nameKey(existing.memberOneFirstName, existing.memberOneLastName));
-    if (existing.memberTwoFirstName && existing.memberTwoLastName) {
-      takenKeys.add(
-        nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
-      );
+    for (const key of teamKeys(existing)) {
+      takenKeys.add(key);
+    }
+  }
+
+  if (mode === "individual") {
+    const sameTeam = existingTeams.find(
+      (existing) =>
+        existing.groupId === group.id &&
+        existing.participationMode === "individual" &&
+        nameKey(existing.memberOneFirstName, existing.memberOneLastName) ===
+          keyOne,
+    );
+
+    if (sameTeam) {
+      res.status(200).json({
+        personalCode: sameTeam.personalCode,
+        teamId: sameTeam.id,
+        groupName: group.name,
+        contestTitle: group.contest.title,
+        alreadyRegistered: true,
+      });
+      return;
     }
   }
 
@@ -1923,6 +2099,7 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
   res.json({
     contestTitle: contest.title,
     durationMinutes: contest.durationMinutes,
+    questionDisplayMode: contest.questionDisplayMode,
     state: computeContestState(contest).state,
     status: attempt.status,
     startedAt: attempt.startedAt?.toISOString() ?? null,

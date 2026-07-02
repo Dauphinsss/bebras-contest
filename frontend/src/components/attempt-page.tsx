@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2Icon,
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ClockIcon,
   LoaderCircleIcon,
   SendIcon,
@@ -60,6 +63,7 @@ export function AttemptPage() {
   const [starting, setStarting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const submittedRef = useRef(false);
@@ -313,16 +317,103 @@ export function AttemptPage() {
         </div>
       </div>
 
-      {attempt.tasks.map((task) => (
-        <TaskCard
-          key={task.taskId}
-          task={task}
-          value={answers[task.taskId]}
-          onChange={(payload) => setAnswer(task.taskId, payload)}
-        />
-      ))}
+      {attempt.questionDisplayMode === "all" ? (
+        attempt.tasks.map((task) => (
+          <TaskCard
+            key={task.taskId}
+            task={task}
+            value={answers[task.taskId]}
+            onChange={(payload) => setAnswer(task.taskId, payload)}
+          />
+        ))
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2">
+            {attempt.tasks.map((task, index) => {
+              const answered = answerHasResponse(answers[task.taskId]);
+              const isCurrent = index === currentIndex;
+              return (
+                <button
+                  key={task.taskId}
+                  type="button"
+                  aria-current={isCurrent ? "true" : undefined}
+                  onClick={() => setCurrentIndex(index)}
+                  className={cn(
+                    "flex size-9 items-center justify-center rounded-md border text-sm font-medium transition",
+                    isCurrent
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : answered
+                        ? "border-primary/40 bg-primary/10 text-foreground"
+                        : "bg-background text-muted-foreground hover:border-foreground",
+                  )}
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          {attempt.tasks[currentIndex] && (
+            <TaskCard
+              key={attempt.tasks[currentIndex].taskId}
+              task={attempt.tasks[currentIndex]}
+              value={answers[attempt.tasks[currentIndex].taskId]}
+              onChange={(payload) =>
+                setAnswer(attempt.tasks[currentIndex].taskId, payload)
+              }
+            />
+          )}
+
+          <div className="flex items-center justify-between gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={currentIndex === 0}
+              onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+            >
+              <ChevronLeftIcon data-icon="inline-start" />
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Tarea {currentIndex + 1} de {attempt.tasks.length}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={currentIndex >= attempt.tasks.length - 1}
+              onClick={() =>
+                setCurrentIndex((index) =>
+                  Math.min(attempt.tasks.length - 1, index + 1),
+                )
+              }
+            >
+              Siguiente
+              <ChevronRightIcon data-icon="inline-end" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function answerHasResponse(value: any) {
+  if (!value) {
+    return false;
+  }
+  if (Array.isArray(value.selected)) {
+    return value.selected.length > 0;
+  }
+  if (typeof value.text === "string") {
+    return value.text.trim().length > 0;
+  }
+  if (typeof value.value === "number" || typeof value.value === "string") {
+    return String(value.value).trim().length > 0;
+  }
+  if (value.placements && typeof value.placements === "object") {
+    return Object.keys(value.placements).length > 0;
+  }
+  return false;
 }
 
 function TaskCard({
@@ -355,38 +446,48 @@ function TaskCard({
           <div className="flex flex-col gap-3">
             {task.answers.map((answer) => {
               const isSelected = selected.includes(answer.id);
+              const multi = task.multipleChoiceMode === "all";
               return (
-                <Card
+                <button
                   key={answer.id}
-                  variant={isSelected ? "soft-gradient" : "default"}
+                  type="button"
+                  aria-pressed={isSelected}
                   className={cn(
-                    "cursor-pointer gap-0 py-0 transition",
-                    isSelected && "border-primary",
+                    "flex w-full items-center gap-3 rounded-md border-2 bg-card px-4 py-4 text-left transition",
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-hard"
+                      : "border-border hover:border-primary/50",
                   )}
+                  onClick={() => {
+                    if (multi) {
+                      onChange({
+                        selected: isSelected
+                          ? selected.filter((id) => id !== answer.id)
+                          : [...selected, answer.id],
+                      });
+                    } else {
+                      onChange({ selected: [answer.id] });
+                    }
+                  }}
                 >
-                  <button
-                    type="button"
-                    className="flex w-full items-center text-left"
-                    onClick={() => {
-                      if (task.multipleChoiceMode === "all") {
-                        onChange({
-                          selected: isSelected
-                            ? selected.filter((id) => id !== answer.id)
-                            : [...selected, answer.id],
-                        });
-                      } else {
-                        onChange({ selected: [answer.id] });
-                      }
-                    }}
+                  <span
+                    className={cn(
+                      "flex size-5 shrink-0 items-center justify-center border-2 border-foreground",
+                      multi ? "rounded-none" : "rounded-full",
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background",
+                    )}
                   >
-                    <CardContent className="w-full py-4">
-                      <TaskContentRenderer
-                        blocks={answer.blocks}
-                        className="gap-2 text-base"
-                      />
-                    </CardContent>
-                  </button>
-                </Card>
+                    {isSelected && <CheckIcon className="size-3.5" strokeWidth={3} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <TaskContentRenderer
+                      blocks={answer.blocks}
+                      className="gap-2 text-base"
+                    />
+                  </div>
+                </button>
               );
             })}
             {task.multipleChoiceMode === "all" && (
