@@ -4,11 +4,7 @@ import {
   normalizeCategories,
   type StoredTask,
 } from "@/lib/task-schema";
-import { authHeaders, handleUnauthorized } from "@/lib/auth";
-
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+import { apiRequest as request } from "@/lib/api-client";
 
 export type HomeTaskItem = {
   id: string;
@@ -17,33 +13,8 @@ export type HomeTaskItem = {
   ageSummary: string;
   question: string;
   status: "Borrador";
+  isPractice: boolean;
 };
-
-async function request<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
-
-  if (response.status === 401 || response.status === 403) {
-    handleUnauthorized();
-    throw new Error("Sesión expirada. Inicia sesión de nuevo.");
-  }
-
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
-
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  return (await response.json()) as T;
-}
 
 export function listTasks() {
   return request<StoredTask[]>("/api/tasks");
@@ -73,6 +44,16 @@ export function removeTask(taskId: string) {
   });
 }
 
+export function setTaskPractice(taskId: string, isPractice: boolean) {
+  return request<{ id: string; isPractice: boolean }>(
+    `/api/tasks/${taskId}/practice`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ isPractice }),
+    },
+  );
+}
+
 export function mapTaskToHomeItem(task: StoredTask): HomeTaskItem {
   return {
     id: task.id,
@@ -81,5 +62,6 @@ export function mapTaskToHomeItem(task: StoredTask): HomeTaskItem {
     ageSummary: buildAgeSummary(task.difficulties),
     question: getQuestionSummary(task.challengeBlocks),
     status: task.status,
+    isPractice: Boolean((task as { isPractice?: boolean }).isPractice),
   };
 }

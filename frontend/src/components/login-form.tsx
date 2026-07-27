@@ -15,10 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+import { API_BASE_URL } from "@/lib/api-client";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");

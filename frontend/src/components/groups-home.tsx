@@ -19,7 +19,11 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { toDatetimeLocalValue } from "@/lib/contest-schema";
+import {
+  gradeLabel,
+  gradesForCategory,
+  toDatetimeLocalValue,
+} from "@/lib/contest-schema";
 
 import {
   createGroup,
@@ -263,6 +267,7 @@ export function GroupsHome() {
   const [enrollMode, setEnrollMode] = useState<"individual" | "pareja">(
     "individual",
   );
+  const [enrollGrade, setEnrollGrade] = useState("");
   const [enrollOneFirst, setEnrollOneFirst] = useState("");
   const [enrollOneLast, setEnrollOneLast] = useState("");
   const [enrollTwoFirst, setEnrollTwoFirst] = useState("");
@@ -458,6 +463,7 @@ export function GroupsHome() {
   const openEnroll = (group: StoredGroup) => {
     setEnrolling(group);
     setEnrollMode("individual");
+    setEnrollGrade("");
     setEnrollOneFirst("");
     setEnrollOneLast("");
     setEnrollTwoFirst("");
@@ -466,6 +472,11 @@ export function GroupsHome() {
 
   const saveEnroll = async () => {
     if (!enrolling) {
+      return;
+    }
+
+    if (!enrollGrade) {
+      toast.error("Elige el curso del participante.");
       return;
     }
 
@@ -487,6 +498,7 @@ export function GroupsHome() {
     try {
       const team = await enrollTeam(enrolling.id, {
         participationMode: enrollMode,
+        grade: enrollGrade,
         memberOneFirstName: enrollOneFirst.trim(),
         memberOneLastName: enrollOneLast.trim(),
         memberTwoFirstName: enrollTwoFirst.trim(),
@@ -737,6 +749,11 @@ export function GroupsHome() {
                                 {teamName(team)}
                               </span>
                               <div className="flex shrink-0 items-center gap-1.5">
+                                {team.grade && (
+                                  <Badge variant="secondary">
+                                    {gradeLabel(team.grade)}
+                                  </Badge>
+                                )}
                                 <Badge variant="outline">
                                   {team.participationMode === "pareja"
                                     ? "Pareja"
@@ -915,6 +932,30 @@ export function GroupsHome() {
                 </Button>
               </div>
             )}
+            <Field>
+              <FieldLabel htmlFor="enroll-grade">Curso</FieldLabel>
+              <FieldContent>
+                <Select value={enrollGrade} onValueChange={setEnrollGrade}>
+                  <SelectTrigger id="enroll-grade" className="w-full">
+                    <SelectValue placeholder="Elige el curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gradesForCategory(enrolling?.contestCategory ?? "").map(
+                      (grade) => (
+                        <SelectItem key={grade.value} value={grade.value}>
+                          {grade.label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {enrolling?.contestCategory
+                    ? `Esta competencia es de categoría ${enrolling.contestCategory}.`
+                    : "Esta competencia no tiene categoría asignada."}
+                </FieldDescription>
+              </FieldContent>
+            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="enroll-one-first">Nombres</FieldLabel>

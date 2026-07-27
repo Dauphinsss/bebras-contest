@@ -28,6 +28,7 @@ export type TeamMinAggregateOutputType = {
   id: string | null
   groupId: string | null
   participationMode: string | null
+  grade: string | null
   memberOneFirstName: string | null
   memberOneLastName: string | null
   memberTwoFirstName: string | null
@@ -42,6 +43,7 @@ export type TeamMaxAggregateOutputType = {
   id: string | null
   groupId: string | null
   participationMode: string | null
+  grade: string | null
   memberOneFirstName: string | null
   memberOneLastName: string | null
   memberTwoFirstName: string | null
@@ -56,6 +58,7 @@ export type TeamCountAggregateOutputType = {
   id: number
   groupId: number
   participationMode: number
+  grade: number
   memberOneFirstName: number
   memberOneLastName: number
   memberTwoFirstName: number
@@ -72,6 +75,7 @@ export type TeamMinAggregateInputType = {
   id?: true
   groupId?: true
   participationMode?: true
+  grade?: true
   memberOneFirstName?: true
   memberOneLastName?: true
   memberTwoFirstName?: true
@@ -86,6 +90,7 @@ export type TeamMaxAggregateInputType = {
   id?: true
   groupId?: true
   participationMode?: true
+  grade?: true
   memberOneFirstName?: true
   memberOneLastName?: true
   memberTwoFirstName?: true
@@ -100,6 +105,7 @@ export type TeamCountAggregateInputType = {
   id?: true
   groupId?: true
   participationMode?: true
+  grade?: true
   memberOneFirstName?: true
   memberOneLastName?: true
   memberTwoFirstName?: true
@@ -187,6 +193,7 @@ export type TeamGroupByOutputType = {
   id: string
   groupId: string
   participationMode: string
+  grade: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName: string | null
@@ -222,6 +229,7 @@ export type TeamWhereInput = {
   id?: Prisma.StringFilter<"Team"> | string
   groupId?: Prisma.StringFilter<"Team"> | string
   participationMode?: Prisma.StringFilter<"Team"> | string
+  grade?: Prisma.StringNullableFilter<"Team"> | string | null
   memberOneFirstName?: Prisma.StringFilter<"Team"> | string
   memberOneLastName?: Prisma.StringFilter<"Team"> | string
   memberTwoFirstName?: Prisma.StringNullableFilter<"Team"> | string | null
@@ -238,6 +246,7 @@ export type TeamOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   groupId?: Prisma.SortOrder
   participationMode?: Prisma.SortOrder
+  grade?: Prisma.SortOrderInput | Prisma.SortOrder
   memberOneFirstName?: Prisma.SortOrder
   memberOneLastName?: Prisma.SortOrder
   memberTwoFirstName?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -258,6 +267,7 @@ export type TeamWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.TeamWhereInput | Prisma.TeamWhereInput[]
   groupId?: Prisma.StringFilter<"Team"> | string
   participationMode?: Prisma.StringFilter<"Team"> | string
+  grade?: Prisma.StringNullableFilter<"Team"> | string | null
   memberOneFirstName?: Prisma.StringFilter<"Team"> | string
   memberOneLastName?: Prisma.StringFilter<"Team"> | string
   memberTwoFirstName?: Prisma.StringNullableFilter<"Team"> | string | null
@@ -273,6 +283,7 @@ export type TeamOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   groupId?: Prisma.SortOrder
   participationMode?: Prisma.SortOrder
+  grade?: Prisma.SortOrderInput | Prisma.SortOrder
   memberOneFirstName?: Prisma.SortOrder
   memberOneLastName?: Prisma.SortOrder
   memberTwoFirstName?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -293,6 +304,7 @@ export type TeamScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"Team"> | string
   groupId?: Prisma.StringWithAggregatesFilter<"Team"> | string
   participationMode?: Prisma.StringWithAggregatesFilter<"Team"> | string
+  grade?: Prisma.StringNullableWithAggregatesFilter<"Team"> | string | null
   memberOneFirstName?: Prisma.StringWithAggregatesFilter<"Team"> | string
   memberOneLastName?: Prisma.StringWithAggregatesFilter<"Team"> | string
   memberTwoFirstName?: Prisma.StringNullableWithAggregatesFilter<"Team"> | string | null
@@ -306,6 +318,7 @@ export type TeamScalarWhereWithAggregatesInput = {
 export type TeamCreateInput = {
   id?: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -322,6 +335,7 @@ export type TeamUncheckedCreateInput = {
   id?: string
   groupId: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -336,6 +350,7 @@ export type TeamUncheckedCreateInput = {
 export type TeamUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -352,6 +367,7 @@ export type TeamUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   groupId?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -367,6 +383,7 @@ export type TeamCreateManyInput = {
   id?: string
   groupId: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -380,6 +397,7 @@ export type TeamCreateManyInput = {
 export type TeamUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -394,6 +412,7 @@ export type TeamUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   groupId?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -418,6 +437,7 @@ export type TeamCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   groupId?: Prisma.SortOrder
   participationMode?: Prisma.SortOrder
+  grade?: Prisma.SortOrder
   memberOneFirstName?: Prisma.SortOrder
   memberOneLastName?: Prisma.SortOrder
   memberTwoFirstName?: Prisma.SortOrder
@@ -432,6 +452,7 @@ export type TeamMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   groupId?: Prisma.SortOrder
   participationMode?: Prisma.SortOrder
+  grade?: Prisma.SortOrder
   memberOneFirstName?: Prisma.SortOrder
   memberOneLastName?: Prisma.SortOrder
   memberTwoFirstName?: Prisma.SortOrder
@@ -446,6 +467,7 @@ export type TeamMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   groupId?: Prisma.SortOrder
   participationMode?: Prisma.SortOrder
+  grade?: Prisma.SortOrder
   memberOneFirstName?: Prisma.SortOrder
   memberOneLastName?: Prisma.SortOrder
   memberTwoFirstName?: Prisma.SortOrder
@@ -520,6 +542,7 @@ export type TeamUpdateOneRequiredWithoutAttemptNestedInput = {
 export type TeamCreateWithoutGroupInput = {
   id?: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -534,6 +557,7 @@ export type TeamCreateWithoutGroupInput = {
 export type TeamUncheckedCreateWithoutGroupInput = {
   id?: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -577,6 +601,7 @@ export type TeamScalarWhereInput = {
   id?: Prisma.StringFilter<"Team"> | string
   groupId?: Prisma.StringFilter<"Team"> | string
   participationMode?: Prisma.StringFilter<"Team"> | string
+  grade?: Prisma.StringNullableFilter<"Team"> | string | null
   memberOneFirstName?: Prisma.StringFilter<"Team"> | string
   memberOneLastName?: Prisma.StringFilter<"Team"> | string
   memberTwoFirstName?: Prisma.StringNullableFilter<"Team"> | string | null
@@ -590,6 +615,7 @@ export type TeamScalarWhereInput = {
 export type TeamCreateWithoutAttemptInput = {
   id?: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -605,6 +631,7 @@ export type TeamUncheckedCreateWithoutAttemptInput = {
   id?: string
   groupId: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -634,6 +661,7 @@ export type TeamUpdateToOneWithWhereWithoutAttemptInput = {
 export type TeamUpdateWithoutAttemptInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -649,6 +677,7 @@ export type TeamUncheckedUpdateWithoutAttemptInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   groupId?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -662,6 +691,7 @@ export type TeamUncheckedUpdateWithoutAttemptInput = {
 export type TeamCreateManyGroupInput = {
   id?: string
   participationMode?: string
+  grade?: string | null
   memberOneFirstName: string
   memberOneLastName: string
   memberTwoFirstName?: string | null
@@ -675,6 +705,7 @@ export type TeamCreateManyGroupInput = {
 export type TeamUpdateWithoutGroupInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -689,6 +720,7 @@ export type TeamUpdateWithoutGroupInput = {
 export type TeamUncheckedUpdateWithoutGroupInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -703,6 +735,7 @@ export type TeamUncheckedUpdateWithoutGroupInput = {
 export type TeamUncheckedUpdateManyWithoutGroupInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   participationMode?: Prisma.StringFieldUpdateOperationsInput | string
+  grade?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   memberOneFirstName?: Prisma.StringFieldUpdateOperationsInput | string
   memberOneLastName?: Prisma.StringFieldUpdateOperationsInput | string
   memberTwoFirstName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -719,6 +752,7 @@ export type TeamSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   id?: boolean
   groupId?: boolean
   participationMode?: boolean
+  grade?: boolean
   memberOneFirstName?: boolean
   memberOneLastName?: boolean
   memberTwoFirstName?: boolean
@@ -735,6 +769,7 @@ export type TeamSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   id?: boolean
   groupId?: boolean
   participationMode?: boolean
+  grade?: boolean
   memberOneFirstName?: boolean
   memberOneLastName?: boolean
   memberTwoFirstName?: boolean
@@ -750,6 +785,7 @@ export type TeamSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   id?: boolean
   groupId?: boolean
   participationMode?: boolean
+  grade?: boolean
   memberOneFirstName?: boolean
   memberOneLastName?: boolean
   memberTwoFirstName?: boolean
@@ -765,6 +801,7 @@ export type TeamSelectScalar = {
   id?: boolean
   groupId?: boolean
   participationMode?: boolean
+  grade?: boolean
   memberOneFirstName?: boolean
   memberOneLastName?: boolean
   memberTwoFirstName?: boolean
@@ -775,7 +812,7 @@ export type TeamSelectScalar = {
   updatedAt?: boolean
 }
 
-export type TeamOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "groupId" | "participationMode" | "memberOneFirstName" | "memberOneLastName" | "memberTwoFirstName" | "memberTwoLastName" | "personalCode" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["team"]>
+export type TeamOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "groupId" | "participationMode" | "grade" | "memberOneFirstName" | "memberOneLastName" | "memberTwoFirstName" | "memberTwoLastName" | "personalCode" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["team"]>
 export type TeamInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   group?: boolean | Prisma.ContestGroupDefaultArgs<ExtArgs>
   attempt?: boolean | Prisma.Team$attemptArgs<ExtArgs>
@@ -797,6 +834,7 @@ export type $TeamPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     id: string
     groupId: string
     participationMode: string
+    grade: string | null
     memberOneFirstName: string
     memberOneLastName: string
     memberTwoFirstName: string | null
@@ -1233,6 +1271,7 @@ export interface TeamFieldRefs {
   readonly id: Prisma.FieldRef<"Team", 'String'>
   readonly groupId: Prisma.FieldRef<"Team", 'String'>
   readonly participationMode: Prisma.FieldRef<"Team", 'String'>
+  readonly grade: Prisma.FieldRef<"Team", 'String'>
   readonly memberOneFirstName: Prisma.FieldRef<"Team", 'String'>
   readonly memberOneLastName: Prisma.FieldRef<"Team", 'String'>
   readonly memberTwoFirstName: Prisma.FieldRef<"Team", 'String'>

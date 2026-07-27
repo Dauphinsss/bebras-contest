@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckIcon, LoaderCircleIcon, XIcon } from "lucide-react";
+import { CheckIcon, FileTextIcon, LoaderCircleIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   approveMaestro,
   listMaestros,
+  openMaestroDocument,
   rejectMaestro,
   type Maestro,
+  type MaestroDoc,
 } from "@/lib/users-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +57,14 @@ export function MaestrosHome() {
       active = false;
     };
   }, []);
+
+  const openDoc = (id: number, doc: MaestroDoc) => {
+    openMaestroDocument(id, doc).catch((error) =>
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo abrir el documento.",
+      ),
+    );
+  };
 
   const updateStatus = (maestro: Maestro, status: string) => {
     const action = status === "approved" ? approveMaestro : rejectMaestro;
@@ -121,8 +131,49 @@ export function MaestrosHome() {
                       {maestro.name ?? maestro.email}
                     </CardTitle>
                     <CardDescription>{maestro.email}</CardDescription>
+                    {maestro.schoolName && (
+                      <CardDescription>
+                        Colegio: {maestro.schoolName}
+                      </CardDescription>
+                    )}
+                    {maestro.phone && (
+                      <CardDescription>Tel: {maestro.phone}</CardDescription>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {maestro.hasLetter && (
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => openDoc(maestro.id, "letter")}
+                      >
+                        <FileTextIcon data-icon="inline-start" />
+                        Ver carta
+                      </Button>
+                    )}
+                    {maestro.hasIdFront && (
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => openDoc(maestro.id, "idFront")}
+                      >
+                        <FileTextIcon data-icon="inline-start" />
+                        Carnet anverso
+                      </Button>
+                    )}
+                    {maestro.hasIdBack && (
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => openDoc(maestro.id, "idBack")}
+                      >
+                        <FileTextIcon data-icon="inline-start" />
+                        Carnet reverso
+                      </Button>
+                    )}
                     {maestro.status !== "approved" && (
                       <Button
                         size="sm"

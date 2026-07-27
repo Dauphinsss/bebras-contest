@@ -4,14 +4,23 @@ import { useEffect, useState } from "react";
 import {
   AlarmClockIcon,
   BarChart3Icon,
+  CalculatorIcon,
   CalendarRangeIcon,
+  EyeIcon,
+  EyeOffIcon,
   FilePlus2Icon,
   FilePenLineIcon,
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { removeContest, listContests } from "@/lib/contests-api";
+import {
+  consolidateContest,
+  listContests,
+  publishContestResults,
+  removeContest,
+  unpublishContestResults,
+} from "@/lib/contests-api";
 import {
   CONTEST_STATE_LABELS,
   formatContestTaskSummary,
@@ -44,6 +53,60 @@ import {
 export function ContestsHome() {
   const [contests, setContests] = useState<StoredContest[]>([]);
   const [confirming, setConfirming] = useState<StoredContest | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const replaceContest = (updated: StoredContest) => {
+    setContests((current) =>
+      current.map((contest) => (contest.id === updated.id ? updated : contest)),
+    );
+  };
+
+  const runAction = async (
+    contest: StoredContest,
+    action: () => Promise<StoredContest>,
+    successMessage: (updated: StoredContest) => string,
+  ) => {
+    setBusyId(contest.id);
+
+    try {
+      const updated = await action();
+      replaceContest(updated);
+      toast.success(successMessage(updated));
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo completar la acción.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleConsolidate = (contest: StoredContest) =>
+    runAction(
+      contest,
+      () => consolidateContest(contest.id),
+      (updated) => {
+        const closed = (updated as StoredContest & { closedAttempts?: number })
+          .closedAttempts;
+        return closed
+          ? `Competencia consolidada. Se cerraron ${closed} intento(s) vencido(s).`
+          : "Competencia consolidada. Puntajes y ranking al día.";
+      },
+    );
+
+  const handlePublishResults = (contest: StoredContest) =>
+    runAction(
+      contest,
+      () => publishContestResults(contest.id),
+      () => "Resultados publicados. Los participantes ya pueden verlos.",
+    );
+
+  const handleUnpublishResults = (contest: StoredContest) =>
+    runAction(
+      contest,
+      () => unpublishContestResults(contest.id),
+      () => "Resultados ocultados.",
+    );
 
   useEffect(() => {
     let active = true;
@@ -161,12 +224,47 @@ export function ContestsHome() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      {contest.state !== "borrador" && (
-                        <Button asChild size="sm" variant="outline">
-                          <a href={`/competencias/resultados?id=${contest.id}`}>
-                            <BarChart3Icon data-icon="inline-start" />
-                            Resultados
-                          </a>
+                      {contest.state !== "borrador" &&
+                        contest.state !== "programada" && (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={`/competencias/resultados?id=${contest.id}`}>
+                              <BarChart3Icon data-icon="inline-start" />
+                              Resultados
+                            </a>
+                          </Button>
+                        )}
+                      {contest.state === "cerrada" && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          disabled={busyId === contest.id}
+                          onClick={() => void handleConsolidate(contest)}
+                        >
+                          <CalculatorIcon data-icon="inline-start" />
+                          Consolidar
+                        </Button>
+                      )}
+                      {contest.state === "consolidada" && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          disabled={busyId === contest.id}
+                          onClick={() => void handlePublishResults(contest)}
+                        >
+                          <EyeIcon data-icon="inline-start" />
+                          Publicar resultados
+                        </Button>
+                      )}
+                      {contest.state === "publicada" && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          disabled={busyId === contest.id}
+                          onClick={() => void handleUnpublishResults(contest)}
+                        >
+                          <EyeOffIcon data-icon="inline-start" />
+                          Ocultar resultados
                         </Button>
                       )}
                       <Button asChild size="sm" variant="outline">

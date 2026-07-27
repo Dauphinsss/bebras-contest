@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2Icon,
-  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -14,7 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
-import { DragDropPlayer } from "@/components/drag-drop-player";
+import { PlayTaskFields } from "@/components/play-task-fields";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,8 +29,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
+  answerHasResponse,
   getAttempt,
   saveAnswer,
   startAttempt,
@@ -39,7 +38,6 @@ import {
   type AttemptState,
   type PlayTask,
 } from "@/lib/play-api";
-import type { StoredTaskDragDropItem } from "@/lib/task-schema";
 import { cn } from "@/lib/utils";
 
 function formatRemaining(ms: number) {
@@ -238,7 +236,9 @@ export function AttemptPage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Tu maestro te compartirá los resultados.
+                {attempt.resultsPublished
+                  ? "Tu maestro te compartirá los resultados."
+                  : "Los resultados se publicarán unos días después del desafío."}
               </p>
             )}
           </CardContent>
@@ -330,7 +330,10 @@ export function AttemptPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap gap-2">
             {attempt.tasks.map((task, index) => {
-              const answered = answerHasResponse(answers[task.taskId]);
+              const answered = answerHasResponse(
+                task.answerType,
+                answers[task.taskId],
+              );
               const isCurrent = index === currentIndex;
               return (
                 <button
@@ -397,25 +400,6 @@ export function AttemptPage() {
   );
 }
 
-function answerHasResponse(value: any) {
-  if (!value) {
-    return false;
-  }
-  if (Array.isArray(value.selected)) {
-    return value.selected.length > 0;
-  }
-  if (typeof value.text === "string") {
-    return value.text.trim().length > 0;
-  }
-  if (typeof value.value === "number" || typeof value.value === "string") {
-    return String(value.value).trim().length > 0;
-  }
-  if (value.placements && typeof value.placements === "object") {
-    return Object.keys(value.placements).length > 0;
-  }
-  return false;
-}
-
 function TaskCard({
   task,
   value,
@@ -425,8 +409,6 @@ function TaskCard({
   value: any;
   onChange: (payload: any) => void;
 }) {
-  const selected: string[] = Array.isArray(value?.selected) ? value.selected : [];
-
   return (
     <Card>
       <CardContent className="flex flex-col gap-5 pt-6">
@@ -442,106 +424,7 @@ function TaskCard({
           <TaskContentRenderer blocks={task.challengeBlocks} className="gap-4" />
         )}
 
-        {task.answerType === "multiple_choice" && (
-          <div className="flex flex-col gap-3">
-            {task.answers.map((answer) => {
-              const isSelected = selected.includes(answer.id);
-              const multi = task.multipleChoiceMode === "all";
-              return (
-                <button
-                  key={answer.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md border-2 bg-card px-4 py-4 text-left transition",
-                    isSelected
-                      ? "border-primary bg-primary/10 shadow-hard"
-                      : "border-border hover:border-primary/50",
-                  )}
-                  onClick={() => {
-                    if (multi) {
-                      onChange({
-                        selected: isSelected
-                          ? selected.filter((id) => id !== answer.id)
-                          : [...selected, answer.id],
-                      });
-                    } else {
-                      onChange({ selected: [answer.id] });
-                    }
-                  }}
-                >
-                  <span
-                    className={cn(
-                      "flex size-5 shrink-0 items-center justify-center border-2 border-foreground",
-                      multi ? "rounded-none" : "rounded-full",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-background",
-                    )}
-                  >
-                    {isSelected && <CheckIcon className="size-3.5" strokeWidth={3} />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <TaskContentRenderer
-                      blocks={answer.blocks}
-                      className="gap-2 text-base"
-                    />
-                  </div>
-                </button>
-              );
-            })}
-            {task.multipleChoiceMode === "all" && (
-              <p className="text-xs text-muted-foreground">
-                Puedes elegir más de una opción.
-              </p>
-            )}
-          </div>
-        )}
-
-        {task.answerType === "short_text" && (
-          <Input
-            placeholder="Escribe tu respuesta"
-            value={value?.text ?? ""}
-            onChange={(event) => onChange({ text: event.target.value })}
-          />
-        )}
-
-        {task.answerType === "range" && (
-          <Input
-            type="number"
-            placeholder="Escribe un número"
-            value={value?.value ?? ""}
-            onChange={(event) => onChange({ value: event.target.value })}
-          />
-        )}
-
-        {task.answerType === "drag_drop" && task.dragDropBackground && (
-          <DragDropPlayer
-            backgroundUrl={task.dragDropBackground.url}
-            items={
-              task.dragDropItems.map((item) => ({
-                ...item,
-                targetX: 0,
-                targetY: 0,
-                tolerance: 0,
-              })) as StoredTaskDragDropItem[]
-            }
-            placements={(value?.placements ?? {}) as Record<
-              string,
-              { x: number; y: number }
-            >}
-            onPlaceItem={(itemId, placement) =>
-              onChange({
-                placements: { ...(value?.placements ?? {}), [itemId]: placement },
-              })
-            }
-            onResetItem={(itemId) => {
-              const next = { ...(value?.placements ?? {}) };
-              delete next[itemId];
-              onChange({ placements: next });
-            }}
-          />
-        )}
+        <PlayTaskFields task={task} value={value} onChange={onChange} />
       </CardContent>
     </Card>
   );

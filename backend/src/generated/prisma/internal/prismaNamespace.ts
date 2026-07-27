@@ -1200,6 +1200,10 @@ export const UserScalarFieldEnum = {
   status: 'status',
   schoolCodUe: 'schoolCodUe',
   schoolName: 'schoolName',
+  phone: 'phone',
+  letterFilename: 'letterFilename',
+  idFrontFilename: 'idFrontFilename',
+  idBackFilename: 'idBackFilename',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1243,6 +1247,7 @@ export const TaskDraftScalarFieldEnum = {
   dragDropItems: 'dragDropItems',
   explanation: 'explanation',
   status: 'status',
+  isPractice: 'isPractice',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1257,12 +1262,15 @@ export const ContestScalarFieldEnum = {
   durationMinutes: 'durationMinutes',
   startsAt: 'startsAt',
   endsAt: 'endsAt',
+  initialScore: 'initialScore',
   questionDisplayMode: 'questionDisplayMode',
   allowPairs: 'allowPairs',
   showFeedback: 'showFeedback',
   showSolutions: 'showSolutions',
   showTotalScore: 'showTotalScore',
   publishedAt: 'publishedAt',
+  consolidatedAt: 'consolidatedAt',
+  resultsPublishedAt: 'resultsPublishedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1275,6 +1283,7 @@ export const ContestTaskScalarFieldEnum = {
   contestId: 'contestId',
   taskDraftId: 'taskDraftId',
   position: 'position',
+  difficulty: 'difficulty',
   minScore: 'minScore',
   noAnswerScore: 'noAnswerScore',
   maxScore: 'maxScore',
@@ -1306,6 +1315,7 @@ export const TeamScalarFieldEnum = {
   id: 'id',
   groupId: 'groupId',
   participationMode: 'participationMode',
+  grade: 'grade',
   memberOneFirstName: 'memberOneFirstName',
   memberOneLastName: 'memberOneLastName',
   memberTwoFirstName: 'memberTwoFirstName',

@@ -11,6 +11,16 @@ frontend/dist/
 frontend/.astro/
 coverage/
 
+# Uploaded documents
+backend/uploads/letters/*
+!backend/uploads/letters/.gitkeep
+
+# Local databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # Environment files
 .env
 .env.local

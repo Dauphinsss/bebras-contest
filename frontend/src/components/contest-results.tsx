@@ -9,6 +9,7 @@ import {
   type ContestResultRow,
   type ContestResults,
 } from "@/lib/contests-api";
+import { gradeLabel } from "@/lib/contest-schema";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,16 @@ function teamName(row: ContestResultRow) {
   return one;
 }
 
+function formatElapsed(seconds: number | null) {
+  if (seconds === null) {
+    return "—";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
+}
+
 function csvCell(value: string | number | null) {
   const text = value === null ? "" : String(value);
   if (/[",\n]/.test(text)) {
@@ -47,9 +58,13 @@ function exportCsv(results: ContestResults) {
     "Posicion",
     "Nombres",
     "Apellidos",
+    "Nombres 2",
+    "Apellidos 2",
+    "Curso",
     "Grupo",
     "Modalidad",
     "Estado",
+    "Tiempo (s)",
     "Puntaje",
     "Correctas",
     "Respondidas",
@@ -59,9 +74,13 @@ function exportCsv(results: ContestResults) {
       row.rankPosition,
       row.memberOneFirstName,
       row.memberOneLastName,
+      row.memberTwoFirstName ?? "",
+      row.memberTwoLastName ?? "",
+      gradeLabel(row.grade),
       row.groupName,
       row.participationMode,
       STATUS_LABEL[row.status] ?? row.status,
+      row.elapsedSeconds,
       row.totalScore,
       row.correctCount,
       row.answeredCount,
@@ -74,7 +93,7 @@ function exportCsv(results: ContestResults) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `resultados-${results.contestTitle}.csv`;
+  link.download = `resultados-${results.contestTitle.replace(/[^\p{L}\p{N}_-]+/gu, "-")}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -171,8 +190,10 @@ export function ContestResults() {
                 <tr className="border-b text-left">
                   <th className="px-3 py-2 font-semibold">#</th>
                   <th className="px-3 py-2 font-semibold">Participante</th>
+                  <th className="px-3 py-2 font-semibold">Curso</th>
                   <th className="px-3 py-2 font-semibold">Grupo</th>
                   <th className="px-3 py-2 font-semibold">Estado</th>
+                  <th className="px-3 py-2 text-right font-semibold">Tiempo</th>
                   <th className="px-3 py-2 text-right font-semibold">Puntaje</th>
                   <th className="px-3 py-2 text-right font-semibold">Correctas</th>
                 </tr>
@@ -185,6 +206,9 @@ export function ContestResults() {
                     </td>
                     <td className="px-3 py-2">{teamName(row)}</td>
                     <td className="px-3 py-2 text-muted-foreground">
+                      {gradeLabel(row.grade)}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
                       {row.groupName}
                     </td>
                     <td className="px-3 py-2">
@@ -195,6 +219,9 @@ export function ContestResults() {
                       >
                         {STATUS_LABEL[row.status] ?? row.status}
                       </Badge>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      {formatElapsed(row.elapsedSeconds)}
                     </td>
                     <td className="px-3 py-2 text-right font-medium">
                       {row.totalScore ?? "—"}

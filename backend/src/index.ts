@@ -1,12 +1,91 @@
 import "dotenv/config";
 import express from "express";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import { mkdir, unlink } from "node:fs/promises";
+import { resolve, extname } from "node:path";
 import { prisma } from "./lib/prisma";
 import { requireAdmin, requireAuth, signToken } from "./lib/auth";
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
+
+const UPLOADS_DIR = resolve(process.cwd(), "uploads", "letters");
+const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
+const DOC_MAX_BYTES = 5 * 1024 * 1024;
+
+const uploadDocs = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+    filename: (_req, file, cb) =>
+      cb(
+        null,
+        `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
+      ),
+  }),
+  limits: { fileSize: DOC_MAX_BYTES, files: 3 },
+  fileFilter: (_req, file, cb) => {
+    if (!DOC_ALLOWED_EXT.has(extname(file.originalname).toLowerCase())) {
+      cb(new Error("INVALID_DOC_TYPE"));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+function registerUploadMiddleware(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  const handler = uploadDocs.fields([
+    { name: "letter", maxCount: 1 },
+    { name: "idFront", maxCount: 1 },
+    { name: "idBack", maxCount: 1 },
+  ]);
+
+  handler(req, res, (err: unknown) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        res.status(400).json({ message: "El archivo no debe superar los 5 MB." });
+        return;
+      }
+      if (err instanceof Error && err.message === "INVALID_DOC_TYPE") {
+        res.status(400).json({
+          message:
+            "El documento debe ser un archivo PDF o una imagen (JPG, JPEG o PNG).",
+        });
+        return;
+      }
+      res.status(400).json({ message: "No se pudo subir el documento." });
+      return;
+    }
+    next();
+  });
+}
+
+async function cleanupFiles(...files: Array<Express.Multer.File | undefined>) {
+  for (const file of files) {
+    if (file?.path) {
+      try {
+        await unlink(file.path);
+      } catch {
+        // el archivo ya no existe o no se pudo borrar; se ignora
+      }
+    }
+  }
+}
+
+function pickUploaded(
+  req: express.Request,
+  field: string,
+): Express.Multer.File | undefined {
+  const files = req.files as
+    | Record<string, Express.Multer.File[]>
+    | undefined;
+  return files?.[field]?.[0];
+}
 
 const ansi = {
   reset: "\x1b[0m",
@@ -136,6 +215,254 @@ function deserializeTaskSummary(task: {
   };
 }
 
+const TASK_CATEGORIES = [
+  "Algoritmos y programación",
+  "Estructuras de datos y representaciones",
+  "Procesos computacionales y hardware",
+  "Comunicación y redes",
+  "Interacción, sistemas y sociedad",
+];
+
+const TASK_AGE_RANGES = ["6–8", "8–10", "10–12", "12–14", "14–16", "16–19"];
+
+const TASK_ANSWER_TYPES = [
+  "multiple_choice",
+  "short_text",
+  "range",
+  "drag_drop",
+];
+
+type ContentBlockInput = {
+  content?: unknown;
+  image?: unknown;
+};
+
+function blockHasContent(block: unknown) {
+  if (!block || typeof block !== "object") {
+    return false;
+  }
+
+  const typed = block as ContentBlockInput;
+  const text = typeof typed.content === "string" ? typed.content.trim() : "";
+  return text.length > 0 || Boolean(typed.image);
+}
+
+function countFilledBlocks(value: unknown) {
+  return Array.isArray(value) ? value.filter(blockHasContent).length : 0;
+}
+
+function readText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseTaskPayload(body: Record<string, unknown>) {
+  const title = readText(body.title);
+
+  if (!title) {
+    throw new Error("El título es obligatorio.");
+  }
+
+  const categories = Array.isArray(body.categories)
+    ? body.categories.filter((item): item is string => typeof item === "string")
+    : typeof body.category === "string" && body.category
+      ? [body.category]
+      : [];
+
+  if (categories.length === 0) {
+    throw new Error("Debes seleccionar al menos una categoría.");
+  }
+
+  const unknownCategory = categories.find(
+    (category) => !TASK_CATEGORIES.includes(category),
+  );
+
+  if (unknownCategory) {
+    throw new Error(`La categoría "${unknownCategory}" no es válida.`);
+  }
+
+  const difficulties =
+    body.difficulties && typeof body.difficulties === "object"
+      ? (body.difficulties as Record<string, unknown>)
+      : {};
+
+  const activeRanges = Object.entries(difficulties).filter(
+    ([, value]) => readText(value).length > 0,
+  );
+
+  if (activeRanges.length === 0) {
+    throw new Error("Debes activar al menos un rango de edad con su dificultad.");
+  }
+
+  const unknownRange = activeRanges.find(
+    ([range]) => !TASK_AGE_RANGES.includes(range),
+  );
+
+  if (unknownRange) {
+    throw new Error(`El rango de edad "${unknownRange[0]}" no es válido.`);
+  }
+
+  if (countFilledBlocks(body.bodyBlocks) === 0) {
+    throw new Error("Debes agregar contenido en el cuerpo.");
+  }
+
+  if (countFilledBlocks(body.challengeBlocks) === 0) {
+    throw new Error("Debes agregar contenido en la pregunta o desafío.");
+  }
+
+  const answerType = readText(body.answerType) || "multiple_choice";
+
+  if (!TASK_ANSWER_TYPES.includes(answerType)) {
+    throw new Error("El tipo de respuesta no es válido.");
+  }
+
+  const explanation = readText(body.explanation);
+
+  if (!explanation) {
+    throw new Error("La explicación de la respuesta es obligatoria.");
+  }
+
+  const answers = Array.isArray(body.answers) ? body.answers : [];
+  const correctAnswerId = readText(body.correctAnswerId);
+  const shortAnswer = readText(body.shortAnswer);
+  const rangeAnswers = Array.isArray(body.rangeAnswers) ? body.rangeAnswers : [];
+  const dragDropItems = Array.isArray(body.dragDropItems)
+    ? body.dragDropItems
+    : [];
+
+  if (answerType === "multiple_choice") {
+    const filledAnswers = answers.filter(
+      (answer) =>
+        answer &&
+        typeof answer === "object" &&
+        countFilledBlocks((answer as { blocks?: unknown }).blocks) > 0,
+    );
+
+    if (filledAnswers.length < 2) {
+      throw new Error("Debes completar al menos dos respuestas.");
+    }
+
+    const { mode, ids } = parseMcCorrectness(correctAnswerId);
+
+    if (mode === "single" && ids.length !== 1) {
+      throw new Error("Debes marcar exactamente una respuesta correcta.");
+    }
+
+    if (mode !== "single" && ids.length < 2) {
+      throw new Error("Debes marcar al menos dos respuestas correctas.");
+    }
+
+    const filledIds = new Set(
+      filledAnswers.map((answer) => String((answer as { id?: unknown }).id)),
+    );
+    const missing = ids.find((id) => !filledIds.has(id));
+
+    if (missing) {
+      throw new Error(
+        "Las respuestas marcadas como correctas deben tener contenido.",
+      );
+    }
+  }
+
+  if (answerType === "short_text" && !shortAnswer) {
+    throw new Error("Debes definir la respuesta corta esperada.");
+  }
+
+  if (answerType === "range") {
+    if (rangeAnswers.length === 0) {
+      throw new Error("Debes agregar al menos un rango válido.");
+    }
+
+    for (const rangeAnswer of rangeAnswers) {
+      const range = (rangeAnswer ?? {}) as Record<string, unknown>;
+      const min = Number(range.min);
+      const max = Number(range.max);
+
+      if (!readText(range.label)) {
+        throw new Error("Cada rango debe tener una etiqueta.");
+      }
+
+      if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        throw new Error("Cada rango debe tener valores numéricos válidos.");
+      }
+
+      if (min > max) {
+        throw new Error(
+          "En cada rango, el mínimo no puede ser mayor que el máximo.",
+        );
+      }
+    }
+  }
+
+  if (answerType === "drag_drop") {
+    if (!body.dragDropBackground) {
+      throw new Error(
+        "Debes agregar la imagen de fondo para arrastrar y soltar.",
+      );
+    }
+
+    if (dragDropItems.length === 0) {
+      throw new Error("Debes agregar al menos un objeto arrastrable.");
+    }
+
+    for (const dragDropItem of dragDropItems) {
+      const item = (dragDropItem ?? {}) as Record<string, unknown>;
+      const targetX = Number(item.targetX);
+      const targetY = Number(item.targetY);
+      const tolerance = Number(item.tolerance);
+
+      if (!readText(item.label)) {
+        throw new Error("Cada objeto arrastrable debe tener un nombre.");
+      }
+
+      if (!item.image) {
+        throw new Error("Cada objeto arrastrable debe tener una imagen.");
+      }
+
+      if (
+        !Number.isFinite(targetX) ||
+        !Number.isFinite(targetY) ||
+        targetX < 0 ||
+        targetX > 100 ||
+        targetY < 0 ||
+        targetY > 100
+      ) {
+        throw new Error(
+          "La posición correcta de cada objeto debe estar entre 0 y 100.",
+        );
+      }
+
+      if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 100) {
+        throw new Error(
+          "El margen permitido de cada objeto debe estar entre 1 y 100.",
+        );
+      }
+    }
+  }
+
+  return {
+    title,
+    category: serializeJson(categories),
+    difficulties: serializeJson(difficulties),
+    bodyBlocks: serializeJson(body.bodyBlocks ?? []),
+    challengeBlocks: serializeJson(body.challengeBlocks ?? []),
+    answerType,
+    multipleChoiceOrderMode:
+      body.multipleChoiceOrderMode === "random" ? "random" : "fixed",
+    answers: serializeJson(answers),
+    correctAnswerId,
+    shortAnswer: answerType === "short_text" ? shortAnswer : "",
+    rangeAnswers: serializeJson(answerType === "range" ? rangeAnswers : []),
+    dragDropBackground: serializeJson(
+      answerType === "drag_drop" ? (body.dragDropBackground ?? null) : null,
+    ),
+    dragDropItems: serializeJson(
+      answerType === "drag_drop" ? dragDropItems : [],
+    ),
+    explanation,
+    status: readText(body.status) || "Borrador",
+  };
+}
+
 const GROUP_CODE_LIFETIME_MINUTES = 30;
 
 function parseOptionalDateInput(value: unknown) {
@@ -176,58 +503,97 @@ function parseTaskIds(value: unknown) {
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
-type ContestTaskInput = {
-  taskId: string;
-  minScore: number;
-  noAnswerScore: number;
-  maxScore: number;
+const BEBRAS_SCORING = {
+  easy: { letter: "A", correct: 6, wrong: -2 },
+  medium: { letter: "B", correct: 9, wrong: -3 },
+  hard: { letter: "C", correct: 12, wrong: -4 },
+} as const;
+
+type DifficultyKey = keyof typeof BEBRAS_SCORING;
+
+const CATEGORY_AGE_RANGE: Record<string, string> = {
+  Guacamayo: "6–8",
+  Capibara: "8–10",
+  Titi: "10–12",
+  Jucumari: "12–14",
+  "Yaguareté": "14–16",
+  Kuntur: "16–19",
 };
 
-function parseScore(value: unknown, fallback: number) {
-  const score = Number(value);
-  return Number.isFinite(score) ? Math.trunc(score) : fallback;
+function isDifficultyKey(value: unknown): value is DifficultyKey {
+  return value === "easy" || value === "medium" || value === "hard";
+}
+
+function scoresForDifficulty(difficulty: DifficultyKey) {
+  const scoring = BEBRAS_SCORING[difficulty];
+  return {
+    difficulty,
+    minScore: scoring.wrong,
+    noAnswerScore: 0,
+    maxScore: scoring.correct,
+  };
 }
 
 function parseContestTasks(body: Record<string, unknown>) {
   const rawTasks = Array.isArray(body.tasks) ? body.tasks : [];
-  const taskInputs = rawTasks
-    .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
-    .map((item) => ({
-      taskId: typeof item.taskId === "string" ? item.taskId.trim() : "",
-      minScore: parseScore(item.minScore, 0),
-      noAnswerScore: parseScore(item.noAnswerScore, 0),
-      maxScore: parseScore(item.maxScore, 10),
-    }))
-    .filter((item) => item.taskId);
+  const taskIds = rawTasks
+    .filter(
+      (item): item is Record<string, unknown> =>
+        item !== null && typeof item === "object",
+    )
+    .map((item) => (typeof item.taskId === "string" ? item.taskId.trim() : ""))
+    .filter(Boolean);
 
-  const fallbackTaskInputs = parseTaskIds(body.taskIds).map((taskId) => ({
-    taskId,
-    minScore: 0,
-    noAnswerScore: 0,
-    maxScore: 10,
-  }));
+  const ids = taskIds.length > 0 ? taskIds : parseTaskIds(body.taskIds);
 
-  const uniqueTasks = new Map<string, ContestTaskInput>();
-
-  for (const task of taskInputs.length > 0 ? taskInputs : fallbackTaskInputs) {
-    if (task.maxScore < task.minScore) {
-      throw new Error("El puntaje máximo no puede ser menor que el puntaje mínimo.");
-    }
-
-    uniqueTasks.set(task.taskId, task);
-  }
-
-  return [...uniqueTasks.values()];
+  return [...new Set(ids)];
 }
 
-function buildContestTaskWrites(tasks: ContestTaskInput[]) {
-  return tasks.map((task, index) => ({
-    taskDraftId: task.taskId,
-    position: index + 1,
-    minScore: task.minScore,
-    noAnswerScore: task.noAnswerScore,
-    maxScore: task.maxScore,
-  }));
+async function buildContestTaskWrites(taskIds: string[], category: string) {
+  const ageRange = CATEGORY_AGE_RANGE[category];
+
+  if (!ageRange) {
+    throw new Error(`La categoría "${category}" no tiene un rango de edad definido.`);
+  }
+
+  const drafts = await prisma.taskDraft.findMany({
+    where: { id: { in: taskIds } },
+    select: { id: true, title: true, difficulties: true },
+  });
+
+  const byId = new Map(drafts.map((draft) => [draft.id, draft]));
+
+  return taskIds.map((taskId, index) => {
+    const draft = byId.get(taskId);
+
+    if (!draft) {
+      throw new Error("Una o más tareas seleccionadas no existen.");
+    }
+
+    const difficulties = parseJsonValue<Record<string, unknown>>(
+      draft.difficulties,
+      {},
+    );
+    const difficulty = difficulties[ageRange];
+
+    if (!isDifficultyKey(difficulty)) {
+      throw new Error(
+        `La tarea "${draft.title}" no tiene dificultad definida para el rango ${ageRange} (categoría ${category}).`,
+      );
+    }
+
+    return {
+      taskDraftId: taskId,
+      position: index + 1,
+      ...scoresForDifficulty(difficulty),
+    };
+  });
+}
+
+function computeInitialScore(
+  writes: Array<{ minScore: number }>,
+) {
+  return writes.reduce((total, write) => total - write.minScore, 0);
 }
 
 const CONTEST_CATEGORY_NAMES = [
@@ -236,12 +602,75 @@ const CONTEST_CATEGORY_NAMES = [
   "Titi",
   "Jucumari",
   "Yaguareté",
+  "Kuntur",
 ];
 
-type ContestState = "borrador" | "programada" | "abierta" | "cerrada";
+const SCHOOL_GRADES = [
+  { value: "P1", label: "1.º de primaria", category: "Guacamayo" },
+  { value: "P2", label: "2.º de primaria", category: "Guacamayo" },
+  { value: "P3", label: "3.º de primaria", category: "Capibara" },
+  { value: "P4", label: "4.º de primaria", category: "Capibara" },
+  { value: "P5", label: "5.º de primaria", category: "Titi" },
+  { value: "P6", label: "6.º de primaria", category: "Titi" },
+  { value: "S1", label: "1.º de secundaria", category: "Jucumari" },
+  { value: "S2", label: "2.º de secundaria", category: "Jucumari" },
+  { value: "S3", label: "3.º de secundaria", category: "Yaguareté" },
+  { value: "S4", label: "4.º de secundaria", category: "Yaguareté" },
+  { value: "S5", label: "5.º de secundaria", category: "Kuntur" },
+  { value: "S6", label: "6.º de secundaria", category: "Kuntur" },
+] as const;
+
+function gradesForCategory(category: string) {
+  return SCHOOL_GRADES.filter((grade) => grade.category === category);
+}
+
+function parseGrade(value: unknown, contestCategory: string) {
+  const grade = typeof value === "string" ? value.trim() : "";
+
+  if (!grade) {
+    throw new Error("Debes indicar el curso del participante.");
+  }
+
+  const known = SCHOOL_GRADES.find((item) => item.value === grade);
+
+  if (!known) {
+    throw new Error("El curso indicado no es válido.");
+  }
+
+  if (contestCategory && known.category !== contestCategory) {
+    const allowed = gradesForCategory(contestCategory)
+      .map((item) => item.label)
+      .join(" o ");
+    throw new Error(
+      `${known.label} no corresponde a la categoría ${contestCategory}. Esta competencia es para ${allowed}.`,
+    );
+  }
+
+  return grade;
+}
+
+type ContestState =
+  | "borrador"
+  | "programada"
+  | "abierta"
+  | "cerrada"
+  | "consolidada"
+  | "publicada";
+
+const ENDED_CONTEST_STATES: ContestState[] = [
+  "cerrada",
+  "consolidada",
+  "publicada",
+];
+
+function contestHasEnded(state: ContestState) {
+  return ENDED_CONTEST_STATES.includes(state);
+}
 
 function computeContestState(contest: {
   publishedAt: Date | null;
+  consolidatedAt?: Date | null;
+  resultsPublishedAt?: Date | null;
   startsAt: Date;
   endsAt: Date;
 }): { state: ContestState; isOpen: boolean } {
@@ -256,6 +685,14 @@ function computeContestState(contest: {
   }
 
   if (now > contest.endsAt) {
+    if (contest.resultsPublishedAt) {
+      return { state: "publicada", isOpen: false };
+    }
+
+    if (contest.consolidatedAt) {
+      return { state: "consolidada", isOpen: false };
+    }
+
     return { state: "cerrada", isOpen: false };
   }
 
@@ -269,17 +706,21 @@ function deserializeContest(contest: {
   durationMinutes: number;
   startsAt: Date;
   endsAt: Date;
+  initialScore: number;
   questionDisplayMode: string;
   allowPairs: boolean;
   showFeedback: boolean;
   showSolutions: boolean;
   showTotalScore: boolean;
   publishedAt: Date | null;
+  consolidatedAt: Date | null;
+  resultsPublishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   tasks?: Array<{
     id: string;
     position: number;
+    difficulty: string;
     minScore: number;
     noAnswerScore: number;
     maxScore: number;
@@ -301,12 +742,15 @@ function deserializeContest(contest: {
     durationMinutes: contest.durationMinutes,
     startsAt: contest.startsAt.toISOString(),
     endsAt: contest.endsAt.toISOString(),
+    initialScore: contest.initialScore,
     questionDisplayMode: contest.questionDisplayMode,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
     showSolutions: contest.showSolutions,
     showTotalScore: contest.showTotalScore,
     publishedAt: contest.publishedAt?.toISOString() ?? null,
+    consolidatedAt: contest.consolidatedAt?.toISOString() ?? null,
+    resultsPublishedAt: contest.resultsPublishedAt?.toISOString() ?? null,
     state,
     isOpen,
     createdAt: contest.createdAt.toISOString(),
@@ -317,6 +761,7 @@ function deserializeContest(contest: {
         id: task.id,
         position: task.position,
         taskId: task.taskDraft.id,
+        difficulty: task.difficulty,
         minScore: task.minScore,
         noAnswerScore: task.noAnswerScore,
         maxScore: task.maxScore,
@@ -335,7 +780,11 @@ function parseContestPayload(body: Record<string, unknown>) {
     throw new Error("El nombre de la competencia es obligatorio.");
   }
 
-  if (category && !CONTEST_CATEGORY_NAMES.includes(category)) {
+  if (!category) {
+    throw new Error("Debes elegir la categoría de la competencia.");
+  }
+
+  if (!CONTEST_CATEGORY_NAMES.includes(category)) {
     throw new Error("La categoría seleccionada no es válida.");
   }
 
@@ -466,7 +915,12 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
 });
 
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
+  const letterFile = pickUploaded(req, "letter");
+  const idFrontFile = pickUploaded(req, "idFront");
+  const idBackFile = pickUploaded(req, "idBack");
+  const allFiles = [letterFile, idFrontFile, idBackFile];
+
   const firstName =
     typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
   const lastName =
@@ -483,8 +937,15 @@ app.post("/api/auth/register", async (req, res) => {
       : null;
   const schoolName =
     typeof req.body?.schoolName === "string" ? req.body.schoolName.trim() : "";
+  const phone =
+    typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
+
+  // Colegio de la lista → carta del director. Educación en casa (sin código
+  // de colegio) → carnet del tutor (anverso y reverso).
+  const isSchool = Boolean(schoolCodUe);
 
   if (!firstName || !lastName || !email || !password) {
+    await cleanupFiles(...allFiles);
     res.status(400).json({
       message: "Nombres, apellidos, correo y contraseña son obligatorios.",
     });
@@ -492,41 +953,78 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   if (!schoolName) {
+    await cleanupFiles(...allFiles);
     res.status(400).json({
       message: "Indica tu colegio o el nombre de tu educación en casa.",
     });
     return;
   }
 
+  if (!phone) {
+    await cleanupFiles(...allFiles);
+    res
+      .status(400)
+      .json({ message: "El teléfono de contacto es obligatorio." });
+    return;
+  }
+
   if (password.length < 6) {
+    await cleanupFiles(...allFiles);
     res
       .status(400)
       .json({ message: "La contraseña debe tener al menos 6 caracteres." });
     return;
   }
 
+  if (isSchool && !letterFile) {
+    await cleanupFiles(...allFiles);
+    res.status(400).json({
+      message: "Debes adjuntar la carta de autorización del director.",
+    });
+    return;
+  }
+
+  if (!isSchool && (!idFrontFile || !idBackFile)) {
+    await cleanupFiles(...allFiles);
+    res.status(400).json({
+      message: "Debes adjuntar el anverso y el reverso de tu carnet.",
+    });
+    return;
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
+    await cleanupFiles(...allFiles);
     res.status(409).json({ message: "Ya existe una cuenta con ese correo." });
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
 
-  await prisma.user.create({
-    data: {
-      firstName,
-      lastName,
-      name: `${firstName} ${lastName}`,
-      email,
-      passwordHash,
-      role: "maestro",
-      status: "pending",
-      schoolCodUe,
-      schoolName,
-    },
-  });
+    await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`,
+        email,
+        passwordHash,
+        role: "maestro",
+        status: "pending",
+        schoolCodUe,
+        schoolName,
+        phone,
+        letterFilename: isSchool ? (letterFile?.filename ?? null) : null,
+        idFrontFilename: isSchool ? null : (idFrontFile?.filename ?? null),
+        idBackFilename: isSchool ? null : (idBackFile?.filename ?? null),
+      },
+    });
+  } catch {
+    await cleanupFiles(...allFiles);
+    res.status(500).json({ message: "No se pudo crear la cuenta." });
+    return;
+  }
 
   res.status(201).json({
     message: "Cuenta de maestro creada. Queda pendiente de aprobación.",
@@ -573,6 +1071,8 @@ app.get("/api/public-contests", async (_req, res) => {
       startsAt: true,
       endsAt: true,
       publishedAt: true,
+      consolidatedAt: true,
+      resultsPublishedAt: true,
     },
   });
 
@@ -591,6 +1091,109 @@ app.get("/api/public-contests", async (_req, res) => {
       };
     }),
   );
+});
+
+// ---- Práctica pública (sin login) ----
+
+const PRACTICE_CATEGORIES = [
+  { name: "Guacamayo", age: "5-8 años", ranges: ["6–8"] },
+  { name: "Capibara", age: "8-10 años", ranges: ["8–10"] },
+  { name: "Titi", age: "10-12 años", ranges: ["10–12"] },
+  { name: "Jucumari", age: "12-14 años", ranges: ["12–14"] },
+  { name: "Yaguareté", age: "14-16 años", ranges: ["14–16"] },
+  { name: "Kuntur", age: "16-18 años", ranges: ["16–19"] },
+] as const;
+
+function taskRanges(task: { difficulties: unknown }) {
+  const diff = task.difficulties;
+  if (diff && typeof diff === "object") {
+    return Object.entries(diff as Record<string, unknown>)
+      .filter(([, value]) => typeof value === "string" && value.trim() !== "")
+      .map(([range]) => range);
+  }
+  return [];
+}
+
+function taskMatchesCategory(
+  task: { difficulties: unknown },
+  category: (typeof PRACTICE_CATEGORIES)[number],
+) {
+  const ranges = taskRanges(task);
+  return ranges.some((range) => category.ranges.includes(range as never));
+}
+
+async function loadPracticeTasks() {
+  const tasks = await prisma.taskDraft.findMany({
+    where: { isPractice: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  return tasks.map(deserializeTask);
+}
+
+app.get("/api/practice/categories", async (_req, res) => {
+  const tasks = await loadPracticeTasks();
+
+  const categories = PRACTICE_CATEGORIES.map((category) => ({
+    name: category.name,
+    age: category.age,
+    count: tasks.filter((task) => taskMatchesCategory(task, category)).length,
+  })).filter((category) => category.count > 0);
+
+  res.json(categories);
+});
+
+app.get("/api/practice/tasks", async (req, res) => {
+  const categoryName =
+    typeof req.query.category === "string" ? req.query.category : "";
+  const category = PRACTICE_CATEGORIES.find((c) => c.name === categoryName);
+
+  if (!category) {
+    res.status(404).json({ message: "Categoría no encontrada." });
+    return;
+  }
+
+  const tasks = await loadPracticeTasks();
+  const rows = tasks
+    .filter((task) => taskMatchesCategory(task, category))
+    .map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      answerType: task.answerType,
+    }));
+
+  res.json({ category: category.name, age: category.age, tasks: rows });
+});
+
+app.get("/api/practice/tasks/:id", async (req, res) => {
+  const raw = await prisma.taskDraft.findFirst({
+    where: { id: req.params.id, isPractice: true },
+  });
+
+  if (!raw) {
+    res.status(404).json({ message: "Tarea no encontrada." });
+    return;
+  }
+
+  res.json(renderSafeTask({ position: 0 }, deserializeTask(raw)));
+});
+
+app.post("/api/practice/tasks/:id/check", async (req, res) => {
+  const raw = await prisma.taskDraft.findFirst({
+    where: { id: req.params.id, isPractice: true },
+  });
+
+  if (!raw) {
+    res.status(404).json({ message: "Tarea no encontrada." });
+    return;
+  }
+
+  const task = deserializeTask(raw);
+  const correct = answerIsCorrect(task, req.body?.payload);
+
+  res.json({
+    correct,
+    explanation: (task as { explanation?: string }).explanation ?? "",
+  });
 });
 
 // Banco de tareas, competencias y gestión de usuarios: solo admin.
@@ -627,49 +1230,21 @@ app.get("/api/tasks/:id", async (req, res) => {
 });
 
 app.post("/api/tasks", async (req, res) => {
-  const {
-    title,
-    categories,
-    category,
-    difficulties,
-    bodyBlocks,
-    challengeBlocks,
-    answerType,
-    multipleChoiceOrderMode,
-    answers,
-    correctAnswerId,
-    shortAnswer,
-    rangeAnswers,
-    dragDropBackground,
-    dragDropItems,
-    explanation,
-    status,
-  } = req.body;
+  let payload;
+
+  try {
+    payload = parseTaskPayload(req.body as Record<string, unknown>);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Tarea inválida.",
+    });
+    return;
+  }
 
   const task = await prisma.taskDraft.create({
     data: {
-      title,
-      category: serializeJson(
-        Array.isArray(categories)
-          ? categories
-          : category
-            ? [category]
-            : [],
-      ),
-      difficulties: serializeJson(difficulties),
-      bodyBlocks: serializeJson(bodyBlocks),
-      challengeBlocks: serializeJson(challengeBlocks),
-      answerType: answerType ?? "multiple_choice",
-      multipleChoiceOrderMode:
-        multipleChoiceOrderMode === "random" ? "random" : "fixed",
-      answers: serializeJson(answers),
-      correctAnswerId,
-      shortAnswer: shortAnswer ?? "",
-      rangeAnswers: serializeJson(rangeAnswers ?? []),
-      dragDropBackground: serializeJson(dragDropBackground ?? null),
-      dragDropItems: serializeJson(dragDropItems ?? []),
-      explanation,
-      status: status ?? "Borrador",
+      ...payload,
+      isPractice: req.body?.isPractice === true,
     },
   });
 
@@ -677,56 +1252,49 @@ app.post("/api/tasks", async (req, res) => {
 });
 
 app.put("/api/tasks/:id", async (req, res) => {
-  const {
-    title,
-    categories,
-    category,
-    difficulties,
-    bodyBlocks,
-    challengeBlocks,
-    answerType,
-    multipleChoiceOrderMode,
-    answers,
-    correctAnswerId,
-    shortAnswer,
-    rangeAnswers,
-    dragDropBackground,
-    dragDropItems,
-    explanation,
-    status,
-  } = req.body;
+  let payload;
+
+  try {
+    payload = parseTaskPayload(req.body as Record<string, unknown>);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Tarea inválida.",
+    });
+    return;
+  }
+
+  const existing = await prisma.taskDraft.findUnique({
+    where: { id: req.params.id },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    res.status(404).json({ message: "Task not found" });
+    return;
+  }
 
   const task = await prisma.taskDraft.update({
     where: {
       id: req.params.id,
     },
     data: {
-      title,
-      category: serializeJson(
-        Array.isArray(categories)
-          ? categories
-          : category
-            ? [category]
-            : [],
-      ),
-      difficulties: serializeJson(difficulties),
-      bodyBlocks: serializeJson(bodyBlocks),
-      challengeBlocks: serializeJson(challengeBlocks),
-      answerType: answerType ?? "multiple_choice",
-      multipleChoiceOrderMode:
-        multipleChoiceOrderMode === "random" ? "random" : "fixed",
-      answers: serializeJson(answers),
-      correctAnswerId,
-      shortAnswer: shortAnswer ?? "",
-      rangeAnswers: serializeJson(rangeAnswers ?? []),
-      dragDropBackground: serializeJson(dragDropBackground ?? null),
-      dragDropItems: serializeJson(dragDropItems ?? []),
-      explanation,
-      status: status ?? "Borrador",
+      ...payload,
+      ...(typeof req.body?.isPractice === "boolean"
+        ? { isPractice: req.body.isPractice }
+        : {}),
     },
   });
 
   res.json(deserializeTask(task));
+});
+
+app.patch("/api/tasks/:id/practice", async (req, res) => {
+  const task = await prisma.taskDraft.update({
+    where: { id: req.params.id },
+    data: { isPractice: req.body?.isPractice === true },
+    select: { id: true, isPractice: true },
+  });
+  res.json(task);
 });
 
 app.delete("/api/tasks/:id", async (req, res) => {
@@ -798,17 +1366,13 @@ app.post("/api/contests", async (req, res) => {
     return;
   }
 
-  const taskCount = await prisma.taskDraft.count({
-    where: {
-      id: {
-        in: payload.tasks.map((task) => task.taskId),
-      },
-    },
-  });
+  let taskWrites;
 
-  if (taskCount !== payload.tasks.length) {
+  try {
+    taskWrites = await buildContestTaskWrites(payload.tasks, payload.category);
+  } catch (error) {
     res.status(400).json({
-      message: "Una o más tareas seleccionadas no existen.",
+      message: error instanceof Error ? error.message : "Tareas inválidas.",
     });
     return;
   }
@@ -820,13 +1384,14 @@ app.post("/api/contests", async (req, res) => {
       durationMinutes: payload.durationMinutes,
       startsAt: payload.startsAt,
       endsAt: payload.endsAt,
+      initialScore: computeInitialScore(taskWrites),
       questionDisplayMode: payload.questionDisplayMode,
       allowPairs: payload.allowPairs,
       showFeedback: payload.showFeedback,
       showSolutions: payload.showSolutions,
       showTotalScore: payload.showTotalScore,
       tasks: {
-        create: buildContestTaskWrites(payload.tasks),
+        create: taskWrites,
       },
     },
     include: {
@@ -862,6 +1427,11 @@ app.put("/api/contests/:id", async (req, res) => {
     },
     select: {
       id: true,
+      publishedAt: true,
+      consolidatedAt: true,
+      resultsPublishedAt: true,
+      startsAt: true,
+      endsAt: true,
     },
   });
 
@@ -872,17 +1442,25 @@ app.put("/api/contests/:id", async (req, res) => {
     return;
   }
 
-  const taskCount = await prisma.taskDraft.count({
-    where: {
-      id: {
-        in: payload.tasks.map((task) => task.taskId),
-      },
-    },
-  });
+  const { state: currentState } = computeContestState(existingContest);
 
-  if (taskCount !== payload.tasks.length) {
+  if (currentState === "abierta" || contestHasEnded(currentState)) {
+    res.status(409).json({
+      message:
+        currentState === "abierta"
+          ? "La competencia ya empezó; no se puede modificar mientras está en curso."
+          : "La competencia ya terminó; no se puede modificar.",
+    });
+    return;
+  }
+
+  let taskWrites;
+
+  try {
+    taskWrites = await buildContestTaskWrites(payload.tasks, payload.category);
+  } catch (error) {
     res.status(400).json({
-      message: "Una o más tareas seleccionadas no existen.",
+      message: error instanceof Error ? error.message : "Tareas inválidas.",
     });
     return;
   }
@@ -904,13 +1482,14 @@ app.put("/api/contests/:id", async (req, res) => {
         durationMinutes: payload.durationMinutes,
         startsAt: payload.startsAt,
         endsAt: payload.endsAt,
+        initialScore: computeInitialScore(taskWrites),
         questionDisplayMode: payload.questionDisplayMode,
         allowPairs: payload.allowPairs,
         showFeedback: payload.showFeedback,
         showSolutions: payload.showSolutions,
         showTotalScore: payload.showTotalScore,
         tasks: {
-          create: buildContestTaskWrites(payload.tasks),
+          create: taskWrites,
         },
       },
       include: {
@@ -967,6 +1546,15 @@ app.post("/api/contests/:id/publish", async (req, res) => {
     readinessErrors.push("La duración debe ser mayor que cero.");
   }
 
+  const windowMinutes =
+    (contest.endsAt.getTime() - contest.startsAt.getTime()) / 60000;
+
+  if (windowMinutes < contest.durationMinutes) {
+    readinessErrors.push(
+      `La ventana de ejecución (${Math.round(windowMinutes)} min) es más corta que la duración de la competencia (${contest.durationMinutes} min).`,
+    );
+  }
+
   if (contest.tasks.length === 0) {
     readinessErrors.push("La competencia necesita al menos una tarea.");
   }
@@ -1005,7 +1593,107 @@ app.post("/api/contests/:id/publish", async (req, res) => {
   res.json(deserializeContest(publishedContest));
 });
 
+const contestWithTasks = {
+  tasks: {
+    orderBy: { position: "asc" as const },
+    include: { taskDraft: true },
+  },
+};
+
+app.post("/api/contests/:id/consolidate", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    include: contestWithTasks,
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  const { state } = computeContestState(contest);
+
+  if (!contestHasEnded(state)) {
+    res.status(409).json({
+      message:
+        "Solo se puede consolidar una competencia cuya ventana ya terminó.",
+    });
+    return;
+  }
+
+  const closedAttempts = await consolidateContest(contest.id);
+
+  const consolidated = await prisma.contest.update({
+    where: { id: contest.id },
+    data: { consolidatedAt: new Date() },
+    include: contestWithTasks,
+  });
+
+  res.json({ ...deserializeContest(consolidated), closedAttempts });
+});
+
+app.post("/api/contests/:id/results/publish", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, consolidatedAt: true },
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  if (!contest.consolidatedAt) {
+    res.status(409).json({
+      message: "Primero consolida la competencia para calcular los puntajes.",
+    });
+    return;
+  }
+
+  const published = await prisma.contest.update({
+    where: { id: contest.id },
+    data: { resultsPublishedAt: new Date() },
+    include: contestWithTasks,
+  });
+
+  res.json(deserializeContest(published));
+});
+
+app.post("/api/contests/:id/results/unpublish", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    select: { id: true },
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  const updated = await prisma.contest.update({
+    where: { id: contest.id },
+    data: { resultsPublishedAt: null },
+    include: contestWithTasks,
+  });
+
+  res.json(deserializeContest(updated));
+});
+
 app.delete("/api/contests/:id", async (req, res) => {
+  const played = await prisma.attempt.count({
+    where: {
+      status: { not: "pending" },
+      team: { group: { contestId: req.params.id } },
+    },
+  });
+
+  if (played > 0) {
+    res.status(409).json({
+      message: `Esta competencia tiene ${played} participante(s) que ya rindieron; no se puede eliminar sin perder sus resultados.`,
+    });
+    return;
+  }
+
   await prisma.contest.delete({
     where: {
       id: req.params.id,
@@ -1083,6 +1771,7 @@ function serializeGroup(group: {
   teams?: Array<{
     id: string;
     participationMode: string;
+    grade: string | null;
     memberOneFirstName: string;
     memberOneLastName: string;
     memberTwoFirstName: string | null;
@@ -1109,6 +1798,7 @@ function serializeGroup(group: {
       group.teams?.map((team) => ({
         id: team.id,
         participationMode: team.participationMode,
+        grade: team.grade,
         memberOneFirstName: team.memberOneFirstName,
         memberOneLastName: team.memberOneLastName,
         memberTwoFirstName: team.memberTwoFirstName,
@@ -1136,15 +1826,32 @@ app.get("/api/users/maestros", async (_req, res) => {
       email: true,
       status: true,
       schoolName: true,
+      schoolCodUe: true,
+      phone: true,
+      letterFilename: true,
+      idFrontFilename: true,
+      idBackFilename: true,
       createdAt: true,
     },
   });
 
   res.json(
-    maestros.map((maestro) => ({
-      ...maestro,
-      createdAt: maestro.createdAt.toISOString(),
-    })),
+    maestros.map(
+      ({
+        letterFilename,
+        idFrontFilename,
+        idBackFilename,
+        schoolCodUe,
+        ...maestro
+      }) => ({
+        ...maestro,
+        isHomeschool: !schoolCodUe,
+        hasLetter: Boolean(letterFilename),
+        hasIdFront: Boolean(idFrontFilename),
+        hasIdBack: Boolean(idBackFilename),
+        createdAt: maestro.createdAt.toISOString(),
+      }),
+    ),
   );
 });
 
@@ -1166,11 +1873,64 @@ app.post("/api/users/:id/reject", async (req, res) => {
   res.json(user);
 });
 
+app.get("/api/users/:id/documents/:doc", async (req, res) => {
+  const docField =
+    req.params.doc === "letter"
+      ? "letterFilename"
+      : req.params.doc === "idFront"
+        ? "idFrontFilename"
+        : req.params.doc === "idBack"
+          ? "idBackFilename"
+          : null;
+
+  if (!docField) {
+    res.status(400).json({ message: "Documento inválido." });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: Number(req.params.id) },
+    select: { [docField]: true },
+  });
+
+  const name = user?.[docField as keyof typeof user] as string | undefined;
+
+  if (!name) {
+    res
+      .status(404)
+      .json({ message: "Este maestro no tiene ese documento cargado." });
+    return;
+  }
+
+  if (name.includes("..") || name.includes("/") || name.includes("\\")) {
+    res.status(400).json({ message: "Nombre de archivo inválido." });
+    return;
+  }
+
+  const ext = extname(name).toLowerCase();
+  const contentType =
+    ext === ".pdf"
+      ? "application/pdf"
+      : ext === ".png"
+        ? "image/png"
+        : ext === ".jpg" || ext === ".jpeg"
+          ? "image/jpeg"
+          : "application/octet-stream";
+
+  res.type(contentType);
+  res.setHeader("Content-Disposition", `inline; filename="${name}"`);
+  res.sendFile(resolve(UPLOADS_DIR, name), (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ message: "Archivo no encontrado." });
+    }
+  });
+});
+
 // ---- Competencias publicadas para armar grupos (admin y maestro) ----
 
 app.get("/api/published-contests", requireAuth, async (_req, res) => {
   const contests = await prisma.contest.findMany({
-    where: { publishedAt: { not: null } },
+    where: { publishedAt: { not: null }, endsAt: { gte: new Date() } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -1260,6 +2020,13 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
+  if (contestHasEnded(computeContestState(contest).state)) {
+    res
+      .status(409)
+      .json({ message: "La competencia ya cerró; no es posible crear grupos." });
+    return;
+  }
+
   if (
     scheduledAt &&
     (scheduledAt < contest.startsAt || scheduledAt > contest.endsAt)
@@ -1289,15 +2056,31 @@ app.post("/api/groups", async (req, res) => {
 });
 
 app.delete("/api/groups/:id", async (req, res) => {
-  if (req.user?.role === "maestro") {
-    const group = await prisma.contestGroup.findUnique({
-      where: { id: req.params.id },
-      select: { createdById: true },
+  const group = await prisma.contestGroup.findUnique({
+    where: { id: req.params.id },
+    select: {
+      createdById: true,
+      teams: { select: { attempt: { select: { status: true } } } },
+    },
+  });
+
+  if (
+    !group ||
+    (req.user?.role === "maestro" && group.createdById !== req.user.id)
+  ) {
+    res.status(404).json({ message: "Grupo no encontrado." });
+    return;
+  }
+
+  const played = group.teams.filter(
+    (team) => team.attempt && team.attempt.status !== "pending",
+  ).length;
+
+  if (played > 0) {
+    res.status(409).json({
+      message: `Este grupo tiene ${played} participante(s) que ya rindieron; no se puede eliminar sin perder sus resultados.`,
     });
-    if (!group || group.createdById !== req.user.id) {
-      res.status(404).json({ message: "Grupo no encontrado." });
-      return;
-    }
+    return;
   }
 
   await prisma.contestGroup.delete({ where: { id: req.params.id } });
@@ -1307,6 +2090,7 @@ app.delete("/api/groups/:id", async (req, res) => {
 function serializeTeam(team: {
   id: string;
   participationMode: string;
+  grade?: string | null;
   memberOneFirstName: string;
   memberOneLastName: string;
   memberTwoFirstName: string | null;
@@ -1318,6 +2102,7 @@ function serializeTeam(team: {
   return {
     id: team.id,
     participationMode: team.participationMode,
+    grade: team.grade ?? null,
     memberOneFirstName: team.memberOneFirstName,
     memberOneLastName: team.memberOneLastName,
     memberTwoFirstName: team.memberTwoFirstName,
@@ -1331,7 +2116,10 @@ function serializeTeam(team: {
 app.delete("/api/teams/:id", async (req, res) => {
   const team = await prisma.team.findUnique({
     where: { id: req.params.id },
-    include: { group: { select: { createdById: true } } },
+    include: {
+      attempt: { select: { status: true } },
+      group: { select: { createdById: true } },
+    },
   });
 
   if (
@@ -1339,6 +2127,14 @@ app.delete("/api/teams/:id", async (req, res) => {
     (req.user?.role === "maestro" && team.group.createdById !== req.user.id)
   ) {
     res.status(404).json({ message: "Participante no encontrado." });
+    return;
+  }
+
+  if (team.attempt && team.attempt.status !== "pending") {
+    res.status(409).json({
+      message:
+        "Este participante ya rindió la competencia; no se puede eliminar sin perder su resultado.",
+    });
     return;
   }
 
@@ -1451,7 +2247,7 @@ app.post("/api/groups/:id/teams", async (req, res) => {
     return;
   }
 
-  if (computeContestState(group.contest).state === "cerrada") {
+  if (contestHasEnded(computeContestState(group.contest).state)) {
     res
       .status(409)
       .json({ message: "La competencia ya cerró; no es posible inscribir." });
@@ -1483,6 +2279,17 @@ app.post("/api/groups/:id/teams", async (req, res) => {
     res
       .status(400)
       .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    return;
+  }
+
+  let grade: string;
+
+  try {
+    grade = parseGrade(req.body?.grade, group.contest.category);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Curso inválido.",
+    });
     return;
   }
 
@@ -1536,6 +2343,7 @@ app.post("/api/groups/:id/teams", async (req, res) => {
     data: {
       groupId: group.id,
       participationMode: mode,
+      grade,
       memberOneFirstName: formatName(oneFirst),
       memberOneLastName: formatName(oneLast),
       memberTwoFirstName: mode === "pareja" ? formatName(twoFirst) : null,
@@ -1575,7 +2383,7 @@ app.get("/api/play/group/:code", async (req, res) => {
 
   const { state } = computeContestState(group.contest);
 
-  if (state === "cerrada") {
+  if (contestHasEnded(state)) {
     res.status(409).json({ message: "La competencia ya cerró." });
     return;
   }
@@ -1586,6 +2394,9 @@ app.get("/api/play/group/:code", async (req, res) => {
     contestCategory: group.contest.category,
     allowPairs: group.contest.allowPairs,
     durationMinutes: group.contest.durationMinutes,
+    grades: group.contest.category
+      ? gradesForCategory(group.contest.category)
+      : SCHOOL_GRADES,
     state,
   });
 });
@@ -1631,7 +2442,7 @@ app.post("/api/play/join", async (req, res) => {
     return;
   }
 
-  if (computeContestState(group.contest).state === "cerrada") {
+  if (contestHasEnded(computeContestState(group.contest).state)) {
     res
       .status(409)
       .json({ message: "La competencia ya cerró; no es posible registrarse." });
@@ -1647,6 +2458,17 @@ app.post("/api/play/join", async (req, res) => {
     res
       .status(400)
       .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    return;
+  }
+
+  let grade: string;
+
+  try {
+    grade = parseGrade(req.body?.grade, group.contest.category);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Curso inválido.",
+    });
     return;
   }
 
@@ -1733,6 +2555,7 @@ app.post("/api/play/join", async (req, res) => {
     data: {
       groupId: group.id,
       participationMode: mode,
+      grade,
       memberOneFirstName: formatName(memberOneFirstName),
       memberOneLastName: formatName(memberOneLastName),
       memberTwoFirstName:
@@ -1934,21 +2757,50 @@ function renderSafeTask(contestTask: any, task: any) {
   };
 }
 
+function attemptElapsedMs(attempt: {
+  startedAt: Date | null;
+  finishedAt: Date | null;
+}) {
+  if (!attempt.startedAt || !attempt.finishedAt) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return attempt.finishedAt.getTime() - attempt.startedAt.getTime();
+}
+
 async function recomputeRanking(contestId: string) {
   const results = await prisma.result.findMany({
     where: { attempt: { team: { group: { contestId } } } },
-    orderBy: [{ totalScore: "desc" }, { calculatedAt: "asc" }],
-    select: { id: true },
+    select: {
+      id: true,
+      totalScore: true,
+      attempt: { select: { startedAt: true, finishedAt: true } },
+    },
   });
-  for (let i = 0; i < results.length; i += 1) {
+
+  const ranked = results
+    .map((result) => ({
+      id: result.id,
+      totalScore: result.totalScore,
+      elapsedMs: attemptElapsedMs(result.attempt),
+    }))
+    .sort((left, right) => {
+      if (left.totalScore !== right.totalScore) {
+        return right.totalScore - left.totalScore;
+      }
+
+      return left.elapsedMs - right.elapsedMs;
+    });
+
+  for (let i = 0; i < ranked.length; i += 1) {
     await prisma.result.update({
-      where: { id: results[i].id },
+      where: { id: ranked[i].id },
       data: { rankPosition: i + 1 },
     });
   }
 }
 
-async function finalizeAttempt(attemptId: string) {
+async function finalizeAttempt(attemptId: string, recomputeRank = true) {
   const attempt = await prisma.attempt.findUnique({
     where: { id: attemptId },
     include: {
@@ -1973,7 +2825,7 @@ async function finalizeAttempt(attemptId: string) {
     attempt.answers.map((answer) => [answer.taskDraftId, answer]),
   );
 
-  let totalScore = 0;
+  let totalScore = contest.initialScore;
   let correctCount = 0;
   let answeredCount = 0;
 
@@ -2024,8 +2876,29 @@ async function finalizeAttempt(attemptId: string) {
     },
   });
 
-  await recomputeRanking(contest.id);
+  if (recomputeRank) {
+    await recomputeRanking(contest.id);
+  }
+
   return { totalScore, correctCount, answeredCount };
+}
+
+async function consolidateContest(contestId: string) {
+  const expired = await prisma.attempt.findMany({
+    where: {
+      status: "in_progress",
+      team: { group: { contestId } },
+    },
+    select: { id: true },
+  });
+
+  for (const attempt of expired) {
+    await finalizeAttempt(attempt.id, false);
+  }
+
+  await recomputeRanking(contestId);
+
+  return expired.length;
 }
 
 function findTeamForPlay(personalCode: string) {
@@ -2076,8 +2949,18 @@ app.post("/api/play/start", async (req, res) => {
 
   if (team.attempt.status === "pending") {
     const now = new Date();
-    const byDuration = new Date(now.getTime() + contest.durationMinutes * 60000);
-    const endsAt = byDuration < contest.endsAt ? byDuration : contest.endsAt;
+    const remainingMinutes =
+      (contest.endsAt.getTime() - now.getTime()) / 60000;
+
+    if (remainingMinutes < contest.durationMinutes) {
+      res.status(409).json({
+        message:
+          "Ya no queda tiempo suficiente para rendir la competencia completa. Habla con tu maestro.",
+      });
+      return;
+    }
+
+    const endsAt = new Date(now.getTime() + contest.durationMinutes * 60000);
     await prisma.attempt.update({
       where: { id: team.attempt.id },
       data: { status: "in_progress", startedAt: now, endsAt },
@@ -2127,22 +3010,23 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
   }
 
   const finished = attempt.status === "finished";
+  const resultsPublished = Boolean(contest.resultsPublishedAt);
   const showResults =
-    finished && (contest.showFeedback || contest.showSolutions);
+    finished && resultsPublished && (contest.showFeedback || contest.showSolutions);
   const tasks = contest.tasks.map((contestTask) => {
     const task = deserializeTask(contestTask.taskDraft) as any;
     const safe = renderSafeTask(contestTask, task) as any;
     if (showResults) {
       safe.correct = correctnessByTask[task.id] ?? false;
     }
-    if (finished && contest.showSolutions) {
+    if (showResults && contest.showSolutions) {
       safe.explanation = task.explanation;
     }
     return safe;
   });
 
   const result =
-    finished && contest.showTotalScore
+    finished && resultsPublished && contest.showTotalScore
       ? await prisma.result.findUnique({ where: { attemptId: attempt.id } })
       : null;
 
@@ -2154,9 +3038,10 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
     status: attempt.status,
     startedAt: attempt.startedAt?.toISOString() ?? null,
     endsAt: attempt.endsAt?.toISOString() ?? null,
-    showFeedback: contest.showFeedback,
-    showSolutions: contest.showSolutions,
-    showTotalScore: contest.showTotalScore,
+    resultsPublished,
+    showFeedback: resultsPublished && contest.showFeedback,
+    showSolutions: resultsPublished && contest.showSolutions,
+    showTotalScore: resultsPublished && contest.showTotalScore,
     tasks,
     answers,
     result: result
@@ -2267,11 +3152,16 @@ app.get("/api/contests/:id/results", async (req, res) => {
       teamId: team.id,
       groupName: group.name,
       participationMode: team.participationMode,
+      grade: team.grade,
       memberOneFirstName: team.memberOneFirstName,
       memberOneLastName: team.memberOneLastName,
       memberTwoFirstName: team.memberTwoFirstName,
       memberTwoLastName: team.memberTwoLastName,
       status: team.attempt?.status ?? "pending",
+      elapsedSeconds:
+        team.attempt && team.attempt.startedAt && team.attempt.finishedAt
+          ? Math.round(attemptElapsedMs(team.attempt) / 1000)
+          : null,
       totalScore: team.attempt?.result?.totalScore ?? null,
       correctCount: team.attempt?.result?.correctCount ?? null,
       answeredCount: team.attempt?.result?.answeredCount ?? null,
@@ -2301,6 +3191,7 @@ app.get("/api/contests/:id/results", async (req, res) => {
 
 const startServer = async () => {
   await prisma.$connect();
+  await mkdir(UPLOADS_DIR, { recursive: true });
 
   app.listen(port, () => {
     console.log(`Server listening on http://localhost:${port}`);

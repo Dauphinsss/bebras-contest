@@ -15,10 +15,20 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { API_BASE_URL } from "@/lib/api-client";
 
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+type GroupGrade = {
+  value: string;
+  label: string;
+  category: string;
+};
 
 type GroupInfo = {
   groupName: string;
@@ -26,6 +36,7 @@ type GroupInfo = {
   contestCategory: string;
   allowPairs: boolean;
   durationMinutes: number;
+  grades: GroupGrade[];
   state: string;
 };
 
@@ -72,6 +83,7 @@ export function JoinForm() {
   const [accessCode, setAccessCode] = useState("");
   const [group, setGroup] = useState<GroupInfo | null>(null);
   const [mode, setMode] = useState<"individual" | "pareja">("individual");
+  const [grade, setGrade] = useState("");
   const [oneFirst, setOneFirst] = useState("");
   const [oneLast, setOneLast] = useState("");
   const [twoFirst, setTwoFirst] = useState("");
@@ -109,6 +121,7 @@ export function JoinForm() {
 
       setGroup(data as GroupInfo);
       setMode("individual");
+      setGrade("");
 
       // Recuperación: si en este navegador ya hay un registro para este código,
       // lo validamos y mostramos el estado en vez de volver a registrar.
@@ -145,6 +158,7 @@ export function JoinForm() {
     );
     setRecovered(null);
     setMode("individual");
+    setGrade("");
     setOneFirst("");
     setOneLast("");
     setTwoFirst("");
@@ -173,6 +187,11 @@ export function JoinForm() {
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!grade) {
+      toast.error("Elige tu curso.");
+      return;
+    }
 
     if (!oneFirst.trim() || !oneLast.trim()) {
       toast.error("Tus nombres y apellidos son obligatorios.");
@@ -205,6 +224,7 @@ export function JoinForm() {
         body: JSON.stringify({
           accessCode: accessCode.trim().toUpperCase(),
           participationMode: mode,
+          grade,
           memberOneFirstName: fmt(oneFirst),
           memberOneLastName: fmt(oneLast),
           memberTwoFirstName: fmt(twoFirst),
@@ -342,6 +362,12 @@ export function JoinForm() {
               <dd className="text-right font-medium">{group.contestTitle}</dd>
             </div>
             <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Curso</dt>
+              <dd className="text-right font-medium">
+                {group.grades.find((item) => item.value === grade)?.label ?? "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Modalidad</dt>
               <dd className="font-medium">
                 {mode === "pareja" ? "Pareja" : "Individual"}
@@ -402,6 +428,24 @@ export function JoinForm() {
                 </AlertDescription>
               </Alert>
             )}
+            <Field>
+              <FieldLabel htmlFor="grade">¿En qué curso estás?</FieldLabel>
+              <FieldContent>
+                <Select value={grade} onValueChange={setGrade}>
+                  <SelectTrigger id="grade" className="w-full">
+                    <SelectValue placeholder="Elige tu curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {group.grades.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldContent>
+            </Field>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="one-first">Nombres</FieldLabel>

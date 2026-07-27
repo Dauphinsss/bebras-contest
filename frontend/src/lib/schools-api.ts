@@ -1,6 +1,4 @@
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+import { publicRequest } from "@/lib/api-client";
 
 export type SchoolResult = {
   codUe: string;
@@ -16,13 +14,11 @@ export async function searchSchools(query: string) {
     return [];
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/schools?q=${encodeURIComponent(trimmed)}`,
-  );
-
-  if (!response.ok) {
+  try {
+    return await publicRequest<SchoolResult[]>(
+      `/api/schools?q=${encodeURIComponent(trimmed)}`,
+    );
+  } catch {
     return [];
   }
-
-  return (await response.json()) as SchoolResult[];
 }

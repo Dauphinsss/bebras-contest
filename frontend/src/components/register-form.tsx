@@ -15,10 +15,8 @@ import {
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
-
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+import { cn } from "@/lib/utils";
+import { API_BASE_URL } from "@/lib/api-client";
 
 export function RegisterForm() {
   const [step, setStep] = useState<"form" | "confirm" | "done">("form");
@@ -28,8 +26,16 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [school, setSchool] = useState<SchoolValue>({ codUe: null, name: "" });
+  const [phone, setPhone] = useState("");
+  const [letterFile, setLetterFile] = useState<File | null>(null);
+  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const DOC_MAX_BYTES = 5 * 1024 * 1024;
+  const isSchool = Boolean(school.codUe);
+  const hasSchoolChoice = Boolean(school.name.trim());
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -54,6 +60,34 @@ export function RegisterForm() {
       return;
     }
 
+    if (!phone.trim()) {
+      toast.error("El teléfono de contacto es obligatorio.");
+      return;
+    }
+
+    if (isSchool) {
+      if (!letterFile) {
+        toast.error("Adjunta la carta de autorización del director.");
+        return;
+      }
+      if (letterFile.size > DOC_MAX_BYTES) {
+        toast.error("La carta no debe superar los 5 MB.");
+        return;
+      }
+    } else {
+      if (!idFrontFile || !idBackFile) {
+        toast.error("Adjunta el anverso y el reverso de tu carnet.");
+        return;
+      }
+      if (
+        idFrontFile.size > DOC_MAX_BYTES ||
+        idBackFile.size > DOC_MAX_BYTES
+      ) {
+        toast.error("Cada imagen del carnet no debe superar los 5 MB.");
+        return;
+      }
+    }
+
     setStep("confirm");
   };
 
@@ -61,17 +95,32 @@ export function RegisterForm() {
     setSubmitting(true);
 
     try {
+      const form = new FormData();
+      form.append("firstName", firstName.trim());
+      form.append("lastName", lastName.trim());
+      form.append("email", email.trim());
+      form.append("password", password);
+      form.append("schoolName", school.name.trim());
+      form.append("phone", phone.trim());
+      if (school.codUe) {
+        form.append("schoolCodUe", school.codUe);
+      }
+      if (isSchool) {
+        if (letterFile) {
+          form.append("letter", letterFile);
+        }
+      } else {
+        if (idFrontFile) {
+          form.append("idFront", idFrontFile);
+        }
+        if (idBackFile) {
+          form.append("idBack", idBackFile);
+        }
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim(),
-          password,
-          schoolCodUe: school.codUe,
-          schoolName: school.name.trim(),
-        }),
+        body: form,
       });
 
       const data = (await response.json().catch(() => ({}))) as {
@@ -115,7 +164,7 @@ export function RegisterForm() {
 
   if (step === "confirm") {
     return (
-      <Card className="mx-auto w-full max-w-md">
+      <Card className="mx-auto w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Confirma tus datos</CardTitle>
           <CardDescription>
@@ -137,9 +186,36 @@ export function RegisterForm() {
               <dd className="text-right font-medium">{email.trim()}</dd>
             </div>
             <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Teléfono</dt>
+              <dd className="text-right font-medium">{phone.trim()}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Colegio</dt>
               <dd className="text-right font-medium">{school.name.trim()}</dd>
             </div>
+            {isSchool ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Carta</dt>
+                <dd className="text-right font-medium">
+                  {letterFile?.name ?? "—"}
+                </dd>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Carnet anverso</dt>
+                  <dd className="text-right font-medium">
+                    {idFrontFile?.name ?? "—"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Carnet reverso</dt>
+                  <dd className="text-right font-medium">
+                    {idBackFile?.name ?? "—"}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
           <div className="flex items-center justify-between gap-3">
             <Button
@@ -160,7 +236,7 @@ export function RegisterForm() {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-md">
+    <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
         <CardTitle>Registro de maestro</CardTitle>
         <CardDescription>
@@ -192,80 +268,193 @@ export function RegisterForm() {
               </FieldContent>
             </Field>
           </div>
-          <Field>
-            <FieldLabel htmlFor="reg-email">Correo</FieldLabel>
-            <FieldContent>
-              <Input
-                id="reg-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="tu@correo.com"
-              />
-            </FieldContent>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="reg-password">Contraseña</FieldLabel>
-            <FieldContent>
-              <div className="relative">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="reg-email">Correo</FieldLabel>
+              <FieldContent>
                 <Input
-                  id="reg-password"
-                  type={showPassword ? "text" : "password"}
-                  className="pr-10"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  id="reg-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="tu@correo.com"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={
-                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                  }
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <EyeOffIcon className="size-4" />
-                  ) : (
-                    <EyeIcon className="size-4" />
-                  )}
-                </button>
-              </div>
-            </FieldContent>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="reg-confirm">Confirmar contraseña</FieldLabel>
-            <FieldContent>
-              <div className="relative">
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="reg-phone">Teléfono</FieldLabel>
+              <FieldContent>
                 <Input
-                  id="reg-confirm"
-                  type={showPassword ? "text" : "password"}
-                  className="pr-10"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  id="reg-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Ej. 71234567"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={
-                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                  }
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <EyeOffIcon className="size-4" />
-                  ) : (
-                    <EyeIcon className="size-4" />
-                  )}
-                </button>
-              </div>
-            </FieldContent>
-          </Field>
+              </FieldContent>
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="reg-password">Contraseña</FieldLabel>
+              <FieldContent>
+                <div className="relative">
+                  <Input
+                    id="reg-password"
+                    type={showPassword ? "text" : "password"}
+                    className="pr-10"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={
+                      showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                    }
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOffIcon className="size-4" />
+                    ) : (
+                      <EyeIcon className="size-4" />
+                    )}
+                  </button>
+                </div>
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="reg-confirm">
+                Confirmar contraseña
+              </FieldLabel>
+              <FieldContent>
+                <div className="relative">
+                  <Input
+                    id="reg-confirm"
+                    type={showPassword ? "text" : "password"}
+                    className="pr-10"
+                    value={confirmPassword}
+                    onChange={(event) =>
+                      setConfirmPassword(event.target.value)
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={
+                      showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                    }
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOffIcon className="size-4" />
+                    ) : (
+                      <EyeIcon className="size-4" />
+                    )}
+                  </button>
+                </div>
+              </FieldContent>
+            </Field>
+          </div>
           <Field>
             <FieldLabel htmlFor="school-search">Colegio</FieldLabel>
             <FieldContent>
               <SchoolPicker value={school} onChange={setSchool} />
             </FieldContent>
           </Field>
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows] duration-300 ease-out",
+              hasSchoolChoice && isSchool ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+          >
+            <div className="overflow-hidden">
+              <Field className="pt-1">
+                <FieldLabel htmlFor="reg-letter">
+                  Carta de autorización del director
+                </FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="reg-letter"
+                    type="file"
+                    accept=".pdf,image/jpeg,image/png"
+                    onChange={(event) =>
+                      setLetterFile(event.target.files?.[0] ?? null)
+                    }
+                  />
+                  {letterFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Archivo: {letterFile.name}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    PDF o imagen (JPG, PNG), máximo 5 MB.
+                  </p>
+                </FieldContent>
+              </Field>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows] duration-300 ease-out",
+              hasSchoolChoice && !isSchool ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+          >
+            <div className="overflow-hidden">
+              <div className="mt-1 flex flex-col gap-3 rounded-md border bg-secondary/20 p-4">
+                <p className="text-sm text-muted-foreground">
+                  Como enseñas en casa, adjunta el anverso y el reverso de tu
+                  carnet de identidad para verificar tu registro.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="reg-id-front">
+                      Carnet — anverso
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        id="reg-id-front"
+                        type="file"
+                        accept=".pdf,image/jpeg,image/png"
+                        onChange={(event) =>
+                          setIdFrontFile(event.target.files?.[0] ?? null)
+                        }
+                      />
+                      {idFrontFile && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {idFrontFile.name}
+                        </p>
+                      )}
+                    </FieldContent>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="reg-id-back">
+                      Carnet — reverso
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        id="reg-id-back"
+                        type="file"
+                        accept=".pdf,image/jpeg,image/png"
+                        onChange={(event) =>
+                          setIdBackFile(event.target.files?.[0] ?? null)
+                        }
+                      />
+                      {idBackFile && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {idBackFile.name}
+                        </p>
+                      )}
+                    </FieldContent>
+                  </Field>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Imagen (JPG, PNG) o PDF, máximo 5 MB cada uno.
+                </p>
+              </div>
+            </div>
+          </div>
           <Button type="submit" className="w-full">
             Continuar
           </Button>

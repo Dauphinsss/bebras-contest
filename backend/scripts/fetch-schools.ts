@@ -1,9 +1,11 @@
-import "dotenv/config";
-import { prisma } from "../src/lib/prisma";
+import { gzipSync } from "node:zlib";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { resolve, dirname } from "node:path";
 
 const BASE =
   "https://seie.minedu.gob.bo/geoserver/minedu/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=minedu:vw_unidad_geo7&outputFormat=application/json&sortBy=cod_ue";
 const PAGE_SIZE = 2000;
+const SNAPSHOT = resolve(__dirname, "..", "prisma", "seed", "schools.ndjson.gz");
 
 type Feature = {
   properties: {
@@ -31,6 +33,7 @@ async function fetchPage(startIndex: number) {
   const url = `${BASE}&count=${PAGE_SIZE}&startIndex=${startIndex}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90000);
+
   try {
     const response = await fetch(url, { signal: controller.signal });
     const body = await response.text();
@@ -102,23 +105,21 @@ async function main() {
     startIndex += PAGE_SIZE;
   }
 
-  console.log(`Total únicos: ${rows.length}. Guardando en la base de datos...`);
-  await prisma.school.deleteMany();
-
-  const batchSize = 500;
-  for (let index = 0; index < rows.length; index += batchSize) {
-    await prisma.school.createMany({ data: rows.slice(index, index + batchSize) });
-    console.log(`  guardados ${Math.min(index + batchSize, rows.length)} / ${rows.length}`);
+  if (rows.length === 0) {
+    throw new Error("El servicio no devolvió ningún colegio; no se sobrescribe el snapshot.");
   }
 
-  const count = await prisma.school.count();
-  console.log(`Listo. ${count} colegios en la base de datos.`);
+  rows.sort((left, right) => left.codUe.localeCompare(right.codUe));
+
+  mkdirSync(dirname(SNAPSHOT), { recursive: true });
+  const ndjson = rows.map((row) => JSON.stringify(row)).join("\n");
+  writeFileSync(SNAPSHOT, gzipSync(Buffer.from(ndjson, "utf8"), { level: 9 }));
+
+  console.log(`Listo. ${rows.length} colegios guardados en ${SNAPSHOT}.`);
+  console.log('Ejecuta "bun run db:seed --force" para cargarlos en la base.');
 }
 
-main()
-  .then(() => prisma.$disconnect())
-  .catch(async (error) => {
-    console.error("Error en la importación:", error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error("Error en la descarga:", error);
+  process.exit(1);
+});

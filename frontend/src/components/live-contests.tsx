@@ -4,10 +4,8 @@ import { useEffect, useState } from "react";
 import { CalendarClockIcon, CircleCheckIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+import { API_BASE_URL } from "@/lib/api-client";
+import type { ContestState } from "@/lib/contest-schema";
 
 type PublicContest = {
   id: string;
@@ -16,7 +14,7 @@ type PublicContest = {
   durationMinutes: number;
   startsAt: string;
   endsAt: string;
-  state: "programada" | "abierta" | "cerrada";
+  state: ContestState;
   isOpen: boolean;
 };
 

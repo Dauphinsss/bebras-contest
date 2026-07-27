@@ -4,9 +4,7 @@ import type {
   StoredTaskDragDropItem,
 } from "@/lib/task-schema";
 
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+import { publicRequest as request } from "@/lib/api-client";
 
 export type PlayAnswerOption = {
   id: string;
@@ -44,6 +42,7 @@ export type AttemptState = {
   status: "pending" | "in_progress" | "finished";
   startedAt: string | null;
   endsAt: string | null;
+  resultsPublished: boolean;
   showFeedback: boolean;
   showSolutions: boolean;
   showTotalScore: boolean;
@@ -52,30 +51,35 @@ export type AttemptState = {
   result: AttemptResult | null;
 };
 
-async function request<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    ...init,
-  });
-
-  if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
-    try {
-      const body = (await response.json()) as { message?: string };
-      if (body.message) {
-        message = body.message;
-      }
-    } catch {
-      // keep generic
-    }
-    throw new Error(message);
+export function answerHasResponse(answerType: string, payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return false;
   }
 
-  if (response.status === 204) {
-    return null as T;
+  const value = payload as Record<string, unknown>;
+
+  if (answerType === "multiple_choice") {
+    return Array.isArray(value.selected) && value.selected.length > 0;
   }
 
-  return (await response.json()) as T;
+  if (answerType === "short_text") {
+    return typeof value.text === "string" && value.text.trim().length > 0;
+  }
+
+  if (answerType === "range") {
+    const raw = String(value.value ?? "").trim();
+    return raw !== "" && !Number.isNaN(Number(raw));
+  }
+
+  if (answerType === "drag_drop") {
+    return (
+      Boolean(value.placements) &&
+      typeof value.placements === "object" &&
+      Object.keys(value.placements as object).length > 0
+    );
+  }
+
+  return false;
 }
 
 export function getAttempt(personalCode: string) {

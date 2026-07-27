@@ -5,6 +5,7 @@ import {
   AlertCircleIcon,
   FilePenLineIcon,
   FilePlus2Icon,
+  GraduationCapIcon,
   PlayCircleIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import {
   listTasks,
   mapTaskToHomeItem,
   removeTask,
+  setTaskPractice,
   type HomeTaskItem,
 } from "@/lib/tasks-api";
 
@@ -51,6 +53,24 @@ export function TasksHome() {
       active = false;
     };
   }, []);
+
+  const togglePractice = (task: HomeTaskItem) => {
+    const next = !task.isPractice;
+    void setTaskPractice(task.id, next)
+      .then(() => {
+        setTasks((current) =>
+          current.map((item) =>
+            item.id === task.id ? { ...item, isPractice: next } : item,
+          ),
+        );
+        toast.success(
+          next ? "Tarea añadida a práctica." : "Tarea quitada de práctica.",
+        );
+      })
+      .catch(() => {
+        toast.error("No se pudo actualizar la práctica.");
+      });
+  };
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -115,8 +135,26 @@ export function TasksHome() {
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="secondary">{task.status}</Badge>
                       <Badge variant="outline">{task.ageSummary}</Badge>
+                      {task.isPractice && (
+                        <Badge className="gap-1">
+                          <GraduationCapIcon className="size-3" />
+                          Práctica
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant={task.isPractice ? "default" : "outline"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          togglePractice(task);
+                        }}
+                      >
+                        <GraduationCapIcon data-icon="inline-start" />
+                        {task.isPractice ? "En práctica" : "Práctica"}
+                      </Button>
                       <Button asChild size="sm" variant="outline">
                         <a href={`/tareas/editar?id=${task.id}`}>
                           <FilePenLineIcon data-icon="inline-start" />

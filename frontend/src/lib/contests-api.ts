@@ -2,48 +2,7 @@ import {
   type ContestDraftInput,
   type StoredContest,
 } from "@/lib/contest-schema";
-import { authHeaders, handleUnauthorized } from "@/lib/auth";
-
-const API_BASE_URL =
-  import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
-
-async function request<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
-
-  if (response.status === 401 || response.status === 403) {
-    handleUnauthorized();
-    throw new Error("Sesión expirada. Inicia sesión de nuevo.");
-  }
-
-  if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
-
-    try {
-      const errorBody = (await response.json()) as { message?: string };
-      if (errorBody.message) {
-        message = errorBody.message;
-      }
-    } catch {
-      // Keep the generic message.
-    }
-
-    throw new Error(message);
-  }
-
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  return (await response.json()) as T;
-}
+import { apiRequest as request } from "@/lib/api-client";
 
 export function listContests() {
   return request<StoredContest[]>("/api/contests");
@@ -73,6 +32,25 @@ export function publishContest(contestId: string) {
   });
 }
 
+export function consolidateContest(contestId: string) {
+  return request<StoredContest & { closedAttempts: number }>(
+    `/api/contests/${contestId}/consolidate`,
+    { method: "POST" },
+  );
+}
+
+export function publishContestResults(contestId: string) {
+  return request<StoredContest>(`/api/contests/${contestId}/results/publish`, {
+    method: "POST",
+  });
+}
+
+export function unpublishContestResults(contestId: string) {
+  return request<StoredContest>(`/api/contests/${contestId}/results/unpublish`, {
+    method: "POST",
+  });
+}
+
 export function removeContest(contestId: string) {
   return request<null>(`/api/contests/${contestId}`, {
     method: "DELETE",
@@ -83,11 +61,13 @@ export type ContestResultRow = {
   teamId: string;
   groupName: string;
   participationMode: string;
+  grade: string | null;
   memberOneFirstName: string;
   memberOneLastName: string;
   memberTwoFirstName: string | null;
   memberTwoLastName: string | null;
   status: string;
+  elapsedSeconds: number | null;
   totalScore: number | null;
   correctCount: number | null;
   answeredCount: number | null;

@@ -1,16 +1,9 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { JoinForm } from "../components/join-form";
+import { PracticeCategories } from "../components/practice-categories";
 
 const title = "Entrar a la competencia";
-
-const categories = [
-  { name: "Guacamayo", age: "5-8 años" },
-  { name: "Capibara", age: "8-10 años" },
-  { name: "Titi", age: "10-12 años" },
-  { name: "Jucumari", age: "12-14 años" },
-  { name: "Yaguareté", age: "14-18 años" },
-];
 ---
 
 <Layout title={title} heading="Entrar a la competencia" backHref="/">
@@ -36,21 +29,7 @@ const categories = [
         </p>
       </div>
 
-      <div class="grid gap-3 sm:grid-cols-2">
-        {
-          categories.map((category) => (
-            <div class="flex items-center justify-between gap-4 rounded-lg border px-4 py-4">
-              <div>
-                <div class="font-medium">{category.name}</div>
-                <div class="text-sm text-muted-foreground">{category.age}</div>
-              </div>
-              <span class="text-xs font-medium text-muted-foreground">
-                Próximamente
-              </span>
-            </div>
-          ))
-        }
-      </div>
+      <PracticeCategories client:load />
     </section>
   </main>
 </Layout>

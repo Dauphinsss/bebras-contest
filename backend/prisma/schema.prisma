@@ -9,18 +9,22 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  name         String?
-  firstName    String?
-  lastName     String?
-  passwordHash String   @default("")
-  role         String   @default("admin")
-  status       String   @default("approved")
-  schoolCodUe  String?
-  schoolName   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  email           String   @unique
+  name            String?
+  firstName       String?
+  lastName        String?
+  passwordHash    String   @default("")
+  role            String   @default("admin")
+  status          String   @default("approved")
+  schoolCodUe     String?
+  schoolName      String?
+  phone           String?
+  letterFilename  String?
+  idFrontFilename String?
+  idBackFilename  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model School {
@@ -43,59 +47,64 @@ model School {
 }
 
 model TaskDraft {
-  id              String   @id @default(cuid())
-  title           String
-  category        String
-  difficulties    String
-  bodyBlocks      String
-  challengeBlocks String
-  answerType      String   @default("multiple_choice")
-  multipleChoiceOrderMode String @default("fixed")
-  answers         String
-  correctAnswerId String
-  shortAnswer     String   @default("")
-  rangeAnswers    String   @default("[]")
-  dragDropBackground String @default("null")
-  dragDropItems   String   @default("[]")
-  explanation     String
-  status          String   @default("Borrador")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  contestTasks    ContestTask[]
-  attemptAnswers  AttemptAnswer[]
+  id                      String          @id @default(cuid())
+  title                   String
+  category                String
+  difficulties            String
+  bodyBlocks              String
+  challengeBlocks         String
+  answerType              String          @default("multiple_choice")
+  multipleChoiceOrderMode String          @default("fixed")
+  answers                 String
+  correctAnswerId         String
+  shortAnswer             String          @default("")
+  rangeAnswers            String          @default("[]")
+  dragDropBackground      String          @default("null")
+  dragDropItems           String          @default("[]")
+  explanation             String
+  status                  String          @default("Borrador")
+  isPractice              Boolean         @default(false)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  contestTasks            ContestTask[]
+  attemptAnswers          AttemptAnswer[]
 }
 
 model Contest {
-  id               String         @id @default(cuid())
-  title            String
-  category         String         @default("")
-  durationMinutes  Int
-  startsAt         DateTime
-  endsAt           DateTime
-  questionDisplayMode String      @default("one_by_one")
-  allowPairs       Boolean        @default(false)
-  showFeedback     Boolean        @default(false)
-  showSolutions    Boolean        @default(false)
-  showTotalScore   Boolean        @default(false)
-  publishedAt      DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  tasks            ContestTask[]
-  groups           ContestGroup[]
+  id                  String         @id @default(cuid())
+  title               String
+  category            String         @default("")
+  durationMinutes     Int
+  startsAt            DateTime
+  endsAt              DateTime
+  initialScore        Int            @default(45)
+  questionDisplayMode String         @default("one_by_one")
+  allowPairs          Boolean        @default(false)
+  showFeedback        Boolean        @default(false)
+  showSolutions       Boolean        @default(false)
+  showTotalScore      Boolean        @default(false)
+  publishedAt         DateTime?
+  consolidatedAt      DateTime?
+  resultsPublishedAt  DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  tasks               ContestTask[]
+  groups              ContestGroup[]
 }
 
 model ContestTask {
-  id           String    @id @default(cuid())
-  contestId    String
-  taskDraftId  String
-  position     Int
-  minScore     Int       @default(0)
-  noAnswerScore Int      @default(0)
-  maxScore     Int       @default(10)
-  options      String    @default("{}")
-  createdAt    DateTime  @default(now())
-  contest      Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  taskDraft    TaskDraft @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
+  id            String    @id @default(cuid())
+  contestId     String
+  taskDraftId   String
+  position      Int
+  difficulty    String    @default("medium")
+  minScore      Int       @default(0)
+  noAnswerScore Int       @default(0)
+  maxScore      Int       @default(10)
+  options       String    @default("{}")
+  createdAt     DateTime  @default(now())
+  contest       Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  taskDraft     TaskDraft @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
 
   @@unique([contestId, taskDraftId])
   @@unique([contestId, position])
@@ -103,67 +112,68 @@ model ContestTask {
 }
 
 model ContestGroup {
-  id            String    @id @default(cuid())
-  contestId     String
-  createdById   Int?
-  name          String
-  scheduledAt   DateTime?
-  accessCode    String    @unique
-  recoveryCode  String
-  firstUsedAt   DateTime?
-  expiresAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  contest       Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  teams         Team[]
+  id           String    @id @default(cuid())
+  contestId    String
+  createdById  Int?
+  name         String
+  scheduledAt  DateTime?
+  accessCode   String    @unique
+  recoveryCode String
+  firstUsedAt  DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  contest      Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  teams        Team[]
 
   @@index([contestId])
 }
 
 model Team {
-  id                 String        @id @default(cuid())
+  id                 String       @id @default(cuid())
   groupId            String
-  participationMode  String        @default("individual")
+  participationMode  String       @default("individual")
+  grade              String?
   memberOneFirstName String
   memberOneLastName  String
   memberTwoFirstName String?
   memberTwoLastName  String?
-  personalCode       String        @unique
-  status             String        @default("registered")
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  group              ContestGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  personalCode       String       @unique
+  status             String       @default("registered")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  group              ContestGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   attempt            Attempt?
 
   @@index([groupId])
 }
 
 model Attempt {
-  id            String          @id @default(cuid())
-  teamId        String          @unique
-  startedAt     DateTime?
-  endsAt        DateTime?
-  finishedAt    DateTime?
-  status        String          @default("pending")
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  team          Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  answers       AttemptAnswer[]
-  result        Result?
+  id         String          @id @default(cuid())
+  teamId     String          @unique
+  startedAt  DateTime?
+  endsAt     DateTime?
+  finishedAt DateTime?
+  status     String          @default("pending")
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  team       Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  answers    AttemptAnswer[]
+  result     Result?
 }
 
 model AttemptAnswer {
-  id             String     @id @default(cuid())
-  attemptId      String
-  taskDraftId    String
+  id              String    @id @default(cuid())
+  attemptId       String
+  taskDraftId     String
   responsePayload String
-  isCorrect      Boolean?
-  score          Int        @default(0)
-  answeredAt     DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  attempt        Attempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  taskDraft      TaskDraft  @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
+  isCorrect       Boolean?
+  score           Int       @default(0)
+  answeredAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  attempt         Attempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  taskDraft       TaskDraft @relation(fields: [taskDraftId], references: [id], onDelete: Restrict)
 
   @@unique([attemptId, taskDraftId])
   @@index([attemptId])

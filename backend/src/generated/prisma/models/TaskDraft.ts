@@ -41,6 +41,7 @@ export type TaskDraftMinAggregateOutputType = {
   dragDropItems: string | null
   explanation: string | null
   status: string | null
+  isPractice: boolean | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -62,6 +63,7 @@ export type TaskDraftMaxAggregateOutputType = {
   dragDropItems: string | null
   explanation: string | null
   status: string | null
+  isPractice: boolean | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -83,6 +85,7 @@ export type TaskDraftCountAggregateOutputType = {
   dragDropItems: number
   explanation: number
   status: number
+  isPractice: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -106,6 +109,7 @@ export type TaskDraftMinAggregateInputType = {
   dragDropItems?: true
   explanation?: true
   status?: true
+  isPractice?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -127,6 +131,7 @@ export type TaskDraftMaxAggregateInputType = {
   dragDropItems?: true
   explanation?: true
   status?: true
+  isPractice?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -148,6 +153,7 @@ export type TaskDraftCountAggregateInputType = {
   dragDropItems?: true
   explanation?: true
   status?: true
+  isPractice?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -242,6 +248,7 @@ export type TaskDraftGroupByOutputType = {
   dragDropItems: string
   explanation: string
   status: string
+  isPractice: boolean
   createdAt: Date
   updatedAt: Date
   _count: TaskDraftCountAggregateOutputType | null
@@ -284,6 +291,7 @@ export type TaskDraftWhereInput = {
   dragDropItems?: Prisma.StringFilter<"TaskDraft"> | string
   explanation?: Prisma.StringFilter<"TaskDraft"> | string
   status?: Prisma.StringFilter<"TaskDraft"> | string
+  isPractice?: Prisma.BoolFilter<"TaskDraft"> | boolean
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   contestTasks?: Prisma.ContestTaskListRelationFilter
@@ -307,6 +315,7 @@ export type TaskDraftOrderByWithRelationInput = {
   dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   contestTasks?: Prisma.ContestTaskOrderByRelationAggregateInput
@@ -333,6 +342,7 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
   dragDropItems?: Prisma.StringFilter<"TaskDraft"> | string
   explanation?: Prisma.StringFilter<"TaskDraft"> | string
   status?: Prisma.StringFilter<"TaskDraft"> | string
+  isPractice?: Prisma.BoolFilter<"TaskDraft"> | boolean
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   contestTasks?: Prisma.ContestTaskListRelationFilter
@@ -356,6 +366,7 @@ export type TaskDraftOrderByWithAggregationInput = {
   dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.TaskDraftCountOrderByAggregateInput
@@ -383,6 +394,7 @@ export type TaskDraftScalarWhereWithAggregatesInput = {
   dragDropItems?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   explanation?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   status?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  isPractice?: Prisma.BoolWithAggregatesFilter<"TaskDraft"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"TaskDraft"> | Date | string
 }
@@ -404,6 +416,7 @@ export type TaskDraftCreateInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   contestTasks?: Prisma.ContestTaskCreateNestedManyWithoutTaskDraftInput
@@ -427,6 +440,7 @@ export type TaskDraftUncheckedCreateInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   contestTasks?: Prisma.ContestTaskUncheckedCreateNestedManyWithoutTaskDraftInput
@@ -450,6 +464,7 @@ export type TaskDraftUpdateInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contestTasks?: Prisma.ContestTaskUpdateManyWithoutTaskDraftNestedInput
@@ -473,6 +488,7 @@ export type TaskDraftUncheckedUpdateInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contestTasks?: Prisma.ContestTaskUncheckedUpdateManyWithoutTaskDraftNestedInput
@@ -496,6 +512,7 @@ export type TaskDraftCreateManyInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -517,6 +534,7 @@ export type TaskDraftUpdateManyMutationInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -538,6 +556,7 @@ export type TaskDraftUncheckedUpdateManyInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -559,6 +578,7 @@ export type TaskDraftCountOrderByAggregateInput = {
   dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -580,6 +600,7 @@ export type TaskDraftMaxOrderByAggregateInput = {
   dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -601,6 +622,7 @@ export type TaskDraftMinOrderByAggregateInput = {
   dragDropItems?: Prisma.SortOrder
   explanation?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -608,6 +630,10 @@ export type TaskDraftMinOrderByAggregateInput = {
 export type TaskDraftScalarRelationFilter = {
   is?: Prisma.TaskDraftWhereInput
   isNot?: Prisma.TaskDraftWhereInput
+}
+
+export type BoolFieldUpdateOperationsInput = {
+  set?: boolean
 }
 
 export type TaskDraftCreateNestedOneWithoutContestTasksInput = {
@@ -655,6 +681,7 @@ export type TaskDraftCreateWithoutContestTasksInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   attemptAnswers?: Prisma.AttemptAnswerCreateNestedManyWithoutTaskDraftInput
@@ -677,6 +704,7 @@ export type TaskDraftUncheckedCreateWithoutContestTasksInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   attemptAnswers?: Prisma.AttemptAnswerUncheckedCreateNestedManyWithoutTaskDraftInput
@@ -715,6 +743,7 @@ export type TaskDraftUpdateWithoutContestTasksInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   attemptAnswers?: Prisma.AttemptAnswerUpdateManyWithoutTaskDraftNestedInput
@@ -737,6 +766,7 @@ export type TaskDraftUncheckedUpdateWithoutContestTasksInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   attemptAnswers?: Prisma.AttemptAnswerUncheckedUpdateManyWithoutTaskDraftNestedInput
@@ -759,6 +789,7 @@ export type TaskDraftCreateWithoutAttemptAnswersInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   contestTasks?: Prisma.ContestTaskCreateNestedManyWithoutTaskDraftInput
@@ -781,6 +812,7 @@ export type TaskDraftUncheckedCreateWithoutAttemptAnswersInput = {
   dragDropItems?: string
   explanation: string
   status?: string
+  isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
   contestTasks?: Prisma.ContestTaskUncheckedCreateNestedManyWithoutTaskDraftInput
@@ -819,6 +851,7 @@ export type TaskDraftUpdateWithoutAttemptAnswersInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contestTasks?: Prisma.ContestTaskUpdateManyWithoutTaskDraftNestedInput
@@ -841,6 +874,7 @@ export type TaskDraftUncheckedUpdateWithoutAttemptAnswersInput = {
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
   explanation?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contestTasks?: Prisma.ContestTaskUncheckedUpdateManyWithoutTaskDraftNestedInput
@@ -903,6 +937,7 @@ export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
+  isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   contestTasks?: boolean | Prisma.TaskDraft$contestTasksArgs<ExtArgs>
@@ -927,6 +962,7 @@ export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
+  isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["taskDraft"]>
@@ -948,6 +984,7 @@ export type TaskDraftSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
+  isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["taskDraft"]>
@@ -969,11 +1006,12 @@ export type TaskDraftSelectScalar = {
   dragDropItems?: boolean
   explanation?: boolean
   status?: boolean
+  isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeAnswers" | "dragDropBackground" | "dragDropItems" | "explanation" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
+export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeAnswers" | "dragDropBackground" | "dragDropItems" | "explanation" | "status" | "isPractice" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
 export type TaskDraftInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   contestTasks?: boolean | Prisma.TaskDraft$contestTasksArgs<ExtArgs>
   attemptAnswers?: boolean | Prisma.TaskDraft$attemptAnswersArgs<ExtArgs>
@@ -1005,6 +1043,7 @@ export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     dragDropItems: string
     explanation: string
     status: string
+    isPractice: boolean
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["taskDraft"]>
@@ -1448,6 +1487,7 @@ export interface TaskDraftFieldRefs {
   readonly dragDropItems: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly explanation: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly status: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly isPractice: Prisma.FieldRef<"TaskDraft", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"TaskDraft", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"TaskDraft", 'DateTime'>
 }

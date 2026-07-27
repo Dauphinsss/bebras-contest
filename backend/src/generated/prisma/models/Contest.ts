@@ -28,10 +28,12 @@ export type AggregateContest = {
 
 export type ContestAvgAggregateOutputType = {
   durationMinutes: number | null
+  initialScore: number | null
 }
 
 export type ContestSumAggregateOutputType = {
   durationMinutes: number | null
+  initialScore: number | null
 }
 
 export type ContestMinAggregateOutputType = {
@@ -41,12 +43,15 @@ export type ContestMinAggregateOutputType = {
   durationMinutes: number | null
   startsAt: Date | null
   endsAt: Date | null
+  initialScore: number | null
   questionDisplayMode: string | null
   allowPairs: boolean | null
   showFeedback: boolean | null
   showSolutions: boolean | null
   showTotalScore: boolean | null
   publishedAt: Date | null
+  consolidatedAt: Date | null
+  resultsPublishedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -58,12 +63,15 @@ export type ContestMaxAggregateOutputType = {
   durationMinutes: number | null
   startsAt: Date | null
   endsAt: Date | null
+  initialScore: number | null
   questionDisplayMode: string | null
   allowPairs: boolean | null
   showFeedback: boolean | null
   showSolutions: boolean | null
   showTotalScore: boolean | null
   publishedAt: Date | null
+  consolidatedAt: Date | null
+  resultsPublishedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -75,12 +83,15 @@ export type ContestCountAggregateOutputType = {
   durationMinutes: number
   startsAt: number
   endsAt: number
+  initialScore: number
   questionDisplayMode: number
   allowPairs: number
   showFeedback: number
   showSolutions: number
   showTotalScore: number
   publishedAt: number
+  consolidatedAt: number
+  resultsPublishedAt: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -89,10 +100,12 @@ export type ContestCountAggregateOutputType = {
 
 export type ContestAvgAggregateInputType = {
   durationMinutes?: true
+  initialScore?: true
 }
 
 export type ContestSumAggregateInputType = {
   durationMinutes?: true
+  initialScore?: true
 }
 
 export type ContestMinAggregateInputType = {
@@ -102,12 +115,15 @@ export type ContestMinAggregateInputType = {
   durationMinutes?: true
   startsAt?: true
   endsAt?: true
+  initialScore?: true
   questionDisplayMode?: true
   allowPairs?: true
   showFeedback?: true
   showSolutions?: true
   showTotalScore?: true
   publishedAt?: true
+  consolidatedAt?: true
+  resultsPublishedAt?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -119,12 +135,15 @@ export type ContestMaxAggregateInputType = {
   durationMinutes?: true
   startsAt?: true
   endsAt?: true
+  initialScore?: true
   questionDisplayMode?: true
   allowPairs?: true
   showFeedback?: true
   showSolutions?: true
   showTotalScore?: true
   publishedAt?: true
+  consolidatedAt?: true
+  resultsPublishedAt?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -136,12 +155,15 @@ export type ContestCountAggregateInputType = {
   durationMinutes?: true
   startsAt?: true
   endsAt?: true
+  initialScore?: true
   questionDisplayMode?: true
   allowPairs?: true
   showFeedback?: true
   showSolutions?: true
   showTotalScore?: true
   publishedAt?: true
+  consolidatedAt?: true
+  resultsPublishedAt?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -240,12 +262,15 @@ export type ContestGroupByOutputType = {
   durationMinutes: number
   startsAt: Date
   endsAt: Date
+  initialScore: number
   questionDisplayMode: string
   allowPairs: boolean
   showFeedback: boolean
   showSolutions: boolean
   showTotalScore: boolean
   publishedAt: Date | null
+  consolidatedAt: Date | null
+  resultsPublishedAt: Date | null
   createdAt: Date
   updatedAt: Date
   _count: ContestCountAggregateOutputType | null
@@ -280,12 +305,15 @@ export type ContestWhereInput = {
   durationMinutes?: Prisma.IntFilter<"Contest"> | number
   startsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
   endsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
+  initialScore?: Prisma.IntFilter<"Contest"> | number
   questionDisplayMode?: Prisma.StringFilter<"Contest"> | string
   allowPairs?: Prisma.BoolFilter<"Contest"> | boolean
   showFeedback?: Prisma.BoolFilter<"Contest"> | boolean
   showSolutions?: Prisma.BoolFilter<"Contest"> | boolean
   showTotalScore?: Prisma.BoolFilter<"Contest"> | boolean
   publishedAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
+  consolidatedAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
+  resultsPublishedAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
   tasks?: Prisma.ContestTaskListRelationFilter
@@ -299,12 +327,15 @@ export type ContestOrderByWithRelationInput = {
   durationMinutes?: Prisma.SortOrder
   startsAt?: Prisma.SortOrder
   endsAt?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
   allowPairs?: Prisma.SortOrder
   showFeedback?: Prisma.SortOrder
   showSolutions?: Prisma.SortOrder
   showTotalScore?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  consolidatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  resultsPublishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   tasks?: Prisma.ContestTaskOrderByRelationAggregateInput
@@ -321,12 +352,15 @@ export type ContestWhereUniqueInput = Prisma.AtLeast<{
   durationMinutes?: Prisma.IntFilter<"Contest"> | number
   startsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
   endsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
+  initialScore?: Prisma.IntFilter<"Contest"> | number
   questionDisplayMode?: Prisma.StringFilter<"Contest"> | string
   allowPairs?: Prisma.BoolFilter<"Contest"> | boolean
   showFeedback?: Prisma.BoolFilter<"Contest"> | boolean
   showSolutions?: Prisma.BoolFilter<"Contest"> | boolean
   showTotalScore?: Prisma.BoolFilter<"Contest"> | boolean
   publishedAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
+  consolidatedAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
+  resultsPublishedAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
   tasks?: Prisma.ContestTaskListRelationFilter
@@ -340,12 +374,15 @@ export type ContestOrderByWithAggregationInput = {
   durationMinutes?: Prisma.SortOrder
   startsAt?: Prisma.SortOrder
   endsAt?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
   allowPairs?: Prisma.SortOrder
   showFeedback?: Prisma.SortOrder
   showSolutions?: Prisma.SortOrder
   showTotalScore?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  consolidatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  resultsPublishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ContestCountOrderByAggregateInput
@@ -365,12 +402,15 @@ export type ContestScalarWhereWithAggregatesInput = {
   durationMinutes?: Prisma.IntWithAggregatesFilter<"Contest"> | number
   startsAt?: Prisma.DateTimeWithAggregatesFilter<"Contest"> | Date | string
   endsAt?: Prisma.DateTimeWithAggregatesFilter<"Contest"> | Date | string
+  initialScore?: Prisma.IntWithAggregatesFilter<"Contest"> | number
   questionDisplayMode?: Prisma.StringWithAggregatesFilter<"Contest"> | string
   allowPairs?: Prisma.BoolWithAggregatesFilter<"Contest"> | boolean
   showFeedback?: Prisma.BoolWithAggregatesFilter<"Contest"> | boolean
   showSolutions?: Prisma.BoolWithAggregatesFilter<"Contest"> | boolean
   showTotalScore?: Prisma.BoolWithAggregatesFilter<"Contest"> | boolean
   publishedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
+  consolidatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
+  resultsPublishedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Contest"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Contest"> | Date | string
 }
@@ -382,12 +422,15 @@ export type ContestCreateInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   tasks?: Prisma.ContestTaskCreateNestedManyWithoutContestInput
@@ -401,12 +444,15 @@ export type ContestUncheckedCreateInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   tasks?: Prisma.ContestTaskUncheckedCreateNestedManyWithoutContestInput
@@ -420,12 +466,15 @@ export type ContestUpdateInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   tasks?: Prisma.ContestTaskUpdateManyWithoutContestNestedInput
@@ -439,12 +488,15 @@ export type ContestUncheckedUpdateInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   tasks?: Prisma.ContestTaskUncheckedUpdateManyWithoutContestNestedInput
@@ -458,12 +510,15 @@ export type ContestCreateManyInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -475,12 +530,15 @@ export type ContestUpdateManyMutationInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -492,12 +550,15 @@ export type ContestUncheckedUpdateManyInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -509,18 +570,22 @@ export type ContestCountOrderByAggregateInput = {
   durationMinutes?: Prisma.SortOrder
   startsAt?: Prisma.SortOrder
   endsAt?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
   allowPairs?: Prisma.SortOrder
   showFeedback?: Prisma.SortOrder
   showSolutions?: Prisma.SortOrder
   showTotalScore?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
+  consolidatedAt?: Prisma.SortOrder
+  resultsPublishedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type ContestAvgOrderByAggregateInput = {
   durationMinutes?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
 }
 
 export type ContestMaxOrderByAggregateInput = {
@@ -530,12 +595,15 @@ export type ContestMaxOrderByAggregateInput = {
   durationMinutes?: Prisma.SortOrder
   startsAt?: Prisma.SortOrder
   endsAt?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
   allowPairs?: Prisma.SortOrder
   showFeedback?: Prisma.SortOrder
   showSolutions?: Prisma.SortOrder
   showTotalScore?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
+  consolidatedAt?: Prisma.SortOrder
+  resultsPublishedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -547,27 +615,27 @@ export type ContestMinOrderByAggregateInput = {
   durationMinutes?: Prisma.SortOrder
   startsAt?: Prisma.SortOrder
   endsAt?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
   allowPairs?: Prisma.SortOrder
   showFeedback?: Prisma.SortOrder
   showSolutions?: Prisma.SortOrder
   showTotalScore?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
+  consolidatedAt?: Prisma.SortOrder
+  resultsPublishedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type ContestSumOrderByAggregateInput = {
   durationMinutes?: Prisma.SortOrder
+  initialScore?: Prisma.SortOrder
 }
 
 export type ContestScalarRelationFilter = {
   is?: Prisma.ContestWhereInput
   isNot?: Prisma.ContestWhereInput
-}
-
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
 }
 
 export type NullableDateTimeFieldUpdateOperationsInput = {
@@ -609,12 +677,15 @@ export type ContestCreateWithoutTasksInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   groups?: Prisma.ContestGroupCreateNestedManyWithoutContestInput
@@ -627,12 +698,15 @@ export type ContestUncheckedCreateWithoutTasksInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   groups?: Prisma.ContestGroupUncheckedCreateNestedManyWithoutContestInput
@@ -661,12 +735,15 @@ export type ContestUpdateWithoutTasksInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   groups?: Prisma.ContestGroupUpdateManyWithoutContestNestedInput
@@ -679,12 +756,15 @@ export type ContestUncheckedUpdateWithoutTasksInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   groups?: Prisma.ContestGroupUncheckedUpdateManyWithoutContestNestedInput
@@ -697,12 +777,15 @@ export type ContestCreateWithoutGroupsInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   tasks?: Prisma.ContestTaskCreateNestedManyWithoutContestInput
@@ -715,12 +798,15 @@ export type ContestUncheckedCreateWithoutGroupsInput = {
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
+  initialScore?: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: Date | string | null
+  consolidatedAt?: Date | string | null
+  resultsPublishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   tasks?: Prisma.ContestTaskUncheckedCreateNestedManyWithoutContestInput
@@ -749,12 +835,15 @@ export type ContestUpdateWithoutGroupsInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   tasks?: Prisma.ContestTaskUpdateManyWithoutContestNestedInput
@@ -767,12 +856,15 @@ export type ContestUncheckedUpdateWithoutGroupsInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
   allowPairs?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showFeedback?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showSolutions?: Prisma.BoolFieldUpdateOperationsInput | boolean
   showTotalScore?: Prisma.BoolFieldUpdateOperationsInput | boolean
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  consolidatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resultsPublishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   tasks?: Prisma.ContestTaskUncheckedUpdateManyWithoutContestNestedInput
@@ -825,12 +917,15 @@ export type ContestSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   durationMinutes?: boolean
   startsAt?: boolean
   endsAt?: boolean
+  initialScore?: boolean
   questionDisplayMode?: boolean
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: boolean
+  consolidatedAt?: boolean
+  resultsPublishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   tasks?: boolean | Prisma.Contest$tasksArgs<ExtArgs>
@@ -845,12 +940,15 @@ export type ContestSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   durationMinutes?: boolean
   startsAt?: boolean
   endsAt?: boolean
+  initialScore?: boolean
   questionDisplayMode?: boolean
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: boolean
+  consolidatedAt?: boolean
+  resultsPublishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["contest"]>
@@ -862,12 +960,15 @@ export type ContestSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   durationMinutes?: boolean
   startsAt?: boolean
   endsAt?: boolean
+  initialScore?: boolean
   questionDisplayMode?: boolean
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: boolean
+  consolidatedAt?: boolean
+  resultsPublishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["contest"]>
@@ -879,17 +980,20 @@ export type ContestSelectScalar = {
   durationMinutes?: boolean
   startsAt?: boolean
   endsAt?: boolean
+  initialScore?: boolean
   questionDisplayMode?: boolean
   allowPairs?: boolean
   showFeedback?: boolean
   showSolutions?: boolean
   showTotalScore?: boolean
   publishedAt?: boolean
+  consolidatedAt?: boolean
+  resultsPublishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ContestOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "durationMinutes" | "startsAt" | "endsAt" | "questionDisplayMode" | "allowPairs" | "showFeedback" | "showSolutions" | "showTotalScore" | "publishedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["contest"]>
+export type ContestOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "durationMinutes" | "startsAt" | "endsAt" | "initialScore" | "questionDisplayMode" | "allowPairs" | "showFeedback" | "showSolutions" | "showTotalScore" | "publishedAt" | "consolidatedAt" | "resultsPublishedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["contest"]>
 export type ContestInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   tasks?: boolean | Prisma.Contest$tasksArgs<ExtArgs>
   groups?: boolean | Prisma.Contest$groupsArgs<ExtArgs>
@@ -911,12 +1015,15 @@ export type $ContestPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     durationMinutes: number
     startsAt: Date
     endsAt: Date
+    initialScore: number
     questionDisplayMode: string
     allowPairs: boolean
     showFeedback: boolean
     showSolutions: boolean
     showTotalScore: boolean
     publishedAt: Date | null
+    consolidatedAt: Date | null
+    resultsPublishedAt: Date | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["contest"]>
@@ -1350,12 +1457,15 @@ export interface ContestFieldRefs {
   readonly durationMinutes: Prisma.FieldRef<"Contest", 'Int'>
   readonly startsAt: Prisma.FieldRef<"Contest", 'DateTime'>
   readonly endsAt: Prisma.FieldRef<"Contest", 'DateTime'>
+  readonly initialScore: Prisma.FieldRef<"Contest", 'Int'>
   readonly questionDisplayMode: Prisma.FieldRef<"Contest", 'String'>
   readonly allowPairs: Prisma.FieldRef<"Contest", 'Boolean'>
   readonly showFeedback: Prisma.FieldRef<"Contest", 'Boolean'>
   readonly showSolutions: Prisma.FieldRef<"Contest", 'Boolean'>
   readonly showTotalScore: Prisma.FieldRef<"Contest", 'Boolean'>
   readonly publishedAt: Prisma.FieldRef<"Contest", 'DateTime'>
+  readonly consolidatedAt: Prisma.FieldRef<"Contest", 'DateTime'>
+  readonly resultsPublishedAt: Prisma.FieldRef<"Contest", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Contest", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Contest", 'DateTime'>
 }

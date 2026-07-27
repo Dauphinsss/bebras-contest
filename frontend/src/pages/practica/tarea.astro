@@ -1,0 +1,12 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { PracticeSolver } from "../../components/practice-solver";
+
+const title = "Desafío de práctica";
+---
+
+<Layout title={title} heading="Desafío de práctica" backHref="/entrar">
+  <main class="mx-auto w-full max-w-2xl px-4 py-12 sm:py-16">
+    <PracticeSolver client:only="react" />
+  </main>
+</Layout>

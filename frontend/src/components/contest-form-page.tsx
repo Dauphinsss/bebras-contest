@@ -24,9 +24,13 @@ import {
   updateContest,
 } from "@/lib/contests-api";
 import {
+  BEBRAS_SCORING,
   CONTEST_CATEGORIES,
+  taskDifficultyForCategory,
   type ContestTaskConfigInput,
+  fromDatetimeLocalValue,
   toDatetimeLocalValue,
+  type ContestState,
   type ContestDraftInput,
 } from "@/lib/contest-schema";
 import { listTasks } from "@/lib/tasks-api";
@@ -79,12 +83,7 @@ type ContestFormPageProps = {
 type FormState = ContestDraftInput;
 
 function createDefaultTaskConfig(taskId: string): ContestTaskConfigInput {
-  return {
-    taskId,
-    minScore: 0,
-    noAnswerScore: 0,
-    maxScore: 10,
-  };
+  return { taskId };
 }
 
 function createInitialState(): FormState {
@@ -118,12 +117,16 @@ function createStateFromContest(contest: Awaited<ReturnType<typeof getContest>>)
     tasks: contest.tasks
       .slice()
       .sort((left, right) => left.position - right.position)
-      .map((task) => ({
-        taskId: task.taskId,
-        minScore: task.minScore,
-        noAnswerScore: task.noAnswerScore,
-        maxScore: task.maxScore,
-      })),
+      .map((task) => ({ taskId: task.taskId })),
+  };
+}
+
+function toContestPayload(form: FormState): ContestDraftInput {
+  return {
+    ...form,
+    title: form.title.trim(),
+    startsAt: fromDatetimeLocalValue(form.startsAt),
+    endsAt: fromDatetimeLocalValue(form.endsAt),
   };
 }
 
@@ -352,6 +355,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const [publishing, setPublishing] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [contestState, setContestState] = useState<ContestState>("borrador");
 
   useEffect(() => {
     let active = true;
@@ -369,6 +373,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
         if (loadedContest) {
           setForm(createStateFromContest(loadedContest));
+          setContestState(loadedContest.state);
         }
       })
       .catch((error: unknown) => {
@@ -426,8 +431,17 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       errors.push("Debes seleccionar al menos una tarea.");
     }
 
-    if (form.tasks.some((task) => task.maxScore < task.minScore)) {
-      errors.push("El puntaje máximo no puede ser menor que el puntaje mínimo.");
+    if (!form.category) {
+      errors.push("Debes elegir la categoría de la competencia.");
+    }
+
+    for (const selected of selectedTasks) {
+      if (!taskDifficultyForCategory(selected.difficulties, form.category)) {
+        errors.push(
+          `La tarea "${selected.title}" no tiene dificultad definida para la categoría ${form.category || "elegida"}.`,
+        );
+        break;
+      }
     }
 
     return errors;
@@ -459,10 +473,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     setPublishing(true);
 
     try {
-      const savedContest = await updateContest(resolvedContestId, {
-        ...form,
-        title: form.title.trim(),
-      });
+      const savedContest = await updateContest(
+        resolvedContestId,
+        toContestPayload(form),
+      );
       const publishedContest = await publishContest(savedContest.id);
 
       setForm(createStateFromContest(publishedContest));
@@ -522,10 +536,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     setSaving(true);
 
     try {
-      const payload: ContestDraftInput = {
-        ...form,
-        title: form.title.trim(),
-      };
+      const payload = toContestPayload(form);
 
       const savedContest = resolvedContestId
         ? await updateContest(resolvedContestId, payload)
@@ -552,6 +563,43 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       </div>
     );
   }
+
+  const locked = contestState !== "borrador" && contestState !== "programada";
+
+  const scoring = useMemo(() => {
+    const counts = { easy: 0, medium: 0, hard: 0 };
+    let maxScore = 0;
+    let penalties = 0;
+    let unresolved = 0;
+
+    for (const task of selectedTasks) {
+      const difficulty = taskDifficultyForCategory(
+        task.difficulties,
+        form.category,
+      );
+
+      if (!difficulty) {
+        unresolved += 1;
+        continue;
+      }
+
+      counts[difficulty] += 1;
+      maxScore += BEBRAS_SCORING[difficulty].correct;
+      penalties += Math.abs(BEBRAS_SCORING[difficulty].wrong);
+    }
+
+    return {
+      counts,
+      unresolved,
+      initialScore: penalties,
+      maxScore: penalties + maxScore,
+      isStandard:
+        counts.easy === 5 &&
+        counts.medium === 5 &&
+        counts.hard === 5 &&
+        unresolved === 0,
+    };
+  }, [selectedTasks, form.category]);
 
   if (notFound) {
     return (
@@ -900,6 +948,87 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         </Alert>
       )}
 
+      {locked && (
+        <Alert>
+          <AlertTitle>Esta competencia ya no se puede modificar</AlertTitle>
+          <AlertDescription>
+            {contestState === "abierta"
+              ? "Está en curso. Cambiar las tareas o los puntajes ahora afectaría a los estudiantes que están rindiendo."
+              : "Ya terminó. Sus tareas y puntajes quedan como registro de lo que se rindió."}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Puntuación</CardTitle>
+          <CardDescription>
+            Se calcula sola según la dificultad de cada tarea para la categoría
+            elegida. No se configura a mano.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 pt-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(["easy", "medium", "hard"] as const).map((key) => (
+              <div key={key} className="rounded-md border px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    Categoría {BEBRAS_SCORING[key].letter}
+                  </span>
+                  <Badge variant="secondary">
+                    {scoring.counts[key]} tarea(s)
+                  </Badge>
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Correcta +{BEBRAS_SCORING[key].correct} · Incorrecta{" "}
+                  {BEBRAS_SCORING[key].wrong} · Sin responder 0
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-6 rounded-md bg-secondary/30 px-4 py-3 text-sm">
+            <div>
+              <div className="text-muted-foreground">Puntaje inicial</div>
+              <div className="text-lg font-semibold">{scoring.initialScore}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Puntaje máximo</div>
+              <div className="text-lg font-semibold">{scoring.maxScore}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Puntaje mínimo</div>
+              <div className="text-lg font-semibold">0</div>
+            </div>
+          </div>
+
+          {scoring.unresolved > 0 && (
+            <Alert variant="destructive">
+              <AlertTitle>
+                {scoring.unresolved} tarea(s) sin dificultad para esta categoría
+              </AlertTitle>
+              <AlertDescription>
+                Cada tarea necesita una dificultad asignada al rango de edad de{" "}
+                {form.category || "la categoría elegida"}. Edítalas o quítalas de
+                la competencia.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {scoring.unresolved === 0 && !scoring.isStandard && (
+            <Alert>
+              <AlertTitle>La composición no es la estándar de Bebras</AlertTitle>
+              <AlertDescription>
+                Lo habitual son 15 tareas: 5 fáciles, 5 medias y 5 difíciles, que
+                dan 45 de puntaje inicial y 180 de máximo. Puedes publicarla
+                igual, pero los puntajes no coincidirán con los que anuncia el
+                sitio.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -912,7 +1041,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || locked}>
                 <SaveIcon data-icon="inline-start" />
                 {saving
                   ? "Guardando..."
@@ -923,7 +1052,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               <Button
                 type="button"
                 variant="secondary"
-                disabled={saving || publishing}
+                disabled={saving || publishing || locked}
                 onClick={handlePublish}
               >
                 {publishing ? "Publicando..." : "Publicar competencia"}
