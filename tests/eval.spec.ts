@@ -78,6 +78,38 @@ async function joinContest(
   return join.personalCode as string;
 }
 
+test("allows practice updates through CORS", async () => {
+  const api = await request.newContext();
+  const preflight = await api.fetch(
+    `${API}/api/tasks/${SEEDED_TASK.taskId}/practice`,
+    {
+      method: "OPTIONS",
+      headers: {
+        origin: "http://localhost:4321",
+        "access-control-request-method": "PATCH",
+        "access-control-request-headers": "authorization,content-type",
+      },
+    },
+  );
+
+  expect(preflight.status()).toBe(204);
+  expect(preflight.headers()["access-control-allow-methods"]).toContain("PATCH");
+
+  const headers = await loginAdmin(api);
+  const update = await api.patch(
+    `${API}/api/tasks/${SEEDED_TASK.taskId}/practice`,
+    { headers, data: { isPractice: true } },
+  );
+
+  expect(update.ok()).toBe(true);
+  expect(await update.json()).toEqual({
+    id: SEEDED_TASK.taskId,
+    isPractice: true,
+  });
+
+  await api.dispose();
+});
+
 test("rejects a grade that does not match the contest category", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
