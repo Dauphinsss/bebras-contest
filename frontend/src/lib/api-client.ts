@@ -32,7 +32,7 @@ export async function apiRequest<T>(
     ...init,
   });
 
-  if (auth && (response.status === 401 || response.status === 403)) {
+  if (auth && response.status === 401) {
     handleUnauthorized();
     throw new Error("Sesión expirada. Inicia sesión de nuevo.");
   }

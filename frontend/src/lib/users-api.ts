@@ -42,13 +42,22 @@ export async function openMaestroDocument(id: number, doc: MaestroDoc) {
       { headers: { ...authHeaders() } },
     );
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       handleUnauthorized();
       throw new Error("Sesión expirada. Inicia sesión de nuevo.");
     }
 
     if (!response.ok) {
-      throw new Error("No se pudo abrir el documento.");
+      let message = "No se pudo abrir el documento.";
+
+      try {
+        const body = (await response.json()) as { message?: string };
+        message = body.message || message;
+      } catch {
+        // The response may not contain JSON.
+      }
+
+      throw new Error(message);
     }
 
     const type = response.headers.get("content-type") ?? "application/pdf";

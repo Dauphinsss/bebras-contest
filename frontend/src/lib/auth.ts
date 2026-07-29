@@ -50,7 +50,7 @@ export function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** Limpia la sesión y manda al login. Se usa cuando la API responde 401/403. */
+/** Limpia la sesión y manda al login cuando la API responde 401. */
 export function handleUnauthorized() {
   clearToken();
   if (typeof window !== "undefined") {
