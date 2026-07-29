@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently -k -n backend,frontend -c blue,magenta \"cd backend && bun run dev\" \"cd frontend && bun run dev\"",
     "setup": "bun install && cd backend && bun install && cd ../frontend && bun install",
-    "test:e2e": "playwright test"
+    "test:e2e": "bun ./tests/run-e2e.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
