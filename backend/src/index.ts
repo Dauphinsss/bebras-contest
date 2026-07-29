@@ -308,6 +308,16 @@ function parseTaskPayload(body: Record<string, unknown>) {
     throw new Error(`El rango de edad "${unknownRange[0]}" no es válido.`);
   }
 
+  const invalidDifficulty = activeRanges.find(
+    ([, value]) => !isDifficultyKey(readText(value)),
+  );
+
+  if (invalidDifficulty) {
+    throw new Error(
+      `La dificultad "${readText(invalidDifficulty[1])}" no es válida para el rango ${invalidDifficulty[0]}.`,
+    );
+  }
+
   if (countFilledBlocks(body.bodyBlocks) === 0) {
     throw new Error("Debes agregar contenido en el cuerpo.");
   }
