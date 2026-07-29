@@ -16,6 +16,7 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "db:seed": "tsx ./prisma/seed.ts",
+    "db:tasks": "tsx ./prisma/seed-tasks.ts",
     "db:schools:fetch": "tsx ./scripts/fetch-schools.ts",
     "db:admins": "tsx ./scripts/seed-admins.ts",
     "db:clear-teams": "tsx ./scripts/clear-teams.ts"
