@@ -14,41 +14,18 @@ async function loginAdmin(api: APIRequestContext) {
   return { authorization: `Bearer ${login.token}` };
 }
 
-const RANGE_CATEGORY: Record<string, { category: string; grade: string }> = {
-  "6–8": { category: "Guacamayo", grade: "P1" },
-  "8–10": { category: "Capibara", grade: "P3" },
-  "10–12": { category: "Titi", grade: "P5" },
-  "12–14": { category: "Jucumari", grade: "S1" },
-  "14–16": { category: "Yaguareté", grade: "S3" },
-  "16–19": { category: "Kuntur", grade: "S5" },
+const SEEDED_TASK = {
+  taskId: "seed-bebras-easy",
+  category: "Capibara",
+  grade: "P3",
 };
-
-async function pickScorableTask(
-  api: APIRequestContext,
-  headers: Record<string, string>,
-) {
-  const tasks = await api
-    .get(`${API}/api/tasks`, { headers })
-    .then((r) => r.json());
-
-  for (const task of tasks) {
-    for (const [range, target] of Object.entries(RANGE_CATEGORY)) {
-      if (task.difficulties?.[range]) {
-        return { taskId: task.id as string, ...target };
-      }
-    }
-  }
-
-  throw new Error("No hay ninguna tarea con dificultad asignada en el banco.");
-}
 
 async function createContest(
   api: APIRequestContext,
   headers: Record<string, string>,
   overrides: Record<string, unknown> = {},
 ) {
-  const picked = await pickScorableTask(api, headers);
-  const taskId = picked.taskId;
+  const picked = SEEDED_TASK;
 
   const contest = await api
     .post(`${API}/api/contests`, {
@@ -63,7 +40,7 @@ async function createContest(
         showFeedback: true,
         showSolutions: true,
         showTotalScore: true,
-        tasks: [{ taskId }],
+        tasks: [{ taskId: picked.taskId }],
         ...overrides,
       },
     })
