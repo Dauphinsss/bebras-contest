@@ -96,13 +96,13 @@ const links = [
 
 <script is:inline>
   (function () {
-    var raw = localStorage.getItem("bebras_user");
-    var user = raw ? JSON.parse(raw) : null;
+    const raw = localStorage.getItem("bebras_user");
+    const user = raw ? JSON.parse(raw) : null;
     if (!user) return;
 
     document.querySelectorAll("[data-nav-role]").forEach(function (el) {
-      var role = el.getAttribute("data-nav-role");
-      var show =
+      const role = el.getAttribute("data-nav-role");
+      const show =
         user.role === "admin"
           ? role === "admin" || role === "staff"
           : user.role === "maestro" && role === "staff";

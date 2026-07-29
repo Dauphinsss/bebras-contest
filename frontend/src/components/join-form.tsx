@@ -177,7 +177,6 @@ export function JoinForm() {
       setAccessCode(urlCode);
       void performLookup(urlCode, true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const lookupCode = (event: FormEvent<HTMLFormElement>) => {

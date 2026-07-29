@@ -99,20 +99,20 @@ function exportCsv(results: ContestResults) {
 }
 
 export function ContestResults() {
+  const [contestId] = useState(() =>
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("id")
+      : null,
+  );
   const [results, setResults] = useState<ContestResults | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(contestId));
 
   useEffect(() => {
-    const id =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("id")
-        : null;
-    if (!id) {
-      setLoading(false);
+    if (!contestId) {
       return;
     }
     let active = true;
-    void getContestResults(id)
+    void getContestResults(contestId)
       .then((data) => {
         if (active) {
           setResults(data);
@@ -133,7 +133,7 @@ export function ContestResults() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [contestId]);
 
   if (loading) {
     return (

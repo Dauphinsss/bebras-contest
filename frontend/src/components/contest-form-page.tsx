@@ -445,7 +445,42 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     }
 
     return errors;
-  }, [form]);
+  }, [form, selectedTasks]);
+
+  const scoring = useMemo(() => {
+    const counts = { easy: 0, medium: 0, hard: 0 };
+    let maxScore = 0;
+    let penalties = 0;
+    let unresolved = 0;
+
+    for (const task of selectedTasks) {
+      const difficulty = taskDifficultyForCategory(
+        task.difficulties,
+        form.category,
+      );
+
+      if (!difficulty) {
+        unresolved += 1;
+        continue;
+      }
+
+      counts[difficulty] += 1;
+      maxScore += BEBRAS_SCORING[difficulty].correct;
+      penalties += Math.abs(BEBRAS_SCORING[difficulty].wrong);
+    }
+
+    return {
+      counts,
+      unresolved,
+      initialScore: penalties,
+      maxScore: penalties + maxScore,
+      isStandard:
+        counts.easy === 5 &&
+        counts.medium === 5 &&
+        counts.hard === 5 &&
+        unresolved === 0,
+    };
+  }, [selectedTasks, form.category]);
 
   const hasTitleError = submitAttempted && !form.title.trim();
   const hasDurationError =
@@ -565,41 +600,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   }
 
   const locked = contestState !== "borrador" && contestState !== "programada";
-
-  const scoring = useMemo(() => {
-    const counts = { easy: 0, medium: 0, hard: 0 };
-    let maxScore = 0;
-    let penalties = 0;
-    let unresolved = 0;
-
-    for (const task of selectedTasks) {
-      const difficulty = taskDifficultyForCategory(
-        task.difficulties,
-        form.category,
-      );
-
-      if (!difficulty) {
-        unresolved += 1;
-        continue;
-      }
-
-      counts[difficulty] += 1;
-      maxScore += BEBRAS_SCORING[difficulty].correct;
-      penalties += Math.abs(BEBRAS_SCORING[difficulty].wrong);
-    }
-
-    return {
-      counts,
-      unresolved,
-      initialScore: penalties,
-      maxScore: penalties + maxScore,
-      isStandard:
-        counts.easy === 5 &&
-        counts.medium === 5 &&
-        counts.hard === 5 &&
-        unresolved === 0,
-    };
-  }, [selectedTasks, form.category]);
 
   if (notFound) {
     return (

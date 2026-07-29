@@ -28,13 +28,12 @@ export function PracticeSolver() {
   );
   const [task, setTask] = useState<PlayTask | null>(null);
   const [failed, setFailed] = useState(false);
-  const [answer, setAnswer] = useState<any>(undefined);
+  const [answer, setAnswer] = useState<unknown>(undefined);
   const [result, setResult] = useState<PracticeCheck | null>(null);
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (!taskId) {
-      setFailed(true);
       return;
     }
     let active = true;
@@ -67,7 +66,7 @@ export function PracticeSolver() {
     setAnswer(undefined);
   };
 
-  if (failed) {
+  if (!taskId || failed) {
     return (
       <Alert>
         <AlertTitle>No se encontró el desafío</AlertTitle>

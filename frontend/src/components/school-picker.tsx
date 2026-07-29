@@ -32,7 +32,6 @@ export function SchoolPicker({
     }
 
     if (query.trim().length < 2) {
-      setResults([]);
       return;
     }
 
@@ -111,7 +110,13 @@ export function SchoolPicker({
           id="school-search"
           className="pl-9"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            const nextQuery = event.target.value;
+            setQuery(nextQuery);
+            if (nextQuery.trim().length < 2) {
+              setResults([]);
+            }
+          }}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder="Escribe el nombre de tu colegio"
           autoComplete="off"

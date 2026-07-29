@@ -16,7 +16,6 @@ export function PracticeList() {
 
   useEffect(() => {
     if (!category) {
-      setFailed(true);
       return;
     }
     let active = true;
@@ -36,7 +35,7 @@ export function PracticeList() {
     };
   }, [category]);
 
-  if (failed) {
+  if (!category || failed) {
     return (
       <p className="rounded-md border bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
         No se encontró esta categoría.

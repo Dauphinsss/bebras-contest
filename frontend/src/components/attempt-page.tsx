@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -56,7 +56,7 @@ export function AttemptPage() {
       : "",
   );
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -66,7 +66,7 @@ export function AttemptPage() {
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const submittedRef = useRef(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!personalCode) {
       setLoading(false);
       return;
@@ -74,7 +74,7 @@ export function AttemptPage() {
     try {
       const data = await getAttempt(personalCode);
       setAttempt(data);
-      setAnswers((data.answers as Record<string, any>) ?? {});
+      setAnswers(data.answers ?? {});
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "No se pudo cargar.",
@@ -82,11 +82,11 @@ export function AttemptPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [personalCode]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -108,7 +108,7 @@ export function AttemptPage() {
         .then(() => load())
         .catch(() => undefined);
     }
-  }, [remaining, attempt?.status]);
+  }, [remaining, attempt?.status, endsAtMs, personalCode, load]);
 
   const scheduleSave = (taskId: string, payload: unknown) => {
     if (saveTimers.current[taskId]) {
@@ -119,7 +119,7 @@ export function AttemptPage() {
     }, 500);
   };
 
-  const setAnswer = (taskId: string, payload: any) => {
+  const setAnswer = (taskId: string, payload: unknown) => {
     setAnswers((current) => ({ ...current, [taskId]: payload }));
     scheduleSave(taskId, payload);
   };
@@ -406,8 +406,8 @@ function TaskCard({
   onChange,
 }: {
   task: PlayTask;
-  value: any;
-  onChange: (payload: any) => void;
+  value: unknown;
+  onChange: (payload: unknown) => void;
 }) {
   return (
     <Card>

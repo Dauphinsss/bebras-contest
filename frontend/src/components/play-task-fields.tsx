@@ -17,11 +17,17 @@ export function PlayTaskFields({
   disabled = false,
 }: {
   task: PlayTask;
-  value: any;
-  onChange: (payload: any) => void;
+  value: unknown;
+  onChange: (payload: unknown) => void;
   disabled?: boolean;
 }) {
-  const selected: string[] = Array.isArray(value?.selected) ? value.selected : [];
+  const response =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const selected: string[] = Array.isArray(response.selected)
+    ? response.selected
+    : [];
 
   return (
     <>
@@ -90,7 +96,7 @@ export function PlayTaskFields({
         <Input
           placeholder="Escribe tu respuesta"
           disabled={disabled}
-          value={value?.text ?? ""}
+          value={String(response.text ?? "")}
           onChange={(event) => onChange({ text: event.target.value })}
         />
       )}
@@ -100,7 +106,7 @@ export function PlayTaskFields({
           type="number"
           placeholder="Escribe un número"
           disabled={disabled}
-          value={value?.value ?? ""}
+          value={String(response.value ?? "")}
           onChange={(event) => onChange({ value: event.target.value })}
         />
       )}
@@ -127,15 +133,15 @@ export function PlayTaskFields({
             })) as StoredTaskDragDropItem[]
           }
           placements={
-            (value?.placements ?? {}) as Record<string, { x: number; y: number }>
+            (response.placements ?? {}) as Record<string, { x: number; y: number }>
           }
           onPlaceItem={(itemId, placement) =>
             onChange({
-              placements: { ...(value?.placements ?? {}), [itemId]: placement },
+              placements: { ...((response.placements ?? {}) as object), [itemId]: placement },
             })
           }
           onResetItem={(itemId) => {
-            const next = { ...(value?.placements ?? {}) };
+            const next = { ...((response.placements ?? {}) as Record<string, unknown>) };
             delete next[itemId];
             onChange({ placements: next });
           }}
