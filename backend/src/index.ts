@@ -168,32 +168,39 @@ function parseJsonValue<T>(value: unknown, fallback: T) {
   }
 }
 
-function deserializeTask(task: {
-  category: unknown;
-  difficulties: unknown;
-  bodyBlocks: unknown;
-  challengeBlocks: unknown;
-  answerType?: unknown;
-  answers: unknown;
-  shortAnswer?: unknown;
-  rangeAnswers?: unknown;
-  dragDropBackground?: unknown;
-  dragDropItems?: unknown;
-  multipleChoiceOrderMode?: unknown;
-  [key: string]: unknown;
-}) {
+function deserializeTask<
+  T extends {
+    category: unknown;
+    difficulties: unknown;
+    bodyBlocks: unknown;
+    challengeBlocks: unknown;
+    answerType?: unknown;
+    answers: unknown;
+    shortAnswer?: unknown;
+    rangeAnswers?: unknown;
+    dragDropBackground?: unknown;
+    dragDropItems?: unknown;
+    multipleChoiceOrderMode?: unknown;
+  },
+>(task: T) {
   return {
     ...task,
     categories: deserializeCategories(task.category),
-    difficulties: parseJsonValue(task.difficulties, {}),
-    bodyBlocks: parseJsonValue(task.bodyBlocks, []),
-    challengeBlocks: parseJsonValue(task.challengeBlocks, []),
+    difficulties: parseJsonValue<Record<string, unknown>>(task.difficulties, {}),
+    bodyBlocks: parseJsonValue<unknown[]>(task.bodyBlocks, []),
+    challengeBlocks: parseJsonValue<unknown[]>(task.challengeBlocks, []),
     answerType: String(task.answerType ?? "multiple_choice"),
-    answers: parseJsonValue(task.answers, []),
+    answers: parseJsonValue<PlayTask["answers"]>(task.answers, []),
     shortAnswer: String(task.shortAnswer ?? ""),
-    rangeAnswers: parseJsonValue(task.rangeAnswers, []),
-    dragDropBackground: parseJsonValue(task.dragDropBackground, null),
-    dragDropItems: parseJsonValue(task.dragDropItems, []),
+    rangeAnswers: parseJsonValue<PlayTask["rangeAnswers"]>(
+      task.rangeAnswers,
+      [],
+    ),
+    dragDropBackground: parseJsonValue<unknown>(task.dragDropBackground, null),
+    dragDropItems: parseJsonValue<PlayTask["dragDropItems"]>(
+      task.dragDropItems,
+      [],
+    ),
     multipleChoiceOrderMode:
       task.multipleChoiceOrderMode === "random" ? "random" : "fixed",
   };
@@ -1155,7 +1162,7 @@ app.get("/api/practice/tasks", async (req, res) => {
   const tasks = await loadPracticeTasks();
   const rows = tasks
     .filter((task) => taskMatchesCategory(task, category))
-    .map((task: any) => ({
+    .map((task) => ({
       id: task.id,
       title: task.title,
       answerType: task.answerType,
@@ -2631,35 +2638,63 @@ function parseMcCorrectness(value: string) {
   return { mode: "single", ids: raw ? [raw] : [] };
 }
 
-function answerHasResponse(answerType: string, payload: any) {
+type PlayTask = {
+  id: string;
+  title: string;
+  bodyBlocks: unknown;
+  challengeBlocks: unknown;
+  answerType: string;
+  multipleChoiceOrderMode: string;
+  answers: Array<{ id: unknown; blocks: unknown }>;
+  correctAnswerId: string;
+  shortAnswer: unknown;
+  rangeAnswers: Array<{ min: number; max: number }>;
+  dragDropBackground: unknown;
+  dragDropItems: Array<{
+    id: string;
+    label: unknown;
+    image: unknown;
+    targetX: number;
+    targetY: number;
+    tolerance: number;
+  }>;
+  explanation: unknown;
+};
+
+function answerHasResponse(answerType: string, payload: unknown) {
   if (!payload || typeof payload !== "object") {
     return false;
   }
+  const response = payload as Record<string, unknown>;
   if (answerType === "multiple_choice") {
-    return Array.isArray(payload.selected) && payload.selected.length > 0;
+    return Array.isArray(response.selected) && response.selected.length > 0;
   }
   if (answerType === "short_text") {
-    return typeof payload.text === "string" && payload.text.trim().length > 0;
+    return typeof response.text === "string" && response.text.trim().length > 0;
   }
   if (answerType === "range") {
-    const value = String(payload.value ?? "").trim();
+    const value = String(response.value ?? "").trim();
     return value !== "" && !Number.isNaN(Number(value));
   }
   if (answerType === "drag_drop") {
     return (
-      payload.placements &&
-      typeof payload.placements === "object" &&
-      Object.keys(payload.placements).length > 0
+      response.placements &&
+      typeof response.placements === "object" &&
+      Object.keys(response.placements).length > 0
     );
   }
   return false;
 }
 
-function answerIsCorrect(task: any, payload: any) {
+function answerIsCorrect(task: PlayTask, payload: unknown) {
+  const response =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
   const type = task.answerType;
   if (type === "multiple_choice") {
-    const selected = Array.isArray(payload?.selected)
-      ? payload.selected.map(String)
+    const selected = Array.isArray(response.selected)
+      ? response.selected.map(String)
       : [];
     if (selected.length === 0) {
       return false;
@@ -2677,28 +2712,31 @@ function answerIsCorrect(task: any, payload: any) {
     );
   }
   if (type === "short_text") {
-    const text = typeof payload?.text === "string" ? payload.text : "";
+    const text = typeof response.text === "string" ? response.text : "";
     return (
       text.trim().toLowerCase() ===
       String(task.shortAnswer ?? "").trim().toLowerCase()
     );
   }
   if (type === "range") {
-    const value = Number(payload?.value);
+    const value = Number(response.value);
     if (Number.isNaN(value)) {
       return false;
     }
-    return (task.rangeAnswers ?? []).some(
-      (range: any) => value >= range.min && value <= range.max,
+    return task.rangeAnswers.some(
+      (range) => value >= range.min && value <= range.max,
     );
   }
   if (type === "drag_drop") {
-    const placements = payload?.placements ?? {};
-    const items = task.dragDropItems ?? [];
+    const placements = (response.placements ?? {}) as Record<
+      string,
+      { x: number; y: number }
+    >;
+    const items = task.dragDropItems;
     if (items.length === 0) {
       return false;
     }
-    return items.every((item: any) => {
+    return items.every((item) => {
       const placement = placements[item.id];
       return (
         placement &&
@@ -2729,8 +2767,8 @@ function shuffleWithSeed<T>(input: T[], seed: number) {
   return result;
 }
 
-function renderSafeTask(contestTask: any, task: any) {
-  let answers = (task.answers ?? []).map((answer: any) => ({
+function renderSafeTask(contestTask: { position: number }, task: PlayTask) {
+  let answers = task.answers.map((answer) => ({
     id: answer.id,
     blocks: answer.blocks,
   }));
@@ -2749,7 +2787,7 @@ function renderSafeTask(contestTask: any, task: any) {
     multipleChoiceMode: parseMcCorrectness(task.correctAnswerId).mode,
     answers,
     dragDropBackground: task.dragDropBackground,
-    dragDropItems: (task.dragDropItems ?? []).map((item: any) => ({
+    dragDropItems: task.dragDropItems.map((item) => ({
       id: item.id,
       label: item.label,
       image: item.image,
@@ -2830,9 +2868,9 @@ async function finalizeAttempt(attemptId: string, recomputeRank = true) {
   let answeredCount = 0;
 
   for (const contestTask of contest.tasks) {
-    const task = deserializeTask(contestTask.taskDraft) as any;
+    const task = deserializeTask(contestTask.taskDraft) as PlayTask;
     const existing = answersByTask.get(contestTask.taskDraftId);
-    let payload: any = null;
+    let payload: unknown = null;
     if (existing) {
       try {
         payload = JSON.parse(existing.responsePayload);
@@ -3014,8 +3052,11 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
   const showResults =
     finished && resultsPublished && (contest.showFeedback || contest.showSolutions);
   const tasks = contest.tasks.map((contestTask) => {
-    const task = deserializeTask(contestTask.taskDraft) as any;
-    const safe = renderSafeTask(contestTask, task) as any;
+    const task = deserializeTask(contestTask.taskDraft) as PlayTask;
+    const safe: ReturnType<typeof renderSafeTask> & {
+      correct?: boolean;
+      explanation?: unknown;
+    } = renderSafeTask(contestTask, task);
     if (showResults) {
       safe.correct = correctnessByTask[task.id] ?? false;
     }
