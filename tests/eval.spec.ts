@@ -1,6 +1,6 @@
 import { test, expect, request, type APIRequestContext } from "@playwright/test";
 
-const API = "http://localhost:3000";
+const API = "http://localhost:3100";
 
 const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
@@ -85,7 +85,7 @@ test("allows practice updates through CORS", async () => {
     {
       method: "OPTIONS",
       headers: {
-        origin: "http://localhost:4321",
+        origin: "http://localhost:4421",
         "access-control-request-method": "PATCH",
         "access-control-request-headers": "authorization,content-type",
       },
