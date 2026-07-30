@@ -7,6 +7,7 @@ import {
   RotateCcwIcon,
   XCircleIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import { PlayTaskFields } from "@/components/play-task-fields";
@@ -18,7 +19,7 @@ import {
   getPracticeTask,
   type PracticeCheck,
 } from "@/lib/practice-api";
-import type { PlayTask } from "@/lib/play-api";
+import { answerHasResponse, type PlayTask } from "@/lib/play-api";
 
 export function PracticeSolver() {
   const [taskId] = useState(() =>
@@ -54,10 +55,21 @@ export function PracticeSolver() {
   }, [taskId]);
 
   const check = () => {
+    if (!task || !answerHasResponse(task.answerType, answer)) {
+      return;
+    }
+
     setChecking(true);
     checkPracticeAnswer(taskId, answer)
       .then((data) => setResult(data))
-      .catch(() => setResult(null))
+      .catch((error) => {
+        setResult(null);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo comprobar la respuesta.",
+        );
+      })
       .finally(() => setChecking(false));
   };
 
@@ -140,7 +152,11 @@ export function PracticeSolver() {
             Intentar de nuevo
           </Button>
         ) : (
-          <Button type="button" disabled={checking} onClick={check}>
+          <Button
+            type="button"
+            disabled={checking || !answerHasResponse(task.answerType, answer)}
+            onClick={check}
+          >
             {checking ? "Verificando..." : "Comprobar"}
           </Button>
         )}
