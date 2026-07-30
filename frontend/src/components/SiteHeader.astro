@@ -13,6 +13,8 @@ const isContests = pathname.startsWith("/competencias");
 const isGroups = pathname.startsWith("/grupos");
 const isMaestros = pathname.startsWith("/maestros");
 const isPractice = pathname.startsWith("/practica");
+const hasContextualPracticeBack =
+  pathname === "/practica/categoria" || pathname === "/practica/tarea";
 
 const links = [
   { href: "/tareas", label: "Tareas", active: isTasks, role: "admin" },
@@ -34,6 +36,7 @@ const links = [
             {backHref && (
               <a
                 href={backHref}
+                data-practice-back={hasContextualPracticeBack ? "" : undefined}
                 aria-label="Volver"
                 class="text-muted-foreground transition hover:text-foreground"
               >
@@ -111,4 +114,23 @@ const links = [
       }
     });
   })();
+</script>
+
+<script>
+  const backLink = document.querySelector<HTMLAnchorElement>(
+    "[data-practice-back]",
+  );
+
+  if (backLink) {
+    const params = new URLSearchParams(window.location.search);
+    const origin = params.get("from") === "/entrar" ? "/entrar" : "/practica";
+    const category = (params.get("nombre") ?? "").trim();
+
+    if (window.location.pathname === "/practica/tarea" && category) {
+      const categoryParams = new URLSearchParams({ nombre: category, from: origin });
+      backLink.href = `/practica/categoria?${categoryParams.toString()}`;
+    } else {
+      backLink.href = origin;
+    }
+  }
 </script>

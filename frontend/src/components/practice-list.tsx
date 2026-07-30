@@ -4,12 +4,18 @@ import { useEffect, useState } from "react";
 import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
 
 import { listPracticeTasks, type PracticeTaskList } from "@/lib/practice-api";
+import { practiceOrigin, practiceTaskHref } from "@/lib/practice-navigation";
 
 export function PracticeList() {
   const [category] = useState(() =>
     typeof window !== "undefined"
       ? (new URLSearchParams(window.location.search).get("nombre") ?? "").trim()
       : "",
+  );
+  const [origin] = useState(() =>
+    typeof window !== "undefined"
+      ? practiceOrigin(new URLSearchParams(window.location.search).get("from"))
+      : "/practica",
   );
   const [data, setData] = useState<PracticeTaskList | null>(null);
   const [failed, setFailed] = useState(false);
@@ -67,7 +73,7 @@ export function PracticeList() {
           {data.tasks.map((task, index) => (
             <a
               key={task.id}
-              href={`/practica/tarea?id=${task.id}`}
+              href={practiceTaskHref(task.id, data.category, origin)}
               className="flex items-center justify-between gap-4 rounded-lg border px-4 py-4 transition hover:border-primary/50"
             >
               <div className="flex items-center gap-3">

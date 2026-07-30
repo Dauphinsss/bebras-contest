@@ -8,11 +8,17 @@ import {
   listPracticeCategories,
   type PracticeCategory,
 } from "@/lib/practice-api";
+import { practiceCategoryHref, practiceOrigin } from "@/lib/practice-navigation";
 
 export function PracticeCategories() {
   const [categories, setCategories] = useState<PracticeCategory[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [requestVersion, setRequestVersion] = useState(0);
+  const [origin] = useState(() =>
+    typeof window === "undefined"
+      ? "/practica"
+      : practiceOrigin(window.location.pathname),
+  );
 
   useEffect(() => {
     let active = true;
@@ -76,7 +82,7 @@ export function PracticeCategories() {
       {categories.map((category) => (
         <a
           key={category.name}
-          href={`/practica/categoria?nombre=${encodeURIComponent(category.name)}`}
+          href={practiceCategoryHref(category.name, origin)}
           className="flex items-center justify-between gap-4 rounded-lg border px-4 py-4 transition hover:border-primary/50"
         >
           <div>

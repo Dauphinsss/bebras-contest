@@ -20,6 +20,10 @@ import {
   type PracticeCheck,
 } from "@/lib/practice-api";
 import { answerHasResponse, type PlayTask } from "@/lib/play-api";
+import {
+  practiceCategoryHref,
+  practiceOrigin,
+} from "@/lib/practice-navigation";
 
 export function PracticeSolver() {
   const [taskId] = useState(() =>
@@ -27,6 +31,16 @@ export function PracticeSolver() {
       ? (new URLSearchParams(window.location.search).get("id") ?? "").trim()
       : "",
   );
+  const [backHref] = useState(() => {
+    if (typeof window === "undefined") {
+      return "/practica";
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const category = (params.get("nombre") ?? "").trim();
+    const origin = practiceOrigin(params.get("from"));
+    return category ? practiceCategoryHref(category, origin) : origin;
+  });
   const [task, setTask] = useState<PlayTask | null>(null);
   const [failed, setFailed] = useState(false);
   const [answer, setAnswer] = useState<unknown>(undefined);
@@ -142,7 +156,9 @@ export function PracticeSolver() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => window.history.back()}
+          onClick={() => {
+            window.location.href = backHref;
+          }}
         >
           Volver
         </Button>
