@@ -14,11 +14,7 @@ export async function searchSchools(query: string) {
     return [];
   }
 
-  try {
-    return await publicRequest<SchoolResult[]>(
-      `/api/schools?q=${encodeURIComponent(trimmed)}`,
-    );
-  } catch {
-    return [];
-  }
+  return publicRequest<SchoolResult[]>(
+    `/api/schools?q=${encodeURIComponent(trimmed)}`,
+  );
 }

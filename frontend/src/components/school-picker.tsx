@@ -24,6 +24,8 @@ export function SchoolPicker({
   const [results, setResults] = useState<SchoolResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [requestVersion, setRequestVersion] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -41,9 +43,15 @@ export function SchoolPicker({
 
     timer.current = setTimeout(() => {
       setLoading(true);
+      setFailed(false);
       void searchSchools(query)
         .then((found) => {
           setResults(found);
+          setOpen(true);
+        })
+        .catch(() => {
+          setResults([]);
+          setFailed(true);
           setOpen(true);
         })
         .finally(() => setLoading(false));
@@ -54,7 +62,7 @@ export function SchoolPicker({
         clearTimeout(timer.current);
       }
     };
-  }, [query, manual, value.codUe]);
+  }, [query, manual, value.codUe, requestVersion]);
 
   if (manual) {
     return (
@@ -113,8 +121,12 @@ export function SchoolPicker({
           onChange={(event) => {
             const nextQuery = event.target.value;
             setQuery(nextQuery);
+            setFailed(false);
             if (nextQuery.trim().length < 2) {
               setResults([]);
+              setLoading(false);
+            } else {
+              setLoading(true);
             }
           }}
           onFocus={() => results.length > 0 && setOpen(true)}
@@ -128,7 +140,24 @@ export function SchoolPicker({
 
       {open && query.trim().length >= 2 && (
         <div className="flex flex-col overflow-hidden rounded-md border bg-background">
-          {results.length === 0 && !loading ? (
+          {failed && !loading ? (
+            <div className="flex flex-col items-start gap-2 px-3 py-3">
+              <p className="text-sm text-muted-foreground">
+                No se pudo buscar colegios. Intenta nuevamente.
+              </p>
+              <button
+                type="button"
+                className="text-sm font-medium underline underline-offset-2"
+                onClick={() => {
+                  setFailed(false);
+                  setLoading(true);
+                  setRequestVersion((version) => version + 1);
+                }}
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : results.length === 0 && !loading ? (
             <p className="px-3 py-3 text-sm text-muted-foreground">
               No se encontraron colegios con ese nombre.
             </p>
