@@ -206,11 +206,13 @@ function TimeInput({
   label,
   value,
   invalid = false,
+  disabled = false,
   onChange,
 }: {
   label: string;
   value: string;
   invalid?: boolean;
+  disabled?: boolean;
   onChange: (nextValue: string) => void;
 }) {
   const currentTime = toTimeValue(value);
@@ -229,6 +231,7 @@ function TimeInput({
       <Input
         aria-invalid={invalid}
         aria-label={`${label} hora`}
+        disabled={disabled}
         className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
         type="time"
         value={draftValue}
@@ -249,6 +252,7 @@ function DateRangeField({
   startsAt,
   endsAt,
   invalid = false,
+  disabled = false,
   onDateChange,
   onStartsAtChange,
   onEndsAtChange,
@@ -256,6 +260,7 @@ function DateRangeField({
   startsAt: string;
   endsAt: string;
   invalid?: boolean;
+  disabled?: boolean;
   onDateChange: (nextStartsAt: string, nextEndsAt: string) => void;
   onStartsAtChange: (nextValue: string) => void;
   onEndsAtChange: (nextValue: string) => void;
@@ -286,6 +291,7 @@ function DateRangeField({
               <Button
                 id="contest-date-range"
                 type="button"
+                disabled={disabled}
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal lg:flex-1",
@@ -318,6 +324,7 @@ function DateRangeField({
               <FieldLabel>Hora de inicio</FieldLabel>
               <TimeInput
                 invalid={invalid}
+                disabled={disabled}
                 label="Hora de inicio"
                 value={startsAt}
                 onChange={onStartsAtChange}
@@ -327,6 +334,7 @@ function DateRangeField({
               <FieldLabel>Hora de fin</FieldLabel>
               <TimeInput
                 invalid={invalid}
+                disabled={disabled}
                 label="Hora de fin"
                 value={endsAt}
                 onChange={onEndsAtChange}
@@ -356,6 +364,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const [notFound, setNotFound] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [contestState, setContestState] = useState<ContestState>("borrador");
+  const locked = contestState !== "borrador" && contestState !== "programada";
 
   useEffect(() => {
     let active = true;
@@ -493,6 +502,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       new Date(form.endsAt) <= new Date(form.startsAt));
 
   const handlePublish = async () => {
+    if (locked) {
+      return;
+    }
+
     if (!resolvedContestId) {
       toast.error("Primero guarda la competencia antes de publicarla.");
       return;
@@ -515,6 +528,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       const publishedContest = await publishContest(savedContest.id);
 
       setForm(createStateFromContest(publishedContest));
+      setContestState(publishedContest.state);
       toast.success("La competencia quedó publicada.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo publicar la competencia.");
@@ -524,6 +538,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   };
 
   const toggleTask = (taskId: string) => {
+    if (locked) {
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       tasks: current.tasks.some((task) => task.taskId === taskId)
@@ -533,6 +551,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   };
 
   const moveTask = (taskId: string, direction: "up" | "down") => {
+    if (locked) {
+      return;
+    }
+
     setForm((current) => {
       const index = current.tasks.findIndex((task) => task.taskId === taskId);
 
@@ -561,6 +583,11 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (locked) {
+      return;
+    }
+
     setSubmitAttempted(true);
 
     if (validationErrors.length > 0) {
@@ -583,6 +610,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       }
 
       setForm(createStateFromContest(savedContest));
+      setContestState(savedContest.state);
       toast.success("La competencia se guardó correctamente.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar la competencia.");
@@ -598,8 +626,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       </div>
     );
   }
-
-  const locked = contestState !== "borrador" && contestState !== "programada";
 
   if (notFound) {
     return (
@@ -632,6 +658,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   <Input
                     id="contest-title"
                     aria-invalid={hasTitleError}
+                    disabled={locked}
                     value={form.title}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, title: event.target.value }))
@@ -648,6 +675,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   <Input
                     id="contest-duration"
                     aria-invalid={hasDurationError}
+                    disabled={locked}
                     min={1}
                     type="number"
                     value={String(form.durationMinutes)}
@@ -669,6 +697,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 startsAt={form.startsAt}
                 endsAt={form.endsAt}
                 invalid={hasDateError}
+                disabled={locked}
                 onDateChange={(nextStartsAt, nextEndsAt) =>
                   setForm((current) => ({
                     ...current,
@@ -709,6 +738,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 <FieldLabel htmlFor="contest-category">Categoría</FieldLabel>
                 <FieldContent>
                   <Select
+                    disabled={locked}
                     value={form.category || "none"}
                     onValueChange={(value) =>
                       setForm((current) => ({
@@ -737,6 +767,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 </FieldLabel>
                 <FieldContent>
                   <Select
+                    disabled={locked}
                     value={form.questionDisplayMode}
                     onValueChange={(value) =>
                       setForm((current) => ({
@@ -768,6 +799,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 <Checkbox
                   id="contest-allow-pairs"
                   checked={form.allowPairs}
+                  disabled={locked}
                   onCheckedChange={(checked) =>
                     setForm((current) => ({ ...current, allowPairs: checked === true }))
                   }
@@ -780,6 +812,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 <Checkbox
                   id="contest-show-total-score"
                   checked={form.showTotalScore}
+                  disabled={locked}
                   onCheckedChange={(checked) =>
                     setForm((current) => ({ ...current, showTotalScore: checked === true }))
                   }
@@ -792,6 +825,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 <Checkbox
                   id="contest-show-feedback"
                   checked={form.showFeedback}
+                  disabled={locked}
                   onCheckedChange={(checked) =>
                     setForm((current) => ({ ...current, showFeedback: checked === true }))
                   }
@@ -804,6 +838,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 <Checkbox
                   id="contest-show-solutions"
                   checked={form.showSolutions}
+                  disabled={locked}
                   onCheckedChange={(checked) =>
                     setForm((current) => ({ ...current, showSolutions: checked === true }))
                   }
@@ -857,6 +892,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                         <Button
                           type="button"
                           variant={selected ? "default" : "outline"}
+                          disabled={locked}
                           onClick={() => toggleTask(task.id)}
                         >
                           {selected ? (
@@ -910,7 +946,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                           size="icon-sm"
                           type="button"
                           variant="outline"
-                          disabled={index === 0}
+                          disabled={locked || index === 0}
                           onClick={() => moveTask(task.id, "up")}
                         >
                           <ArrowUpIcon />
@@ -919,7 +955,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                           size="icon-sm"
                           type="button"
                           variant="outline"
-                          disabled={index === selectedTasks.length - 1}
+                          disabled={locked || index === selectedTasks.length - 1}
                           onClick={() => moveTask(task.id, "down")}
                         >
                           <ArrowDownIcon />
@@ -927,6 +963,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                         <Button
                           type="button"
                           variant="outline"
+                          disabled={locked}
                           onClick={() => toggleTask(task.id)}
                         >
                           Quitar
