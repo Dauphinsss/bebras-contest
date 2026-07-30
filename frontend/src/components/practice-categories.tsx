@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
   listPracticeCategories,
   type PracticeCategory,
@@ -11,6 +12,7 @@ import {
 export function PracticeCategories() {
   const [categories, setCategories] = useState<PracticeCategory[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [requestVersion, setRequestVersion] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -18,6 +20,7 @@ export function PracticeCategories() {
       .then((data) => {
         if (active) {
           setCategories(data);
+          setFailed(false);
         }
       })
       .catch(() => {
@@ -28,10 +31,28 @@ export function PracticeCategories() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [requestVersion]);
 
   if (failed) {
-    return null;
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md border bg-secondary/20 px-4 py-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          No pudimos cargar los desafíos de práctica.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setCategories(null);
+            setFailed(false);
+            setRequestVersion((version) => version + 1);
+          }}
+        >
+          Reintentar
+        </Button>
+      </div>
+    );
   }
 
   if (categories === null) {
