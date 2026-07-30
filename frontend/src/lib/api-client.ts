@@ -22,13 +22,18 @@ export async function apiRequest<T>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { auth = true, headers, ...init } = options;
+  const requestHeaders = new Headers(auth ? authHeaders() : undefined);
+
+  new Headers(headers).forEach((value, key) => {
+    requestHeaders.set(key, value);
+  });
+
+  if (typeof init.body === "string" && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(auth ? authHeaders() : {}),
-      ...(headers ?? {}),
-    },
+    headers: requestHeaders,
     ...init,
   });
 
