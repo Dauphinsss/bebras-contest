@@ -498,6 +498,67 @@ test("scores the standard 15-task Bebras distribution from zero to 180", async (
   await api.dispose();
 });
 
+test("breaks equal-score ties by elapsed time", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers);
+  const slowerCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+    "Lento",
+  );
+  const fasterCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+    "Rapido",
+  );
+
+  const slowerStart = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: slowerCode },
+  });
+  expect(slowerStart.ok(), await slowerStart.text()).toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const fasterStart = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: fasterCode },
+  });
+  expect(fasterStart.ok(), await fasterStart.text()).toBe(true);
+  const fasterSubmit = await api.post(`${API}/api/play/submit`, {
+    data: { personalCode: fasterCode },
+  });
+  expect(fasterSubmit.ok(), await fasterSubmit.text()).toBe(true);
+
+  const slowerSubmit = await api.post(`${API}/api/play/submit`, {
+    data: { personalCode: slowerCode },
+  });
+  expect(slowerSubmit.ok(), await slowerSubmit.text()).toBe(true);
+
+  const resultsResponse = await api.get(
+    `${API}/api/contests/${contest.id}/results`,
+    { headers },
+  );
+  expect(resultsResponse.ok(), await resultsResponse.text()).toBe(true);
+  const results = await resultsResponse.json();
+  const faster = results.rows.find(
+    (row: { memberOneFirstName: string }) =>
+      row.memberOneFirstName === "Rapido",
+  );
+  const slower = results.rows.find(
+    (row: { memberOneFirstName: string }) => row.memberOneFirstName === "Lento",
+  );
+
+  expect(faster.totalScore).toBe(slower.totalScore);
+  expect(faster.elapsedSeconds).toBeLessThanOrEqual(slower.elapsedSeconds);
+  expect(faster.rankPosition).toBe(1);
+  expect(slower.rankPosition).toBe(2);
+
+  await api.dispose();
+});
+
 test("student starts, answers and submits without seeing the score", async ({
   page,
 }) => {
