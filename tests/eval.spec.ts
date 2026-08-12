@@ -707,6 +707,130 @@ test("uses the 17-18 range and S5-S6 grades for Kuntur", async () => {
   await api.dispose();
 });
 
+test("allows deleting unused contests, groups, participants and tasks", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const task = await createScoringTask(api, headers, "easy", Date.now());
+  const contest = await createContest(api, headers, {
+    tasks: [{ taskId: task.taskId }],
+  });
+  const group = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: contest.id, name: "PW Delete" },
+    })
+    .then((response) => response.json());
+  const join = await api.post(`${API}/api/play/join`, {
+    data: {
+      accessCode: group.accessCode,
+      participationMode: "individual",
+      grade: contest.picked.grade,
+      memberOneFirstName: "Eliminar",
+      memberOneLastName: "Tester",
+    },
+  });
+  expect(join.ok(), await join.text()).toBe(true);
+  const personalCode = (await join.json()).personalCode as string;
+  const groupDetails = await api
+    .get(`${API}/api/groups/${group.id}`, { headers })
+    .then((response) => response.json());
+  const team = groupDetails.teams.find(
+    (candidate: { personalCode: string }) =>
+      candidate.personalCode === personalCode,
+  );
+
+  const removeTeam = await api.delete(`${API}/api/teams/${team.id}`, {
+    headers,
+  });
+  expect(removeTeam.status(), await removeTeam.text()).toBe(204);
+
+  const removeGroup = await api.delete(`${API}/api/groups/${group.id}`, {
+    headers,
+  });
+  expect(removeGroup.status(), await removeGroup.text()).toBe(204);
+
+  const removeContest = await api.delete(`${API}/api/contests/${contest.id}`, {
+    headers,
+  });
+  expect(removeContest.status(), await removeContest.text()).toBe(204);
+
+  const removeTask = await api.delete(`${API}/api/tasks/${task.taskId}`, {
+    headers,
+  });
+  expect(removeTask.status(), await removeTask.text()).toBe(204);
+
+  await api.dispose();
+});
+
+test("protects tasks and played contest records from deletion", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const task = await createScoringTask(api, headers, "easy", Date.now());
+  const contest = await createContest(api, headers, {
+    tasks: [{ taskId: task.taskId }],
+  });
+  const group = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: contest.id, name: "PW Protected" },
+    })
+    .then((response) => response.json());
+  const join = await api.post(`${API}/api/play/join`, {
+    data: {
+      accessCode: group.accessCode,
+      participationMode: "individual",
+      grade: contest.picked.grade,
+      memberOneFirstName: "Protegido",
+      memberOneLastName: "Tester",
+    },
+  });
+  expect(join.ok(), await join.text()).toBe(true);
+  const personalCode = (await join.json()).personalCode as string;
+
+  const removeUsedTask = await api.delete(`${API}/api/tasks/${task.taskId}`, {
+    headers,
+  });
+  expect(removeUsedTask.status()).toBe(409);
+  expect((await removeUsedTask.json()).message).toContain("competencia");
+
+  const start = await api.post(`${API}/api/play/start`, {
+    data: { personalCode },
+  });
+  expect(start.ok(), await start.text()).toBe(true);
+  const submit = await api.post(`${API}/api/play/submit`, {
+    data: { personalCode },
+  });
+  expect(submit.ok(), await submit.text()).toBe(true);
+
+  const groupDetails = await api
+    .get(`${API}/api/groups/${group.id}`, { headers })
+    .then((response) => response.json());
+  const team = groupDetails.teams.find(
+    (candidate: { personalCode: string }) =>
+      candidate.personalCode === personalCode,
+  );
+
+  const removeTeam = await api.delete(`${API}/api/teams/${team.id}`, {
+    headers,
+  });
+  expect(removeTeam.status()).toBe(409);
+  expect((await removeTeam.json()).message).toContain("ya rindió");
+
+  const removeGroup = await api.delete(`${API}/api/groups/${group.id}`, {
+    headers,
+  });
+  expect(removeGroup.status()).toBe(409);
+  expect((await removeGroup.json()).message).toContain("ya rindieron");
+
+  const removeContest = await api.delete(`${API}/api/contests/${contest.id}`, {
+    headers,
+  });
+  expect(removeContest.status()).toBe(409);
+  expect((await removeContest.json()).message).toContain("ya rindieron");
+
+  await api.dispose();
+});
+
 test("freezes a contest once it is running", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
