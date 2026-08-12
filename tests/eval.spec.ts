@@ -247,6 +247,73 @@ const VALID_PNG = {
   buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
 };
 
+function taskBlock(id: string, content: string) {
+  return { id, type: "text", content, image: null, widthPercent: 100 };
+}
+
+async function createPracticeTask(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  answerType: "multiple_choice" | "short_text" | "range" | "drag_drop",
+) {
+  const suffix = `${answerType}-${Date.now()}`;
+  const response = await api.post(`${API}/api/tasks`, {
+    headers,
+    data: {
+      title: `Práctica ${answerType}`,
+      categories: ["Algoritmos y programación"],
+      difficulties: { "10–12": "medium" },
+      bodyBlocks: [taskBlock(`body-${suffix}`, "Contenido")],
+      challengeBlocks: [taskBlock(`challenge-${suffix}`, "Resuelve")],
+      answerType,
+      multipleChoiceOrderMode: "fixed",
+      answers:
+        answerType === "multiple_choice"
+          ? [
+              { id: "A", blocks: [taskBlock(`a-${suffix}`, "Incorrecta")] },
+              { id: "B", blocks: [taskBlock(`b-${suffix}`, "Correcta")] },
+            ]
+          : [],
+      correctAnswerId: answerType === "multiple_choice" ? "B" : "",
+      shortAnswer: answerType === "short_text" ? "Bebras" : "",
+      rangeAnswers:
+        answerType === "range"
+          ? [{ id: `range-${suffix}`, label: "Válido", min: 10, max: 20 }]
+          : [],
+      dragDropBackground:
+        answerType === "drag_drop"
+          ? {
+              id: `background-${suffix}`,
+              name: "fondo.png",
+              url: "data:image/png;base64,AA==",
+            }
+          : null,
+      dragDropItems:
+        answerType === "drag_drop"
+          ? [
+              {
+                id: `item-${suffix}`,
+                label: "Pieza",
+                image: {
+                  id: `image-${suffix}`,
+                  name: "pieza.png",
+                  url: "data:image/png;base64,AA==",
+                },
+                targetX: 50,
+                targetY: 40,
+                tolerance: 5,
+              },
+            ]
+          : [],
+      explanation: `Explicación ${answerType}`,
+      status: "Borrador",
+      isPractice: true,
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  return response.json();
+}
+
 test("allows practice updates through CORS", async () => {
   const api = await request.newContext();
   const preflight = await api.fetch(
@@ -277,6 +344,99 @@ test("allows practice updates through CORS", async () => {
     id: SEEDED_TASK.taskId,
     isPractice: true,
   });
+
+  await api.dispose();
+});
+
+test("serves and checks all four public practice answer types", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const tasks = await Promise.all(
+    (["multiple_choice", "short_text", "range", "drag_drop"] as const).map(
+      (answerType) => createPracticeTask(api, headers, answerType),
+    ),
+  );
+
+  const categoriesResponse = await api.get(`${API}/api/practice/categories`);
+  expect(categoriesResponse.ok(), await categoriesResponse.text()).toBe(true);
+  expect(await categoriesResponse.json()).toContainEqual({
+    name: "Titi",
+    age: "10-12 años",
+    count: 4,
+  });
+
+  const listResponse = await api.get(`${API}/api/practice/tasks?category=Titi`);
+  expect(listResponse.ok(), await listResponse.text()).toBe(true);
+  const list = await listResponse.json();
+  expect(list.tasks).toHaveLength(4);
+  expect(
+    list.tasks.map((task: { answerType: string }) => task.answerType).sort(),
+  ).toEqual(["drag_drop", "multiple_choice", "range", "short_text"]);
+
+  const cases = [
+    {
+      task: tasks.find((task) => task.answerType === "multiple_choice"),
+      correct: { selected: ["B"] },
+      incorrect: { selected: ["A"] },
+    },
+    {
+      task: tasks.find((task) => task.answerType === "short_text"),
+      correct: { text: " bebras " },
+      incorrect: { text: "castor" },
+    },
+    {
+      task: tasks.find((task) => task.answerType === "range"),
+      correct: { value: 15 },
+      incorrect: { value: 21 },
+    },
+    {
+      task: tasks.find((task) => task.answerType === "drag_drop"),
+      correct: {
+        placements: {
+          [tasks.find((task) => task.answerType === "drag_drop")
+            .dragDropItems[0].id]: { x: 53, y: 36 },
+        },
+      },
+      incorrect: {
+        placements: {
+          [tasks.find((task) => task.answerType === "drag_drop")
+            .dragDropItems[0].id]: { x: 80, y: 80 },
+        },
+      },
+    },
+  ];
+
+  for (const practiceCase of cases) {
+    const detailResponse = await api.get(
+      `${API}/api/practice/tasks/${practiceCase.task.id}`,
+    );
+    expect(detailResponse.ok(), await detailResponse.text()).toBe(true);
+    const detail = await detailResponse.json();
+    expect(detail.answerType).toBe(practiceCase.task.answerType);
+    expect(detail).not.toHaveProperty("correctAnswerId");
+    expect(detail).not.toHaveProperty("shortAnswer");
+    expect(detail).not.toHaveProperty("rangeAnswers");
+    expect(detail).not.toHaveProperty("explanation");
+    if (detail.answerType === "drag_drop") {
+      expect(detail.dragDropItems[0]).not.toHaveProperty("targetX");
+      expect(detail.dragDropItems[0]).not.toHaveProperty("targetY");
+      expect(detail.dragDropItems[0]).not.toHaveProperty("tolerance");
+    }
+
+    const correctResponse = await api.post(
+      `${API}/api/practice/tasks/${practiceCase.task.id}/check`,
+      { data: { payload: practiceCase.correct } },
+    );
+    expect(correctResponse.ok(), await correctResponse.text()).toBe(true);
+    expect(await correctResponse.json()).toMatchObject({ correct: true });
+
+    const incorrectResponse = await api.post(
+      `${API}/api/practice/tasks/${practiceCase.task.id}/check`,
+      { data: { payload: practiceCase.incorrect } },
+    );
+    expect(incorrectResponse.ok(), await incorrectResponse.text()).toBe(true);
+    expect(await incorrectResponse.json()).toMatchObject({ correct: false });
+  }
 
   await api.dispose();
 });
