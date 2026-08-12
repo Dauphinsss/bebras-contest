@@ -4,8 +4,11 @@ import {
   request,
   type APIRequestContext,
 } from "@playwright/test";
+import { readdirSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
 
 const API = "http://localhost:3100";
+const UPLOADS_DIR = resolve(process.cwd(), "backend/uploads/letters");
 
 const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
@@ -199,6 +202,51 @@ async function submitScoringAttempt(
   expect(submit.ok(), await submit.text()).toBe(true);
 }
 
+function uploadedDocuments() {
+  return readdirSync(UPLOADS_DIR).filter((name) => name !== ".gitkeep");
+}
+
+function removeNewUploads(previous: string[]) {
+  const existing = new Set(previous);
+  for (const filename of uploadedDocuments()) {
+    if (!existing.has(filename)) {
+      rmSync(resolve(UPLOADS_DIR, filename), { force: true });
+    }
+  }
+}
+
+function registrationFields(
+  email: string,
+  institutionType: "school" | "homeschool",
+) {
+  return {
+    firstName: "Registro",
+    lastName: "Documentado",
+    email,
+    password: "segura123",
+    schoolName:
+      institutionType === "school" ? "Colegio manual" : "Educación en casa",
+    institutionType,
+    phone: "70000000",
+  };
+}
+
+const VALID_PDF = {
+  name: "carta.pdf",
+  mimeType: "application/pdf",
+  buffer: Buffer.from("%PDF-1.4\n"),
+};
+const VALID_JPG = {
+  name: "anverso.jpg",
+  mimeType: "image/jpeg",
+  buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+};
+const VALID_PNG = {
+  name: "reverso.png",
+  mimeType: "image/png",
+  buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+};
+
 test("allows practice updates through CORS", async () => {
   const api = await request.newContext();
   const preflight = await api.fetch(
@@ -255,6 +303,134 @@ test("rejects documents whose content does not match the extension", async () =>
   expect(response.status()).toBe(400);
   expect((await response.json()).message).toContain("contenido del documento");
   await api.dispose();
+});
+
+test("registers school and homeschool teachers with valid documents", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const previousUploads = uploadedDocuments();
+  const schoolEmail = `colegio-${Date.now()}@example.com`;
+  const homeschoolEmail = `casa-${Date.now()}@example.com`;
+
+  try {
+    const school = await api.post(`${API}/api/auth/register`, {
+      multipart: {
+        ...registrationFields(schoolEmail, "school"),
+        letter: VALID_PDF,
+      },
+    });
+    expect(school.status(), await school.text()).toBe(201);
+
+    const homeschool = await api.post(`${API}/api/auth/register`, {
+      multipart: {
+        ...registrationFields(homeschoolEmail, "homeschool"),
+        idFront: VALID_JPG,
+        idBack: VALID_PNG,
+      },
+    });
+    expect(homeschool.status(), await homeschool.text()).toBe(201);
+
+    const teachersResponse = await api.get(`${API}/api/users/maestros`, {
+      headers,
+    });
+    expect(teachersResponse.ok(), await teachersResponse.text()).toBe(true);
+    const teachers = await teachersResponse.json();
+    expect(teachers).toContainEqual(
+      expect.objectContaining({
+        email: schoolEmail,
+        institutionType: "school",
+        hasLetter: true,
+        hasIdFront: false,
+        hasIdBack: false,
+      }),
+    );
+    expect(teachers).toContainEqual(
+      expect.objectContaining({
+        email: homeschoolEmail,
+        institutionType: "homeschool",
+        hasLetter: false,
+        hasIdFront: true,
+        hasIdBack: true,
+      }),
+    );
+  } finally {
+    removeNewUploads(previousUploads);
+    await api.dispose();
+  }
+});
+
+test("rejects incomplete, unsupported and oversized document uploads cleanly", async () => {
+  const api = await request.newContext();
+  const previousUploads = uploadedDocuments();
+
+  const assertRejectedWithoutUploads = async (
+    multipart: Record<string, string | typeof VALID_PDF>,
+    expectedMessage: string,
+  ) => {
+    const response = await api.post(`${API}/api/auth/register`, { multipart });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toContain(expectedMessage);
+    expect(uploadedDocuments()).toEqual(previousUploads);
+  };
+
+  try {
+    await assertRejectedWithoutUploads(
+      registrationFields(`sin-carta-${Date.now()}@example.com`, "school"),
+      "carta de autorización",
+    );
+    await assertRejectedWithoutUploads(
+      {
+        ...registrationFields(`carnet-${Date.now()}@example.com`, "homeschool"),
+        idFront: VALID_JPG,
+      },
+      "anverso y el reverso",
+    );
+    await assertRejectedWithoutUploads(
+      {
+        ...registrationFields(`tipo-${Date.now()}@example.com`, "school"),
+        letter: {
+          name: "carta.txt",
+          mimeType: "text/plain",
+          buffer: Buffer.from("documento"),
+        },
+      },
+      "PDF o una imagen",
+    );
+    await assertRejectedWithoutUploads(
+      {
+        ...registrationFields(`grande-${Date.now()}@example.com`, "school"),
+        letter: {
+          name: "carta.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.alloc(5 * 1024 * 1024 + 1, 0x25),
+        },
+      },
+      "5 MB",
+    );
+    await assertRejectedWithoutUploads(
+      {
+        ...registrationFields(`campos-${Date.now()}@example.com`, "school"),
+        firstName: "",
+        letter: VALID_PDF,
+      },
+      "son obligatorios",
+    );
+    await assertRejectedWithoutUploads(
+      {
+        ...registrationFields(`parcial-${Date.now()}@example.com`, "school"),
+        letter: VALID_PDF,
+        idFront: {
+          name: "carnet.txt",
+          mimeType: "text/plain",
+          buffer: Buffer.from("documento"),
+        },
+      },
+      "PDF o una imagen",
+    );
+  } finally {
+    removeNewUploads(previousUploads);
+    await api.dispose();
+  }
 });
 
 test("rejects a grade that does not match the contest category", async () => {
