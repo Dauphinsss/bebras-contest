@@ -4,11 +4,16 @@ import {
   request,
   type APIRequestContext,
 } from "@playwright/test";
-import { readdirSync, rmSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const API = "http://localhost:3100";
 const UPLOADS_DIR = resolve(process.cwd(), "backend/uploads/letters");
+const E2E_CLOCK_FILE = resolve(process.cwd(), "backend/test-clock.txt");
+
+test.afterEach(() => {
+  rmSync(E2E_CLOCK_FILE, { force: true });
+});
 
 const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
@@ -1218,8 +1223,6 @@ test("student starts, answers and submits without seeing the score", async ({
 });
 
 test("results appear only after consolidating and publishing", async () => {
-  test.setTimeout(180000);
-
   const api = await request.newContext();
   const headers = await loginAdmin(api);
 
@@ -1268,8 +1271,9 @@ test("results appear only after consolidating and publishing", async () => {
   );
   expect(tooEarly.status()).toBe(409);
 
-  await new Promise((resolve) =>
-    setTimeout(resolve, endsAt.getTime() - Date.now() + 2000),
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(endsAt.getTime() + 2000).toISOString(),
   );
 
   const consolidated = await api.post(

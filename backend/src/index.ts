@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+import { readFileSync } from "node:fs";
 import { mkdir, open, unlink } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { prisma } from "./lib/prisma";
@@ -14,6 +15,22 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
 const UPLOADS_DIR = resolve(__dirname, "..", "uploads", "letters");
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
+const E2E_CLOCK_FILE = process.env.E2E_CLOCK_FILE;
+
+function currentDate() {
+  if (E2E_CLOCK_FILE) {
+    try {
+      const date = new Date(readFileSync(E2E_CLOCK_FILE, "utf8").trim());
+      if (!Number.isNaN(date.getTime())) {
+        return date;
+      }
+    } catch {
+      // An absent test clock means the real clock is active.
+    }
+  }
+
+  return new Date();
+}
 
 function uploadedFiles(req: express.Request) {
   const files = req.files as
@@ -761,7 +778,7 @@ function computeContestState(contest: {
   startsAt: Date;
   endsAt: Date;
 }): { state: ContestState; isOpen: boolean } {
-  const now = new Date();
+  const now = currentDate();
 
   if (!contest.publishedAt) {
     return { state: "borrador", isOpen: false };
@@ -1683,7 +1700,7 @@ app.post("/api/contests/:id/publish", async (req, res) => {
       id: contest.id,
     },
     data: {
-      publishedAt: contest.publishedAt ?? new Date(),
+      publishedAt: contest.publishedAt ?? currentDate(),
     },
     include: {
       tasks: {
@@ -1732,7 +1749,7 @@ app.post("/api/contests/:id/consolidate", async (req, res) => {
 
   const consolidated = await prisma.contest.update({
     where: { id: contest.id },
-    data: { consolidatedAt: new Date() },
+    data: { consolidatedAt: currentDate() },
     include: contestWithTasks,
   });
 
@@ -1759,7 +1776,7 @@ app.post("/api/contests/:id/results/publish", async (req, res) => {
 
   const published = await prisma.contest.update({
     where: { id: contest.id },
-    data: { resultsPublishedAt: new Date() },
+    data: { resultsPublishedAt: currentDate() },
     include: contestWithTasks,
   });
 
@@ -2043,7 +2060,7 @@ app.get("/api/users/:id/documents/:doc", async (req, res) => {
 
 app.get("/api/published-contests", requireAuth, async (_req, res) => {
   const contests = await prisma.contest.findMany({
-    where: { publishedAt: { not: null }, endsAt: { gte: new Date() } },
+    where: { publishedAt: { not: null }, endsAt: { gte: currentDate() } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -2495,7 +2512,7 @@ app.get("/api/play/group/:code", async (req, res) => {
     return;
   }
 
-  if (group.expiresAt && group.expiresAt < new Date()) {
+  if (group.expiresAt && group.expiresAt < currentDate()) {
     res.status(410).json({ message: "El código ya expiró." });
     return;
   }
@@ -2556,7 +2573,7 @@ app.post("/api/play/join", async (req, res) => {
     return;
   }
 
-  if (group.expiresAt && group.expiresAt < new Date()) {
+  if (group.expiresAt && group.expiresAt < currentDate()) {
     res.status(410).json({ message: "El código ya expiró." });
     return;
   }
@@ -2692,7 +2709,7 @@ app.post("/api/play/join", async (req, res) => {
   });
 
   if (!group.firstUsedAt) {
-    const firstUsedAt = new Date();
+    const firstUsedAt = currentDate();
     const expiresAt = new Date(
       firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000,
     );
@@ -3015,7 +3032,7 @@ async function finalizeAttempt(attemptId: string, recomputeRank = true) {
     }
   }
 
-  const now = new Date();
+  const now = currentDate();
   const finishedAt = attempt.endsAt && attempt.endsAt < now ? attempt.endsAt : now;
 
   await prisma.attempt.update({
@@ -3106,7 +3123,7 @@ app.post("/api/play/start", async (req, res) => {
   }
 
   if (team.attempt.status === "pending") {
-    const now = new Date();
+    const now = currentDate();
     const remainingMinutes =
       (contest.endsAt.getTime() - now.getTime()) / 60000;
 
@@ -3145,7 +3162,7 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
   if (
     attempt.status === "in_progress" &&
     attempt.endsAt &&
-    new Date() > attempt.endsAt
+    currentDate() > attempt.endsAt
   ) {
     await finalizeAttempt(attempt.id);
     attempt = (await prisma.attempt.findUnique({
@@ -3239,7 +3256,7 @@ app.post("/api/play/answer", async (req, res) => {
     return;
   }
 
-  if (team.attempt.endsAt && new Date() > team.attempt.endsAt) {
+  if (team.attempt.endsAt && currentDate() > team.attempt.endsAt) {
     await finalizeAttempt(team.attempt.id);
     res.status(409).json({ message: "El tiempo terminó." });
     return;
@@ -3249,12 +3266,15 @@ app.post("/api/play/answer", async (req, res) => {
     where: {
       attemptId_taskDraftId: { attemptId: team.attempt.id, taskDraftId: taskId },
     },
-    update: { responsePayload: JSON.stringify(payload), answeredAt: new Date() },
+    update: {
+      responsePayload: JSON.stringify(payload),
+      answeredAt: currentDate(),
+    },
     create: {
       attemptId: team.attempt.id,
       taskDraftId: taskId,
       responsePayload: JSON.stringify(payload),
-      answeredAt: new Date(),
+      answeredAt: currentDate(),
     },
   });
 
