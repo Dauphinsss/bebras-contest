@@ -133,7 +133,7 @@ export function MaestrosHome() {
                     <CardDescription>{maestro.email}</CardDescription>
                     {maestro.schoolName && (
                       <CardDescription>
-                        Colegio: {maestro.schoolName}
+                        {maestro.isHomeschool ? "Modalidad" : "Colegio"}: {maestro.schoolName}
                       </CardDescription>
                     )}
                     {maestro.phone && (

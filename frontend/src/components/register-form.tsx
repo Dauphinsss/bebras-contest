@@ -25,7 +25,11 @@ export function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [school, setSchool] = useState<SchoolValue>({ codUe: null, name: "" });
+  const [school, setSchool] = useState<SchoolValue>({
+    codUe: null,
+    name: "",
+    institutionType: "school",
+  });
   const [phone, setPhone] = useState("");
   const [letterFile, setLetterFile] = useState<File | null>(null);
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
@@ -34,7 +38,7 @@ export function RegisterForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const DOC_MAX_BYTES = 5 * 1024 * 1024;
-  const isSchool = Boolean(school.codUe);
+  const isSchool = school.institutionType === "school";
   const hasSchoolChoice = Boolean(school.name.trim());
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
@@ -56,7 +60,7 @@ export function RegisterForm() {
     }
 
     if (!school.name.trim()) {
-      toast.error("Indica tu colegio o el nombre de tu educación en casa.");
+      toast.error("Indica tu colegio o selecciona educación en casa.");
       return;
     }
 
@@ -101,6 +105,7 @@ export function RegisterForm() {
       form.append("email", email.trim());
       form.append("password", password);
       form.append("schoolName", school.name.trim());
+      form.append("institutionType", school.institutionType);
       form.append("phone", phone.trim());
       if (school.codUe) {
         form.append("schoolCodUe", school.codUe);

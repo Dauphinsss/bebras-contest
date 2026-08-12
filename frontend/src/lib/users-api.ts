@@ -7,6 +7,7 @@ export type Maestro = {
   email: string;
   status: string;
   schoolName: string | null;
+  institutionType: "school" | "homeschool";
   phone: string | null;
   isHomeschool: boolean;
   hasLetter: boolean;

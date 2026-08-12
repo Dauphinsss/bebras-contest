@@ -19,6 +19,7 @@ model User {
   status          String   @default("approved")
   schoolCodUe     String?
   schoolName      String?
+  institutionType String?
   phone           String?
   letterFilename  String?
   idFrontFilename String?

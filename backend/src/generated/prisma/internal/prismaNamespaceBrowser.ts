@@ -87,6 +87,7 @@ export const UserScalarFieldEnum = {
   status: 'status',
   schoolCodUe: 'schoolCodUe',
   schoolName: 'schoolName',
+  institutionType: 'institutionType',
   phone: 'phone',
   letterFilename: 'letterFilename',
   idFrontFilename: 'idFrontFilename',

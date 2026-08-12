@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 export type SchoolValue = {
   codUe: string | null;
   name: string;
+  institutionType: "school" | "homeschool";
 };
 
 export function SchoolPicker({
@@ -19,7 +20,9 @@ export function SchoolPicker({
   value: SchoolValue;
   onChange: (next: SchoolValue) => void;
 }) {
-  const [manual, setManual] = useState(false);
+  const [manual, setManual] = useState(
+    value.institutionType === "school" && !value.codUe && Boolean(value.name),
+  );
   const [query, setQuery] = useState(value.codUe ? value.name : "");
   const [results, setResults] = useState<SchoolResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,19 +73,47 @@ export function SchoolPicker({
         <Input
           id="school-manual"
           value={value.name}
-          onChange={(event) => onChange({ codUe: null, name: event.target.value })}
-          placeholder="Nombre de tu colegio o de tu educación en casa"
+          onChange={(event) =>
+            onChange({
+              codUe: null,
+              name: event.target.value,
+              institutionType: "school",
+            })
+          }
+          placeholder="Nombre de tu unidad educativa"
         />
         <button
           type="button"
           onClick={() => {
             setManual(false);
-            onChange({ codUe: null, name: "" });
+            onChange({ codUe: null, name: "", institutionType: "school" });
             setQuery("");
           }}
           className="self-start text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
         >
           Buscar mi colegio en la lista
+        </button>
+      </div>
+    );
+  }
+
+  if (value.institutionType === "homeschool") {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 rounded-md border bg-secondary/30 px-3 py-2 text-sm">
+          <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
+          <span className="font-medium">Educación en casa</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onChange({ codUe: null, name: "", institutionType: "school" });
+            setQuery("");
+            setResults([]);
+          }}
+          className="self-start text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Buscar un colegio
         </button>
       </div>
     );
@@ -98,7 +129,7 @@ export function SchoolPicker({
         <button
           type="button"
           onClick={() => {
-            onChange({ codUe: null, name: "" });
+            onChange({ codUe: null, name: "", institutionType: "school" });
             setQuery("");
             setResults([]);
           }}
@@ -167,7 +198,11 @@ export function SchoolPicker({
                 key={school.codUe}
                 type="button"
                 onClick={() => {
-                  onChange({ codUe: school.codUe, name: school.name });
+                  onChange({
+                    codUe: school.codUe,
+                    name: school.name,
+                    institutionType: "school",
+                  });
                   setOpen(false);
                 }}
                 className={cn(
@@ -184,16 +219,32 @@ export function SchoolPicker({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => {
-          setManual(true);
-          onChange({ codUe: null, name: "" });
-        }}
-        className="self-start text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-      >
-        No encuentro mi colegio o enseño en casa
-      </button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          type="button"
+          onClick={() => {
+            setManual(true);
+            onChange({ codUe: null, name: "", institutionType: "school" });
+          }}
+          className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          No encuentro mi colegio
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setManual(false);
+            onChange({
+              codUe: null,
+              name: "Educación en casa",
+              institutionType: "homeschool",
+            });
+          }}
+          className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Enseño en casa
+        </button>
+      </div>
     </div>
   );
 }

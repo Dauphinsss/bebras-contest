@@ -970,12 +970,20 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
       : null;
   const schoolName =
     typeof req.body?.schoolName === "string" ? req.body.schoolName.trim() : "";
+  const institutionType =
+    req.body?.institutionType === "homeschool" ? "homeschool" : "school";
   const phone =
     typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
 
-  // Colegio de la lista → carta del director. Educación en casa (sin código
-  // de colegio) → carnet del tutor (anverso y reverso).
-  const isSchool = Boolean(schoolCodUe);
+  const isSchool = institutionType === "school";
+
+  if (institutionType === "homeschool" && schoolCodUe) {
+    await cleanupFiles(...allFiles);
+    res.status(400).json({
+      message: "La educación en casa no puede tener un código de colegio.",
+    });
+    return;
+  }
 
   if (!firstName || !lastName || !email || !password) {
     await cleanupFiles(...allFiles);
@@ -1047,6 +1055,7 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
         status: "pending",
         schoolCodUe,
         schoolName,
+        institutionType,
         phone,
         letterFilename: isSchool ? (letterFile?.filename ?? null) : null,
         idFrontFilename: isSchool ? null : (idFrontFile?.filename ?? null),
@@ -1860,6 +1869,7 @@ app.get("/api/users/maestros", async (_req, res) => {
       status: true,
       schoolName: true,
       schoolCodUe: true,
+      institutionType: true,
       phone: true,
       letterFilename: true,
       idFrontFilename: true,
@@ -1875,10 +1885,15 @@ app.get("/api/users/maestros", async (_req, res) => {
         idFrontFilename,
         idBackFilename,
         schoolCodUe,
+        institutionType,
         ...maestro
       }) => ({
         ...maestro,
-        isHomeschool: !schoolCodUe,
+        institutionType:
+          institutionType ?? (schoolCodUe ? "school" : "homeschool"),
+        isHomeschool:
+          (institutionType ?? (schoolCodUe ? "school" : "homeschool")) ===
+          "homeschool",
         hasLetter: Boolean(letterFilename),
         hasIdFront: Boolean(idFrontFilename),
         hasIdBack: Boolean(idBackFilename),
