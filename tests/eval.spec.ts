@@ -108,6 +108,97 @@ async function joinContest(
   return join.personalCode as string;
 }
 
+async function createScoringTask(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  difficulty: (typeof SCORING_TASKS)[number]["difficulty"],
+  index: number,
+) {
+  const block = (id: string, content: string) => ({
+    id,
+    type: "text",
+    content,
+    image: null,
+    widthPercent: 100,
+  });
+  const response = await api.post(`${API}/api/tasks`, {
+    headers,
+    data: {
+      title: `PW ${difficulty} ${index} ${Date.now()}`,
+      categories: ["Algoritmos y programación"],
+      difficulties: { "8–10": difficulty },
+      bodyBlocks: [block(`body-${difficulty}-${index}`, "Contenido")],
+      challengeBlocks: [
+        block(`challenge-${difficulty}-${index}`, "Selecciona B"),
+      ],
+      answerType: "multiple_choice",
+      multipleChoiceOrderMode: "fixed",
+      answers: [
+        {
+          id: "A",
+          blocks: [block(`answer-a-${difficulty}-${index}`, "Incorrecta")],
+        },
+        {
+          id: "B",
+          blocks: [block(`answer-b-${difficulty}-${index}`, "Correcta")],
+        },
+      ],
+      correctAnswerId: "B",
+      explanation: "B es la respuesta correcta.",
+      status: "Borrador",
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const task = await response.json();
+  const scoring = SCORING_TASKS.find(
+    (candidate) => candidate.difficulty === difficulty,
+  )!;
+
+  return { ...scoring, taskId: task.id as string };
+}
+
+async function submitScoringAttempt(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  contestId: string,
+  tasks: ReadonlyArray<{ taskId: string }>,
+  firstName: string,
+  selectedForTask: (index: number) => "A" | "B" | null,
+) {
+  const personalCode = await joinContest(
+    api,
+    headers,
+    contestId,
+    SEEDED_TASK.grade,
+    firstName,
+  );
+  const start = await api.post(`${API}/api/play/start`, {
+    data: { personalCode },
+  });
+  expect(start.ok(), await start.text()).toBe(true);
+
+  for (const [index, task] of tasks.entries()) {
+    const selected = selectedForTask(index);
+    if (!selected) {
+      continue;
+    }
+
+    const answer = await api.post(`${API}/api/play/answer`, {
+      data: {
+        personalCode,
+        taskId: task.taskId,
+        payload: { selected: [selected] },
+      },
+    });
+    expect(answer.status(), await answer.text()).toBe(204);
+  }
+
+  const submit = await api.post(`${API}/api/play/submit`, {
+    data: { personalCode },
+  });
+  expect(submit.ok(), await submit.text()).toBe(true);
+}
+
 test("allows practice updates through CORS", async () => {
   const api = await request.newContext();
   const preflight = await api.fetch(
@@ -320,6 +411,88 @@ test("applies the easy, medium and hard Bebras scoring scales", async () => {
       correctCount: attempt.correctCount,
       answeredCount: attempt.answeredCount,
     });
+  }
+
+  await api.dispose();
+});
+
+test("scores the standard 15-task Bebras distribution from zero to 180", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const standardTasks = [];
+
+  for (const scoring of SCORING_TASKS) {
+    standardTasks.push(scoring);
+    for (let copy = 1; copy < 5; copy += 1) {
+      standardTasks.push(
+        await createScoringTask(api, headers, scoring.difficulty, copy),
+      );
+    }
+  }
+
+  const contest = await createContest(api, headers, {
+    tasks: standardTasks.map(({ taskId }) => ({ taskId })),
+  });
+  expect(contest.initialScore).toBe(45);
+  expect(contest.tasks).toHaveLength(15);
+  expect(
+    contest.tasks.reduce(
+      (counts: Record<string, number>, task: { difficulty: string }) => ({
+        ...counts,
+        [task.difficulty]: (counts[task.difficulty] ?? 0) + 1,
+      }),
+      {},
+    ),
+  ).toEqual({ easy: 5, medium: 5, hard: 5 });
+
+  await submitScoringAttempt(
+    api,
+    headers,
+    contest.id,
+    standardTasks,
+    "Maximo",
+    () => "B",
+  );
+  await submitScoringAttempt(
+    api,
+    headers,
+    contest.id,
+    standardTasks,
+    "Piso",
+    () => "A",
+  );
+  await submitScoringAttempt(
+    api,
+    headers,
+    contest.id,
+    standardTasks,
+    "Mixto",
+    (index) => {
+      const positionWithinDifficulty = index % 5;
+      return positionWithinDifficulty < 2
+        ? "B"
+        : positionWithinDifficulty < 4
+          ? "A"
+          : null;
+    },
+  );
+
+  const resultsResponse = await api.get(
+    `${API}/api/contests/${contest.id}/results`,
+    { headers },
+  );
+  expect(resultsResponse.ok(), await resultsResponse.text()).toBe(true);
+  const results = await resultsResponse.json();
+  const expectedResults = [
+    { memberOneFirstName: "Maximo", totalScore: 180, answeredCount: 15 },
+    { memberOneFirstName: "Piso", totalScore: 0, answeredCount: 15 },
+    { memberOneFirstName: "Mixto", totalScore: 81, answeredCount: 12 },
+  ];
+
+  for (const expectedResult of expectedResults) {
+    expect(results.rows).toContainEqual(
+      expect.objectContaining(expectedResult),
+    );
   }
 
   await api.dispose();
