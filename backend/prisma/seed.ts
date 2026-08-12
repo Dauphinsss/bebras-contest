@@ -34,35 +34,71 @@ function readSnapshot(): SchoolRow[] {
     );
   }
 
-  return gunzipSync(raw)
+  const rows = gunzipSync(raw)
     .toString("utf8")
     .split("\n")
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line) as SchoolRow);
+
+  if (rows.length === 0) {
+    throw new Error("El snapshot de colegios está vacío.");
+  }
+
+  const codes = new Set<string>();
+  for (const [index, row] of rows.entries()) {
+    if (!row.codUe?.trim() || !row.name?.trim() || !row.dep?.trim()) {
+      throw new Error(
+        `El colegio de la línea ${index + 1} no tiene código, nombre o departamento.`,
+      );
+    }
+    if (codes.has(row.codUe)) {
+      throw new Error(`El código de unidad educativa ${row.codUe} está duplicado.`);
+    }
+    codes.add(row.codUe);
+  }
+
+  return rows;
 }
 
 async function seedSchools(force: boolean) {
+  const rows = readSnapshot();
   const existing = await prisma.school.count();
 
-  if (existing > 0 && !force) {
+  if (existing === rows.length && !force) {
     console.log(
-      `Colegios: ya hay ${existing} en la base, no se toca nada. Usa --force para reemplazarlos.`,
+      `Colegios: los ${existing} registros del snapshot ya están cargados. Usa --force para reemplazarlos.`,
     );
     return;
   }
 
-  const rows = readSnapshot();
+  if (existing > 0 && !force) {
+    console.log(
+      `Colegios: la carga está incompleta (${existing} de ${rows.length}); se reemplazará.`,
+    );
+  }
   console.log(`Colegios: cargando ${rows.length} desde el snapshot...`);
 
-  await prisma.school.deleteMany();
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.school.deleteMany();
 
-  for (let index = 0; index < rows.length; index += BATCH_SIZE) {
-    await prisma.school.createMany({
-      data: rows.slice(index, index + BATCH_SIZE),
-    });
+      for (let index = 0; index < rows.length; index += BATCH_SIZE) {
+        await tx.school.createMany({
+          data: rows.slice(index, index + BATCH_SIZE),
+        });
+      }
+    },
+    { maxWait: 10_000, timeout: 120_000 },
+  );
+
+  const saved = await prisma.school.count();
+  if (saved !== rows.length) {
+    throw new Error(
+      `La carga terminó con ${saved} colegios, pero el snapshot contiene ${rows.length}.`,
+    );
   }
 
-  console.log(`Colegios: ${await prisma.school.count()} guardados.`);
+  console.log(`Colegios: ${saved} guardados.`);
 }
 
 async function main() {
