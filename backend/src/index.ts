@@ -2908,19 +2908,22 @@ async function finalizeAttempt(attemptId: string, recomputeRank = true) {
     }
   }
 
+  const now = new Date();
+  const finishedAt = attempt.endsAt && attempt.endsAt < now ? attempt.endsAt : now;
+
   await prisma.attempt.update({
     where: { id: attempt.id },
-    data: { status: "finished", finishedAt: new Date() },
+    data: { status: "finished", finishedAt },
   });
   await prisma.result.upsert({
     where: { attemptId: attempt.id },
-    update: { totalScore, correctCount, answeredCount, calculatedAt: new Date() },
+    update: { totalScore, correctCount, answeredCount, calculatedAt: now },
     create: {
       attemptId: attempt.id,
       totalScore,
       correctCount,
       answeredCount,
-      calculatedAt: new Date(),
+      calculatedAt: now,
     },
   });
 

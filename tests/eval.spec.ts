@@ -55,6 +55,7 @@ async function joinContest(
   headers: Record<string, string>,
   contestId: string,
   grade: string,
+  firstName = "Playwright",
 ) {
   const group = await api
     .post(`${API}/api/groups`, {
@@ -63,17 +64,17 @@ async function joinContest(
     })
     .then((r) => r.json());
 
-  const join = await api
-    .post(`${API}/api/play/join`, {
-      data: {
-        accessCode: group.accessCode,
-        participationMode: "individual",
-        grade,
-        memberOneFirstName: "Playwright",
-        memberOneLastName: "Tester",
-      },
-    })
-    .then((r) => r.json());
+  const response = await api.post(`${API}/api/play/join`, {
+    data: {
+      accessCode: group.accessCode,
+      participationMode: "individual",
+      grade,
+      memberOneFirstName: firstName,
+      memberOneLastName: "Tester",
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const join = await response.json();
 
   return join.personalCode as string;
 }
@@ -213,7 +214,7 @@ test("results appear only after consolidating and publishing", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
 
-  const endsAt = new Date(Date.now() + 70000);
+  const endsAt = new Date(Date.now() + 90000);
   const contest = await createContest(api, headers, {
     durationMinutes: 1,
     startsAt: new Date(Date.now() - 60000).toISOString(),
@@ -226,7 +227,22 @@ test("results appear only after consolidating and publishing", async () => {
     contest.id,
     contest.picked.grade,
   );
+  const expiredPersonalCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+    "Expired",
+  );
 
+  const expiredStart = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: expiredPersonalCode },
+  });
+  expect(expiredStart.ok(), await expiredStart.text()).toBe(true);
+  const expiredAttempt = await api
+    .get(`${API}/api/play/attempt/${expiredPersonalCode}`)
+    .then((r) => r.json());
+  expect(expiredAttempt.status).toBe("in_progress");
   await api.post(`${API}/api/play/start`, { data: { personalCode } });
   await api.post(`${API}/api/play/submit`, { data: { personalCode } });
 
@@ -252,7 +268,17 @@ test("results appear only after consolidating and publishing", async () => {
     { headers },
   );
   expect(consolidated.ok()).toBe(true);
-  expect((await consolidated.json()).state).toBe("consolidada");
+  const consolidatedContest = await consolidated.json();
+  expect(consolidatedContest.state).toBe("consolidada");
+  expect(consolidatedContest.closedAttempts).toBe(1);
+
+  const adminResults = await api
+    .get(`${API}/api/contests/${contest.id}/results`, { headers })
+    .then((r) => r.json());
+  const expiredResult = adminResults.rows.find(
+    (row: { elapsedSeconds: number | null }) => row.elapsedSeconds === 60,
+  );
+  expect(expiredResult?.elapsedSeconds).toBe(60);
 
   const published = await api.post(
     `${API}/api/contests/${contest.id}/results/publish`,
