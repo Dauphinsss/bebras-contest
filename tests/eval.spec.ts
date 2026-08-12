@@ -623,6 +623,90 @@ test("rejects a grade that does not match the contest category", async () => {
   await api.dispose();
 });
 
+test("uses the 17-18 range and S5-S6 grades for Kuntur", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const suffix = Date.now();
+  const taskResponse = await api.post(`${API}/api/tasks`, {
+    headers,
+    data: {
+      title: `PW Kuntur ${suffix}`,
+      categories: ["Algoritmos y programación"],
+      difficulties: { "17–18": "hard" },
+      bodyBlocks: [taskBlock(`kuntur-body-${suffix}`, "Contenido")],
+      challengeBlocks: [
+        taskBlock(`kuntur-challenge-${suffix}`, "Selecciona B"),
+      ],
+      answerType: "multiple_choice",
+      multipleChoiceOrderMode: "fixed",
+      answers: [
+        { id: "A", blocks: [taskBlock(`kuntur-a-${suffix}`, "Incorrecta")] },
+        { id: "B", blocks: [taskBlock(`kuntur-b-${suffix}`, "Correcta")] },
+      ],
+      correctAnswerId: "B",
+      explanation: "B es correcta.",
+      status: "Borrador",
+    },
+  });
+  expect(taskResponse.ok(), await taskResponse.text()).toBe(true);
+  const task = await taskResponse.json();
+  const contest = await createContest(api, headers, {
+    category: "Kuntur",
+    tasks: [{ taskId: task.id }],
+  });
+
+  expect(contest.category).toBe("Kuntur");
+  expect(contest.initialScore).toBe(4);
+  expect(contest.tasks[0]).toMatchObject({
+    difficulty: "hard",
+    minScore: -4,
+    noAnswerScore: 0,
+    maxScore: 12,
+  });
+
+  const group = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: contest.id, name: "PW Kuntur" },
+    })
+    .then((response) => response.json());
+  const publicGroupResponse = await api.get(
+    `${API}/api/play/group/${group.accessCode}`,
+  );
+  expect(publicGroupResponse.ok(), await publicGroupResponse.text()).toBe(true);
+  expect((await publicGroupResponse.json()).grades).toEqual([
+    expect.objectContaining({ value: "S5", label: "5.º de secundaria" }),
+    expect.objectContaining({ value: "S6", label: "6.º de secundaria" }),
+  ]);
+
+  for (const grade of ["S5", "S6"]) {
+    const join = await api.post(`${API}/api/play/join`, {
+      data: {
+        accessCode: group.accessCode,
+        participationMode: "individual",
+        grade,
+        memberOneFirstName: grade,
+        memberOneLastName: "Kuntur",
+      },
+    });
+    expect(join.status(), await join.text()).toBe(201);
+  }
+
+  const wrongGrade = await api.post(`${API}/api/play/join`, {
+    data: {
+      accessCode: group.accessCode,
+      participationMode: "individual",
+      grade: "S4",
+      memberOneFirstName: "Curso",
+      memberOneLastName: "Incorrecto",
+    },
+  });
+  expect(wrongGrade.status()).toBe(400);
+  expect((await wrongGrade.json()).message).toContain("Kuntur");
+
+  await api.dispose();
+});
+
 test("freezes a contest once it is running", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
