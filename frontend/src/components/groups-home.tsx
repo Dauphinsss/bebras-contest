@@ -262,6 +262,7 @@ export function GroupsHome() {
   const [editOneLast, setEditOneLast] = useState("");
   const [editTwoFirst, setEditTwoFirst] = useState("");
   const [editTwoLast, setEditTwoLast] = useState("");
+  const [editGrade, setEditGrade] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [enrolling, setEnrolling] = useState<StoredGroup | null>(null);
   const [enrollMode, setEnrollMode] = useState<"individual" | "pareja">(
@@ -409,6 +410,7 @@ export function GroupsHome() {
     setEditOneLast(team.memberOneLastName);
     setEditTwoFirst(team.memberTwoFirstName ?? "");
     setEditTwoLast(team.memberTwoLastName ?? "");
+    setEditGrade(team.grade ?? "");
   };
 
   const saveEdit = async () => {
@@ -423,6 +425,11 @@ export function GroupsHome() {
       return;
     }
 
+    if (!editGrade) {
+      toast.error("Elige el curso del participante.");
+      return;
+    }
+
     if (isPareja && (!editTwoFirst.trim() || !editTwoLast.trim())) {
       toast.error("Faltan los nombres y apellidos del segundo integrante.");
       return;
@@ -432,6 +439,7 @@ export function GroupsHome() {
 
     try {
       const updated = await updateTeam(editing.team.id, {
+        grade: editGrade,
         memberOneFirstName: editOneFirst.trim(),
         memberOneLastName: editOneLast.trim(),
         memberTwoFirstName: editTwoFirst.trim(),
@@ -820,10 +828,30 @@ export function GroupsHome() {
           <DialogHeader>
             <DialogTitle>Editar participante</DialogTitle>
             <DialogDescription>
-              Corrige los nombres y apellidos del equipo.
+              Corrige el curso, los nombres y apellidos del equipo.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel htmlFor="edit-grade">Curso</FieldLabel>
+              <FieldContent>
+                <Select value={editGrade} onValueChange={setEditGrade}>
+                  <SelectTrigger id="edit-grade" className="w-full">
+                    <SelectValue placeholder="Elige el curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gradesForCategory(
+                      groups.find((group) => group.id === editing?.groupId)
+                        ?.contestCategory ?? "",
+                    ).map((grade) => (
+                      <SelectItem key={grade.value} value={grade.value}>
+                        {grade.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldContent>
+            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="edit-one-first">Nombres</FieldLabel>

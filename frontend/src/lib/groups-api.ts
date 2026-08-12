@@ -85,6 +85,7 @@ export function enrollTeam(groupId: string, data: EnrollTeamInput) {
 }
 
 export type TeamUpdateInput = {
+  grade: string;
   memberOneFirstName: string;
   memberOneLastName: string;
   memberTwoFirstName?: string;

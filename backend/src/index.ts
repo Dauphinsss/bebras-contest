@@ -2196,6 +2196,16 @@ app.put("/api/teams/:id", async (req, res) => {
   const isPareja = team.participationMode === "pareja";
   const twoFirst = readField(req.body?.memberTwoFirstName);
   const twoLast = readField(req.body?.memberTwoLastName);
+  let grade: string;
+
+  try {
+    grade = parseGrade(req.body?.grade, team.group.contest.category);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Curso inválido.",
+    });
+    return;
+  }
 
   if (!oneFirst || !oneLast) {
     res
@@ -2256,6 +2266,7 @@ app.put("/api/teams/:id", async (req, res) => {
   const updated = await prisma.team.update({
     where: { id: team.id },
     data: {
+      grade,
       memberOneFirstName: formatName(oneFirst),
       memberOneLastName: formatName(oneLast),
       memberTwoFirstName: isPareja ? formatName(twoFirst) : null,
