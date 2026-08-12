@@ -281,44 +281,53 @@ function DateRangeField({
 
   return (
     <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor="contest-date-range">
-        Ventana de disponibilidad <span className="text-destructive">*</span>
-      </FieldLabel>
       <FieldContent>
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id="contest-date-range"
-                type="button"
-                disabled={disabled}
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal lg:flex-1",
-                  (!startDate || !endDate) && "text-muted-foreground",
-                )}
-                aria-invalid={invalid}
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="flex flex-col gap-2">
+            <FieldLabel htmlFor="contest-date-range">
+              Ventana de disponibilidad <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="contest-date-range"
+                  type="button"
+                  disabled={disabled}
+                  variant="outline"
+                  className={cn(
+                    "h-9 w-full justify-start border-input bg-background px-3 py-1 text-left text-base font-normal [box-shadow:var(--shadow-hard)] hover:bg-background focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-ring/50 focus-visible:[box-shadow:var(--focus-soft),var(--shadow-hard)] md:text-sm",
+                    (!startDate || !endDate) && "text-muted-foreground",
+                  )}
+                  aria-invalid={invalid}
+                >
+                  <CalendarIcon data-icon="inline-start" />
+                  {rangeLabel}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                data-calendar-popover
+                className="w-auto rounded-sm p-0"
+                align="start"
               >
-                <CalendarIcon data-icon="inline-start" />
-                {rangeLabel}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              data-calendar-popover
-              className="w-auto rounded-sm p-0"
-              align="start"
-            >
-              <Calendar
-                initialFocus
-                mode="range"
-                selected={selectedRange}
-                onSelect={(nextRange) => {
-                  const nextValues = updateDateRangeParts(startsAt, endsAt, nextRange);
-                  onDateChange(nextValues.startsAt, nextValues.endsAt);
-                }}
-              />
-            </PopoverContent>
-          </Popover>
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  selected={selectedRange}
+                  onSelect={(nextRange) => {
+                    const nextValues = updateDateRangeParts(
+                      startsAt,
+                      endsAt,
+                      nextRange,
+                    );
+                    onDateChange(nextValues.startsAt, nextValues.endsAt);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+            <FieldDescription>
+              La competencia se abre y cierra automáticamente dentro de esta ventana.
+            </FieldDescription>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <FieldLabel>Hora de inicio</FieldLabel>
@@ -342,9 +351,6 @@ function DateRangeField({
             </div>
           </div>
         </div>
-        <FieldDescription>
-          La competencia se abre y cierra automáticamente dentro de esta ventana.
-        </FieldDescription>
       </FieldContent>
     </Field>
   );
@@ -492,6 +498,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   }, [selectedTasks, form.category]);
 
   const hasTitleError = submitAttempted && !form.title.trim();
+  const hasCategoryError = submitAttempted && !form.category;
   const hasDurationError =
     submitAttempted &&
     (!Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0);
@@ -649,7 +656,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         </CardHeader>
         <CardContent className="pt-6">
           <FieldGroup>
-            <FieldGroup className="grid gap-4 md:grid-cols-2">
+            <FieldGroup className="grid gap-4 md:grid-cols-3">
               <Field data-invalid={hasTitleError || undefined}>
                 <FieldLabel htmlFor="contest-title">
                   Nombre <span className="text-destructive">*</span>
@@ -665,6 +672,41 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                     }
                     placeholder="Ej. Bebras Secundaria 2026"
                   />
+                </FieldContent>
+              </Field>
+              <Field data-invalid={hasCategoryError || undefined}>
+                <FieldLabel htmlFor="contest-category">
+                  Categoría <span className="text-destructive">*</span>
+                </FieldLabel>
+                <FieldContent>
+                  <Select
+                    disabled={locked}
+                    value={form.category || "none"}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        category: value === "none" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger
+                      id="contest-category"
+                      aria-invalid={hasCategoryError}
+                      className="w-full"
+                    >
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" disabled={Boolean(form.category)}>
+                        Sin categoría
+                      </SelectItem>
+                      {CONTEST_CATEGORIES.map((category) => (
+                        <SelectItem key={category.name} value={category.name}>
+                          {category.name} ({category.age})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FieldContent>
               </Field>
               <Field data-invalid={hasDurationError || undefined}>
@@ -734,33 +776,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
           </AccordionTrigger>
           <AccordionContent>
             <FieldGroup className="gap-4">
-              <Field>
-                <FieldLabel htmlFor="contest-category">Categoría</FieldLabel>
-                <FieldContent>
-                  <Select
-                    disabled={locked}
-                    value={form.category || "none"}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        category: value === "none" ? "" : value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="contest-category" className="w-full">
-                      <SelectValue placeholder="Selecciona una categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sin categoría</SelectItem>
-                      {CONTEST_CATEGORIES.map((category) => (
-                        <SelectItem key={category.name} value={category.name}>
-                          {category.name} ({category.age})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FieldContent>
-              </Field>
               <Field>
                 <FieldLabel htmlFor="contest-display-mode">
                   Forma de mostrar las preguntas
