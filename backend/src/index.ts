@@ -11,7 +11,7 @@ const app = express();
 const port = Number(process.env.PORT) || 3000;
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
 
-const UPLOADS_DIR = resolve(process.cwd(), "uploads", "letters");
+const UPLOADS_DIR = resolve(__dirname, "..", "uploads", "letters");
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
 
