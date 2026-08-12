@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 
-const AGE_RANGES = ["6–8", "8–10", "10–12", "12–14", "14–16", "16–19"];
+const AGE_RANGES = ["5–8", "8–10", "10–12", "12–14", "14–16", "17–18"];
 
 const tasks = [
   {

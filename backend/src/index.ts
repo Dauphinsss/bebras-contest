@@ -168,6 +168,22 @@ function parseJsonValue<T>(value: unknown, fallback: T) {
   }
 }
 
+function normalizeTaskDifficulties(value: unknown) {
+  const difficulties = parseJsonValue<Record<string, unknown>>(value, {});
+  const normalized = { ...difficulties };
+
+  if (!("5–8" in normalized) && "6–8" in normalized) {
+    normalized["5–8"] = normalized["6–8"];
+  }
+  if (!("17–18" in normalized) && "16–19" in normalized) {
+    normalized["17–18"] = normalized["16–19"];
+  }
+  delete normalized["6–8"];
+  delete normalized["16–19"];
+
+  return normalized;
+}
+
 function deserializeTask<
   T extends {
     category: unknown;
@@ -186,7 +202,7 @@ function deserializeTask<
   return {
     ...task,
     categories: deserializeCategories(task.category),
-    difficulties: parseJsonValue<Record<string, unknown>>(task.difficulties, {}),
+    difficulties: normalizeTaskDifficulties(task.difficulties),
     bodyBlocks: parseJsonValue<unknown[]>(task.bodyBlocks, []),
     challengeBlocks: parseJsonValue<unknown[]>(task.challengeBlocks, []),
     answerType: String(task.answerType ?? "multiple_choice"),
@@ -217,7 +233,7 @@ function deserializeTaskSummary(task: {
     id: task.id,
     title: task.title,
     categories: deserializeCategories(task.category),
-    difficulties: parseJsonValue<Record<string, string>>(task.difficulties, {}),
+    difficulties: normalizeTaskDifficulties(task.difficulties),
     status: task.status,
   };
 }
@@ -230,7 +246,7 @@ const TASK_CATEGORIES = [
   "Interacción, sistemas y sociedad",
 ];
 
-const TASK_AGE_RANGES = ["6–8", "8–10", "10–12", "12–14", "14–16", "16–19"];
+const TASK_AGE_RANGES = ["5–8", "8–10", "10–12", "12–14", "14–16", "17–18"];
 
 const TASK_ANSWER_TYPES = [
   "multiple_choice",
@@ -529,12 +545,12 @@ const BEBRAS_SCORING = {
 type DifficultyKey = keyof typeof BEBRAS_SCORING;
 
 const CATEGORY_AGE_RANGE: Record<string, string> = {
-  Guacamayo: "6–8",
+  Guacamayo: "5–8",
   Capibara: "8–10",
   Titi: "10–12",
   Jucumari: "12–14",
   "Yaguareté": "14–16",
-  Kuntur: "16–19",
+  Kuntur: "17–18",
 };
 
 function isDifficultyKey(value: unknown): value is DifficultyKey {
@@ -1113,12 +1129,12 @@ app.get("/api/public-contests", async (_req, res) => {
 // ---- Práctica pública (sin login) ----
 
 const PRACTICE_CATEGORIES = [
-  { name: "Guacamayo", age: "5-8 años", ranges: ["6–8"] },
+  { name: "Guacamayo", age: "5-8 años", ranges: ["5–8"] },
   { name: "Capibara", age: "8-10 años", ranges: ["8–10"] },
   { name: "Titi", age: "10-12 años", ranges: ["10–12"] },
   { name: "Jucumari", age: "12-14 años", ranges: ["12–14"] },
   { name: "Yaguareté", age: "14-16 años", ranges: ["14–16"] },
-  { name: "Kuntur", age: "16-18 años", ranges: ["16–19"] },
+  { name: "Kuntur", age: "17-18 años", ranges: ["17–18"] },
 ] as const;
 
 function taskRanges(task: { difficulties: unknown }) {

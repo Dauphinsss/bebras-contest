@@ -11,7 +11,7 @@ export const CONTEST_CATEGORIES = [
   { name: "Titi", age: "10-12 años" },
   { name: "Jucumari", age: "12-14 años" },
   { name: "Yaguareté", age: "14-16 años" },
-  { name: "Kuntur", age: "16-18 años" },
+  { name: "Kuntur", age: "17-18 años" },
 ] as const;
 
 export const SCHOOL_GRADES = [
@@ -84,12 +84,12 @@ export const BEBRAS_SCORING = {
 export type TaskDifficulty = keyof typeof BEBRAS_SCORING;
 
 export const CATEGORY_AGE_RANGE: Record<string, DifficultyKey> = {
-  Guacamayo: "6–8",
+  Guacamayo: "5–8",
   Capibara: "8–10",
   Titi: "10–12",
   Jucumari: "12–14",
   "Yaguareté": "14–16",
-  Kuntur: "16–19",
+  Kuntur: "17–18",
 };
 
 export function isTaskDifficulty(value: unknown): value is TaskDifficulty {

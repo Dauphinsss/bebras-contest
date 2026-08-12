@@ -7,12 +7,12 @@ export const categories = [
 ] as const;
 
 export const ageRanges = [
-  "6–8",
+  "5–8",
   "8–10",
   "10–12",
   "12–14",
   "14–16",
-  "16–19",
+  "17–18",
 ] as const;
 
 export const optionLabels = ["A", "B", "C", "D", "E", "F"] as const;
