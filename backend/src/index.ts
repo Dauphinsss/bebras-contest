@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
-import { mkdir, unlink } from "node:fs/promises";
+import { mkdir, open, unlink } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { prisma } from "./lib/prisma";
 import { requireAdmin, requireAuth, signToken } from "./lib/auth";
@@ -14,6 +14,40 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
 const UPLOADS_DIR = resolve(process.cwd(), "uploads", "letters");
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
+
+function uploadedFiles(req: express.Request) {
+  const files = req.files as
+    | Record<string, Express.Multer.File[]>
+    | Express.Multer.File[]
+    | undefined;
+
+  return Array.isArray(files) ? files : Object.values(files ?? {}).flat();
+}
+
+async function hasValidDocumentSignature(file: Express.Multer.File) {
+  const handle = await open(file.path, "r");
+  const signature = Buffer.alloc(8);
+
+  try {
+    const { bytesRead } = await handle.read(signature, 0, signature.length, 0);
+    const bytes = signature.subarray(0, bytesRead);
+    const extension = extname(file.originalname).toLowerCase();
+
+    if (extension === ".pdf") {
+      return bytes.subarray(0, 5).equals(Buffer.from("%PDF-"));
+    }
+    if (extension === ".jpg" || extension === ".jpeg") {
+      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    }
+    if (extension === ".png") {
+      return bytes.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    }
+
+    return false;
+  } finally {
+    await handle.close();
+  }
+}
 
 const uploadDocs = multer({
   storage: multer.diskStorage({
@@ -47,21 +81,41 @@ function registerUploadMiddleware(
 
   handler(req, res, (err: unknown) => {
     if (err) {
-      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-        res.status(400).json({ message: "El archivo no debe superar los 5 MB." });
-        return;
-      }
-      if (err instanceof Error && err.message === "INVALID_DOC_TYPE") {
-        res.status(400).json({
-          message:
-            "El documento debe ser un archivo PDF o una imagen (JPG, JPEG o PNG).",
-        });
-        return;
-      }
-      res.status(400).json({ message: "No se pudo subir el documento." });
+      void cleanupFiles(...uploadedFiles(req)).then(() => {
+        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+          res.status(400).json({ message: "El archivo no debe superar los 5 MB." });
+          return;
+        }
+        if (err instanceof Error && err.message === "INVALID_DOC_TYPE") {
+          res.status(400).json({
+            message:
+              "El documento debe ser un archivo PDF o una imagen (JPG, JPEG o PNG).",
+          });
+          return;
+        }
+        res.status(400).json({ message: "No se pudo subir el documento." });
+      });
       return;
     }
-    next();
+
+    const files = uploadedFiles(req);
+    void Promise.all(files.map(hasValidDocumentSignature))
+      .then(async (validFiles) => {
+        if (validFiles.every(Boolean)) {
+          next();
+          return;
+        }
+
+        await cleanupFiles(...files);
+        res.status(400).json({
+          message:
+            "El contenido del documento no coincide con un PDF, JPG, JPEG o PNG válido.",
+        });
+      })
+      .catch(async () => {
+        await cleanupFiles(...files);
+        res.status(400).json({ message: "No se pudo validar el documento." });
+      });
   });
 }
 

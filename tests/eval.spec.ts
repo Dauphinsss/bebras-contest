@@ -111,6 +111,30 @@ test("allows practice updates through CORS", async () => {
   await api.dispose();
 });
 
+test("rejects documents whose content does not match the extension", async () => {
+  const api = await request.newContext();
+  const response = await api.post(`${API}/api/auth/register`, {
+    multipart: {
+      firstName: "Archivo",
+      lastName: "Disfrazado",
+      email: `archivo-${Date.now()}@example.com`,
+      password: "segura123",
+      schoolName: "Colegio manual",
+      institutionType: "school",
+      phone: "70000000",
+      letter: {
+        name: "carta.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("esto no es un documento PDF"),
+      },
+    },
+  });
+
+  expect(response.status()).toBe(400);
+  expect((await response.json()).message).toContain("contenido del documento");
+  await api.dispose();
+});
+
 test("rejects a grade that does not match the contest category", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
