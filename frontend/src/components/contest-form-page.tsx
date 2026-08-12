@@ -654,8 +654,8 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
             Define el nombre, la duración y la ventana de la competencia.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6">
-          <FieldGroup>
+        <CardContent>
+          <FieldGroup className="gap-5">
             <FieldGroup className="grid gap-4 md:grid-cols-3">
               <Field data-invalid={hasTitleError || undefined}>
                 <FieldLabel htmlFor="contest-title">
@@ -880,7 +880,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4 pt-6">
+          <CardContent className="flex flex-col gap-4">
             {tasks.length === 0 ? (
               <Alert>
                 <AlertTitle>No hay tareas registradas</AlertTitle>
@@ -935,7 +935,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               Revisa el orden final de las tareas seleccionadas.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4 pt-6">
+          <CardContent className="flex flex-col gap-4">
             {selectedTasks.length === 0 ? (
               <Alert>
                 <AlertTitle>No hay tareas elegidas</AlertTitle>
@@ -1019,7 +1019,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
             elegida. No se configura a mano.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-6">
+        <CardContent className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
             {(["easy", "medium", "hard"] as const).map((key) => (
               <div key={key} className="rounded-md border px-4 py-3">
@@ -1082,7 +1082,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-sm font-medium">
