@@ -418,11 +418,11 @@ export type ContestScalarWhereWithAggregatesInput = {
 export type ContestCreateInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
@@ -440,11 +440,11 @@ export type ContestCreateInput = {
 export type ContestUncheckedCreateInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
@@ -506,11 +506,11 @@ export type ContestUncheckedUpdateInput = {
 export type ContestCreateManyInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
@@ -673,11 +673,11 @@ export type ContestUpdateOneRequiredWithoutGroupsNestedInput = {
 export type ContestCreateWithoutTasksInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
@@ -694,11 +694,11 @@ export type ContestCreateWithoutTasksInput = {
 export type ContestUncheckedCreateWithoutTasksInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
@@ -773,11 +773,11 @@ export type ContestUncheckedUpdateWithoutTasksInput = {
 export type ContestCreateWithoutGroupsInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean
@@ -794,11 +794,11 @@ export type ContestCreateWithoutGroupsInput = {
 export type ContestUncheckedCreateWithoutGroupsInput = {
   id?: string
   title: string
-  category?: string
+  category: string
   durationMinutes: number
   startsAt: Date | string
   endsAt: Date | string
-  initialScore?: number
+  initialScore: number
   questionDisplayMode?: string
   allowPairs?: boolean
   showFeedback?: boolean

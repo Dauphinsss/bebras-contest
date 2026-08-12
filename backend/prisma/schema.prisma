@@ -74,11 +74,11 @@ model TaskDraft {
 model Contest {
   id                  String         @id @default(cuid())
   title               String
-  category            String         @default("")
+  category            String
   durationMinutes     Int
   startsAt            DateTime
   endsAt              DateTime
-  initialScore        Int            @default(45)
+  initialScore        Int
   questionDisplayMode String         @default("one_by_one")
   allowPairs          Boolean        @default(false)
   showFeedback        Boolean        @default(false)
@@ -98,10 +98,10 @@ model ContestTask {
   contestId     String
   taskDraftId   String
   position      Int
-  difficulty    String    @default("medium")
-  minScore      Int       @default(0)
-  noAnswerScore Int       @default(0)
-  maxScore      Int       @default(10)
+  difficulty    String
+  minScore      Int
+  noAnswerScore Int
+  maxScore      Int
   options       String    @default("{}")
   createdAt     DateTime  @default(now())
   contest       Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)

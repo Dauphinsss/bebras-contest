@@ -344,10 +344,10 @@ export type ContestTaskScalarWhereWithAggregatesInput = {
 export type ContestTaskCreateInput = {
   id?: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
   contest: Prisma.ContestCreateNestedOneWithoutTasksInput
@@ -359,10 +359,10 @@ export type ContestTaskUncheckedCreateInput = {
   contestId: string
   taskDraftId: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
 }
@@ -398,10 +398,10 @@ export type ContestTaskCreateManyInput = {
   contestId: string
   taskDraftId: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
 }
@@ -590,10 +590,10 @@ export type ContestTaskUncheckedUpdateManyWithoutContestNestedInput = {
 export type ContestTaskCreateWithoutTaskDraftInput = {
   id?: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
   contest: Prisma.ContestCreateNestedOneWithoutTasksInput
@@ -603,10 +603,10 @@ export type ContestTaskUncheckedCreateWithoutTaskDraftInput = {
   id?: string
   contestId: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
 }
@@ -655,10 +655,10 @@ export type ContestTaskScalarWhereInput = {
 export type ContestTaskCreateWithoutContestInput = {
   id?: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
   taskDraft: Prisma.TaskDraftCreateNestedOneWithoutContestTasksInput
@@ -668,10 +668,10 @@ export type ContestTaskUncheckedCreateWithoutContestInput = {
   id?: string
   taskDraftId: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
 }
@@ -705,10 +705,10 @@ export type ContestTaskCreateManyTaskDraftInput = {
   id?: string
   contestId: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
 }
@@ -753,10 +753,10 @@ export type ContestTaskCreateManyContestInput = {
   id?: string
   taskDraftId: string
   position: number
-  difficulty?: string
-  minScore?: number
-  noAnswerScore?: number
-  maxScore?: number
+  difficulty: string
+  minScore: number
+  noAnswerScore: number
+  maxScore: number
   options?: string
   createdAt?: Date | string
 }
