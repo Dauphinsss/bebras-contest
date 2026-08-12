@@ -1394,6 +1394,17 @@ app.patch("/api/tasks/:id/practice", async (req, res) => {
 });
 
 app.delete("/api/tasks/:id", async (req, res) => {
+  const contestCount = await prisma.contestTask.count({
+    where: { taskDraftId: req.params.id },
+  });
+
+  if (contestCount > 0) {
+    res.status(409).json({
+      message: `Esta tarea está asociada a ${contestCount} competencia(s) y no se puede eliminar.`,
+    });
+    return;
+  }
+
   await prisma.taskDraft.delete({
     where: {
       id: req.params.id,
