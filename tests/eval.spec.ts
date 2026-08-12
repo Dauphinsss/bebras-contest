@@ -831,6 +831,78 @@ test("protects tasks and played contest records from deletion", async () => {
   await api.dispose();
 });
 
+test("enforces contest windows for publication and late starts", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+
+  const acceptedContest = await createContest(api, headers, {
+    durationMinutes: 2,
+    startsAt: new Date(Date.now() - 2 * 60000).toISOString(),
+    endsAt: new Date(Date.now() + 3 * 60000).toISOString(),
+  });
+  const acceptedCode = await joinContest(
+    api,
+    headers,
+    acceptedContest.id,
+    acceptedContest.picked.grade,
+    "Inicio tardio",
+  );
+  const acceptedStart = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: acceptedCode },
+  });
+  expect(acceptedStart.ok(), await acceptedStart.text()).toBe(true);
+  const acceptedAttempt = await api
+    .get(`${API}/api/play/attempt/${acceptedCode}`)
+    .then((response) => response.json());
+  expect(acceptedAttempt.status).toBe("in_progress");
+  expect(
+    new Date(acceptedAttempt.endsAt).getTime() -
+      new Date(acceptedAttempt.startedAt).getTime(),
+  ).toBe(2 * 60000);
+
+  const insufficientRemaining = await createContest(api, headers, {
+    durationMinutes: 5,
+    startsAt: new Date(Date.now() - 10 * 60000).toISOString(),
+    endsAt: new Date(Date.now() + 4 * 60000).toISOString(),
+  });
+  const rejectedCode = await joinContest(
+    api,
+    headers,
+    insufficientRemaining.id,
+    insufficientRemaining.picked.grade,
+    "Sin tiempo",
+  );
+  const rejectedStart = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: rejectedCode },
+  });
+  expect(rejectedStart.status()).toBe(409);
+  expect((await rejectedStart.json()).message).toContain(
+    "no queda tiempo suficiente",
+  );
+
+  const shortWindowResponse = await api.post(`${API}/api/contests`, {
+    headers,
+    data: {
+      title: `PW Short Window ${Date.now()}`,
+      category: SEEDED_TASK.category,
+      durationMinutes: 10,
+      startsAt: new Date(Date.now() + 60000).toISOString(),
+      endsAt: new Date(Date.now() + 6 * 60000).toISOString(),
+      tasks: [{ taskId: SEEDED_TASK.taskId }],
+    },
+  });
+  expect(shortWindowResponse.ok(), await shortWindowResponse.text()).toBe(true);
+  const shortWindow = await shortWindowResponse.json();
+  const publish = await api.post(
+    `${API}/api/contests/${shortWindow.id}/publish`,
+    { headers },
+  );
+  expect(publish.status()).toBe(400);
+  expect((await publish.json()).message).toContain("más corta que la duración");
+
+  await api.dispose();
+});
+
 test("freezes a contest once it is running", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
