@@ -1,4 +1,9 @@
-import { test, expect, request, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  request,
+  type APIRequestContext,
+} from "@playwright/test";
 
 const API = "http://localhost:3100";
 
@@ -19,6 +24,30 @@ const SEEDED_TASK = {
   category: "Capibara",
   grade: "P3",
 };
+
+const SCORING_TASKS = [
+  {
+    taskId: "seed-bebras-easy",
+    difficulty: "easy",
+    minScore: -2,
+    noAnswerScore: 0,
+    maxScore: 6,
+  },
+  {
+    taskId: "seed-bebras-medium",
+    difficulty: "medium",
+    minScore: -3,
+    noAnswerScore: 0,
+    maxScore: 9,
+  },
+  {
+    taskId: "seed-bebras-hard",
+    difficulty: "hard",
+    minScore: -4,
+    noAnswerScore: 0,
+    maxScore: 12,
+  },
+] as const;
 
 async function createContest(
   api: APIRequestContext,
@@ -94,7 +123,9 @@ test("allows practice updates through CORS", async () => {
   );
 
   expect(preflight.status()).toBe(204);
-  expect(preflight.headers()["access-control-allow-methods"]).toContain("PATCH");
+  expect(preflight.headers()["access-control-allow-methods"]).toContain(
+    "PATCH",
+  );
 
   const headers = await loginAdmin(api);
   const update = await api.patch(
@@ -186,6 +217,110 @@ test("freezes a contest once it is running", async () => {
 
   expect(edit.status()).toBe(409);
   expect((await edit.json()).message).toContain("en curso");
+
+  await api.dispose();
+});
+
+test("applies the easy, medium and hard Bebras scoring scales", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers, {
+    tasks: SCORING_TASKS.map(({ taskId }) => ({ taskId })),
+  });
+
+  expect(contest.initialScore).toBe(9);
+  expect(
+    contest.tasks.map(
+      (task: {
+        taskId: string;
+        difficulty: string;
+        minScore: number;
+        noAnswerScore: number;
+        maxScore: number;
+      }) => ({
+        taskId: task.taskId,
+        difficulty: task.difficulty,
+        minScore: task.minScore,
+        noAnswerScore: task.noAnswerScore,
+        maxScore: task.maxScore,
+      }),
+    ),
+  ).toEqual(SCORING_TASKS);
+
+  const attempts = [
+    {
+      firstName: "Correctas",
+      selected: "B",
+      totalScore: 36,
+      correctCount: 3,
+      answeredCount: 3,
+    },
+    {
+      firstName: "Incorrectas",
+      selected: "A",
+      totalScore: 0,
+      correctCount: 0,
+      answeredCount: 3,
+    },
+    {
+      firstName: "Omitidas",
+      selected: null,
+      totalScore: 9,
+      correctCount: 0,
+      answeredCount: 0,
+    },
+  ] as const;
+
+  for (const attempt of attempts) {
+    const personalCode = await joinContest(
+      api,
+      headers,
+      contest.id,
+      contest.picked.grade,
+      attempt.firstName,
+    );
+    const start = await api.post(`${API}/api/play/start`, {
+      data: { personalCode },
+    });
+    expect(start.ok(), await start.text()).toBe(true);
+
+    if (attempt.selected) {
+      for (const task of SCORING_TASKS) {
+        const answer = await api.post(`${API}/api/play/answer`, {
+          data: {
+            personalCode,
+            taskId: task.taskId,
+            payload: { selected: [attempt.selected] },
+          },
+        });
+        expect(answer.status(), await answer.text()).toBe(204);
+      }
+    }
+
+    const submit = await api.post(`${API}/api/play/submit`, {
+      data: { personalCode },
+    });
+    expect(submit.ok(), await submit.text()).toBe(true);
+  }
+
+  const resultsResponse = await api.get(
+    `${API}/api/contests/${contest.id}/results`,
+    { headers },
+  );
+  expect(resultsResponse.ok(), await resultsResponse.text()).toBe(true);
+  const results = await resultsResponse.json();
+
+  for (const attempt of attempts) {
+    const row = results.rows.find(
+      (result: { memberOneFirstName: string }) =>
+        result.memberOneFirstName === attempt.firstName,
+    );
+    expect(row).toMatchObject({
+      totalScore: attempt.totalScore,
+      correctCount: attempt.correctCount,
+      answeredCount: attempt.answeredCount,
+    });
+  }
 
   await api.dispose();
 });
