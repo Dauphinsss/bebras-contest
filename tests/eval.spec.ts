@@ -1449,6 +1449,11 @@ test("keeps contest and task card actions responsive and compact", async ({
   const headers = { authorization: `Bearer ${session.token}` };
   const listedContest = await createContest(api, headers, {
     title: `Responsive actions ${Date.now()}`,
+    tasks: [
+      { taskId: "seed-bebras-easy" },
+      { taskId: "seed-bebras-medium" },
+      { taskId: "seed-bebras-hard" },
+    ],
   });
   const tasksResponse = await api.get(`${API}/api/tasks`, { headers });
   expect(tasksResponse.ok()).toBe(true);
@@ -1479,6 +1484,13 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(mobileContestActions[1]!.width).toBe(mobileContestActions[2]!.width);
   expect(mobileContestActions[1]!.y).toBeGreaterThan(mobileContestActions[0]!.y);
   expect(mobileContestActions[2]!.y).toBeGreaterThan(mobileContestActions[1]!.y);
+  const contestTasks = contestCard.locator('[data-slot="card-footer"] > div');
+  await expect(contestTasks).toHaveCount(3);
+  const mobileContestTasks = await Promise.all(
+    [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
+  );
+  expect(mobileContestTasks[1]!.y).toBeGreaterThan(mobileContestTasks[0]!.y);
+  expect(mobileContestTasks[2]!.y).toBeGreaterThan(mobileContestTasks[1]!.y);
 
   await page.setViewportSize({ width: 1280, height: 800 });
   const desktopContestActions = await Promise.all(
@@ -1490,6 +1502,13 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[1]!.y).toBe(desktopContestActions[0]!.y);
   expect(desktopContestActions[1]!.x).toBeGreaterThan(desktopContestActions[0]!.x);
   expect(desktopContestActions[2]!.y).toBeGreaterThan(desktopContestActions[0]!.y);
+  const desktopContestTasks = await Promise.all(
+    [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
+  );
+  expect(desktopContestTasks[0]!.width).toBe(desktopContestTasks[1]!.width);
+  expect(desktopContestTasks[0]!.y).toBe(desktopContestTasks[1]!.y);
+  expect(desktopContestTasks[1]!.x).toBeGreaterThan(desktopContestTasks[0]!.x);
+  expect(desktopContestTasks[2]!.y).toBeGreaterThan(desktopContestTasks[0]!.y);
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/tareas");
