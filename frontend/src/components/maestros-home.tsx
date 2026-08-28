@@ -112,10 +112,10 @@ export function MaestrosHome() {
           </Alert>
         ) : (
           maestros.map((maestro) => (
-            <Card key={maestro.id} variant="soft-gradient" className="gap-3 py-4">
-              <CardHeader className="gap-3">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="space-y-1">
+            <Card key={maestro.id} variant="soft-gradient" className="gap-0 py-0">
+              <CardHeader className="gap-3 py-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant={
@@ -127,10 +127,12 @@ export function MaestrosHome() {
                         {STATUS_LABEL[maestro.status] ?? maestro.status}
                       </Badge>
                     </div>
-                    <CardTitle className="text-lg">
+                    <CardTitle className="break-words text-lg">
                       {maestro.name ?? maestro.email}
                     </CardTitle>
-                    <CardDescription>{maestro.email}</CardDescription>
+                    <CardDescription className="break-all">
+                      {maestro.email}
+                    </CardDescription>
                     {maestro.schoolName && (
                       <CardDescription>
                         {maestro.isHomeschool ? "Modalidad" : "Colegio"}: {maestro.schoolName}
@@ -140,12 +142,13 @@ export function MaestrosHome() {
                       <CardDescription>Tel: {maestro.phone}</CardDescription>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="grid w-full shrink-0 gap-2 lg:w-80 lg:grid-cols-2">
                     {maestro.hasLetter && (
                       <Button
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={() => openDoc(maestro.id, "letter")}
                       >
                         <FileTextIcon data-icon="inline-start" />
@@ -157,6 +160,7 @@ export function MaestrosHome() {
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={() => openDoc(maestro.id, "idFront")}
                       >
                         <FileTextIcon data-icon="inline-start" />
@@ -168,6 +172,7 @@ export function MaestrosHome() {
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={() => openDoc(maestro.id, "idBack")}
                       >
                         <FileTextIcon data-icon="inline-start" />
@@ -178,6 +183,7 @@ export function MaestrosHome() {
                       <Button
                         size="sm"
                         type="button"
+                        className="w-full justify-start"
                         onClick={() => updateStatus(maestro, "approved")}
                       >
                         <CheckIcon data-icon="inline-start" />
@@ -189,6 +195,7 @@ export function MaestrosHome() {
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={() => updateStatus(maestro, "rejected")}
                       >
                         <XIcon data-icon="inline-start" />

@@ -629,8 +629,12 @@ export function GroupsHome() {
                   )}
                 </FieldContent>
               </Field>
-              <div className="flex justify-end">
-                <Button type="submit" disabled={creating}>
+              <div className="flex sm:justify-end">
+                <Button
+                  type="submit"
+                  disabled={creating}
+                  className="w-full sm:w-auto"
+                >
                   <PlusIcon data-icon="inline-start" />
                   {creating ? "Creando..." : "Crear grupo"}
                 </Button>
@@ -657,12 +661,14 @@ export function GroupsHome() {
             </Alert>
           ) : (
             groups.map((group) => (
-              <Card key={group.id} variant="soft-gradient" className="gap-0 py-4">
-                <CardHeader className="gap-3">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="space-y-2">
+              <Card key={group.id} variant="soft-gradient" className="gap-0 py-0">
+                <CardHeader className="gap-3 py-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex min-w-0 flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary">{group.contestTitle}</Badge>
+                        <Badge variant="secondary" className="max-w-full truncate">
+                          {group.contestTitle}
+                        </Badge>
                         {group.contestCategory && (
                           <Badge variant="outline">{group.contestCategory}</Badge>
                         )}
@@ -686,16 +692,18 @@ export function GroupsHome() {
                           />
                         </button>
                       </div>
-                      <CardTitle className="text-lg">{group.name}</CardTitle>
+                      <CardTitle className="break-words text-lg">
+                        {group.name}
+                      </CardTitle>
                       {group.scheduledAt && (
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <CalendarClockIcon className="size-4" />
-                          Sesión: {formatSession(group.scheduledAt)}
+                        <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                          <CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
+                          <span>Sesión: {formatSession(group.scheduledAt)}</span>
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
+                      <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 lg:col-span-2">
                         <span className="font-mono text-lg font-semibold tracking-widest">
                           {group.accessCode}
                         </span>
@@ -713,6 +721,7 @@ export function GroupsHome() {
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={() => copyLink(group.accessCode)}
                       >
                         <LinkIcon data-icon="inline-start" />
@@ -722,6 +731,7 @@ export function GroupsHome() {
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={() =>
                           setConfirming({ type: "group", group })
                         }
@@ -741,7 +751,7 @@ export function GroupsHome() {
                   )}
                 >
                   <div className="overflow-hidden">
-                    <CardContent className="pt-4">
+                    <CardContent className="pb-4 pt-0">
                       {group.teams.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                           Aún no hay equipos registrados en este grupo.
@@ -751,12 +761,12 @@ export function GroupsHome() {
                           {group.teams.map((team) => (
                             <li
                               key={team.id}
-                              className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-sm"
+                              className="flex flex-col items-stretch gap-2 rounded-md border bg-background px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                             >
-                              <span className="min-w-0 truncate font-medium">
+                              <span className="min-w-0 break-words font-medium sm:truncate">
                                 {teamName(team)}
                               </span>
-                              <div className="flex shrink-0 items-center gap-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
                                 {team.grade && (
                                   <Badge variant="secondary">
                                     {gradeLabel(team.grade)}
@@ -801,6 +811,7 @@ export function GroupsHome() {
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="w-full sm:w-auto"
                           onClick={() => openEnroll(group)}
                         >
                           <PlusIcon data-icon="inline-start" />
