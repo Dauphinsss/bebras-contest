@@ -7,6 +7,8 @@ import {
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { canAccessSiteNav } from "../frontend/src/lib/site-navigation";
+
 const API = "http://localhost:3100";
 const UPLOADS_DIR = resolve(process.cwd(), "backend/uploads/letters");
 const E2E_CLOCK_FILE = resolve(process.cwd(), "backend/test-clock.txt");
@@ -1317,6 +1319,15 @@ test("blocks the panel for users without a session", async ({ page }) => {
   await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
 });
 
+test("filters navigation sections by user role", () => {
+  expect(canAccessSiteNav("public")).toBe(true);
+  expect(canAccessSiteNav("admin", "admin")).toBe(true);
+  expect(canAccessSiteNav("staff", "admin")).toBe(true);
+  expect(canAccessSiteNav("staff", "maestro")).toBe(true);
+  expect(canAccessSiteNav("admin", "maestro")).toBe(false);
+  expect(canAccessSiteNav("staff")).toBe(false);
+});
+
 test("keeps the new contest form within a mobile viewport", async ({ page }) => {
   const api = await request.newContext();
   const loginResponse = await api.post(`${API}/api/auth/login`, { data: ADMIN });
@@ -1341,6 +1352,32 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
         document.documentElement.clientWidth,
     ),
   ).toBe(false);
+
+  const mainBeforeMenu = await page.locator("main").boundingBox();
+  await page.getByRole("button", { name: "Abrir menú" }).click();
+  const mobileNavigation = page.getByRole("navigation", {
+    name: "Navegación principal",
+  });
+  await expect(mobileNavigation).toBeVisible();
+  await expect(
+    mobileNavigation.getByRole("link", { name: "Desafíos" }),
+  ).toBeVisible();
+  await expect(
+    mobileNavigation.getByRole("link", { name: "Tareas" }),
+  ).toBeVisible();
+  await expect(
+    mobileNavigation.getByRole("link", { name: "Competencias" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    mobileNavigation.getByRole("link", { name: "Grupos" }),
+  ).toBeVisible();
+  await expect(
+    mobileNavigation.getByRole("link", { name: "Maestros" }),
+  ).toBeVisible();
+  const mainWithMenu = await page.locator("main").boundingBox();
+  expect(mainWithMenu!.y).toBeGreaterThan(mainBeforeMenu!.y);
+  await page.getByRole("button", { name: "Cerrar menú" }).click();
+  await expect(mobileNavigation).toBeHidden();
 
   await page
     .getByRole("button", { name: /Ventana de disponibilidad/ })
