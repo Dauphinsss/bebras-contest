@@ -32,14 +32,14 @@ const links = [
       <a href="/" class="shrink-0 text-lg font-semibold tracking-tight">Bebras</a>
       {
         heading && (
-          <div class="flex min-w-0 items-center gap-2 border-l pl-3">
-            {backHref && (
+          <div class="flex min-w-0 items-center border-l pl-3">
+            {backHref ? (
               <a
                 href={backHref}
                 data-practice-back={hasContextualPracticeBack ? "" : undefined}
-                aria-label="Volver"
-                class="shrink-0 text-muted-foreground transition hover:text-foreground"
+                class="group flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
+                <span class="sr-only">Volver: </span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -50,13 +50,20 @@ const links = [
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  class="size-4"
+                  aria-hidden="true"
+                  class="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
                 >
                   <path d="m15 18-6-6 6-6" />
                 </svg>
+                <span
+                  class="truncate text-sm font-medium transition-colors group-hover:text-primary"
+                >
+                  {heading}
+                </span>
               </a>
+            ) : (
+              <span class="truncate text-sm font-medium">{heading}</span>
             )}
-            <span class="truncate text-sm font-medium">{heading}</span>
           </div>
         )
       }
