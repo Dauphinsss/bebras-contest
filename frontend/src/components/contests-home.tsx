@@ -6,8 +6,6 @@ import {
   BarChart3Icon,
   CalculatorIcon,
   CalendarRangeIcon,
-  EyeIcon,
-  EyeOffIcon,
   FilePlus2Icon,
   FilePenLineIcon,
   Trash2Icon,
@@ -17,9 +15,7 @@ import { toast } from "sonner";
 import {
   consolidateContest,
   listContests,
-  publishContestResults,
   removeContest,
-  unpublishContestResults,
 } from "@/lib/contests-api";
 import {
   CONTEST_STATE_LABELS,
@@ -52,8 +48,6 @@ import {
 
 type ConfirmAction =
   | "consolidate"
-  | "publish-results"
-  | "unpublish-results"
   | "delete";
 
 type Confirmation = {
@@ -70,18 +64,6 @@ const CONFIRMATION_COPY: Record<
     description: () =>
       "Se cerrarán los intentos que continúen abiertos y se calcularán los resultados definitivos.",
     confirm: "Consolidar",
-  },
-  "publish-results": {
-    title: "¿Publicar los resultados?",
-    description: () =>
-      "Los participantes podrán consultar la información habilitada. Revisa los puntajes y el ranking antes de continuar.",
-    confirm: "Publicar resultados",
-  },
-  "unpublish-results": {
-    title: "¿Ocultar los resultados?",
-    description: () =>
-      "Los participantes dejarán de ver sus resultados hasta que vuelvan a publicarse. Los puntajes guardados no se eliminarán.",
-    confirm: "Ocultar resultados",
   },
   delete: {
     title: "¿Eliminar esta competencia?",
@@ -135,20 +117,6 @@ export function ContestsHome() {
       },
     );
 
-  const handlePublishResults = (contest: StoredContest) =>
-    runAction(
-      contest,
-      () => publishContestResults(contest.id),
-      () => "Resultados publicados. Los participantes ya pueden verlos.",
-    );
-
-  const handleUnpublishResults = (contest: StoredContest) =>
-    runAction(
-      contest,
-      () => unpublishContestResults(contest.id),
-      () => "Resultados ocultados.",
-    );
-
   useEffect(() => {
     let active = true;
 
@@ -200,10 +168,6 @@ export function ContestsHome() {
 
     if (action === "consolidate") {
       void handleConsolidate(contest);
-    } else if (action === "publish-results") {
-      void handlePublishResults(contest);
-    } else if (action === "unpublish-results") {
-      void handleUnpublishResults(contest);
     } else {
       handleDelete(contest);
     }
@@ -284,10 +248,15 @@ export function ContestsHome() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid w-full shrink-0 gap-2 lg:w-96 lg:grid-cols-2">
                       {contest.state !== "borrador" &&
                         contest.state !== "programada" && (
-                          <Button asChild size="sm" variant="outline">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="w-full justify-start"
+                          >
                             <a href={`/competencias/resultados?id=${contest.id}`}>
                               <BarChart3Icon data-icon="inline-start" />
                               Resultados
@@ -299,6 +268,7 @@ export function ContestsHome() {
                           size="sm"
                           type="button"
                           disabled={busyId === contest.id}
+                          className="w-full justify-start"
                           onClick={() =>
                             setConfirming({ action: "consolidate", contest })
                           }
@@ -307,34 +277,12 @@ export function ContestsHome() {
                           Consolidar
                         </Button>
                       )}
-                      {contest.state === "consolidada" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          disabled={busyId === contest.id}
-                          onClick={() =>
-                            setConfirming({ action: "publish-results", contest })
-                          }
-                        >
-                          <EyeIcon data-icon="inline-start" />
-                          Publicar resultados
-                        </Button>
-                      )}
-                      {contest.state === "publicada" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          disabled={busyId === contest.id}
-                          onClick={() =>
-                            setConfirming({ action: "unpublish-results", contest })
-                          }
-                        >
-                          <EyeOffIcon data-icon="inline-start" />
-                          Ocultar resultados
-                        </Button>
-                      )}
-                      <Button asChild size="sm" variant="outline">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className="w-full justify-start"
+                      >
                         <a href={`/competencias/editar?id=${contest.id}`}>
                           <FilePenLineIcon data-icon="inline-start" />
                           Editar
@@ -345,6 +293,7 @@ export function ContestsHome() {
                         type="button"
                         variant="outline"
                         disabled={busyId === contest.id}
+                        className="w-full justify-start"
                         onClick={() => setConfirming({ action: "delete", contest })}
                       >
                         <Trash2Icon data-icon="inline-start" />

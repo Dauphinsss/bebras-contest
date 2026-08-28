@@ -3366,6 +3366,7 @@ app.get("/api/contests/:id/results", async (req, res) => {
   res.json({
     contestTitle: contest.title,
     taskCount: contest.tasks.length,
+    state: computeContestState(contest).state,
     rows,
   });
 });

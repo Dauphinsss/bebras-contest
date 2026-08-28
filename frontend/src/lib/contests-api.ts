@@ -1,4 +1,5 @@
 import {
+  type ContestState,
   type ContestDraftInput,
   type StoredContest,
 } from "@/lib/contest-schema";
@@ -77,6 +78,7 @@ export type ContestResultRow = {
 export type ContestResults = {
   contestTitle: string;
   taskCount: number;
+  state: ContestState;
   rows: ContestResultRow[];
 };
 
