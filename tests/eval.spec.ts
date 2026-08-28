@@ -1361,5 +1361,10 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
     ),
   ).toBe(false);
 
+  await page
+    .getByRole("link", { name: "Volver: Crear competencia" })
+    .click();
+  await expect(page).toHaveURL(/\/competencias\/?$/);
+
   await api.dispose();
 });
