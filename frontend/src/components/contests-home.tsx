@@ -303,17 +303,19 @@ export function ContestsHome() {
                   </div>
                 </CardHeader>
                 <Separator />
-                <CardFooter className="flex flex-col items-start gap-3 py-5">
+                <CardFooter className="grid grid-cols-1 items-start gap-3 py-5 lg:grid-cols-2 lg:gap-x-8">
                   {contest.tasks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground lg:col-span-2">
                       Aún no tiene tareas asignadas.
                     </p>
                   ) : (
                     contest.tasks.map((task) => (
-                      <div key={task.id} className="w-full">
+                      <div key={task.id} className="min-w-0 w-full">
                         <div className="flex flex-wrap items-center gap-2 text-sm">
                           <Badge variant="secondary">#{task.position}</Badge>
-                          <span className="font-medium">{task.task.title}</span>
+                          <span className="min-w-0 break-words font-medium">
+                            {task.task.title}
+                          </span>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {formatContestTaskSummary(task.task)}
