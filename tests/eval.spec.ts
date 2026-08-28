@@ -1224,7 +1224,7 @@ test("student starts, answers and submits without seeing the score", async ({
   await expect(page.getByText(/se publicarán/i)).toBeVisible();
 });
 
-test("results appear only after consolidating and publishing", async () => {
+test("results appear only after consolidating and publishing", async ({ page }) => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
 
@@ -1290,17 +1290,35 @@ test("results appear only after consolidating and publishing", async () => {
   const adminResults = await api
     .get(`${API}/api/contests/${contest.id}/results`, { headers })
     .then((r) => r.json());
+  expect(adminResults.state).toBe("consolidada");
   const expiredResult = adminResults.rows.find(
     (row: { elapsedSeconds: number | null }) => row.elapsedSeconds === 60,
   );
   expect(expiredResult?.elapsedSeconds).toBe(60);
 
-  const published = await api.post(
-    `${API}/api/contests/${contest.id}/results/publish`,
-    { headers },
+  await page.addInitScript(
+    ({ token }) => {
+      window.localStorage.setItem("bebras_token", token);
+      window.localStorage.setItem(
+        "bebras_user",
+        JSON.stringify({
+          id: 0,
+          email: "marko@bebras.bo",
+          name: "Marko",
+          role: "admin",
+        }),
+      );
+    },
+    { token: headers.authorization.replace("Bearer ", "") },
   );
-  expect(published.ok()).toBe(true);
-  expect((await published.json()).state).toBe("publicada");
+  await page.goto(`/competencias/resultados?id=${contest.id}`);
+  await expect(page.getByText("Consolidada", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Publicar resultados" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Publicar resultados" })
+    .click();
+  await expect(page.getByRole("button", { name: "Ocultar resultados" })).toBeVisible();
 
   const afterPublish = await api
     .get(`${API}/api/play/attempt/${personalCode}`)
@@ -1310,6 +1328,19 @@ test("results appear only after consolidating and publishing", async () => {
   expect(afterPublish.result.rankPosition).toBe(1);
   expect(afterPublish.result.totalScore).toBe(contest.initialScore);
   expect(afterPublish.result.answeredCount).toBe(0);
+
+  await page.getByRole("button", { name: "Ocultar resultados" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Ocultar resultados" })
+    .click();
+  await expect(page.getByRole("button", { name: "Publicar resultados" })).toBeVisible();
+
+  const afterUnpublish = await api
+    .get(`${API}/api/play/attempt/${personalCode}`)
+    .then((r) => r.json());
+  expect(afterUnpublish.resultsPublished).toBe(false);
+  expect(afterUnpublish.result).toBeNull();
 
   await api.dispose();
 });
@@ -1336,6 +1367,11 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
     token: string;
     user: { id: number; email: string; name: string | null; role: string };
   };
+  const listedContest = await createContest(
+    api,
+    { authorization: `Bearer ${session.token}` },
+    { title: `Responsive actions ${Date.now()}` },
+  );
 
   await page.addInitScript(({ token, user }) => {
     window.localStorage.setItem("bebras_token", token);
@@ -1402,6 +1438,38 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
     .getByRole("link", { name: "Volver: Crear competencia" })
     .click();
   await expect(page).toHaveURL(/\/competencias\/?$/);
+  const contestCard = page
+    .getByText(listedContest.title, { exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const mobileResults = await contestCard
+    .getByRole("link", { name: "Resultados" })
+    .boundingBox();
+  const mobileEdit = await contestCard
+    .getByRole("link", { name: "Editar" })
+    .boundingBox();
+  const mobileDelete = await contestCard
+    .getByRole("button", { name: "Eliminar" })
+    .boundingBox();
+  expect(mobileResults!.width).toBe(mobileEdit!.width);
+  expect(mobileEdit!.width).toBe(mobileDelete!.width);
+  expect(mobileEdit!.y).toBeGreaterThan(mobileResults!.y);
+  expect(mobileDelete!.y).toBeGreaterThan(mobileEdit!.y);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const desktopResults = await contestCard
+    .getByRole("link", { name: "Resultados" })
+    .boundingBox();
+  const desktopEdit = await contestCard
+    .getByRole("link", { name: "Editar" })
+    .boundingBox();
+  const desktopDelete = await contestCard
+    .getByRole("button", { name: "Eliminar" })
+    .boundingBox();
+  expect(desktopResults!.width).toBe(desktopEdit!.width);
+  expect(desktopEdit!.width).toBe(desktopDelete!.width);
+  expect(desktopEdit!.y).toBe(desktopResults!.y);
+  expect(desktopEdit!.x).toBeGreaterThan(desktopResults!.x);
+  expect(desktopDelete!.y).toBeGreaterThan(desktopResults!.y);
 
   await api.dispose();
 });
