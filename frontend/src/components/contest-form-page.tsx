@@ -223,7 +223,7 @@ function TimeInput({
   }, [currentTime]);
 
   return (
-    <div className="relative sm:w-40">
+    <div className="relative w-full sm:w-40">
       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3 text-muted-foreground peer-disabled:opacity-50">
         <Clock8Icon className="size-4" />
         <span className="sr-only">{label} hora</span>
@@ -282,8 +282,8 @@ function DateRangeField({
   return (
     <Field data-invalid={invalid || undefined}>
       <FieldContent>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-          <div className="flex flex-col gap-2">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="flex min-w-0 flex-col gap-2">
             <FieldLabel htmlFor="contest-date-range">
               Ventana de disponibilidad <span className="text-destructive">*</span>
             </FieldLabel>
@@ -295,13 +295,13 @@ function DateRangeField({
                   disabled={disabled}
                   variant="outline"
                   className={cn(
-                    "h-9 w-full justify-start border-input bg-background px-3 py-1 text-left text-base font-normal [box-shadow:var(--shadow-hard)] hover:bg-background focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-ring/50 focus-visible:[box-shadow:var(--focus-soft),var(--shadow-hard)] md:text-sm",
+                    "h-9 min-w-0 w-full justify-start overflow-hidden border-input bg-background px-3 py-1 text-left text-base font-normal [box-shadow:var(--shadow-hard)] hover:bg-background focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-ring/50 focus-visible:[box-shadow:var(--focus-soft),var(--shadow-hard)] md:text-sm",
                     (!startDate || !endDate) && "text-muted-foreground",
                   )}
                   aria-invalid={invalid}
                 >
                   <CalendarIcon data-icon="inline-start" />
-                  {rangeLabel}
+                  <span className="truncate">{rangeLabel}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -646,7 +646,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   }
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+    <form className="flex min-w-0 flex-col gap-6" onSubmit={handleSubmit}>
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Datos generales</CardTitle>
@@ -656,7 +656,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         </CardHeader>
         <CardContent>
           <FieldGroup className="gap-5">
-            <FieldGroup className="grid gap-4 md:grid-cols-3">
+            <FieldGroup className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field data-invalid={hasTitleError || undefined}>
                 <FieldLabel htmlFor="contest-title">
                   Nombre <span className="text-destructive">*</span>
@@ -867,12 +867,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         </AccordionItem>
       </Accordion>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid min-w-0 gap-6 *:min-w-0 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader className="border-b">
             <div className="flex items-center gap-3">
-              <FileStackIcon className="text-muted-foreground" />
-              <div>
+              <FileStackIcon className="shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
                 <CardTitle>Tareas disponibles</CardTitle>
                 <CardDescription>
                   Selecciona las tareas que formarán parte de la competencia.
@@ -899,15 +899,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                     className="gap-3 py-4"
                   >
                     <CardHeader className="gap-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg">{task.title}</CardTitle>
+                      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <CardTitle className="break-words text-lg">{task.title}</CardTitle>
                           <CardDescription>{formatTaskMeta(task)}</CardDescription>
                         </div>
                         <Button
                           type="button"
                           variant={selected ? "default" : "outline"}
                           disabled={locked}
+                          className="w-full sm:w-auto"
                           onClick={() => toggleTask(task.id)}
                         >
                           {selected ? (
@@ -947,16 +948,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               selectedTasks.map((task, index) => (
                 <Card key={task.id} variant="soft-gradient" className="gap-3 py-4">
                   <CardHeader className="gap-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
+                    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="flex min-w-0 flex-col gap-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="secondary">#{index + 1}</Badge>
                           <Badge variant="outline">{buildAgeSummary(task.difficulties)}</Badge>
                         </div>
-                        <CardTitle className="text-lg">{task.title}</CardTitle>
+                        <CardTitle className="break-words text-lg">{task.title}</CardTitle>
                         <CardDescription>{task.categories.join(", ") || "Sin categoría"}</CardDescription>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                         <Button
                           size="icon-sm"
                           type="button"
@@ -979,6 +980,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                           type="button"
                           variant="outline"
                           disabled={locked}
+                          className="col-span-2 w-full sm:w-auto"
                           onClick={() => toggleTask(task.id)}
                         >
                           Quitar
@@ -1092,8 +1094,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 Guarda la competencia para dejar persistido el orden actual.
               </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button type="submit" disabled={saving || locked}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button
+                type="submit"
+                disabled={saving || locked}
+                className="w-full sm:w-auto"
+              >
                 <SaveIcon data-icon="inline-start" />
                 {saving
                   ? "Guardando..."
@@ -1105,6 +1111,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 type="button"
                 variant="secondary"
                 disabled={saving || publishing || locked}
+                className="w-full sm:w-auto"
                 onClick={handlePublish}
               >
                 {publishing ? "Publicando..." : "Publicar competencia"}

@@ -263,11 +263,12 @@
   }
 
   [data-slot="calendar"].bebras-calendar {
+    --calendar-cell-size: clamp(2rem, 10vw, 2.5rem);
     --rdp-accent-color: var(--primary);
     --rdp-accent-background-color: var(--primary);
     --rdp-day_button-border-radius: 0;
-    --rdp-day_button-height: 2.5rem;
-    --rdp-day_button-width: 2.5rem;
+    --rdp-day_button-height: var(--calendar-cell-size);
+    --rdp-day_button-width: var(--calendar-cell-size);
     color: var(--foreground);
     font-family: var(--font-sans);
     padding: 1rem;
@@ -375,14 +376,14 @@
     padding: 0;
     text-align: center;
     text-transform: capitalize;
-    width: 2.5rem;
+    width: var(--calendar-cell-size);
   }
 
   [data-slot="calendar"] .rdp-day {
-    height: 2.5rem;
+    height: var(--calendar-cell-size);
     padding: 0;
     text-align: center;
-    width: 2.5rem;
+    width: var(--calendar-cell-size);
   }
 
   [data-slot="calendar"] .rdp-day_button {
@@ -392,14 +393,14 @@
     color: var(--foreground);
     display: inline-flex;
     font-size: 1rem;
-    height: 2.5rem;
+    height: var(--calendar-cell-size);
     justify-content: center;
     line-height: 1;
     transition:
       background-color 120ms ease,
       color 120ms ease,
       border-color 120ms ease;
-    width: 2.5rem;
+    width: var(--calendar-cell-size);
   }
 
   [data-slot="calendar"] .rdp-day_button:hover {
