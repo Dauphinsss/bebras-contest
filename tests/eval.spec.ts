@@ -1367,12 +1367,6 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
     token: string;
     user: { id: number; email: string; name: string | null; role: string };
   };
-  const listedContest = await createContest(
-    api,
-    { authorization: `Bearer ${session.token}` },
-    { title: `Responsive actions ${Date.now()}` },
-  );
-
   await page.addInitScript(({ token, user }) => {
     window.localStorage.setItem("bebras_token", token);
     window.localStorage.setItem("bebras_user", JSON.stringify(user));
@@ -1438,38 +1432,99 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
     .getByRole("link", { name: "Volver: Crear competencia" })
     .click();
   await expect(page).toHaveURL(/\/competencias\/?$/);
+
+  await api.dispose();
+});
+
+test("keeps contest and task card actions responsive and compact", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const loginResponse = await api.post(`${API}/api/auth/login`, { data: ADMIN });
+  expect(loginResponse.ok()).toBe(true);
+  const session = (await loginResponse.json()) as {
+    token: string;
+    user: { id: number; email: string; name: string | null; role: string };
+  };
+  const headers = { authorization: `Bearer ${session.token}` };
+  const listedContest = await createContest(api, headers, {
+    title: `Responsive actions ${Date.now()}`,
+  });
+  const tasksResponse = await api.get(`${API}/api/tasks`, { headers });
+  expect(tasksResponse.ok()).toBe(true);
+  const listedTask = (
+    (await tasksResponse.json()) as Array<{ id: string; title: string }>
+  )[0];
+  expect(listedTask).toBeDefined();
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/competencias");
+
   const contestCard = page
     .getByText(listedContest.title, { exact: true })
     .locator('xpath=ancestor::*[@data-slot="card"][1]');
-  const mobileResults = await contestCard
-    .getByRole("link", { name: "Resultados" })
-    .boundingBox();
-  const mobileEdit = await contestCard
-    .getByRole("link", { name: "Editar" })
-    .boundingBox();
-  const mobileDelete = await contestCard
-    .getByRole("button", { name: "Eliminar" })
-    .boundingBox();
-  expect(mobileResults!.width).toBe(mobileEdit!.width);
-  expect(mobileEdit!.width).toBe(mobileDelete!.width);
-  expect(mobileEdit!.y).toBeGreaterThan(mobileResults!.y);
-  expect(mobileDelete!.y).toBeGreaterThan(mobileEdit!.y);
+  const contestActions = [
+    contestCard.getByRole("link", { name: "Resultados" }),
+    contestCard.getByRole("link", { name: "Editar" }),
+    contestCard.getByRole("button", { name: "Eliminar" }),
+  ];
+  const mobileContestActions = await Promise.all(
+    contestActions.map((action) => action.boundingBox()),
+  );
+  expect(mobileContestActions[0]!.width).toBe(mobileContestActions[1]!.width);
+  expect(mobileContestActions[1]!.width).toBe(mobileContestActions[2]!.width);
+  expect(mobileContestActions[1]!.y).toBeGreaterThan(mobileContestActions[0]!.y);
+  expect(mobileContestActions[2]!.y).toBeGreaterThan(mobileContestActions[1]!.y);
 
   await page.setViewportSize({ width: 1280, height: 800 });
-  const desktopResults = await contestCard
-    .getByRole("link", { name: "Resultados" })
-    .boundingBox();
-  const desktopEdit = await contestCard
-    .getByRole("link", { name: "Editar" })
-    .boundingBox();
-  const desktopDelete = await contestCard
-    .getByRole("button", { name: "Eliminar" })
-    .boundingBox();
-  expect(desktopResults!.width).toBe(desktopEdit!.width);
-  expect(desktopEdit!.width).toBe(desktopDelete!.width);
-  expect(desktopEdit!.y).toBe(desktopResults!.y);
-  expect(desktopEdit!.x).toBeGreaterThan(desktopResults!.x);
-  expect(desktopDelete!.y).toBeGreaterThan(desktopResults!.y);
+  const desktopContestActions = await Promise.all(
+    contestActions.map((action) => action.boundingBox()),
+  );
+  expect(desktopContestActions[0]!.width).toBeLessThan(160);
+  expect(desktopContestActions[0]!.width).toBe(desktopContestActions[1]!.width);
+  expect(desktopContestActions[1]!.width).toBe(desktopContestActions[2]!.width);
+  expect(desktopContestActions[1]!.y).toBe(desktopContestActions[0]!.y);
+  expect(desktopContestActions[1]!.x).toBeGreaterThan(desktopContestActions[0]!.x);
+  expect(desktopContestActions[2]!.y).toBeGreaterThan(desktopContestActions[0]!.y);
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/tareas");
+  const taskCard = page
+    .getByText(listedTask.title, { exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const taskActions = [
+    taskCard.getByRole("button", { name: /^(En práctica|Práctica)$/ }),
+    taskCard.getByRole("link", { name: "Editar" }),
+    taskCard.getByRole("link", { name: "Probar" }),
+    taskCard.getByRole("button", { name: "Eliminar" }),
+  ];
+  const mobileTaskActions = await Promise.all(
+    taskActions.map((action) => action.boundingBox()),
+  );
+  expect(mobileTaskActions[0]!.width).toBe(mobileTaskActions[1]!.width);
+  expect(mobileTaskActions[1]!.width).toBe(mobileTaskActions[2]!.width);
+  expect(mobileTaskActions[2]!.width).toBe(mobileTaskActions[3]!.width);
+  expect(mobileTaskActions[1]!.y).toBeGreaterThan(mobileTaskActions[0]!.y);
+  expect(mobileTaskActions[2]!.y).toBeGreaterThan(mobileTaskActions[1]!.y);
+  expect(mobileTaskActions[3]!.y).toBeGreaterThan(mobileTaskActions[2]!.y);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const desktopTaskActions = await Promise.all(
+    taskActions.map((action) => action.boundingBox()),
+  );
+  expect(desktopTaskActions[0]!.width).toBeLessThan(160);
+  expect(desktopTaskActions[0]!.width).toBe(desktopTaskActions[1]!.width);
+  expect(desktopTaskActions[1]!.width).toBe(desktopTaskActions[2]!.width);
+  expect(desktopTaskActions[2]!.width).toBe(desktopTaskActions[3]!.width);
+  expect(desktopTaskActions[1]!.y).toBe(desktopTaskActions[0]!.y);
+  expect(desktopTaskActions[1]!.x).toBeGreaterThan(desktopTaskActions[0]!.x);
+  expect(desktopTaskActions[2]!.y).toBeGreaterThan(desktopTaskActions[0]!.y);
+  expect(desktopTaskActions[3]!.y).toBe(desktopTaskActions[2]!.y);
+  expect((await taskCard.boundingBox())!.height).toBeLessThan(260);
 
   await api.dispose();
 });
