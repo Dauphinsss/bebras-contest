@@ -5,28 +5,26 @@ interface Props {
 }
 
 import { UserMenu } from "./user-menu";
+import { MobileNavigation } from "./mobile-navigation";
+import { SITE_NAV_ITEMS } from "../lib/site-navigation";
 
 const { heading, backHref } = Astro.props;
 const pathname = Astro.url.pathname;
-const isTasks = pathname.startsWith("/tareas");
-const isContests = pathname.startsWith("/competencias");
-const isGroups = pathname.startsWith("/grupos");
-const isMaestros = pathname.startsWith("/maestros");
 const isPractice = pathname.startsWith("/practica");
 const hasContextualPracticeBack =
   pathname === "/practica/categoria" || pathname === "/practica/tarea";
 
-const links = [
-  { href: "/tareas", label: "Tareas", active: isTasks, role: "admin" },
-  { href: "/competencias", label: "Competencias", active: isContests, role: "admin" },
-  { href: "/grupos", label: "Grupos", active: isGroups, role: "staff" },
-  { href: "/maestros", label: "Maestros", active: isMaestros, role: "admin" },
-];
+const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
+  (item) => ({
+    ...item,
+    active: pathname === item.href || pathname.startsWith(`${item.href}/`),
+  }),
+);
 ---
 
 <header class="border-b bg-background">
   <div
-    class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-8 lg:px-12"
+    class="flex w-full flex-wrap items-center justify-between gap-x-2 px-4 py-3 sm:px-8 lg:flex-nowrap lg:gap-4 lg:px-12"
   >
     <div class="flex min-w-0 flex-1 items-center gap-3">
       <a href="/" class="shrink-0 text-lg font-semibold tracking-tight">Bebras</a>
@@ -68,7 +66,7 @@ const links = [
         )
       }
     </div>
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="hidden shrink-0 items-center gap-2 lg:flex">
       <a
         href="/practica"
         class:list={[
@@ -80,7 +78,7 @@ const links = [
       >
         Desafíos
       </a>
-      <nav class="hidden items-center gap-1 lg:flex">
+      <nav class="flex items-center gap-1">
         {
           links.map((link) => (
             <a
@@ -99,8 +97,9 @@ const links = [
           ))
         }
       </nav>
-      <UserMenu client:only="react" />
     </div>
+    <MobileNavigation pathname={pathname} client:only="react" />
+    <UserMenu client:only="react" />
   </div>
 </header>
 
