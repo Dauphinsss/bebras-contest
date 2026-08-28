@@ -248,7 +248,7 @@ export function ContestsHome() {
                       </div>
                     </div>
 
-                    <div className="grid w-full shrink-0 gap-2 lg:w-96 lg:grid-cols-2">
+                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                       {contest.state !== "borrador" &&
                         contest.state !== "programada" && (
                           <Button

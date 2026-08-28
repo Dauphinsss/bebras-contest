@@ -125,28 +125,39 @@ export function TasksHome() {
               <Card
                 key={task.id}
                 variant="soft-gradient"
-                className="cursor-pointer transition hover:border-primary/40"
+                className="cursor-pointer gap-0 py-0 transition hover:border-primary/40"
                 onDoubleClick={() => {
                   window.location.href = `/tareas/editar?id=${task.id}`;
                 }}
               >
-                <CardHeader className="gap-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">{task.status}</Badge>
-                      <Badge variant="outline">{task.ageSummary}</Badge>
-                      {task.isPractice && (
-                        <Badge className="gap-1">
-                          <GraduationCapIcon className="size-3" />
-                          Práctica
-                        </Badge>
-                      )}
+                <CardHeader className="gap-4 py-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex min-w-0 flex-col gap-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary">{task.status}</Badge>
+                        <Badge variant="outline">{task.ageSummary}</Badge>
+                        {task.isPractice && (
+                          <Badge className="gap-1">
+                            <GraduationCapIcon className="size-3" />
+                            Práctica
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <CardTitle className="text-xl sm:text-2xl">
+                          {task.title}
+                        </CardTitle>
+                        <CardDescription className="text-sm leading-6 sm:text-base">
+                          {task.question}
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                       <Button
                         size="sm"
                         type="button"
                         variant={task.isPractice ? "default" : "outline"}
+                        className="w-full justify-start"
                         onClick={(event) => {
                           event.stopPropagation();
                           togglePractice(task);
@@ -155,13 +166,23 @@ export function TasksHome() {
                         <GraduationCapIcon data-icon="inline-start" />
                         {task.isPractice ? "En práctica" : "Práctica"}
                       </Button>
-                      <Button asChild size="sm" variant="outline">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className="w-full justify-start"
+                      >
                         <a href={`/tareas/editar?id=${task.id}`}>
                           <FilePenLineIcon data-icon="inline-start" />
                           Editar
                         </a>
                       </Button>
-                      <Button asChild size="sm" variant="outline">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className="w-full justify-start"
+                      >
                         <a href={`/tareas/probador?id=${task.id}`}>
                           <PlayCircleIcon data-icon="inline-start" />
                           Probar
@@ -171,6 +192,7 @@ export function TasksHome() {
                         size="sm"
                         type="button"
                         variant="outline"
+                        className="w-full justify-start"
                         onClick={(event) => {
                           event.stopPropagation();
                           void removeTask(task.id)
@@ -190,15 +212,9 @@ export function TasksHome() {
                       </Button>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <CardTitle className="text-xl sm:text-2xl">{task.title}</CardTitle>
-                    <CardDescription className="text-sm leading-6 sm:text-base">
-                      {task.question}
-                    </CardDescription>
-                  </div>
                 </CardHeader>
                 <Separator />
-                <CardFooter className="flex flex-wrap gap-2 pt-5">
+                <CardFooter className="flex flex-wrap gap-2 py-4">
                   {task.categories.map((category) => (
                     <Badge key={category} variant="outline">
                       {category}
