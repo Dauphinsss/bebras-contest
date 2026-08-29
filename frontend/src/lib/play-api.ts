@@ -23,7 +23,10 @@ export type PlayTask = {
   multipleChoiceMode: "single" | "any" | "all";
   answers: PlayAnswerOption[];
   dragDropBackground: ContentImage | null;
-  dragDropItems: Pick<StoredTaskDragDropItem, "id" | "label" | "image">[];
+  dragDropItems: Pick<
+    StoredTaskDragDropItem,
+    "id" | "label" | "image" | "widthPercent"
+  >[];
   dragDropTargets: StoredTaskDragDropTarget[];
   explanation?: string;
   correct?: boolean;

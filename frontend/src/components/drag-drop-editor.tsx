@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+  DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
   type StoredTaskDragDropItem,
   type StoredTaskDragDropTarget,
 } from "@/lib/task-schema";
@@ -42,7 +43,7 @@ type DragDropEditorProps = {
   onRemoveItem: (itemId: string) => void;
   onUpdateItem: (
     itemId: string,
-    patch: Partial<Pick<StoredTaskDragDropItem, "label">>,
+    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "widthPercent">>,
   ) => void;
   onUpdateTarget: (
     targetId: string,
@@ -87,8 +88,7 @@ export function DragDropEditor({
     }
 
     const updateStageSize = () => {
-      const rect = stage.getBoundingClientRect();
-      setStageSize({ width: rect.width, height: rect.height });
+      setStageSize({ width: stage.clientWidth, height: stage.clientHeight });
     };
 
     updateStageSize();
@@ -113,14 +113,28 @@ export function DragDropEditor({
     }
 
     const rect = stage.getBoundingClientRect();
+    const width = stage.clientWidth;
+    const height = stage.clientHeight;
 
-    if (rect.width === 0 || rect.height === 0) {
+    if (width === 0 || height === 0) {
       return;
     }
 
     onUpdateTarget(targetId, {
-      x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
-      y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
+      x: Math.max(
+        0,
+        Math.min(
+          100,
+          ((clientX - rect.left - stage.clientLeft) / width) * 100,
+        ),
+      ),
+      y: Math.max(
+        0,
+        Math.min(
+          100,
+          ((clientY - rect.top - stage.clientTop) / height) * 100,
+        ),
+      ),
     });
   };
 
@@ -171,7 +185,7 @@ export function DragDropEditor({
         <FieldLegend variant="label">Escenario de fondo</FieldLegend>
         <FieldDescription>
           Selecciona un objeto y toca el escenario para ubicar su destino.
-          También puedes arrastrar directamente el marcador o ajustar X e Y.
+          También puedes arrastrar directamente el objeto o ajustar X e Y.
         </FieldDescription>
         <Field>
           <FieldContent className="gap-4">
@@ -227,6 +241,11 @@ export function DragDropEditor({
                         : 0) /
                         100) *
                       Math.min(stageSize.width, stageSize.height);
+                    const widthPercent = Number.isFinite(item.widthPercent)
+                      ? item.widthPercent
+                      : DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT;
+                    const itemWidthPixels =
+                      (widthPercent / 100) * stageSize.width;
 
                     return (
                       <div
@@ -239,7 +258,7 @@ export function DragDropEditor({
                       >
                         <div
                           className={cn(
-                            "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed bg-primary/10",
+                            "pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed",
                             selected
                               ? "border-primary"
                               : "border-muted-foreground/70",
@@ -251,14 +270,28 @@ export function DragDropEditor({
                         />
                         <button
                           className={cn(
-                            "pointer-events-auto absolute size-8 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 bg-background text-xs font-semibold shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing",
-                            selected &&
-                              "border-primary bg-primary text-primary-foreground ring-2 ring-primary/30",
+                            "pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-grab border-2 border-transparent shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing",
+                            item.image
+                              ? "block overflow-hidden rounded-sm bg-transparent p-0"
+                              : "size-8 rounded-full bg-background text-xs font-semibold",
+                            selected && item.image
+                              ? "border-primary ring-2 ring-primary/30"
+                              : selected &&
+                                  "border-primary bg-primary text-primary-foreground ring-2 ring-primary/30",
                           )}
-                          style={{ touchAction: "none" }}
+                          style={{
+                            touchAction: "none",
+                            ...(item.image
+                              ? { width: `${itemWidthPixels}px` }
+                              : {}),
+                          }}
                           type="button"
                           aria-label={`Mover destino de ${item.label || `objeto ${index + 1}`}`}
-                          onClick={(event) => event.stopPropagation()}
+                          aria-pressed={selected}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActiveItemId(item.id);
+                          }}
                           onPointerCancel={finishMarkerDrag}
                           onPointerDown={(event) =>
                             handleMarkerPointerDown(event, item.id, target.id)
@@ -266,7 +299,16 @@ export function DragDropEditor({
                           onPointerMove={handleMarkerPointerMove}
                           onPointerUp={finishMarkerDrag}
                         >
-                          {index + 1}
+                          {item.image ? (
+                            <img
+                              alt=""
+                              className="block h-auto w-full select-none"
+                              draggable={false}
+                              src={item.image.url}
+                            />
+                          ) : (
+                            index + 1
+                          )}
                         </button>
                       </div>
                     );
@@ -304,8 +346,7 @@ export function DragDropEditor({
       <FieldSet>
         <FieldLegend variant="label">Objetos arrastrables</FieldLegend>
         <FieldDescription>
-          El objeto seleccionado se identifica en el escenario con el mismo
-          número.
+          El objeto seleccionado se muestra en su destino sobre el escenario.
         </FieldDescription>
         <div className="flex flex-col gap-4">
           {items.map((item, index) => {
@@ -420,7 +461,34 @@ export function DragDropEditor({
                   </Field>
 
                   {target && (
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <Field>
+                        <FieldLabel htmlFor={`drag-item-width-${item.id}`}>
+                          Ancho en escenario (%)
+                        </FieldLabel>
+                        <FieldContent>
+                          <Input
+                            id={`drag-item-width-${item.id}`}
+                            max="100"
+                            min="0.1"
+                            step="0.1"
+                            type="number"
+                            value={
+                              Number.isFinite(item.widthPercent)
+                                ? item.widthPercent
+                                : ""
+                            }
+                            onChange={(event) =>
+                              onUpdateItem(item.id, {
+                                widthPercent: event.target.valueAsNumber,
+                              })
+                            }
+                          />
+                          <FieldDescription>
+                            Porcentaje del ancho del escenario.
+                          </FieldDescription>
+                        </FieldContent>
+                      </Field>
                       <Field>
                         <FieldLabel htmlFor={`drag-target-x-${target.id}`}>
                           X (%)
@@ -430,7 +498,7 @@ export function DragDropEditor({
                             id={`drag-target-x-${target.id}`}
                             max="100"
                             min="0"
-                            step="0.1"
+                            step="any"
                             type="number"
                             value={Number.isFinite(target.x) ? target.x : ""}
                             onChange={(event) =>
@@ -450,7 +518,7 @@ export function DragDropEditor({
                             id={`drag-target-y-${target.id}`}
                             max="100"
                             min="0"
-                            step="0.1"
+                            step="any"
                             type="number"
                             value={Number.isFinite(target.y) ? target.y : ""}
                             onChange={(event) =>

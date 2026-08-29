@@ -24,6 +24,7 @@ export const answerTypes = [
 ] as const;
 export const multipleChoiceOrderModes = ["fixed", "random"] as const;
 export const multipleChoiceCorrectnessModes = ["single", "any", "all"] as const;
+export const DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT = 12;
 
 export type ContentBlockType = "text" | "image" | "challenge";
 
@@ -68,6 +69,7 @@ export type StoredTaskDragDropItem = {
   label: string;
   image: ContentImage | null;
   correctTargetId: string;
+  widthPercent: number;
 };
 
 export type StoredTaskDragDropTarget = {

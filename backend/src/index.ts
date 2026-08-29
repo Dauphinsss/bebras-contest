@@ -244,6 +244,7 @@ type DragDropItem = {
   id: string;
   label: unknown;
   image: unknown;
+  widthPercent: number;
   correctTargetId: string;
 };
 
@@ -263,6 +264,15 @@ type DragDropConfig = {
 function readFiniteNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function normalizeDragDropWidth(value: unknown) {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value > 0 &&
+    value <= 100
+    ? value
+    : 12;
 }
 
 function legacyDragDropTargetId(
@@ -313,6 +323,7 @@ function normalizeDragDropConfig(value: unknown): DragDropConfig {
         id,
         label: item.label ?? "",
         image: item.image ?? null,
+        widthPercent: normalizeDragDropWidth(item.widthPercent),
         correctTargetId: targetId,
       });
       targets.push({ id: targetId, x, y, snapRadius });
@@ -348,6 +359,7 @@ function normalizeDragDropConfig(value: unknown): DragDropConfig {
             : `item-${index + 1}`,
         label: item.label ?? "",
         image: item.image ?? null,
+        widthPercent: normalizeDragDropWidth(item.widthPercent),
         correctTargetId:
           typeof item.correctTargetId === "string"
             ? item.correctTargetId
@@ -669,6 +681,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
       const item = (dragDropItem ?? {}) as Record<string, unknown>;
       const id = readText(item.id);
       const label = readText(item.label);
+      const widthPercent = item.widthPercent;
       const correctTargetId = readText(item.correctTargetId);
 
       if (!id) {
@@ -688,6 +701,17 @@ function parseTaskPayload(body: Record<string, unknown>) {
         throw new Error("Cada objeto arrastrable debe tener una imagen.");
       }
 
+      if (
+        typeof widthPercent !== "number" ||
+        !Number.isFinite(widthPercent) ||
+        widthPercent <= 0 ||
+        widthPercent > 100
+      ) {
+        throw new Error(
+          "El ancho de cada objeto arrastrable debe ser mayor que 0 y menor o igual a 100.",
+        );
+      }
+
       if (!correctTargetId) {
         throw new Error("Cada objeto arrastrable debe tener un destino correcto.");
       }
@@ -696,6 +720,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
         id,
         label,
         image: item.image,
+        widthPercent,
         correctTargetId,
       });
     }
@@ -3233,6 +3258,7 @@ function renderSafeTask(contestTask: { position: number }, task: PlayTask) {
       id: item.id,
       label: item.label,
       image: item.image,
+      widthPercent: item.widthPercent,
     })),
     dragDropTargets: [...task.dragDropTargets]
       .sort(

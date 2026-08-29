@@ -7,12 +7,13 @@ import type {
   StoredTaskDragDropItem,
   StoredTaskDragDropTarget,
 } from "@/lib/task-schema";
+import { DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT } from "@/lib/task-schema";
 
 export type DragDropPlacements = Record<string, string>;
 
 type PublicDragDropItem = Pick<
   StoredTaskDragDropItem,
-  "id" | "label" | "image"
+  "id" | "label" | "image" | "widthPercent"
 >;
 
 type PointerDrag = {
@@ -27,6 +28,7 @@ type DragPreview = {
   itemId: string;
   x: number;
   y: number;
+  width: number;
 };
 
 type DragDropPlayerProps = {
@@ -37,6 +39,18 @@ type DragDropPlayerProps = {
   disabled?: boolean;
   onChange: (placements: DragDropPlacements) => void;
 };
+
+type StageBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
+
+function getStageBounds(stage: HTMLDivElement): StageBounds {
+  const rect = stage.getBoundingClientRect();
+  return {
+    left: rect.left + stage.clientLeft,
+    top: rect.top + stage.clientTop,
+    width: stage.clientWidth,
+    height: stage.clientHeight,
+  };
+}
 
 function compareIds(left: string, right: string) {
   if (left === right) {
@@ -49,7 +63,7 @@ function compareIds(left: string, right: string) {
 function findTargetAtPoint(
   clientX: number,
   clientY: number,
-  stage: DOMRect,
+  stage: StageBounds,
   targets: StoredTaskDragDropTarget[],
 ) {
   const stageSize = Math.min(stage.width, stage.height);
@@ -81,6 +95,7 @@ export function DragDropPlayer({
 }: DragDropPlayerProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const pointerDragRef = useRef<PointerDrag | null>(null);
+  const suppressClickItemIdRef = useRef<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
 
@@ -99,6 +114,11 @@ export function DragDropPlayer({
   const previewItem = dragPreview
     ? items.find((item) => item.id === dragPreview.itemId)
     : null;
+
+  const itemWidth = (item: PublicDragDropItem) =>
+    Number.isFinite(item.widthPercent) && item.widthPercent > 0
+      ? item.widthPercent
+      : DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT;
 
   const placeItem = (itemId: string, targetId: string) => {
     if (
@@ -149,12 +169,13 @@ export function DragDropPlayer({
     clientX: number,
     clientY: number,
   ) => {
-    const stage = stageRef.current?.getBoundingClientRect();
+    const stageElement = stageRef.current;
 
-    if (!stage || disabled) {
+    if (!stageElement || disabled) {
       return false;
     }
 
+    const stage = getStageBounds(stageElement);
     const target = findTargetAtPoint(clientX, clientY, stage, targets);
     return target ? placeItem(itemId, target.id) : false;
   };
@@ -175,7 +196,6 @@ export function DragDropPlayer({
       startY: event.clientY,
       moved: false,
     };
-    setSelectedItemId(itemId);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -193,8 +213,18 @@ export function DragDropPlayer({
     }
 
     drag.moved = true;
+    setSelectedItemId(drag.itemId);
     event.preventDefault();
-    setDragPreview({ itemId: drag.itemId, x: event.clientX, y: event.clientY });
+    const item = items.find((candidate) => candidate.id === drag.itemId);
+    const stageWidth = stageRef.current?.clientWidth ?? 0;
+    setDragPreview({
+      itemId: drag.itemId,
+      x: event.clientX,
+      y: event.clientY,
+      width: item
+        ? (itemWidth(item) / 100) * stageWidth
+        : (DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT / 100) * stageWidth,
+    });
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -208,6 +238,12 @@ export function DragDropPlayer({
     setDragPreview(null);
 
     if (drag.moved && !disabled) {
+      suppressClickItemIdRef.current = drag.itemId;
+      window.setTimeout(() => {
+        if (suppressClickItemIdRef.current === drag.itemId) {
+          suppressClickItemIdRef.current = null;
+        }
+      }, 0);
       placeItemAtPoint(drag.itemId, event.clientX, event.clientY);
     }
   };
@@ -229,7 +265,25 @@ export function DragDropPlayer({
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
 
-      if (!disabled && event.detail === 0) {
+      if (disabled) {
+        return;
+      }
+
+      if (suppressClickItemIdRef.current === itemId) {
+        suppressClickItemIdRef.current = null;
+        return;
+      }
+
+      if (selectedItemId && selectedItemId !== itemId) {
+        if (event.detail === 0) {
+          const occupiedTargetId = placements[itemId];
+          if (targetById.has(occupiedTargetId ?? "")) {
+            placeItem(selectedItemId, occupiedTargetId);
+          }
+        } else {
+          placeItemAtPoint(selectedItemId, event.clientX, event.clientY);
+        }
+      } else {
         setSelectedItemId(itemId);
       }
     },
@@ -246,7 +300,7 @@ export function DragDropPlayer({
         ref={stageRef}
         aria-label="Escenario de la tarea. Selecciona un objeto y toca el escenario para colocarlo."
         className={cn(
-          "relative overflow-hidden rounded-sm border bg-muted/30 [box-shadow:var(--shadow-hard)]",
+          "relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border bg-muted/30 [box-shadow:var(--shadow-hard)]",
           selectedItemId && !disabled && "cursor-crosshair",
         )}
         onClick={(event) => {
@@ -275,17 +329,21 @@ export function DragDropPlayer({
               key={item.id}
               {...itemButtonProps(item.id)}
               className={cn(
-                "absolute touch-none -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
+                "absolute touch-none -translate-x-1/2 -translate-y-1/2 cursor-grab overflow-hidden rounded-sm border-2 border-transparent bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
                 selectedItemId === item.id && "ring-2 ring-primary",
                 dragPreview?.itemId === item.id && "opacity-50",
               )}
-              style={{ left: `${target.x}%`, top: `${target.y}%` }}
+              style={{
+                left: `${target.x}%`,
+                top: `${target.y}%`,
+                width: `${itemWidth(item)}%`,
+              }}
               type="button"
             >
               {item.image ? (
                 <img
                   alt={item.image.name}
-                  className="block max-h-20 max-w-24 object-contain"
+                  className="block h-auto w-full object-contain"
                   draggable={false}
                   src={item.image.url}
                 />
@@ -299,7 +357,7 @@ export function DragDropPlayer({
         })}
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           Arrastra un objeto, o selecciónalo y toca el escenario para colocarlo.
         </p>
@@ -337,13 +395,17 @@ export function DragDropPlayer({
       {dragPreview && previewItem && (
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-sm border bg-background/90 p-2 opacity-80 shadow-lg"
-          style={{ left: dragPreview.x, top: dragPreview.y }}
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-sm border-2 border-primary/60 bg-background/90 opacity-80 shadow-lg"
+          style={{
+            left: dragPreview.x,
+            top: dragPreview.y,
+            width: `${dragPreview.width}px`,
+          }}
         >
           {previewItem.image ? (
             <img
               alt=""
-              className="block max-h-16 max-w-20 object-contain"
+              className="block h-auto w-full object-contain"
               src={previewItem.image.url}
             />
           ) : (

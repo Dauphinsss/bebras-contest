@@ -67,6 +67,7 @@ import {
   categories,
   createContentBlock,
   createContentImages,
+  DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
   encodeMultipleChoiceCorrectness,
   getBlocksSummary,
   getNonEmptyBlocks,
@@ -146,6 +147,7 @@ function createDragDropEntry(index: number) {
       label: `Objeto ${index}`,
       image: null,
       correctTargetId: targetId,
+      widthPercent: DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
     } satisfies StoredTaskDragDropItem,
     target: {
       id: targetId,
@@ -272,7 +274,12 @@ function createStateFromTask(task: StoredTask): FormState {
           ],
     dragDropBackground: task.dragDropBackground ?? null,
     dragDropItems: hasDragDropConfiguration
-      ? task.dragDropItems
+      ? task.dragDropItems.map((item) => ({
+          ...item,
+          widthPercent: Number.isFinite(item.widthPercent)
+            ? item.widthPercent
+            : DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
+        }))
       : [fallbackDragDropEntry.item],
     dragDropTargets: hasDragDropConfiguration
       ? task.dragDropTargets
@@ -399,6 +406,16 @@ function validateForm(state: FormState) {
       if (!item.image) {
         errors.push("Cada objeto arrastrable debe tener una imagen.");
       }
+
+      if (
+        !Number.isFinite(item.widthPercent) ||
+        item.widthPercent <= 0 ||
+        item.widthPercent > 100
+      ) {
+        errors.push(
+          "El ancho de cada objeto debe ser mayor que 0 y hasta 100.",
+        );
+      }
     }
 
     const itemIds = state.dragDropItems.map((item) => item.id);
@@ -524,6 +541,7 @@ function buildStoredTask(
         ? state.dragDropItems.map((item) => ({
             ...item,
             label: item.label.trim(),
+            widthPercent: item.widthPercent,
           }))
         : [],
     dragDropTargets:
@@ -766,7 +784,7 @@ export function TaskUploadForm({
 
   const updateDragDropItem = (
     itemId: string,
-    patch: Partial<Pick<StoredTaskDragDropItem, "label">>,
+    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "widthPercent">>,
   ) => {
     setForm((current) => ({
       ...current,
@@ -1657,6 +1675,7 @@ export function TaskUploadForm({
                           label: `Objeto ${current.dragDropItems.length + 1}`,
                           image: null,
                           correctTargetId: targetId,
+                          widthPercent: DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
                         },
                       ],
                       dragDropTargets: [
