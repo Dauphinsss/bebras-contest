@@ -258,6 +258,42 @@ function taskBlock(id: string, content: string) {
   return { id, type: "text", content, image: null, widthPercent: 100 };
 }
 
+const DRAG_DROP_BACKGROUND = {
+  id: "drag-background",
+  name: "escenario.svg",
+  url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'%3E%3Crect width='800' height='500' fill='%23e2e8f0'/%3E%3C/svg%3E",
+};
+const DRAG_DROP_TARGETS = [
+  { id: "drop-zone-two", x: 75, y: 65, snapRadius: 10 },
+  { id: "drop-zone-one", x: 25, y: 35, snapRadius: 10 },
+];
+const DRAG_DROP_ITEMS = [
+  {
+    id: "drag-item-a",
+    label: "Objeto alfa",
+    image: {
+      id: "drag-image-a",
+      name: "objeto-alfa.svg",
+      url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%23ef4444'/%3E%3C/svg%3E",
+    },
+    correctTargetId: "drop-zone-two",
+  },
+  {
+    id: "drag-item-b",
+    label: "Objeto beta",
+    image: {
+      id: "drag-image-b",
+      name: "objeto-beta.svg",
+      url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Ccircle cx='40' cy='30' r='28' fill='%233b82f6'/%3E%3C/svg%3E",
+    },
+    correctTargetId: "drop-zone-one",
+  },
+];
+
+const DRAG_DROP_CORRECT_PLACEMENTS = Object.fromEntries(
+  DRAG_DROP_ITEMS.map((item) => [item.id, item.correctTargetId]),
+);
+
 async function createPracticeTask(
   api: APIRequestContext,
   headers: Record<string, string>,
@@ -288,30 +324,9 @@ async function createPracticeTask(
           ? [{ id: `range-${suffix}`, label: "Válido", min: 10, max: 20 }]
           : [],
       dragDropBackground:
-        answerType === "drag_drop"
-          ? {
-              id: `background-${suffix}`,
-              name: "fondo.png",
-              url: "data:image/png;base64,AA==",
-            }
-          : null,
-      dragDropItems:
-        answerType === "drag_drop"
-          ? [
-              {
-                id: `item-${suffix}`,
-                label: "Pieza",
-                image: {
-                  id: `image-${suffix}`,
-                  name: "pieza.png",
-                  url: "data:image/png;base64,AA==",
-                },
-                targetX: 50,
-                targetY: 40,
-                tolerance: 5,
-              },
-            ]
-          : [],
+        answerType === "drag_drop" ? DRAG_DROP_BACKGROUND : null,
+      dragDropItems: answerType === "drag_drop" ? DRAG_DROP_ITEMS : [],
+      dragDropTargets: answerType === "drag_drop" ? DRAG_DROP_TARGETS : [],
       explanation: `Explicación ${answerType}`,
       status: "Borrador",
       isPractice: true,
@@ -363,6 +378,8 @@ test("serves and checks all four public practice answer types", async () => {
       (answerType) => createPracticeTask(api, headers, answerType),
     ),
   );
+  const dragDropTask = tasks.find((task) => task.answerType === "drag_drop");
+  expect(dragDropTask).toBeTruthy();
 
   const categoriesResponse = await api.get(`${API}/api/practice/categories`);
   expect(categoriesResponse.ok(), await categoriesResponse.text()).toBe(true);
@@ -397,17 +414,12 @@ test("serves and checks all four public practice answer types", async () => {
       incorrect: { value: 21 },
     },
     {
-      task: tasks.find((task) => task.answerType === "drag_drop"),
-      correct: {
-        placements: {
-          [tasks.find((task) => task.answerType === "drag_drop")
-            .dragDropItems[0].id]: { x: 53, y: 36 },
-        },
-      },
+      task: dragDropTask,
+      correct: { placements: DRAG_DROP_CORRECT_PLACEMENTS },
       incorrect: {
         placements: {
-          [tasks.find((task) => task.answerType === "drag_drop")
-            .dragDropItems[0].id]: { x: 80, y: 80 },
+          [DRAG_DROP_ITEMS[0].id]: DRAG_DROP_ITEMS[1].correctTargetId,
+          [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_ITEMS[0].correctTargetId,
         },
       },
     },
@@ -425,9 +437,28 @@ test("serves and checks all four public practice answer types", async () => {
     expect(detail).not.toHaveProperty("rangeAnswers");
     expect(detail).not.toHaveProperty("explanation");
     if (detail.answerType === "drag_drop") {
-      expect(detail.dragDropItems[0]).not.toHaveProperty("targetX");
-      expect(detail.dragDropItems[0]).not.toHaveProperty("targetY");
-      expect(detail.dragDropItems[0]).not.toHaveProperty("tolerance");
+      expect(detail.dragDropTargets).toHaveLength(DRAG_DROP_TARGETS.length);
+      expect(detail.dragDropTargets).toEqual(
+        expect.arrayContaining(DRAG_DROP_TARGETS),
+      );
+      expect(detail.dragDropItems).toHaveLength(DRAG_DROP_ITEMS.length);
+      expect(detail.dragDropItems).toEqual(
+        expect.arrayContaining(
+          DRAG_DROP_ITEMS.map(({ correctTargetId: _correctTargetId, ...item }) =>
+            item,
+          ),
+        ),
+      );
+      for (const item of detail.dragDropItems) {
+        expect(item).not.toHaveProperty("correctTargetId");
+        expect(item).not.toHaveProperty("targetX");
+        expect(item).not.toHaveProperty("targetY");
+        expect(item).not.toHaveProperty("tolerance");
+      }
+      const publicItems = JSON.stringify(detail.dragDropItems);
+      for (const target of DRAG_DROP_TARGETS) {
+        expect(publicItems).not.toContain(target.id);
+      }
     }
 
     const correctResponse = await api.post(
@@ -445,7 +476,249 @@ test("serves and checks all four public practice answer types", async () => {
     expect(await incorrectResponse.json()).toMatchObject({ correct: false });
   }
 
+  const checkDragDrop = async (placements: Record<string, unknown>) => {
+    const response = await api.post(
+      `${API}/api/practice/tasks/${dragDropTask.id}/check`,
+      { data: { payload: { placements } } },
+    );
+    expect(response.ok(), await response.text()).toBe(true);
+    return response.json();
+  };
+
+  expect(
+    await checkDragDrop({
+      [DRAG_DROP_ITEMS[0].id]: { x: 85, y: 75 },
+      [DRAG_DROP_ITEMS[1].id]: { x: 15, y: 25 },
+    }),
+  ).toMatchObject({ correct: false });
+  expect(
+    await checkDragDrop({
+      "nonexistent-item": DRAG_DROP_TARGETS[0].id,
+    }),
+  ).toMatchObject({ correct: false });
+  expect(
+    await checkDragDrop({
+      [DRAG_DROP_ITEMS[0].id]: DRAG_DROP_TARGETS[0].id,
+      [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_TARGETS[0].id,
+    }),
+  ).toMatchObject({ correct: false });
+
   await api.dispose();
+});
+
+test("validates v2 drag-drop answers within their contest", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const task = await createPracticeTask(api, headers, "drag_drop");
+  const contest = await createContest(api, headers, {
+    category: "Titi",
+    tasks: [{ taskId: task.id }],
+  });
+  const personalCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    "P5",
+    "Arrastre API",
+  );
+  const start = await api.post(`${API}/api/play/start`, {
+    data: { personalCode },
+  });
+  expect(start.ok(), await start.text()).toBe(true);
+
+  const invalidPlacements = [
+    { "nonexistent-item": DRAG_DROP_TARGETS[0].id },
+    { [DRAG_DROP_ITEMS[0].id]: "nonexistent-target" },
+    {
+      [DRAG_DROP_ITEMS[0].id]: { x: 85, y: 75 },
+      [DRAG_DROP_ITEMS[1].id]: { x: 15, y: 25 },
+    },
+    {
+      [DRAG_DROP_ITEMS[0].id]: DRAG_DROP_TARGETS[0].id,
+      [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_TARGETS[0].id,
+    },
+  ];
+  for (const placements of invalidPlacements) {
+    const answer = await api.post(`${API}/api/play/answer`, {
+      data: { personalCode, taskId: task.id, payload: { placements } },
+    });
+    expect(answer.status(), await answer.text()).toBe(400);
+  }
+
+  const unrelatedTask = await api.post(`${API}/api/play/answer`, {
+    data: {
+      personalCode,
+      taskId: SEEDED_TASK.taskId,
+      payload: { selected: ["B"] },
+    },
+  });
+  expect(unrelatedTask.status(), await unrelatedTask.text()).toBe(404);
+  expect((await unrelatedTask.json()).message).toContain(
+    "no pertenece a esta competencia",
+  );
+
+  const valid = await api.post(`${API}/api/play/answer`, {
+    data: {
+      personalCode,
+      taskId: task.id,
+      payload: { placements: DRAG_DROP_CORRECT_PLACEMENTS },
+    },
+  });
+  expect(valid.status(), await valid.text()).toBe(204);
+  await api.dispose();
+});
+
+test("solves a v2 drag-drop practice task with pointer and touch input", async ({
+  page,
+  browser,
+}) => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const task = await createPracticeTask(api, headers, "drag_drop");
+  await api.dispose();
+
+  await page.goto(`/practica/tarea?id=${task.id}&nombre=Titi`);
+  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
+
+  const stage = page.locator('[aria-label^="Escenario de la tarea."]');
+  const itemButton = (imageName: string) =>
+    page.getByRole("img", { name: imageName }).locator("..");
+  const targetPoint = async (target: (typeof DRAG_DROP_TARGETS)[number]) => {
+    const box = await stage.boundingBox();
+    expect(box).not.toBeNull();
+    return {
+      x: box!.x + (target.x / 100) * box!.width,
+      y: box!.y + (target.y / 100) * box!.height,
+    };
+  };
+  const expectAtTarget = async (
+    imageName: string,
+    target: (typeof DRAG_DROP_TARGETS)[number],
+  ) => {
+    const [buttonBox, point] = await Promise.all([
+      itemButton(imageName).boundingBox(),
+      targetPoint(target),
+    ]);
+    expect(buttonBox).not.toBeNull();
+    expect(
+      Math.abs(buttonBox!.x + buttonBox!.width / 2 - point.x),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(buttonBox!.y + buttonBox!.height / 2 - point.y),
+    ).toBeLessThanOrEqual(1);
+  };
+
+  await expect(stage).toHaveText("");
+  await expect(stage.getByRole("button")).toHaveCount(0);
+  const initialHtml = await stage.evaluate((element) => element.outerHTML);
+  expect(initialHtml).not.toContain("snapRadius");
+  for (const target of DRAG_DROP_TARGETS) {
+    await expect(page.getByText(target.id, { exact: true })).toHaveCount(0);
+  }
+
+  const alpha = itemButton(DRAG_DROP_ITEMS[0].image.name);
+  await alpha.click();
+  await expect(alpha).toHaveAttribute("aria-pressed", "true");
+  await stage.click({ position: { x: 400, y: 20 } });
+  await expect(stage.getByRole("button")).toHaveCount(0);
+  await expect(alpha).toHaveAttribute("aria-pressed", "true");
+
+  const targetTwoPoint = await targetPoint(DRAG_DROP_TARGETS[0]);
+  const stageBox = await stage.boundingBox();
+  expect(stageBox).not.toBeNull();
+  const outsideCircleOffset = Math.min(stageBox!.width, stageBox!.height) * 0.08;
+  await page.mouse.click(
+    targetTwoPoint.x + outsideCircleOffset,
+    targetTwoPoint.y + outsideCircleOffset,
+  );
+  await expect(stage.getByRole("button")).toHaveCount(0);
+  await expect(alpha).toHaveAttribute("aria-pressed", "true");
+
+  await page.mouse.click(targetTwoPoint.x, targetTwoPoint.y);
+  await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[0]);
+
+  const beta = itemButton(DRAG_DROP_ITEMS[1].image.name);
+  const betaBox = await beta.boundingBox();
+  expect(betaBox).not.toBeNull();
+  await page.mouse.move(
+    betaBox!.x + betaBox!.width / 2,
+    betaBox!.y + betaBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(targetTwoPoint.x, targetTwoPoint.y, { steps: 8 });
+  await page.mouse.up();
+  await expectAtTarget(DRAG_DROP_ITEMS[1].image.name, DRAG_DROP_TARGETS[0]);
+  await expect(stage.getByRole("button")).toHaveCount(1);
+  await expect(itemButton(DRAG_DROP_ITEMS[0].image.name)).toContainText(
+    DRAG_DROP_ITEMS[0].label,
+  );
+
+  await itemButton(DRAG_DROP_ITEMS[0].image.name).click();
+  const targetOnePoint = await targetPoint(DRAG_DROP_TARGETS[1]);
+  await page.mouse.click(targetOnePoint.x, targetOnePoint.y);
+  await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[1]);
+
+  await itemButton(DRAG_DROP_ITEMS[0].image.name).click();
+  await page.mouse.click(targetTwoPoint.x, targetTwoPoint.y + 35);
+  await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[0]);
+  await expectAtTarget(DRAG_DROP_ITEMS[1].image.name, DRAG_DROP_TARGETS[1]);
+
+  const checkRequest = page.waitForRequest(
+    (candidate) =>
+      candidate.url() === `${API}/api/practice/tasks/${task.id}/check` &&
+      candidate.method() === "POST",
+  );
+  await page.getByRole("button", { name: "Comprobar" }).click();
+  expect((await checkRequest).postDataJSON()).toEqual({
+    payload: { placements: DRAG_DROP_CORRECT_PLACEMENTS },
+  });
+  await expect(page.getByText("¡Correcto!", { exact: true })).toBeVisible();
+
+  const touchContext = await browser.newContext({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    const touchPage = await touchContext.newPage();
+    await touchPage.goto(`/practica/tarea?id=${task.id}&nombre=Titi`);
+    await expect(
+      touchPage.getByRole("heading", { name: task.title }),
+    ).toBeVisible();
+    const touchStage = touchPage.locator(
+      '[aria-label^="Escenario de la tarea."]',
+    );
+    const touchBeta = touchPage
+      .getByRole("img", { name: DRAG_DROP_ITEMS[1].image.name })
+      .locator("..");
+    await touchBeta.tap();
+    await expect(touchBeta).toHaveAttribute("aria-pressed", "true");
+    const touchStageBox = await touchStage.boundingBox();
+    expect(touchStageBox).not.toBeNull();
+    const touchTarget = DRAG_DROP_TARGETS[1];
+    await touchPage.touchscreen.tap(
+      touchStageBox!.x + (touchTarget.x / 100) * touchStageBox!.width,
+      touchStageBox!.y + (touchTarget.y / 100) * touchStageBox!.height,
+    );
+    const placedBeta = await touchBeta.boundingBox();
+    expect(placedBeta).not.toBeNull();
+    expect(
+      Math.abs(
+        placedBeta!.x +
+          placedBeta!.width / 2 -
+          (touchStageBox!.x + (touchTarget.x / 100) * touchStageBox!.width),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        placedBeta!.y +
+          placedBeta!.height / 2 -
+          (touchStageBox!.y + (touchTarget.y / 100) * touchStageBox!.height),
+      ),
+    ).toBeLessThanOrEqual(1);
+  } finally {
+    await touchContext.close();
+  }
 });
 
 test("rejects documents whose content does not match the extension", async () => {
