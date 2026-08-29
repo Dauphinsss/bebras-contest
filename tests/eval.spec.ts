@@ -264,8 +264,18 @@ const DRAG_DROP_BACKGROUND = {
   url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'%3E%3Crect width='800' height='500' fill='%23e2e8f0'/%3E%3C/svg%3E",
 };
 const DRAG_DROP_TARGETS = [
-  { id: "drop-zone-two", x: 75, y: 65, snapRadius: 10 },
-  { id: "drop-zone-one", x: 25, y: 35, snapRadius: 10 },
+  {
+    id: "drop-zone-two",
+    x: 75.123456789,
+    y: 65.234567891,
+    snapRadius: 10,
+  },
+  {
+    id: "drop-zone-one",
+    x: 24.876543211,
+    y: 34.765432109,
+    snapRadius: 10,
+  },
 ];
 const DRAG_DROP_ITEMS = [
   {
@@ -276,6 +286,7 @@ const DRAG_DROP_ITEMS = [
       name: "objeto-alfa.svg",
       url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%23ef4444'/%3E%3C/svg%3E",
     },
+    widthPercent: 12,
     correctTargetId: "drop-zone-two",
   },
   {
@@ -286,6 +297,7 @@ const DRAG_DROP_ITEMS = [
       name: "objeto-beta.svg",
       url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Ccircle cx='40' cy='30' r='28' fill='%233b82f6'/%3E%3C/svg%3E",
     },
+    widthPercent: 16,
     correctTargetId: "drop-zone-one",
   },
 ];
@@ -572,6 +584,7 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   page,
   browser,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const task = await createPracticeTask(api, headers, "drag_drop");
@@ -607,6 +620,22 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
       Math.abs(buttonBox!.y + buttonBox!.height / 2 - point.y),
     ).toBeLessThanOrEqual(1);
   };
+  const expectScaledWidth = async (
+    imageName: string,
+    widthPercent: number,
+    activeStage = stage,
+    activeItemButton = itemButton(imageName),
+  ) => {
+    const [buttonBox, stageBox] = await Promise.all([
+      activeItemButton.boundingBox(),
+      activeStage.boundingBox(),
+    ]);
+    expect(buttonBox).not.toBeNull();
+    expect(stageBox).not.toBeNull();
+    expect(
+      Math.abs(buttonBox!.width - (stageBox!.width * widthPercent) / 100),
+    ).toBeLessThanOrEqual(1);
+  };
 
   await expect(stage).toHaveText("");
   await expect(stage.getByRole("button")).toHaveCount(0);
@@ -626,6 +655,7 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   const targetTwoPoint = await targetPoint(DRAG_DROP_TARGETS[0]);
   const stageBox = await stage.boundingBox();
   expect(stageBox).not.toBeNull();
+  expect(stageBox!.width).toBeLessThanOrEqual(769);
   const outsideCircleOffset = Math.min(stageBox!.width, stageBox!.height) * 0.08;
   await page.mouse.click(
     targetTwoPoint.x + outsideCircleOffset,
@@ -636,6 +666,10 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
 
   await page.mouse.click(targetTwoPoint.x, targetTwoPoint.y);
   await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[0]);
+  await expectScaledWidth(
+    DRAG_DROP_ITEMS[0].image.name,
+    DRAG_DROP_ITEMS[0].widthPercent,
+  );
 
   const beta = itemButton(DRAG_DROP_ITEMS[1].image.name);
   const betaBox = await beta.boundingBox();
@@ -648,6 +682,10 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   await page.mouse.move(targetTwoPoint.x, targetTwoPoint.y, { steps: 8 });
   await page.mouse.up();
   await expectAtTarget(DRAG_DROP_ITEMS[1].image.name, DRAG_DROP_TARGETS[0]);
+  await expectScaledWidth(
+    DRAG_DROP_ITEMS[1].image.name,
+    DRAG_DROP_ITEMS[1].widthPercent,
+  );
   await expect(stage.getByRole("button")).toHaveCount(1);
   await expect(itemButton(DRAG_DROP_ITEMS[0].image.name)).toContainText(
     DRAG_DROP_ITEMS[0].label,
@@ -659,7 +697,8 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[1]);
 
   await itemButton(DRAG_DROP_ITEMS[0].image.name).click();
-  await page.mouse.click(targetTwoPoint.x, targetTwoPoint.y + 35);
+  const occupiedTargetPoint = await targetPoint(DRAG_DROP_TARGETS[0]);
+  await page.mouse.click(occupiedTargetPoint.x, occupiedTargetPoint.y);
   await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[0]);
   await expectAtTarget(DRAG_DROP_ITEMS[1].image.name, DRAG_DROP_TARGETS[1]);
 
@@ -716,6 +755,12 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
           (touchStageBox!.y + (touchTarget.y / 100) * touchStageBox!.height),
       ),
     ).toBeLessThanOrEqual(1);
+    await expectScaledWidth(
+      DRAG_DROP_ITEMS[1].image.name,
+      DRAG_DROP_ITEMS[1].widthPercent,
+      touchStage,
+      touchBeta,
+    );
   } finally {
     await touchContext.close();
   }
