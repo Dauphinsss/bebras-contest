@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -47,6 +47,36 @@ function formatRemaining(ms: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+const SAVE_RETRY_DELAYS = [250, 750] as const;
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function saveAnswerWithRetry(
+  personalCode: string,
+  taskId: string,
+  payload: unknown,
+) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= SAVE_RETRY_DELAYS.length; attempt += 1) {
+    try {
+      await saveAnswer(personalCode, taskId, payload);
+      return;
+    } catch (error) {
+      lastError = error;
+      const retryDelay = SAVE_RETRY_DELAYS[attempt];
+      if (retryDelay === undefined) {
+        break;
+      }
+      await wait(retryDelay);
+    }
+  }
+
+  throw lastError;
+}
+
 export function AttemptPage() {
   const [personalCode] = useState(() =>
     typeof window !== "undefined"
@@ -64,7 +94,10 @@ export function AttemptPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const saveQueues = useRef<Record<string, Promise<void>>>({});
+  const answersRef = useRef<Record<string, unknown>>({});
   const submittedRef = useRef(false);
+  const automaticFinishAttemptedRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!personalCode) {
@@ -74,7 +107,8 @@ export function AttemptPage() {
     try {
       const data = await getAttempt(personalCode);
       setAttempt(data);
-      setAnswers(data.answers ?? {});
+      answersRef.current = data.answers ?? {};
+      setAnswers(answersRef.current);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "No se pudo cargar.",
@@ -96,31 +130,30 @@ export function AttemptPage() {
   const endsAtMs = attempt?.endsAt ? new Date(attempt.endsAt).getTime() : 0;
   const remaining = endsAtMs - now;
 
-  useEffect(() => {
-    if (
-      attempt?.status === "in_progress" &&
-      endsAtMs > 0 &&
-      remaining <= 0 &&
-      !submittedRef.current
-    ) {
-      submittedRef.current = true;
-      void submitAttempt(personalCode)
-        .then(() => load())
-        .catch(() => undefined);
-    }
-  }, [remaining, attempt?.status, endsAtMs, personalCode, load]);
+  const queueSave = (taskId: string, payload: unknown) => {
+    const previousSave = saveQueues.current[taskId] ?? Promise.resolve();
+    const nextSave = previousSave
+      .catch(() => undefined)
+      .then(() => saveAnswerWithRetry(personalCode, taskId, payload));
+
+    saveQueues.current[taskId] = nextSave;
+    return nextSave;
+  };
 
   const scheduleSave = (taskId: string, payload: unknown) => {
     if (saveTimers.current[taskId]) {
       clearTimeout(saveTimers.current[taskId]);
     }
+    const delay = remaining <= 10000 ? 0 : 500;
     saveTimers.current[taskId] = setTimeout(() => {
-      void saveAnswer(personalCode, taskId, payload).catch(() => undefined);
-    }, 500);
+      delete saveTimers.current[taskId];
+      void queueSave(taskId, payload).catch(() => undefined);
+    }, delay);
   };
 
   const setAnswer = (taskId: string, payload: unknown) => {
-    setAnswers((current) => ({ ...current, [taskId]: payload }));
+    answersRef.current = { ...answersRef.current, [taskId]: payload };
+    setAnswers(answersRef.current);
     scheduleSave(taskId, payload);
   };
 
@@ -128,11 +161,52 @@ export function AttemptPage() {
     Object.values(saveTimers.current).forEach((timer) => clearTimeout(timer));
     saveTimers.current = {};
     await Promise.all(
-      Object.entries(answers).map(([taskId, payload]) =>
-        saveAnswer(personalCode, taskId, payload).catch(() => undefined),
+      Object.entries(answersRef.current).map(([taskId, payload]) =>
+        queueSave(taskId, payload),
       ),
     );
   };
+
+  const finishAutomatically = useEffectEvent(async () => {
+    setSubmitting(true);
+    try {
+      try {
+        await flushSaves();
+      } catch {
+        // The server enforces the deadline, so finalization must still continue.
+      }
+      await submitAttempt(personalCode);
+      await load();
+    } catch {
+      submittedRef.current = false;
+      toast.error(
+        "No pudimos entregar la competencia. Revisa la conexión e inténtalo nuevamente.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  });
+
+  useEffect(() => {
+    if (
+      attempt?.status === "in_progress" &&
+      endsAtMs > 0 &&
+      remaining <= 0 &&
+      !submittedRef.current &&
+      !automaticFinishAttemptedRef.current
+    ) {
+      automaticFinishAttemptedRef.current = true;
+      submittedRef.current = true;
+      void finishAutomatically();
+    }
+  }, [remaining, attempt?.status, endsAtMs]);
+
+  useEffect(
+    () => () => {
+      Object.values(saveTimers.current).forEach((timer) => clearTimeout(timer));
+    },
+    [],
+  );
 
   const handleStart = async () => {
     setStarting(true);
@@ -149,16 +223,21 @@ export function AttemptPage() {
   };
 
   const handleSubmit = async () => {
+    if (submittedRef.current) {
+      return;
+    }
+
+    submittedRef.current = true;
     setSubmitting(true);
     try {
-      submittedRef.current = true;
       await flushSaves();
       await submitAttempt(personalCode);
       await load();
       toast.success("Entregaste la competencia.");
-    } catch (error) {
+    } catch {
+      submittedRef.current = false;
       toast.error(
-        error instanceof Error ? error.message : "No se pudo entregar.",
+        "No pudimos entregar la competencia. Revisa la conexión e inténtalo nuevamente.",
       );
     } finally {
       setSubmitting(false);
@@ -294,8 +373,15 @@ export function AttemptPage() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" disabled={submitting}>
-                <SendIcon data-icon="inline-start" />
-                Entregar
+                {submitting ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                ) : (
+                  <SendIcon data-icon="inline-start" />
+                )}
+                {submitting ? "Entregando..." : "Entregar"}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -308,8 +394,11 @@ export function AttemptPage() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Seguir respondiendo</AlertDialogCancel>
-                <AlertDialogAction onClick={() => void handleSubmit()}>
-                  Entregar
+                <AlertDialogAction
+                  disabled={submitting}
+                  onClick={() => void handleSubmit()}
+                >
+                  {submitting ? "Entregando..." : "Entregar"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -323,6 +412,7 @@ export function AttemptPage() {
             key={task.taskId}
             task={task}
             value={answers[task.taskId]}
+            disabled={submitting}
             onChange={(payload) => setAnswer(task.taskId, payload)}
           />
         ))
@@ -361,6 +451,7 @@ export function AttemptPage() {
               key={attempt.tasks[currentIndex].taskId}
               task={attempt.tasks[currentIndex]}
               value={answers[attempt.tasks[currentIndex].taskId]}
+              disabled={submitting}
               onChange={(payload) =>
                 setAnswer(attempt.tasks[currentIndex].taskId, payload)
               }
@@ -404,10 +495,12 @@ function TaskCard({
   task,
   value,
   onChange,
+  disabled = false,
 }: {
   task: PlayTask;
   value: unknown;
   onChange: (payload: unknown) => void;
+  disabled?: boolean;
 }) {
   return (
     <Card>
@@ -424,7 +517,12 @@ function TaskCard({
           <TaskContentRenderer blocks={task.challengeBlocks} className="gap-4" />
         )}
 
-        <PlayTaskFields task={task} value={value} onChange={onChange} />
+        <PlayTaskFields
+          task={task}
+          value={value}
+          disabled={disabled}
+          onChange={disabled ? () => undefined : onChange}
+        />
       </CardContent>
     </Card>
   );
