@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { mkdir, open, unlink } from "node:fs/promises";
 import { resolve, extname } from "node:path";
@@ -239,6 +240,138 @@ function parseJsonValue<T>(value: unknown, fallback: T) {
   }
 }
 
+type DragDropItem = {
+  id: string;
+  label: unknown;
+  image: unknown;
+  correctTargetId: string;
+};
+
+type DragDropTarget = {
+  id: string;
+  x: number;
+  y: number;
+  snapRadius: number;
+};
+
+type DragDropConfig = {
+  version: 1 | 2;
+  items: DragDropItem[];
+  targets: DragDropTarget[];
+};
+
+function readFiniteNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function legacyDragDropTargetId(
+  index: number,
+  itemId: string,
+  x: number,
+  y: number,
+  snapRadius: number,
+) {
+  const value = `${index}\u0000${itemId}\u0000${x}\u0000${y}\u0000${snapRadius}`;
+  let hash = 2166136261;
+
+  for (let character = 0; character < value.length; character += 1) {
+    hash = Math.imul(hash ^ value.charCodeAt(character), 16777619);
+  }
+
+  return `legacy-target-${(hash >>> 0).toString(36)}`;
+}
+
+function normalizeDragDropConfig(value: unknown): DragDropConfig {
+  if (Array.isArray(value)) {
+    const items: DragDropItem[] = [];
+    const targets: DragDropTarget[] = [];
+    const targetIds = new Set<string>();
+
+    value.forEach((entry, index) => {
+      const item =
+        entry && typeof entry === "object"
+          ? (entry as Record<string, unknown>)
+          : {};
+      const id =
+        typeof item.id === "string" && item.id
+          ? item.id
+          : `legacy-item-${index + 1}`;
+      const x = readFiniteNumber(item.targetX);
+      const y = readFiniteNumber(item.targetY);
+      const snapRadius = readFiniteNumber(item.tolerance);
+      const targetIdBase = legacyDragDropTargetId(index, id, x, y, snapRadius);
+      let targetId = targetIdBase;
+      let collisionSuffix = 2;
+      while (targetIds.has(targetId)) {
+        targetId = `${targetIdBase}-${collisionSuffix}`;
+        collisionSuffix += 1;
+      }
+      targetIds.add(targetId);
+
+      items.push({
+        id,
+        label: item.label ?? "",
+        image: item.image ?? null,
+        correctTargetId: targetId,
+      });
+      targets.push({ id: targetId, x, y, snapRadius });
+    });
+
+    return { version: 1, items, targets };
+  }
+
+  if (!value || typeof value !== "object") {
+    return { version: 2, items: [], targets: [] };
+  }
+
+  const config = value as Record<string, unknown>;
+  if (
+    (config.version !== 1 && config.version !== 2) ||
+    !Array.isArray(config.items) ||
+    !Array.isArray(config.targets)
+  ) {
+    return { version: 2, items: [], targets: [] };
+  }
+
+  return {
+    version: config.version,
+    items: config.items.map((entry, index) => {
+      const item =
+        entry && typeof entry === "object"
+          ? (entry as Record<string, unknown>)
+          : {};
+      return {
+        id:
+          typeof item.id === "string" && item.id
+            ? item.id
+            : `item-${index + 1}`,
+        label: item.label ?? "",
+        image: item.image ?? null,
+        correctTargetId:
+          typeof item.correctTargetId === "string"
+            ? item.correctTargetId
+            : "",
+      };
+    }),
+    targets: config.targets.map((entry, index) => {
+      const target =
+        entry && typeof entry === "object"
+          ? (entry as Record<string, unknown>)
+          : {};
+      return {
+        id:
+          typeof target.id === "string" && target.id
+            ? target.id
+            : `target-${index + 1}`,
+        x: readFiniteNumber(target.x),
+        y: readFiniteNumber(target.y),
+        snapRadius: readFiniteNumber(target.snapRadius),
+      };
+    }),
+  };
+}
+
 function normalizeTaskDifficulties(value: unknown) {
   const difficulties = parseJsonValue<Record<string, unknown>>(value, {});
   const normalized = { ...difficulties };
@@ -270,6 +403,10 @@ function deserializeTask<
     multipleChoiceOrderMode?: unknown;
   },
 >(task: T) {
+  const dragDropConfig = normalizeDragDropConfig(
+    parseJsonValue<unknown>(task.dragDropItems, []),
+  );
+
   return {
     ...task,
     categories: deserializeCategories(task.category),
@@ -284,10 +421,9 @@ function deserializeTask<
       [],
     ),
     dragDropBackground: parseJsonValue<unknown>(task.dragDropBackground, null),
-    dragDropItems: parseJsonValue<PlayTask["dragDropItems"]>(
-      task.dragDropItems,
-      [],
-    ),
+    dragDropItems: dragDropConfig.items,
+    dragDropTargets: dragDropConfig.targets,
+    dragDropVersion: dragDropConfig.version,
     multipleChoiceOrderMode:
       task.multipleChoiceOrderMode === "random" ? "random" : "fixed",
   };
@@ -432,6 +568,14 @@ function parseTaskPayload(body: Record<string, unknown>) {
   const dragDropItems = Array.isArray(body.dragDropItems)
     ? body.dragDropItems
     : [];
+  const dragDropTargets = Array.isArray(body.dragDropTargets)
+    ? body.dragDropTargets
+    : [];
+  let dragDropConfig: { version: 2; items: DragDropItem[]; targets: DragDropTarget[] } = {
+    version: 2,
+    items: [],
+    targets: [],
+  };
 
   if (answerType === "multiple_choice") {
     const filledAnswers = answers.filter(
@@ -504,17 +648,39 @@ function parseTaskPayload(body: Record<string, unknown>) {
       );
     }
 
-    if (dragDropItems.length === 0) {
-      throw new Error("Debes agregar al menos un objeto arrastrable.");
+    if (dragDropItems.length === 0 || dragDropTargets.length === 0) {
+      throw new Error(
+        "Debes agregar al menos un objeto arrastrable y un destino.",
+      );
     }
+
+    if (dragDropItems.length !== dragDropTargets.length) {
+      throw new Error(
+        "Debe haber la misma cantidad de objetos arrastrables y destinos.",
+      );
+    }
+
+    const normalizedItems: DragDropItem[] = [];
+    const normalizedTargets: DragDropTarget[] = [];
+    const itemIds = new Set<string>();
+    const targetIds = new Set<string>();
 
     for (const dragDropItem of dragDropItems) {
       const item = (dragDropItem ?? {}) as Record<string, unknown>;
-      const targetX = Number(item.targetX);
-      const targetY = Number(item.targetY);
-      const tolerance = Number(item.tolerance);
+      const id = readText(item.id);
+      const label = readText(item.label);
+      const correctTargetId = readText(item.correctTargetId);
 
-      if (!readText(item.label)) {
+      if (!id) {
+        throw new Error("Cada objeto arrastrable debe tener un ID.");
+      }
+
+      if (itemIds.has(id)) {
+        throw new Error("Los IDs de los objetos arrastrables deben ser únicos.");
+      }
+      itemIds.add(id);
+
+      if (!label) {
         throw new Error("Cada objeto arrastrable debe tener un nombre.");
       }
 
@@ -522,25 +688,88 @@ function parseTaskPayload(body: Record<string, unknown>) {
         throw new Error("Cada objeto arrastrable debe tener una imagen.");
       }
 
+      if (!correctTargetId) {
+        throw new Error("Cada objeto arrastrable debe tener un destino correcto.");
+      }
+
+      normalizedItems.push({
+        id,
+        label,
+        image: item.image,
+        correctTargetId,
+      });
+    }
+
+    for (const dragDropTarget of dragDropTargets) {
+      const target = (dragDropTarget ?? {}) as Record<string, unknown>;
+      const id = readText(target.id);
+      const x = target.x;
+      const y = target.y;
+      const snapRadius = target.snapRadius;
+
+      if (!id) {
+        throw new Error("Cada destino debe tener un ID.");
+      }
+
+      if (targetIds.has(id)) {
+        throw new Error("Los IDs de los destinos deben ser únicos.");
+      }
+      targetIds.add(id);
+
       if (
-        !Number.isFinite(targetX) ||
-        !Number.isFinite(targetY) ||
-        targetX < 0 ||
-        targetX > 100 ||
-        targetY < 0 ||
-        targetY > 100
+        typeof x !== "number" ||
+        typeof y !== "number" ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        x < 0 ||
+        x > 100 ||
+        y < 0 ||
+        y > 100
       ) {
         throw new Error(
-          "La posición correcta de cada objeto debe estar entre 0 y 100.",
+          "La posición de cada destino debe estar entre 0 y 100.",
         );
       }
 
-      if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 100) {
+      if (
+        typeof snapRadius !== "number" ||
+        !Number.isFinite(snapRadius) ||
+        snapRadius <= 0 ||
+        snapRadius > 100
+      ) {
         throw new Error(
-          "El margen permitido de cada objeto debe estar entre 1 y 100.",
+          "El radio de ajuste de cada destino debe ser mayor que 0 y menor o igual a 100.",
         );
       }
+
+      normalizedTargets.push({ id, x, y, snapRadius });
     }
+
+    const usedTargetIds = new Set<string>();
+    for (const item of normalizedItems) {
+      if (!targetIds.has(item.correctTargetId)) {
+        throw new Error(
+          "El destino correcto de cada objeto debe existir en la tarea.",
+        );
+      }
+
+      if (usedTargetIds.has(item.correctTargetId)) {
+        throw new Error(
+          "Cada destino debe ser la respuesta correcta de un solo objeto.",
+        );
+      }
+      usedTargetIds.add(item.correctTargetId);
+    }
+
+    if (usedTargetIds.size !== targetIds.size) {
+      throw new Error("Cada destino debe usarse exactamente una vez.");
+    }
+
+    dragDropConfig = {
+      version: 2,
+      items: normalizedItems,
+      targets: normalizedTargets,
+    };
   }
 
   return {
@@ -560,7 +789,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
       answerType === "drag_drop" ? (body.dragDropBackground ?? null) : null,
     ),
     dragDropItems: serializeJson(
-      answerType === "drag_drop" ? dragDropItems : [],
+      answerType === "drag_drop" ? dragDropConfig : [],
     ),
     explanation,
     status: readText(body.status) || "Borrador",
@@ -2784,14 +3013,9 @@ type PlayTask = {
   shortAnswer: unknown;
   rangeAnswers: Array<{ min: number; max: number }>;
   dragDropBackground: unknown;
-  dragDropItems: Array<{
-    id: string;
-    label: unknown;
-    image: unknown;
-    targetX: number;
-    targetY: number;
-    tolerance: number;
-  }>;
+  dragDropItems: DragDropItem[];
+  dragDropTargets: DragDropTarget[];
+  dragDropVersion: 1 | 2;
   explanation: unknown;
 };
 
@@ -2818,6 +3042,73 @@ function answerHasResponse(answerType: string, payload: unknown) {
     );
   }
   return false;
+}
+
+type ParsedDragDropAnswer =
+  | { kind: "targets"; placements: Record<string, string> }
+  | {
+      kind: "coordinates";
+      placements: Record<string, { x: number; y: number }>;
+    };
+
+function parseDragDropAnswer(
+  task: PlayTask,
+  payload: unknown,
+): ParsedDragDropAnswer | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  const placements = (payload as Record<string, unknown>).placements;
+  if (!placements || typeof placements !== "object" || Array.isArray(placements)) {
+    return null;
+  }
+
+  const entries = Object.entries(placements as Record<string, unknown>);
+  const itemIds = new Set(task.dragDropItems.map((item) => item.id));
+  if (entries.some(([itemId]) => !itemIds.has(itemId))) {
+    return null;
+  }
+
+  if (entries.every(([, targetId]) => typeof targetId === "string")) {
+    const targetIds = new Set(task.dragDropTargets.map((target) => target.id));
+    const occupiedTargetIds = new Set<string>();
+    const normalizedPlacements: Record<string, string> = {};
+
+    for (const [itemId, targetId] of entries) {
+      const normalizedTargetId = targetId as string;
+      if (
+        !targetIds.has(normalizedTargetId) ||
+        occupiedTargetIds.has(normalizedTargetId)
+      ) {
+        return null;
+      }
+      occupiedTargetIds.add(normalizedTargetId);
+      normalizedPlacements[itemId] = normalizedTargetId;
+    }
+
+    return { kind: "targets", placements: normalizedPlacements };
+  }
+
+  const normalizedPlacements: Record<string, { x: number; y: number }> = {};
+  for (const [itemId, placement] of entries) {
+    if (!placement || typeof placement !== "object" || Array.isArray(placement)) {
+      return null;
+    }
+
+    const { x, y } = placement as Record<string, unknown>;
+    if (
+      typeof x !== "number" ||
+      typeof y !== "number" ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      return null;
+    }
+    normalizedPlacements[itemId] = { x, y };
+  }
+
+  return { kind: "coordinates", placements: normalizedPlacements };
 }
 
 function answerIsCorrect(task: PlayTask, payload: unknown) {
@@ -2862,20 +3153,37 @@ function answerIsCorrect(task: PlayTask, payload: unknown) {
     );
   }
   if (type === "drag_drop") {
-    const placements = (response.placements ?? {}) as Record<
-      string,
-      { x: number; y: number }
-    >;
     const items = task.dragDropItems;
     if (items.length === 0) {
       return false;
     }
+
+    const answer = parseDragDropAnswer(task, payload);
+    if (!answer) {
+      return false;
+    }
+
+    if (answer.kind === "targets") {
+      return items.every(
+        (item) => answer.placements[item.id] === item.correctTargetId,
+      );
+    }
+
+    if (task.dragDropVersion !== 1) {
+      return false;
+    }
+
+    const targets = new Map(
+      task.dragDropTargets.map((target) => [target.id, target]),
+    );
     return items.every((item) => {
-      const placement = placements[item.id];
+      const placement = answer.placements[item.id];
+      const target = targets.get(item.correctTargetId);
       return (
         placement &&
-        Math.abs(placement.x - item.targetX) <= item.tolerance &&
-        Math.abs(placement.y - item.targetY) <= item.tolerance
+        target &&
+        Math.abs(placement.x - target.x) <= target.snapRadius &&
+        Math.abs(placement.y - target.y) <= target.snapRadius
       );
     });
   }
@@ -2926,6 +3234,19 @@ function renderSafeTask(contestTask: { position: number }, task: PlayTask) {
       label: item.label,
       image: item.image,
     })),
+    dragDropTargets: [...task.dragDropTargets]
+      .sort(
+        (left, right) =>
+          left.x - right.x ||
+          left.y - right.y ||
+          left.id.localeCompare(right.id),
+      )
+      .map((target) => ({
+        id: target.id,
+        x: target.x,
+        y: target.y,
+        snapRadius: target.snapRadius,
+      })),
   };
 }
 
@@ -3243,7 +3564,10 @@ app.post("/api/play/answer", async (req, res) => {
 
   const team = await prisma.team.findUnique({
     where: { personalCode },
-    include: { attempt: true },
+    include: {
+      attempt: true,
+      group: { select: { contestId: true } },
+    },
   });
 
   if (!team || !team.attempt) {
@@ -3260,6 +3584,32 @@ app.post("/api/play/answer", async (req, res) => {
     await finalizeAttempt(team.attempt.id);
     res.status(409).json({ message: "El tiempo terminó." });
     return;
+  }
+
+  const contestTask = await prisma.contestTask.findUnique({
+    where: {
+      contestId_taskDraftId: {
+        contestId: team.group.contestId,
+        taskDraftId: taskId,
+      },
+    },
+    include: { taskDraft: true },
+  });
+
+  if (!contestTask) {
+    res.status(404).json({ message: "La tarea no pertenece a esta competencia." });
+    return;
+  }
+
+  const task = deserializeTask(contestTask.taskDraft) as PlayTask;
+  if (task.answerType === "drag_drop") {
+    const answer = parseDragDropAnswer(task, payload);
+    if (!answer || (answer.kind === "coordinates" && task.dragDropVersion !== 1)) {
+      res.status(400).json({
+        message: "La respuesta de arrastrar y soltar no es válida.",
+      });
+      return;
+    }
   }
 
   await prisma.attemptAnswer.upsert({
@@ -3371,8 +3721,44 @@ app.get("/api/contests/:id/results", async (req, res) => {
   });
 });
 
+async function migrateLegacyDragDropConfigs() {
+  const tasks = await prisma.taskDraft.findMany({
+    where: { answerType: "drag_drop" },
+    select: { id: true, dragDropItems: true },
+  });
+
+  for (const task of tasks) {
+    const stored = parseJsonValue<unknown>(task.dragDropItems, []);
+    if (!Array.isArray(stored)) {
+      continue;
+    }
+
+    const legacy = normalizeDragDropConfig(stored);
+    const targetIds = new Map(
+      legacy.targets.map((target) => [target.id, randomUUID()]),
+    );
+    const migrated = {
+      version: 1 as const,
+      items: legacy.items.map((item) => ({
+        ...item,
+        correctTargetId: targetIds.get(item.correctTargetId) ?? randomUUID(),
+      })),
+      targets: legacy.targets.map((target) => ({
+        ...target,
+        id: targetIds.get(target.id) ?? randomUUID(),
+      })),
+    };
+
+    await prisma.taskDraft.update({
+      where: { id: task.id },
+      data: { dragDropItems: serializeJson(migrated) },
+    });
+  }
+}
+
 const startServer = async () => {
   await prisma.$connect();
+  await migrateLegacyDragDropConfigs();
   await mkdir(UPLOADS_DIR, { recursive: true });
 
   app.listen(port, () => {

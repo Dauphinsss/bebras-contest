@@ -23,11 +23,7 @@ export const answerTypes = [
   "drag_drop",
 ] as const;
 export const multipleChoiceOrderModes = ["fixed", "random"] as const;
-export const multipleChoiceCorrectnessModes = [
-  "single",
-  "any",
-  "all",
-] as const;
+export const multipleChoiceCorrectnessModes = ["single", "any", "all"] as const;
 
 export type ContentBlockType = "text" | "image" | "challenge";
 
@@ -71,9 +67,14 @@ export type StoredTaskDragDropItem = {
   id: string;
   label: string;
   image: ContentImage | null;
-  targetX: number;
-  targetY: number;
-  tolerance: number;
+  correctTargetId: string;
+};
+
+export type StoredTaskDragDropTarget = {
+  id: string;
+  x: number;
+  y: number;
+  snapRadius: number;
 };
 
 export type StoredTask = {
@@ -91,6 +92,7 @@ export type StoredTask = {
   rangeAnswers: StoredTaskRangeAnswer[];
   dragDropBackground: ContentImage | null;
   dragDropItems: StoredTaskDragDropItem[];
+  dragDropTargets: StoredTaskDragDropTarget[];
   explanation: string;
   status: "Borrador";
   updatedAt: string;
@@ -121,7 +123,8 @@ function readFileAsDataUrl(file: File) {
       reject(new Error("No se pudo leer la imagen."));
     };
 
-    reader.onerror = () => reject(reader.error ?? new Error("No se pudo leer la imagen."));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("No se pudo leer la imagen."));
     reader.readAsDataURL(file);
   });
 }
@@ -163,7 +166,9 @@ export function getQuestionSummary(blocks: ContentBlock[]) {
     return challengeBlock.content.trim();
   }
 
-  const firstTextBlock = blocks.find((block) => block.content.trim().length > 0);
+  const firstTextBlock = blocks.find(
+    (block) => block.content.trim().length > 0,
+  );
   return firstTextBlock?.content.trim() ?? "Sin pregunta definida";
 }
 
@@ -182,7 +187,9 @@ export function getBlocksSummary(blocks: ContentBlock[]) {
 
 export function buildAgeSummary(difficulties: Record<DifficultyKey, string>) {
   const activeRanges = ageRanges.filter((range) => difficulties[range]);
-  return activeRanges.length > 0 ? activeRanges.join(", ") : "Sin rango asignado";
+  return activeRanges.length > 0
+    ? activeRanges.join(", ")
+    : "Sin rango asignado";
 }
 
 export function normalizeCategories(value: unknown): CategoryItem[] {
@@ -190,9 +197,10 @@ export function normalizeCategories(value: unknown): CategoryItem[] {
     return [];
   }
 
-  return value.filter((item): item is CategoryItem =>
-    typeof item === "string" &&
-    (categories as readonly string[]).includes(item),
+  return value.filter(
+    (item): item is CategoryItem =>
+      typeof item === "string" &&
+      (categories as readonly string[]).includes(item),
   );
 }
 
@@ -218,7 +226,9 @@ export function encodeMultipleChoiceCorrectness(
   return `${prefix}:${uniqueOptions.join(",")}`;
 }
 
-export function parseMultipleChoiceCorrectness(value: string | null | undefined) {
+export function parseMultipleChoiceCorrectness(
+  value: string | null | undefined,
+) {
   const rawValue = String(value ?? "").trim();
 
   if (rawValue.startsWith("any:")) {

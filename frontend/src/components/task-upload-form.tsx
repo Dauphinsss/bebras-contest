@@ -81,8 +81,9 @@ import {
   type MultipleChoiceCorrectnessMode,
   type MultipleChoiceOrderMode,
   type OptionKey,
-  type StoredTaskRangeAnswer,
   type StoredTaskDragDropItem,
+  type StoredTaskDragDropTarget,
+  type StoredTaskRangeAnswer,
   type StoredTask,
 } from "@/lib/task-schema";
 
@@ -118,6 +119,7 @@ type FormState = {
     url: string;
   } | null;
   dragDropItems: StoredTaskDragDropItem[];
+  dragDropTargets: StoredTaskDragDropTarget[];
   explanation: string;
 };
 
@@ -135,62 +137,82 @@ const createInitialOptions = (): Record<OptionKey, ContentBlock[]> => ({
   F: [createContentBlock("text")],
 });
 
-const createInitialState = (): FormState => ({
-  title: "",
-  categories: [],
-  selectedAgeRanges: {
-    "5–8": false,
-    "8–10": false,
-    "10–12": false,
-    "12–14": false,
-    "14–16": false,
-    "17–18": false,
-  },
-  difficulties: {
-    "5–8": "",
-    "8–10": "",
-    "10–12": "",
-    "12–14": "",
-    "14–16": "",
-    "17–18": "",
-  },
-  bodyBlocks: [createContentBlock("text")],
-  challengeBlocks: [createContentBlock("text")],
-  answerType: "multiple_choice",
-  multipleChoiceOrderMode: "fixed",
-  answerCount: minimumAnswerCount,
-  answerOrder: [...optionLabels],
-  multipleChoiceContentType: "text",
-  options: createInitialOptions(),
-  multipleChoiceCorrectnessMode: "single",
-  correctOptions: [],
-  shortAnswer: "",
-  rangeAnswers: [
-    {
+function createDragDropEntry(index: number) {
+  const targetId = crypto.randomUUID();
+
+  return {
+    item: {
       id: crypto.randomUUID(),
-      label: "Rango válido",
-      min: 0,
-      max: 10,
-    },
-  ],
-  dragDropBackground: null,
-  dragDropItems: [
-    {
-      id: crypto.randomUUID(),
-      label: "Objeto 1",
+      label: `Objeto ${index}`,
       image: null,
-      targetX: 50,
-      targetY: 50,
-      tolerance: 10,
+      correctTargetId: targetId,
+    } satisfies StoredTaskDragDropItem,
+    target: {
+      id: targetId,
+      x: 50,
+      y: 50,
+      snapRadius: 10,
+    } satisfies StoredTaskDragDropTarget,
+  };
+}
+
+const createInitialState = (): FormState => {
+  const dragDropEntry = createDragDropEntry(1);
+
+  return {
+    title: "",
+    categories: [],
+    selectedAgeRanges: {
+      "5–8": false,
+      "8–10": false,
+      "10–12": false,
+      "12–14": false,
+      "14–16": false,
+      "17–18": false,
     },
-  ],
-  explanation: "",
-});
+    difficulties: {
+      "5–8": "",
+      "8–10": "",
+      "10–12": "",
+      "12–14": "",
+      "14–16": "",
+      "17–18": "",
+    },
+    bodyBlocks: [createContentBlock("text")],
+    challengeBlocks: [createContentBlock("text")],
+    answerType: "multiple_choice",
+    multipleChoiceOrderMode: "fixed",
+    answerCount: minimumAnswerCount,
+    answerOrder: [...optionLabels],
+    multipleChoiceContentType: "text",
+    options: createInitialOptions(),
+    multipleChoiceCorrectnessMode: "single",
+    correctOptions: [],
+    shortAnswer: "",
+    rangeAnswers: [
+      {
+        id: crypto.randomUUID(),
+        label: "Rango válido",
+        min: 0,
+        max: 10,
+      },
+    ],
+    dragDropBackground: null,
+    dragDropItems: [dragDropEntry.item],
+    dragDropTargets: [dragDropEntry.target],
+    explanation: "",
+  };
+};
 
 function createStateFromTask(task: StoredTask): FormState {
   const nextOptions = createInitialOptions();
+  const fallbackDragDropEntry = createDragDropEntry(1);
+  const hasDragDropConfiguration =
+    task.dragDropItems.length > 0 && task.dragDropTargets.length > 0;
   let multipleChoiceContentType: "text" | "image" = "text";
-  const parsedCorrectness = parseMultipleChoiceCorrectness(task.correctAnswerId);
+  const parsedCorrectness = parseMultipleChoiceCorrectness(
+    task.correctAnswerId,
+  );
   const inferredCorrectOptionIds = task.answers
     .filter((answer) => answer.isCorrect)
     .map((answer) => answer.id);
@@ -249,19 +271,12 @@ function createStateFromTask(task: StoredTask): FormState {
             },
           ],
     dragDropBackground: task.dragDropBackground ?? null,
-    dragDropItems:
-      (task.dragDropItems ?? []).length > 0
-        ? task.dragDropItems
-        : [
-            {
-              id: crypto.randomUUID(),
-              label: "Objeto 1",
-              image: null,
-              targetX: 50,
-              targetY: 50,
-              tolerance: 10,
-            },
-          ],
+    dragDropItems: hasDragDropConfiguration
+      ? task.dragDropItems
+      : [fallbackDragDropEntry.item],
+    dragDropTargets: hasDragDropConfiguration
+      ? task.dragDropTargets
+      : [fallbackDragDropEntry.target],
     explanation: task.explanation,
   };
 }
@@ -283,7 +298,9 @@ function validateForm(state: FormState) {
     errors.push("Debes seleccionar al menos una categoría.");
   }
 
-  const selectedRanges = ageRanges.filter((range) => state.selectedAgeRanges[range]);
+  const selectedRanges = ageRanges.filter(
+    (range) => state.selectedAgeRanges[range],
+  );
 
   if (selectedRanges.length === 0) {
     errors.push("Debes activar al menos un rango de edad.");
@@ -322,7 +339,9 @@ function validateForm(state: FormState) {
     }
 
     if (activeCorrectOptions.length > completedCorrectOptions.length) {
-      errors.push("Las respuestas marcadas como correctas deben tener contenido.");
+      errors.push(
+        "Las respuestas marcadas como correctas deben tener contenido.",
+      );
     }
 
     const normalizedValues = completedOptions
@@ -352,7 +371,9 @@ function validateForm(state: FormState) {
       }
 
       if (rangeAnswer.min > rangeAnswer.max) {
-        errors.push("En cada rango, el mínimo no puede ser mayor que el máximo.");
+        errors.push(
+          "En cada rango, el mínimo no puede ser mayor que el máximo.",
+        );
       }
     }
   }
@@ -366,6 +387,10 @@ function validateForm(state: FormState) {
       errors.push("Debes agregar al menos un objeto arrastrable.");
     }
 
+    if (state.dragDropTargets.length === 0) {
+      errors.push("Debes agregar al menos un destino de encaje.");
+    }
+
     for (const item of state.dragDropItems) {
       if (!item.label.trim()) {
         errors.push("Cada objeto arrastrable debe tener un nombre.");
@@ -374,14 +399,54 @@ function validateForm(state: FormState) {
       if (!item.image) {
         errors.push("Cada objeto arrastrable debe tener una imagen.");
       }
+    }
 
-      if (item.targetX < 0 || item.targetX > 100 || item.targetY < 0 || item.targetY > 100) {
-        errors.push("La posición correcta de cada objeto debe estar entre 0 y 100.");
-      }
+    const itemIds = state.dragDropItems.map((item) => item.id);
+    const targetIds = state.dragDropTargets.map((target) => target.id);
+    const correctTargetIds = state.dragDropItems.map(
+      (item) => item.correctTargetId,
+    );
+    const hasOneToOneMapping =
+      state.dragDropItems.length === state.dragDropTargets.length &&
+      itemIds.every(Boolean) &&
+      targetIds.every(Boolean) &&
+      correctTargetIds.every(Boolean) &&
+      new Set(itemIds).size === itemIds.length &&
+      new Set(targetIds).size === targetIds.length &&
+      new Set(correctTargetIds).size === correctTargetIds.length &&
+      correctTargetIds.every((targetId) => targetIds.includes(targetId));
 
-      if (item.tolerance <= 0 || item.tolerance > 100) {
-        errors.push("El margen permitido de cada objeto debe estar entre 1 y 100.");
-      }
+    if (!hasOneToOneMapping) {
+      errors.push(
+        "Cada objeto debe tener un único destino de encaje asociado.",
+      );
+    }
+
+    if (
+      state.dragDropTargets.some(
+        (target) =>
+          !Number.isFinite(target.x) ||
+          target.x < 0 ||
+          target.x > 100 ||
+          !Number.isFinite(target.y) ||
+          target.y < 0 ||
+          target.y > 100,
+      )
+    ) {
+      errors.push("Las coordenadas de cada destino deben estar entre 0 y 100.");
+    }
+
+    if (
+      state.dragDropTargets.some(
+        (target) =>
+          !Number.isFinite(target.snapRadius) ||
+          target.snapRadius <= 0 ||
+          target.snapRadius > 100,
+      )
+    ) {
+      errors.push(
+        "El radio de encaje de cada destino debe ser mayor que 0 y hasta 100.",
+      );
     }
   }
 
@@ -392,7 +457,10 @@ function validateForm(state: FormState) {
   return errors;
 }
 
-function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask {
+function buildStoredTask(
+  state: FormState,
+  existingTaskId?: string,
+): StoredTask {
   const activeOptionLabels = state.answerOrder.slice(0, state.answerCount);
   const activeCorrectOptions = state.correctOptions.filter((option) =>
     activeOptionLabels.includes(option),
@@ -402,17 +470,22 @@ function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask 
     id: existingTaskId ?? crypto.randomUUID(),
     title: state.title.trim(),
     categories: state.categories,
-    difficulties: ageRanges.reduce<Record<DifficultyKey, string>>((acc, range) => {
-      acc[range] = state.selectedAgeRanges[range] ? state.difficulties[range] : "";
-      return acc;
-    }, {
-      "5–8": "",
-      "8–10": "",
-      "10–12": "",
-      "12–14": "",
-      "14–16": "",
-      "17–18": "",
-    }),
+    difficulties: ageRanges.reduce<Record<DifficultyKey, string>>(
+      (acc, range) => {
+        acc[range] = state.selectedAgeRanges[range]
+          ? state.difficulties[range]
+          : "";
+        return acc;
+      },
+      {
+        "5–8": "",
+        "8–10": "",
+        "10–12": "",
+        "12–14": "",
+        "14–16": "",
+        "17–18": "",
+      },
+    ),
     bodyBlocks: state.bodyBlocks,
     challengeBlocks: state.challengeBlocks,
     answerType: state.answerType,
@@ -435,7 +508,8 @@ function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask 
             activeCorrectOptions,
           )
         : "A",
-    shortAnswer: state.answerType === "short_text" ? state.shortAnswer.trim() : "",
+    shortAnswer:
+      state.answerType === "short_text" ? state.shortAnswer.trim() : "",
     rangeAnswers:
       state.answerType === "range"
         ? state.rangeAnswers.map((rangeAnswer) => ({
@@ -452,6 +526,8 @@ function buildStoredTask(state: FormState, existingTaskId?: string): StoredTask 
             label: item.label.trim(),
           }))
         : [],
+    dragDropTargets:
+      state.answerType === "drag_drop" ? state.dragDropTargets : [],
     explanation: state.explanation.trim(),
     status: "Borrador",
     updatedAt: new Date().toISOString(),
@@ -501,7 +577,7 @@ export function TaskUploadForm({
         ? "La tarea se actualizó correctamente."
         : "La tarea se guardó correctamente.",
       {
-      description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
+        description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
       },
     );
   };
@@ -562,9 +638,7 @@ export function TaskUploadForm({
       return {
         ...current,
         [section]:
-          nextBlocks.length > 0
-            ? nextBlocks
-            : [createContentBlock("text")],
+          nextBlocks.length > 0 ? nextBlocks : [createContentBlock("text")],
       };
     });
   };
@@ -676,7 +750,10 @@ export function TaskUploadForm({
     }));
   };
 
-  const updateDragDropItemImage = async (itemId: string, files: FileList | null) => {
+  const updateDragDropItemImage = async (
+    itemId: string,
+    files: FileList | null,
+  ) => {
     const nextImage = (await createContentImages(files))[0] ?? null;
 
     setForm((current) => ({
@@ -689,7 +766,7 @@ export function TaskUploadForm({
 
   const updateDragDropItem = (
     itemId: string,
-    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "targetX" | "targetY" | "tolerance">>,
+    patch: Partial<Pick<StoredTaskDragDropItem, "label">>,
   ) => {
     setForm((current) => ({
       ...current,
@@ -699,11 +776,20 @@ export function TaskUploadForm({
     }));
   };
 
+  const updateDragDropTarget = (
+    targetId: string,
+    patch: Partial<Pick<StoredTaskDragDropTarget, "x" | "y" | "snapRadius">>,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      dragDropTargets: current.dragDropTargets.map((target) =>
+        target.id === targetId ? { ...target, ...patch } : target,
+      ),
+    }));
+  };
+
   return (
-    <form
-      className="flex flex-col gap-5 sm:gap-6"
-      onSubmit={handleSubmit}
-    >
+    <form className="flex flex-col gap-5 sm:gap-6" onSubmit={handleSubmit}>
       {errors.length > 0 && (
         <Alert variant="destructive">
           <ShieldAlertIcon />
@@ -768,7 +854,8 @@ export function TaskUploadForm({
                             categories: nextChecked
                               ? [...current.categories, category]
                               : current.categories.filter(
-                                  (currentCategory) => currentCategory !== category,
+                                  (currentCategory) =>
+                                    currentCategory !== category,
                                 ),
                           }))
                         }
@@ -781,7 +868,9 @@ export function TaskUploadForm({
                 })}
               </div>
               {errors.length > 0 && form.categories.length === 0 && (
-                <FieldError>Debes seleccionar al menos una categoría.</FieldError>
+                <FieldError>
+                  Debes seleccionar al menos una categoría.
+                </FieldError>
               )}
             </FieldSet>
           </FieldGroup>
@@ -822,12 +911,17 @@ export function TaskUploadForm({
                           },
                           difficulties: {
                             ...current.difficulties,
-                            [range]: checked === true ? current.difficulties[range] : "",
+                            [range]:
+                              checked === true
+                                ? current.difficulties[range]
+                                : "",
                           },
                         }))
                       }
                     />
-                    <FieldLabel htmlFor={`age-range-${range}`}>{range}</FieldLabel>
+                    <FieldLabel htmlFor={`age-range-${range}`}>
+                      {range}
+                    </FieldLabel>
                   </div>
                 </FieldContent>
                 <Select
@@ -886,7 +980,9 @@ export function TaskUploadForm({
             blocks={form.bodyBlocks}
             description="Agrega texto o imágenes para el cuerpo."
             onAddBlock={(type) => addSectionBlock("bodyBlocks", type)}
-            onRemoveBlock={(blockId) => removeSectionBlock("bodyBlocks", blockId)}
+            onRemoveBlock={(blockId) =>
+              removeSectionBlock("bodyBlocks", blockId)
+            }
             onMoveBlock={(fromBlockId, toBlockId, position) =>
               moveSectionBlock("bodyBlocks", fromBlockId, toBlockId, position)
             }
@@ -926,12 +1022,19 @@ export function TaskUploadForm({
             allowedBlockTypes={["text", "image"]}
             blocks={form.challengeBlocks}
             description="Agrega bloques para redactar la consigna."
-            onAddBlock={(type) => addSectionBlock("challengeBlocks", type ?? "text")}
+            onAddBlock={(type) =>
+              addSectionBlock("challengeBlocks", type ?? "text")
+            }
             onRemoveBlock={(blockId) =>
               removeSectionBlock("challengeBlocks", blockId)
             }
             onMoveBlock={(fromBlockId, toBlockId, position) =>
-              moveSectionBlock("challengeBlocks", fromBlockId, toBlockId, position)
+              moveSectionBlock(
+                "challengeBlocks",
+                fromBlockId,
+                toBlockId,
+                position,
+              )
             }
             onUpdateBlockContent={(blockId, content) =>
               updateSectionBlocks("challengeBlocks", blockId, (current) => ({
@@ -1008,7 +1111,10 @@ export function TaskUploadForm({
                   </FieldLabel>
                 </Field>
                 <Field orientation="horizontal">
-                  <RadioGroupItem id="answer-type-drag-drop" value="drag_drop" />
+                  <RadioGroupItem
+                    id="answer-type-drag-drop"
+                    value="drag_drop"
+                  />
                   <FieldLabel htmlFor="answer-type-drag-drop">
                     Arrastrar y soltar
                   </FieldLabel>
@@ -1018,14 +1124,18 @@ export function TaskUploadForm({
 
             {form.answerType === "multiple_choice" && (
               <FieldSet>
-                <FieldLegend variant="label">Respuestas disponibles</FieldLegend>
+                <FieldLegend variant="label">
+                  Respuestas disponibles
+                </FieldLegend>
                 <FieldDescription>
-                  Configura cómo se valida la respuesta correcta en opción múltiple.
+                  Configura cómo se valida la respuesta correcta en opción
+                  múltiple.
                 </FieldDescription>
                 <FieldSet>
                   <FieldLegend variant="label">Tipo de contenido</FieldLegend>
                   <FieldDescription>
-                    Todas las respuestas de opción múltiple usarán este mismo tipo.
+                    Todas las respuestas de opción múltiple usarán este mismo
+                    tipo.
                   </FieldDescription>
                   <RadioGroup
                     value={form.multipleChoiceContentType}
@@ -1033,7 +1143,9 @@ export function TaskUploadForm({
                       setForm((current) => ({
                         ...current,
                         multipleChoiceContentType: value as "text" | "image",
-                        options: optionLabels.reduce<Record<OptionKey, ContentBlock[]>>(
+                        options: optionLabels.reduce<
+                          Record<OptionKey, ContentBlock[]>
+                        >(
                           (acc, optionLabel) => {
                             acc[optionLabel] = current.answerOrder
                               .slice(0, current.answerCount)
@@ -1079,16 +1191,20 @@ export function TaskUploadForm({
                   </RadioGroup>
                 </FieldSet>
                 <FieldSet>
-                  <FieldLegend variant="label">Orden de las respuestas</FieldLegend>
+                  <FieldLegend variant="label">
+                    Orden de las respuestas
+                  </FieldLegend>
                   <FieldDescription>
-                    Define si el estudiante verá las respuestas en el orden creado o en orden aleatorio.
+                    Define si el estudiante verá las respuestas en el orden
+                    creado o en orden aleatorio.
                   </FieldDescription>
                   <RadioGroup
                     value={form.multipleChoiceOrderMode}
                     onValueChange={(value) =>
                       setForm((current) => ({
                         ...current,
-                        multipleChoiceOrderMode: value as MultipleChoiceOrderMode,
+                        multipleChoiceOrderMode:
+                          value as MultipleChoiceOrderMode,
                       }))
                     }
                   >
@@ -1113,9 +1229,12 @@ export function TaskUploadForm({
                   </RadioGroup>
                 </FieldSet>
                 <FieldSet>
-                  <FieldLegend variant="label">Criterio de corrección</FieldLegend>
+                  <FieldLegend variant="label">
+                    Criterio de corrección
+                  </FieldLegend>
                   <FieldDescription>
-                    Elige si basta una opción correcta o si se deben marcar todas.
+                    Elige si basta una opción correcta o si se deben marcar
+                    todas.
                   </FieldDescription>
                   <RadioGroup
                     value={form.multipleChoiceCorrectnessMode}
@@ -1132,19 +1251,28 @@ export function TaskUploadForm({
                     }
                   >
                     <Field orientation="horizontal">
-                      <RadioGroupItem id="multiple-choice-correctness-single" value="single" />
+                      <RadioGroupItem
+                        id="multiple-choice-correctness-single"
+                        value="single"
+                      />
                       <FieldLabel htmlFor="multiple-choice-correctness-single">
                         Respuesta única correcta
                       </FieldLabel>
                     </Field>
                     <Field orientation="horizontal">
-                      <RadioGroupItem id="multiple-choice-correctness-any" value="any" />
+                      <RadioGroupItem
+                        id="multiple-choice-correctness-any"
+                        value="any"
+                      />
                       <FieldLabel htmlFor="multiple-choice-correctness-any">
                         Varias correctas (cualquiera suma)
                       </FieldLabel>
                     </Field>
                     <Field orientation="horizontal">
-                      <RadioGroupItem id="multiple-choice-correctness-all" value="all" />
+                      <RadioGroupItem
+                        id="multiple-choice-correctness-all"
+                        value="all"
+                      />
                       <FieldLabel htmlFor="multiple-choice-correctness-all">
                         Varias correctas (debe marcar todas)
                       </FieldLabel>
@@ -1178,9 +1306,15 @@ export function TaskUploadForm({
                                       ...current,
                                       correctOptions:
                                         checked === true
-                                          ? current.multipleChoiceCorrectnessMode === "single"
+                                          ? current.multipleChoiceCorrectnessMode ===
+                                            "single"
                                             ? [label]
-                                            : [...new Set([...current.correctOptions, label])]
+                                            : [
+                                                ...new Set([
+                                                  ...current.correctOptions,
+                                                  label,
+                                                ]),
+                                              ]
                                           : current.correctOptions.filter(
                                               (option) => option !== label,
                                             ),
@@ -1208,7 +1342,9 @@ export function TaskUploadForm({
                                     size="icon-sm"
                                     type="button"
                                     variant="outline"
-                                    disabled={index === activeOptionLabels.length - 1}
+                                    disabled={
+                                      index === activeOptionLabels.length - 1
+                                    }
                                     onClick={() => moveAnswer(label, "down")}
                                   >
                                     <ArrowDownIcon />
@@ -1224,10 +1360,14 @@ export function TaskUploadForm({
                                 placeholder="Escribe la respuesta."
                                 value={optionBlock.content}
                                 onChange={(event) =>
-                                  updateOptionBlocks(label, optionBlock.id, (current) => ({
-                                    ...current,
-                                    content: event.target.value,
-                                  }))
+                                  updateOptionBlocks(
+                                    label,
+                                    optionBlock.id,
+                                    (current) => ({
+                                      ...current,
+                                      content: event.target.value,
+                                    }),
+                                  )
                                 }
                               />
                             ) : (
@@ -1270,7 +1410,11 @@ export function TaskUploadForm({
                                             event.target.value = "";
                                           }}
                                         />
-                                        <Button type="button" variant="outline" asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          asChild
+                                        >
                                           <span>Reemplazar imagen</span>
                                         </Button>
                                       </label>
@@ -1306,7 +1450,9 @@ export function TaskUploadForm({
             )}
 
             {form.answerType === "short_text" && (
-              <Field data-invalid={!form.shortAnswer.trim() && errors.length > 0}>
+              <Field
+                data-invalid={!form.shortAnswer.trim() && errors.length > 0}
+              >
                 <FieldLabel htmlFor="short-answer">
                   Respuesta corta esperada
                 </FieldLabel>
@@ -1324,8 +1470,8 @@ export function TaskUploadForm({
                     }
                   />
                   <FieldDescription>
-                    El probador validará este texto ignorando mayúsculas y espacios
-                    al inicio y al final.
+                    El probador validará este texto ignorando mayúsculas y
+                    espacios al inicio y al final.
                   </FieldDescription>
                 </FieldContent>
               </Field>
@@ -1339,7 +1485,10 @@ export function TaskUploadForm({
                 </FieldDescription>
                 <div className="flex flex-col gap-4">
                   {form.rangeAnswers.map((rangeAnswer, index) => (
-                    <Card key={rangeAnswer.id} className="rounded-xl border bg-card shadow-sm">
+                    <Card
+                      key={rangeAnswer.id}
+                      className="rounded-xl border bg-card shadow-sm"
+                    >
                       <CardHeader className="border-b">
                         <div className="flex items-center gap-3">
                           <BetweenHorizonalStartIcon className="text-muted-foreground" />
@@ -1348,7 +1497,8 @@ export function TaskUploadForm({
                               Rango {index + 1}
                             </CardTitle>
                             <CardDescription>
-                              El participante será correcto si su valor cae dentro de este rango.
+                              El participante será correcto si su valor cae
+                              dentro de este rango.
                             </CardDescription>
                           </div>
                         </div>
@@ -1366,10 +1516,11 @@ export function TaskUploadForm({
                               onChange={(event) =>
                                 setForm((current) => ({
                                   ...current,
-                                  rangeAnswers: current.rangeAnswers.map((item) =>
-                                    item.id === rangeAnswer.id
-                                      ? { ...item, label: event.target.value }
-                                      : item,
+                                  rangeAnswers: current.rangeAnswers.map(
+                                    (item) =>
+                                      item.id === rangeAnswer.id
+                                        ? { ...item, label: event.target.value }
+                                        : item,
                                   ),
                                 }))
                               }
@@ -1389,13 +1540,16 @@ export function TaskUploadForm({
                                 onChange={(event) =>
                                   setForm((current) => ({
                                     ...current,
-                                    rangeAnswers: current.rangeAnswers.map((item) =>
-                                      item.id === rangeAnswer.id
-                                        ? {
-                                            ...item,
-                                            min: Number(event.target.value || 0),
-                                          }
-                                        : item,
+                                    rangeAnswers: current.rangeAnswers.map(
+                                      (item) =>
+                                        item.id === rangeAnswer.id
+                                          ? {
+                                              ...item,
+                                              min: Number(
+                                                event.target.value || 0,
+                                              ),
+                                            }
+                                          : item,
                                     ),
                                   }))
                                 }
@@ -1414,13 +1568,16 @@ export function TaskUploadForm({
                                 onChange={(event) =>
                                   setForm((current) => ({
                                     ...current,
-                                    rangeAnswers: current.rangeAnswers.map((item) =>
-                                      item.id === rangeAnswer.id
-                                        ? {
-                                            ...item,
-                                            max: Number(event.target.value || 0),
-                                          }
-                                        : item,
+                                    rangeAnswers: current.rangeAnswers.map(
+                                      (item) =>
+                                        item.id === rangeAnswer.id
+                                          ? {
+                                              ...item,
+                                              max: Number(
+                                                event.target.value || 0,
+                                              ),
+                                            }
+                                          : item,
                                     ),
                                   }))
                                 }
@@ -1474,43 +1631,64 @@ export function TaskUploadForm({
               <FieldSet>
                 <FieldLegend variant="label">Escenario interactivo</FieldLegend>
                 <FieldDescription>
-                  Define la imagen de fondo, los objetos y la posición correcta de cada uno.
+                  Define la imagen de fondo, los objetos y la posición correcta
+                  de cada uno.
                 </FieldDescription>
                 <DragDropEditor
                   backgroundUrl={form.dragDropBackground?.url ?? null}
                   items={form.dragDropItems}
+                  targets={form.dragDropTargets}
                   onUploadBackground={(files) => {
                     void updateDragDropBackground(files);
                   }}
                   onReplaceItemImage={(itemId, files) => {
                     void updateDragDropItemImage(itemId, files);
                   }}
-                  onAddItem={() =>
+                  onAddItem={() => {
+                    const itemId = crypto.randomUUID();
+                    const targetId = crypto.randomUUID();
+
                     setForm((current) => ({
                       ...current,
                       dragDropItems: [
                         ...current.dragDropItems,
                         {
-                          id: crypto.randomUUID(),
+                          id: itemId,
                           label: `Objeto ${current.dragDropItems.length + 1}`,
                           image: null,
-                          targetX: 50,
-                          targetY: 50,
-                          tolerance: 10,
+                          correctTargetId: targetId,
                         },
                       ],
-                    }))
-                  }
+                      dragDropTargets: [
+                        ...current.dragDropTargets,
+                        { id: targetId, x: 50, y: 50, snapRadius: 10 },
+                      ],
+                    }));
+                  }}
                   onRemoveItem={(itemId) =>
-                    setForm((current) => ({
-                      ...current,
-                      dragDropItems:
-                        current.dragDropItems.length > 1
-                          ? current.dragDropItems.filter((item) => item.id !== itemId)
-                          : current.dragDropItems,
-                    }))
+                    setForm((current) => {
+                      if (current.dragDropItems.length <= 1) {
+                        return current;
+                      }
+
+                      const removedItem = current.dragDropItems.find(
+                        (item) => item.id === itemId,
+                      );
+
+                      return {
+                        ...current,
+                        dragDropItems: current.dragDropItems.filter(
+                          (item) => item.id !== itemId,
+                        ),
+                        dragDropTargets: current.dragDropTargets.filter(
+                          (target) =>
+                            target.id !== removedItem?.correctTargetId,
+                        ),
+                      };
+                    })
                   }
                   onUpdateItem={updateDragDropItem}
+                  onUpdateTarget={updateDragDropTarget}
                 />
               </FieldSet>
             )}
@@ -1574,8 +1752,8 @@ export function TaskUploadForm({
                 <DialogHeader>
                   <DialogTitle>Limpiar todo el formulario</DialogTitle>
                   <DialogDescription>
-                    Se eliminará todo el contenido cargado en esta tarea. Esta acción
-                    no se puede deshacer.
+                    Se eliminará todo el contenido cargado en esta tarea. Esta
+                    acción no se puede deshacer.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

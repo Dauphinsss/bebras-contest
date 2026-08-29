@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { ImagePlusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,77 +26,152 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import type { StoredTaskDragDropItem } from "@/lib/task-schema";
+import {
+  type StoredTaskDragDropItem,
+  type StoredTaskDragDropTarget,
+} from "@/lib/task-schema";
+import { cn } from "@/lib/utils";
 
 type DragDropEditorProps = {
   backgroundUrl: string | null;
   items: StoredTaskDragDropItem[];
+  targets: StoredTaskDragDropTarget[];
   onUploadBackground: (files: FileList | null) => void;
   onReplaceItemImage: (itemId: string, files: FileList | null) => void;
   onAddItem: () => void;
   onRemoveItem: (itemId: string) => void;
   onUpdateItem: (
     itemId: string,
-    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "targetX" | "targetY" | "tolerance">>,
+    patch: Partial<Pick<StoredTaskDragDropItem, "label">>,
   ) => void;
+  onUpdateTarget: (
+    targetId: string,
+    patch: Partial<Pick<StoredTaskDragDropTarget, "x" | "y" | "snapRadius">>,
+  ) => void;
+};
+
+type StageSize = {
+  width: number;
+  height: number;
 };
 
 export function DragDropEditor({
   backgroundUrl,
   items,
+  targets,
   onUploadBackground,
   onReplaceItemImage,
   onAddItem,
   onRemoveItem,
   onUpdateItem,
+  onUpdateTarget,
 }: DragDropEditorProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef<{ itemId: string } | null>(null);
-  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    targetId: string;
+  } | null>(null);
+  const [activeItemId, setActiveItemId] = useState<string | null>(
+    items[0]?.id ?? null,
+  );
+  const [stageSize, setStageSize] = useState<StageSize>({
+    width: 0,
+    height: 0,
+  });
 
   useEffect(() => {
-    if (!activeItemId) {
+    const stage = stageRef.current;
+
+    if (!stage) {
       return;
     }
 
-    const handleMouseMove = (event: MouseEvent) => {
-      const stage = stageRef.current;
-      const dragState = dragStateRef.current;
-
-      if (!stage || !dragState) {
-        return;
-      }
-
+    const updateStageSize = () => {
       const rect = stage.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * 100;
-      const y = ((event.clientY - rect.top) / rect.height) * 100;
-
-      onUpdateItem(dragState.itemId, {
-        targetX: Math.max(0, Math.min(100, x)),
-        targetY: Math.max(0, Math.min(100, y)),
-      });
+      setStageSize({ width: rect.width, height: rect.height });
     };
 
-    const handleMouseUp = () => {
-      dragStateRef.current = null;
-      setActiveItemId(null);
-    };
+    updateStageSize();
+    const observer = new ResizeObserver(updateStageSize);
+    observer.observe(stage);
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    return () => observer.disconnect();
+  }, [backgroundUrl]);
 
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [activeItemId, onUpdateItem]);
+  const activeItem =
+    items.find((item) => item.id === activeItemId) ?? items[0] ?? null;
+
+  const updateTargetFromPointer = (
+    targetId: string,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const stage = stageRef.current;
+
+    if (!stage) {
+      return;
+    }
+
+    const rect = stage.getBoundingClientRect();
+
+    if (rect.width === 0 || rect.height === 0) {
+      return;
+    }
+
+    onUpdateTarget(targetId, {
+      x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
+    });
+  };
+
+  const handleMarkerPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    itemId: string,
+    targetId: string,
+  ) => {
+    if (!event.isPrimary || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStateRef.current = { pointerId: event.pointerId, targetId };
+    setActiveItemId(itemId);
+  };
+
+  const handleMarkerPointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    updateTargetFromPointer(dragState.targetId, event.clientX, event.clientY);
+  };
+
+  const finishMarkerDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (dragStateRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragStateRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   return (
     <FieldGroup>
       <FieldSet>
         <FieldLegend variant="label">Escenario de fondo</FieldLegend>
         <FieldDescription>
-          Sube la imagen principal donde el participante soltará los objetos.
+          Selecciona un objeto y toca el escenario para ubicar su destino.
+          También puedes arrastrar directamente el marcador o ajustar X e Y.
         </FieldDescription>
         <Field>
           <FieldContent className="gap-4">
@@ -110,43 +190,91 @@ export function DragDropEditor({
                 <div
                   className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border bg-muted/30 [box-shadow:var(--shadow-hard)]"
                   ref={stageRef}
+                  role="group"
+                  aria-label="Ubicación de los destinos de encaje"
+                  onClick={(event) => {
+                    if (!activeItem) {
+                      return;
+                    }
+
+                    updateTargetFromPointer(
+                      activeItem.correctTargetId,
+                      event.clientX,
+                      event.clientY,
+                    );
+                  }}
                 >
                   <img
                     alt="Escenario de fondo"
-                    className="block h-auto w-full"
+                    className="block h-auto w-full select-none"
+                    draggable={false}
                     src={backgroundUrl}
                   />
 
-                  {items.map((item) => {
-                    if (!item.image) {
+                  {items.map((item, index) => {
+                    const target = targets.find(
+                      (candidate) => candidate.id === item.correctTargetId,
+                    );
+
+                    if (!target) {
                       return null;
                     }
 
+                    const selected = item.id === activeItem?.id;
+                    const radiusPixels =
+                      ((Number.isFinite(target.snapRadius)
+                        ? target.snapRadius
+                        : 0) /
+                        100) *
+                      Math.min(stageSize.width, stageSize.height);
+
                     return (
-                      <button
-                        key={item.id}
-                        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab"
+                      <div
+                        key={target.id}
+                        className="pointer-events-none absolute"
                         style={{
-                          left: `${item.targetX}%`,
-                          top: `${item.targetY}%`,
-                        }}
-                        type="button"
-                        onMouseDown={() => {
-                          dragStateRef.current = { itemId: item.id };
-                          setActiveItemId(item.id);
+                          left: `${Number.isFinite(target.x) ? target.x : 0}%`,
+                          top: `${Number.isFinite(target.y) ? target.y : 0}%`,
                         }}
                       >
-                        <img
-                          alt={item.image.name}
-                          className="block max-h-16 max-w-20 object-contain"
-                          src={item.image.url}
+                        <div
+                          className={cn(
+                            "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed bg-primary/10",
+                            selected
+                              ? "border-primary"
+                              : "border-muted-foreground/70",
+                          )}
+                          style={{
+                            height: `${radiusPixels * 2}px`,
+                            width: `${radiusPixels * 2}px`,
+                          }}
                         />
-                      </button>
+                        <button
+                          className={cn(
+                            "pointer-events-auto absolute size-8 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 bg-background text-xs font-semibold shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing",
+                            selected &&
+                              "border-primary bg-primary text-primary-foreground ring-2 ring-primary/30",
+                          )}
+                          style={{ touchAction: "none" }}
+                          type="button"
+                          aria-label={`Mover destino de ${item.label || `objeto ${index + 1}`}`}
+                          onClick={(event) => event.stopPropagation()}
+                          onPointerCancel={finishMarkerDrag}
+                          onPointerDown={(event) =>
+                            handleMarkerPointerDown(event, item.id, target.id)
+                          }
+                          onPointerMove={handleMarkerPointerMove}
+                          onPointerUp={finishMarkerDrag}
+                        >
+                          {index + 1}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
                 <FieldDescription>
-                  Arrastra cada objeto sobre la vista previa para fijar su posición correcta.
+                  Los círculos muestran el radio de encaje y solo aparecen en
+                  este editor de autoría.
                 </FieldDescription>
                 <div className="flex justify-start">
                   <label>
@@ -176,123 +304,196 @@ export function DragDropEditor({
       <FieldSet>
         <FieldLegend variant="label">Objetos arrastrables</FieldLegend>
         <FieldDescription>
-          Cada objeto tiene una imagen y una posición correcta dentro del escenario.
+          El objeto seleccionado se identifica en el escenario con el mismo
+          número.
         </FieldDescription>
         <div className="flex flex-col gap-4">
-          {items.map((item, index) => (
-            <Card key={item.id} className="rounded-xl border bg-card shadow-sm">
-              <CardHeader className="border-b">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-base">Objeto {index + 1}</CardTitle>
-                    <CardDescription>
-                      Define su imagen y la posición correcta sobre el fondo.
-                    </CardDescription>
+          {items.map((item, index) => {
+            const target = targets.find(
+              (candidate) => candidate.id === item.correctTargetId,
+            );
+            const selected = item.id === activeItem?.id;
+
+            return (
+              <Card
+                key={item.id}
+                className={cn(
+                  "rounded-xl border bg-card shadow-sm",
+                  selected && "border-primary ring-2 ring-primary/20",
+                )}
+              >
+                <CardHeader className="border-b">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-base">
+                        Objeto {index + 1}
+                      </CardTitle>
+                      <CardDescription>
+                        Define su imagen y su destino fijo sobre el fondo.
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant={selected ? "default" : "outline"}
+                        aria-pressed={selected}
+                        onClick={() => setActiveItemId(item.id)}
+                      >
+                        {selected ? "Seleccionado" : "Seleccionar"}
+                      </Button>
+                      {items.length > 1 && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          onClick={() => onRemoveItem(item.id)}
+                        >
+                          <Trash2Icon data-icon="inline-start" />
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  {items.length > 1 && (
-                    <Button
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      onClick={() => onRemoveItem(item.id)}
-                    >
-                      <Trash2Icon data-icon="inline-start" />
-                      Eliminar
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4 pt-6">
-                <Field>
-                  <FieldLabel htmlFor={`drag-item-label-${item.id}`}>Nombre</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      id={`drag-item-label-${item.id}`}
-                      placeholder="Ej. Pieza azul"
-                      value={item.label}
-                      onChange={(event) =>
-                        onUpdateItem(item.id, { label: event.target.value })
-                      }
-                    />
-                  </FieldContent>
-                </Field>
-
-                <Field>
-                  <FieldLabel>Imagen del objeto</FieldLabel>
-                  <FieldContent className="gap-4">
-                    {!item.image && (
-                      <Input
-                        accept="image/*"
-                        type="file"
-                        onChange={(event) => {
-                          onReplaceItemImage(item.id, event.target.files);
-                          event.target.value = "";
-                        }}
-                      />
-                    )}
-                    {item.image && (
-                      <div className="flex flex-col gap-4">
-                        <div className="flex justify-center">
-                          <img
-                            alt={item.image.name}
-                            className="block h-auto max-h-44 max-w-full rounded-lg"
-                            src={item.image.url}
-                          />
-                        </div>
-                        <div className="flex justify-start">
-                          <label>
-                            <input
-                              accept="image/*"
-                              className="sr-only"
-                              type="file"
-                              onChange={(event) => {
-                                onReplaceItemImage(item.id, event.target.files);
-                                event.target.value = "";
-                              }}
-                            />
-                            <Button type="button" variant="outline" asChild>
-                              <span>Reemplazar imagen</span>
-                            </Button>
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </FieldContent>
-                </Field>
-
-                <div className="grid gap-4 md:grid-cols-3">
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 pt-6">
                   <Field>
-                    <FieldLabel htmlFor={`drag-item-tolerance-${item.id}`}>
-                      Margen permitido (%)
+                    <FieldLabel htmlFor={`drag-item-label-${item.id}`}>
+                      Nombre
                     </FieldLabel>
                     <FieldContent>
                       <Input
-                        id={`drag-item-tolerance-${item.id}`}
-                        max="100"
-                        min="1"
-                        step="1"
-                        type="number"
-                        value={String(item.tolerance)}
+                        id={`drag-item-label-${item.id}`}
+                        placeholder="Ej. Pieza azul"
+                        value={item.label}
                         onChange={(event) =>
-                          onUpdateItem(item.id, {
-                            tolerance: Number(event.target.value || 1),
-                          })
+                          onUpdateItem(item.id, { label: event.target.value })
                         }
                       />
                     </FieldContent>
                   </Field>
+
                   <Field>
-                    <FieldLabel>Posición actual</FieldLabel>
-                    <FieldContent>
-                      <div className="flex h-10 items-center border bg-muted px-3 text-sm">
-                        X: {Math.round(item.targetX)}% · Y: {Math.round(item.targetY)}%
-                      </div>
+                    <FieldLabel>Imagen del objeto</FieldLabel>
+                    <FieldContent className="gap-4">
+                      {!item.image && (
+                        <Input
+                          accept="image/*"
+                          type="file"
+                          onChange={(event) => {
+                            onReplaceItemImage(item.id, event.target.files);
+                            event.target.value = "";
+                          }}
+                        />
+                      )}
+                      {item.image && (
+                        <div className="flex flex-col gap-4">
+                          <div className="flex justify-center">
+                            <img
+                              alt={item.image.name}
+                              className="block h-auto max-h-44 max-w-full rounded-lg"
+                              src={item.image.url}
+                            />
+                          </div>
+                          <div className="flex justify-start">
+                            <label>
+                              <input
+                                accept="image/*"
+                                className="sr-only"
+                                type="file"
+                                onChange={(event) => {
+                                  onReplaceItemImage(
+                                    item.id,
+                                    event.target.files,
+                                  );
+                                  event.target.value = "";
+                                }}
+                              />
+                              <Button type="button" variant="outline" asChild>
+                                <span>Reemplazar imagen</span>
+                              </Button>
+                            </label>
+                          </div>
+                        </div>
+                      )}
                     </FieldContent>
                   </Field>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {target && (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <Field>
+                        <FieldLabel htmlFor={`drag-target-x-${target.id}`}>
+                          X (%)
+                        </FieldLabel>
+                        <FieldContent>
+                          <Input
+                            id={`drag-target-x-${target.id}`}
+                            max="100"
+                            min="0"
+                            step="0.1"
+                            type="number"
+                            value={Number.isFinite(target.x) ? target.x : ""}
+                            onChange={(event) =>
+                              onUpdateTarget(target.id, {
+                                x: event.target.valueAsNumber,
+                              })
+                            }
+                          />
+                        </FieldContent>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor={`drag-target-y-${target.id}`}>
+                          Y (%)
+                        </FieldLabel>
+                        <FieldContent>
+                          <Input
+                            id={`drag-target-y-${target.id}`}
+                            max="100"
+                            min="0"
+                            step="0.1"
+                            type="number"
+                            value={Number.isFinite(target.y) ? target.y : ""}
+                            onChange={(event) =>
+                              onUpdateTarget(target.id, {
+                                y: event.target.valueAsNumber,
+                              })
+                            }
+                          />
+                        </FieldContent>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor={`drag-target-radius-${target.id}`}>
+                          Radio de encaje (%)
+                        </FieldLabel>
+                        <FieldContent>
+                          <Input
+                            id={`drag-target-radius-${target.id}`}
+                            max="100"
+                            min="0.1"
+                            step="0.1"
+                            type="number"
+                            value={
+                              Number.isFinite(target.snapRadius)
+                                ? target.snapRadius
+                                : ""
+                            }
+                            onChange={(event) =>
+                              onUpdateTarget(target.id, {
+                                snapRadius: event.target.valueAsNumber,
+                              })
+                            }
+                          />
+                          <FieldDescription>
+                            Porcentaje del lado más corto del escenario.
+                          </FieldDescription>
+                        </FieldContent>
+                      </Field>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
 
           <Button type="button" onClick={onAddItem}>
             <PlusIcon data-icon="inline-start" />
