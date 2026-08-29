@@ -2,6 +2,7 @@ import type {
   ContentBlock,
   ContentImage,
   StoredTaskDragDropItem,
+  StoredTaskDragDropTarget,
 } from "@/lib/task-schema";
 
 import { publicRequest as request } from "@/lib/api-client";
@@ -23,6 +24,7 @@ export type PlayTask = {
   answers: PlayAnswerOption[];
   dragDropBackground: ContentImage | null;
   dragDropItems: Pick<StoredTaskDragDropItem, "id" | "label" | "image">[];
+  dragDropTargets: StoredTaskDragDropTarget[];
   explanation?: string;
   correct?: boolean;
 };

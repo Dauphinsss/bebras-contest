@@ -3,12 +3,91 @@
 import { CheckIcon } from "lucide-react";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
-import { DragDropPlayer } from "@/components/drag-drop-player";
+import {
+  DragDropPlayer,
+  type DragDropPlacements,
+} from "@/components/drag-drop-player";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import type { PlayTask } from "@/lib/play-api";
-import type { StoredTaskDragDropItem } from "@/lib/task-schema";
+import type { StoredTaskDragDropTarget } from "@/lib/task-schema";
 import { cn } from "@/lib/utils";
+
+function compareIds(left: string, right: string) {
+  if (left === right) {
+    return 0;
+  }
+
+  return left < right ? -1 : 1;
+}
+
+function normalizeDragDropPlacements(
+  value: unknown,
+  itemIds: string[],
+  targets: StoredTaskDragDropTarget[],
+): DragDropPlacements {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const source = value as Record<string, unknown>;
+  const targetIds = new Set(targets.map((target) => target.id));
+  const occupiedTargetIds = new Set<string>();
+  const normalized: DragDropPlacements = {};
+
+  for (const itemId of itemIds) {
+    const placement = source[itemId];
+
+    if (typeof placement === "string") {
+      if (targetIds.has(placement) && !occupiedTargetIds.has(placement)) {
+        normalized[itemId] = placement;
+        occupiedTargetIds.add(placement);
+      }
+      continue;
+    }
+
+    if (
+      !placement ||
+      typeof placement !== "object" ||
+      Array.isArray(placement)
+    ) {
+      continue;
+    }
+
+    const legacy = placement as Record<string, unknown>;
+    const x = legacy.x;
+    const y = legacy.y;
+
+    if (
+      typeof x !== "number" ||
+      typeof y !== "number" ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      continue;
+    }
+
+    const target = targets
+      .filter(
+        (candidate) =>
+          Math.abs(x - candidate.x) <= candidate.snapRadius &&
+          Math.abs(y - candidate.y) <= candidate.snapRadius,
+      )
+      .sort(
+        (left, right) =>
+          Math.hypot(x - left.x, y - left.y) -
+            Math.hypot(x - right.x, y - right.y) ||
+          compareIds(left.id, right.id),
+      )[0];
+
+    if (target && !occupiedTargetIds.has(target.id)) {
+      normalized[itemId] = target.id;
+      occupiedTargetIds.add(target.id);
+    }
+  }
+
+  return normalized;
+}
 
 export function PlayTaskFields({
   task,
@@ -28,6 +107,11 @@ export function PlayTaskFields({
   const selected: string[] = Array.isArray(response.selected)
     ? response.selected
     : [];
+  const dragDropPlacements = normalizeDragDropPlacements(
+    response.placements,
+    task.dragDropItems.map((item) => item.id),
+    task.dragDropTargets,
+  );
 
   return (
     <>
@@ -73,7 +157,9 @@ export function PlayTaskFields({
                       : "bg-background",
                   )}
                 >
-                  {isSelected && <CheckIcon className="size-3.5" strokeWidth={3} />}
+                  {isSelected && (
+                    <CheckIcon className="size-3.5" strokeWidth={3} />
+                  )}
                 </span>
                 <div className="min-w-0 flex-1">
                   <TaskContentRenderer
@@ -124,27 +210,11 @@ export function PlayTaskFields({
       {task.answerType === "drag_drop" && task.dragDropBackground && (
         <DragDropPlayer
           backgroundUrl={task.dragDropBackground.url}
-          items={
-            task.dragDropItems.map((item) => ({
-              ...item,
-              targetX: 0,
-              targetY: 0,
-              tolerance: 0,
-            })) as StoredTaskDragDropItem[]
-          }
-          placements={
-            (response.placements ?? {}) as Record<string, { x: number; y: number }>
-          }
-          onPlaceItem={(itemId, placement) =>
-            onChange({
-              placements: { ...((response.placements ?? {}) as object), [itemId]: placement },
-            })
-          }
-          onResetItem={(itemId) => {
-            const next = { ...((response.placements ?? {}) as Record<string, unknown>) };
-            delete next[itemId];
-            onChange({ placements: next });
-          }}
+          disabled={disabled}
+          items={task.dragDropItems}
+          placements={dragDropPlacements}
+          targets={task.dragDropTargets}
+          onChange={(placements) => onChange({ placements })}
         />
       )}
     </>

@@ -5,7 +5,10 @@ import { AlertCircleIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
-import { DragDropPlayer } from "@/components/drag-drop-player";
+import {
+  DragDropPlayer,
+  type DragDropPlacements,
+} from "@/components/drag-drop-player";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,9 +48,8 @@ export function TaskTester() {
   const [checkedValue, setCheckedValue] = useState("");
   const [shortAnswer, setShortAnswer] = useState("");
   const [rangeValue, setRangeValue] = useState("");
-  const [dragDropPlacements, setDragDropPlacements] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
+  const [dragDropPlacements, setDragDropPlacements] =
+    useState<DragDropPlacements>({});
 
   useEffect(() => {
     const taskIdFromUrl = new URLSearchParams(window.location.search).get("id");
@@ -157,18 +159,9 @@ export function TaskTester() {
     }
 
     if (answerType === "drag_drop") {
-      return (selectedTask.dragDropItems ?? []).every((item) => {
-        const placement = dragDropPlacements[item.id];
-
-        if (!placement) {
-          return false;
-        }
-
-        return (
-          Math.abs(placement.x - item.targetX) <= item.tolerance &&
-          Math.abs(placement.y - item.targetY) <= item.tolerance
-        );
-      });
+      return (selectedTask.dragDropItems ?? []).every(
+        (item) => dragDropPlacements[item.id] === item.correctTargetId,
+      );
     }
 
     const numericValue = Number(checkedValue);
@@ -249,14 +242,9 @@ export function TaskTester() {
 
       setCheckedValue("drag_drop");
       if (
-        (selectedTask.dragDropItems ?? []).every((item) => {
-          const placement = dragDropPlacements[item.id];
-          return (
-            placement &&
-            Math.abs(placement.x - item.targetX) <= item.tolerance &&
-            Math.abs(placement.y - item.targetY) <= item.tolerance
-          );
-        })
+        (selectedTask.dragDropItems ?? []).every(
+          (item) => dragDropPlacements[item.id] === item.correctTargetId,
+        )
       ) {
         toast.success("Respuesta correcta");
       } else {
@@ -443,20 +431,9 @@ export function TaskTester() {
                   <DragDropPlayer
                     backgroundUrl={selectedTask.dragDropBackground.url}
                     items={selectedTask.dragDropItems}
+                    targets={selectedTask.dragDropTargets}
                     placements={dragDropPlacements}
-                    onPlaceItem={(itemId, placement) =>
-                      setDragDropPlacements((current) => ({
-                        ...current,
-                        [itemId]: placement,
-                      }))
-                    }
-                    onResetItem={(itemId) =>
-                      setDragDropPlacements((current) => {
-                        const next = { ...current };
-                        delete next[itemId];
-                        return next;
-                      })
-                    }
+                    onChange={setDragDropPlacements}
                   />
                 )}
             </section>
