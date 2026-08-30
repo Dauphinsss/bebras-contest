@@ -1496,7 +1496,8 @@ export function TaskUploadForm({
                   Rangos válidos
                 </FieldLegend>
                 <FieldDescription>
-                  Define uno o varios intervalos aceptados para la respuesta.
+                  Define uno o varios intervalos aceptados. La respuesta será
+                  correcta si el valor cae dentro de al menos uno de ellos.
                 </FieldDescription>
                 <div className="flex flex-col gap-4">
                   {form.rangeAnswers.map((rangeAnswer, index) => (
@@ -1509,19 +1510,15 @@ export function TaskUploadForm({
                           <BetweenHorizonalStartIcon className="text-muted-foreground" />
                           <div>
                             <CardTitle className="text-base">
-                              Rango {index + 1}
+                              {rangeAnswer.label.trim() || `Rango ${index + 1}`}
                             </CardTitle>
-                            <p className="text-sm leading-6 text-muted-foreground">
-                              El participante será correcto si su valor cae
-                              dentro de este rango.
-                            </p>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="flex flex-col gap-4">
                         <Field>
                           <FieldLabel htmlFor={`range-label-${rangeAnswer.id}`}>
-                            Etiqueta
+                            Nombre del rango
                           </FieldLabel>
                           <FieldContent>
                             <Input
