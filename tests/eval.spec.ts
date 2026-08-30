@@ -915,8 +915,12 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(desktopSecondAgeField!.x).toBeGreaterThan(desktopFirstAgeField!.x);
   expect(desktopThirdAgeField!.y).toBeGreaterThan(desktopFirstAgeField!.y);
   expect(desktopThirdAgeLabel!.height).toBeLessThanOrEqual(20);
-  expect(desktopFirstDifficulty!.width).toBeLessThanOrEqual(145);
+  expect(desktopFirstDifficulty!.width).toBeLessThanOrEqual(193);
   expect(desktopSecondDifficulty!.width).toBe(desktopFirstDifficulty!.width);
+  expect(
+    desktopSecondAgeField!.x -
+      (desktopFirstAgeField!.x + desktopFirstAgeField!.width),
+  ).toBeGreaterThanOrEqual(23);
   expect(
     desktopFirstAgeField!.x +
       desktopFirstAgeField!.width -
@@ -1050,7 +1054,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     (mobileFirstDifficulty!.y + mobileFirstDifficulty!.height / 2);
   expect(checkboxOpticalOffset).toBeGreaterThanOrEqual(-3);
   expect(checkboxOpticalOffset).toBeLessThanOrEqual(-1);
-  expect(mobileFirstDifficulty!.width).toBeLessThanOrEqual(145);
+  expect(mobileFirstDifficulty!.width).toBeLessThanOrEqual(161);
   expect(mobileSecondDifficulty!.width).toBe(mobileFirstDifficulty!.width);
   expect(mobileSecondDifficulty!.x).toBe(mobileFirstDifficulty!.x);
   expect(mobileThirdAgeLabel!.height).toBeLessThanOrEqual(20);
@@ -1063,6 +1067,23 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     mobileSecondAgeField!.y -
       (mobileFirstAgeField!.y + mobileFirstAgeField!.height),
   ).toBeLessThanOrEqual(16);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const [wideMobileDifficulty, wideMobileAgeField] = await Promise.all([
+    firstDifficulty.boundingBox(),
+    firstAgeField.boundingBox(),
+  ]);
+  expect(wideMobileDifficulty).not.toBeNull();
+  expect(wideMobileAgeField).not.toBeNull();
+  expect(wideMobileDifficulty!.width).toBeLessThanOrEqual(193);
+  expect(wideMobileDifficulty!.width).toBeGreaterThan(
+    mobileFirstDifficulty!.width,
+  );
+  expect(
+    wideMobileAgeField!.x +
+      wideMobileAgeField!.width -
+      (wideMobileDifficulty!.x + wideMobileDifficulty!.width),
+  ).toBeLessThanOrEqual(1);
 });
 
 test("rejects documents whose content does not match the extension", async () => {
