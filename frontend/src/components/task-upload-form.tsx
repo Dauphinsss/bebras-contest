@@ -895,47 +895,44 @@ export function TaskUploadForm({
             <GraduationCapIcon className="text-muted-foreground" />
             <div>
               <CardTitle>Dificultad por rango de edad</CardTitle>
-              <CardDescription>
+              <p className="text-sm leading-6 text-muted-foreground">
                 Define en qué grupos aplica la tarea y con qué dificultad.
-              </CardDescription>
+              </p>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
-          <FieldGroup>
-            <FieldDescription>
-              Activa los rangos de edad donde aplica la tarea y luego define su
-              dificultad.
-            </FieldDescription>
+        <CardContent>
+          <FieldGroup className="gap-3">
             {ageRanges.map((range) => (
-              <Field key={range} orientation="responsive">
-                <FieldContent className="gap-2">
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={form.selectedAgeRanges[range]}
-                      id={`age-range-${range}`}
-                      onCheckedChange={(checked) =>
-                        setForm((current) => ({
-                          ...current,
-                          selectedAgeRanges: {
-                            ...current.selectedAgeRanges,
-                            [range]: checked === true,
-                          },
-                          difficulties: {
-                            ...current.difficulties,
-                            [range]:
-                              checked === true
-                                ? current.difficulties[range]
-                                : "",
-                          },
-                        }))
-                      }
-                    />
-                    <FieldLabel htmlFor={`age-range-${range}`}>
-                      {range}
-                    </FieldLabel>
-                  </div>
-                </FieldContent>
+              <Field
+                key={range}
+                className="items-center"
+                orientation="horizontal"
+              >
+                <div className="flex shrink-0 items-center gap-3">
+                  <Checkbox
+                    className="-translate-y-0.5"
+                    checked={form.selectedAgeRanges[range]}
+                    id={`age-range-${range}`}
+                    onCheckedChange={(checked) =>
+                      setForm((current) => ({
+                        ...current,
+                        selectedAgeRanges: {
+                          ...current.selectedAgeRanges,
+                          [range]: checked === true,
+                        },
+                        difficulties: {
+                          ...current.difficulties,
+                          [range]:
+                            checked === true ? current.difficulties[range] : "",
+                        },
+                      }))
+                    }
+                  />
+                  <FieldLabel htmlFor={`age-range-${range}`}>
+                    {range}
+                  </FieldLabel>
+                </div>
                 <Select
                   disabled={!form.selectedAgeRanges[range]}
                   value={form.difficulties[range] || undefined}
@@ -949,7 +946,10 @@ export function TaskUploadForm({
                     }))
                   }
                 >
-                  <SelectTrigger className="w-full md:min-w-48">
+                  <SelectTrigger
+                    className="ml-auto min-w-0 flex-1 sm:max-w-64"
+                    aria-label={`Dificultad para ${range}`}
+                  >
                     <SelectValue placeholder="Selecciona dificultad" />
                   </SelectTrigger>
                   <SelectContent>
