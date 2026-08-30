@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   BetweenHorizonalStartIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CircleHelpIcon,
   FileTextIcon,
   FolderTreeIcon,
@@ -13,11 +13,13 @@ import {
   MessageSquareTextIcon,
   PlusIcon,
   ShieldAlertIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -758,6 +760,62 @@ export function TaskUploadForm({
     });
   };
 
+  const removeAnswer = (optionKey: OptionKey) => {
+    setForm((current) => {
+      if (current.answerCount <= minimumAnswerCount) {
+        return current;
+      }
+
+      const activeOrder = current.answerOrder.slice(0, current.answerCount);
+      const inactiveOrder = current.answerOrder.slice(current.answerCount);
+
+      return {
+        ...current,
+        answerCount: current.answerCount - 1,
+        answerOrder: [
+          ...activeOrder.filter((label) => label !== optionKey),
+          optionKey,
+          ...inactiveOrder,
+        ],
+        correctOptions: current.correctOptions.filter(
+          (label) => label !== optionKey,
+        ),
+        options: {
+          ...current.options,
+          [optionKey]: [createContentBlock(current.multipleChoiceContentType)],
+        },
+      };
+    });
+  };
+
+  const renderCorrectOptionsGroup = (children: ReactNode) => {
+    const className = "grid gap-4 lg:grid-cols-2";
+
+    if (form.multipleChoiceCorrectnessMode === "single") {
+      return (
+        <RadioGroup
+          aria-label="Respuesta correcta"
+          className={className}
+          value={form.correctOptions[0] ?? ""}
+          onValueChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              correctOptions: [value as OptionKey],
+            }))
+          }
+        >
+          {children}
+        </RadioGroup>
+      );
+    }
+
+    return (
+      <div aria-label="Respuestas correctas" className={className} role="group">
+        {children}
+      </div>
+    );
+  };
+
   const updateDragDropBackground = async (files: FileList | null) => {
     const nextImage = (await createContentImages(files))[0] ?? null;
 
@@ -1134,166 +1192,182 @@ export function TaskUploadForm({
             </FieldSet>
 
             {form.answerType === "multiple_choice" && (
-              <FieldSet className="gap-4">
+              <FieldSet className="gap-4!">
                 <FieldLegend className="mb-0" variant="label">
-                  Respuestas disponibles
+                  Configuración de opción múltiple
                 </FieldLegend>
                 <FieldDescription>
-                  Configura cómo se valida la respuesta correcta en opción
-                  múltiple.
+                  Define cómo se presentan las opciones y cuáles se aceptan como
+                  correctas.
                 </FieldDescription>
-                <FieldSet className="gap-4">
-                  <FieldLegend className="mb-0" variant="label">
-                    Tipo de contenido
-                  </FieldLegend>
+                <FieldGroup className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,11.25rem),1fr))] gap-px overflow-hidden rounded-xl bg-border">
+                  <div className="bg-card p-4">
+                    <FieldSet className="gap-4">
+                      <FieldLegend className="mb-0" variant="label">
+                        Contenido
+                      </FieldLegend>
+                      <FieldDescription className="max-w-72">
+                        Texto o imagen para todas las opciones.
+                      </FieldDescription>
+                      <RadioGroup
+                        value={form.multipleChoiceContentType}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            multipleChoiceContentType: value as
+                              | "text"
+                              | "image",
+                            options: optionLabels.reduce<
+                              Record<OptionKey, ContentBlock[]>
+                            >(
+                              (acc, optionLabel) => {
+                                acc[optionLabel] = current.answerOrder
+                                  .slice(0, current.answerCount)
+                                  .includes(optionLabel)
+                                  ? [
+                                      createContentBlock(
+                                        value === "image" ? "image" : "text",
+                                      ),
+                                    ]
+                                  : current.options[optionLabel];
+                                return acc;
+                              },
+                              {
+                                A: current.options.A,
+                                B: current.options.B,
+                                C: current.options.C,
+                                D: current.options.D,
+                                E: current.options.E,
+                                F: current.options.F,
+                              },
+                            ),
+                          }))
+                        }
+                      >
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-content-text"
+                            value="text"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-content-text">
+                            Texto
+                          </FieldLabel>
+                        </Field>
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-content-image"
+                            value="image"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-content-image">
+                            Imagen
+                          </FieldLabel>
+                        </Field>
+                      </RadioGroup>
+                    </FieldSet>
+                  </div>
+                  <div className="bg-card p-4">
+                    <FieldSet className="gap-4">
+                      <FieldLegend className="mb-0" variant="label">
+                        Presentación
+                      </FieldLegend>
+                      <FieldDescription className="max-w-72">
+                        Orden para cada estudiante.
+                      </FieldDescription>
+                      <RadioGroup
+                        value={form.multipleChoiceOrderMode}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            multipleChoiceOrderMode:
+                              value as MultipleChoiceOrderMode,
+                          }))
+                        }
+                      >
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-order-fixed"
+                            value="fixed"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-order-fixed">
+                            Mantener el orden definido
+                          </FieldLabel>
+                        </Field>
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-order-random"
+                            value="random"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-order-random">
+                            Mostrar en orden aleatorio
+                          </FieldLabel>
+                        </Field>
+                      </RadioGroup>
+                    </FieldSet>
+                  </div>
+                  <div className="bg-card p-4">
+                    <FieldSet className="gap-4">
+                      <FieldLegend className="mb-0" variant="label">
+                        Criterio de corrección
+                      </FieldLegend>
+                      <FieldDescription className="max-w-72">
+                        Número de respuestas correctas y a marcar.
+                      </FieldDescription>
+                      <RadioGroup
+                        value={form.multipleChoiceCorrectnessMode}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            multipleChoiceCorrectnessMode:
+                              value as MultipleChoiceCorrectnessMode,
+                            correctOptions:
+                              value === "single"
+                                ? current.correctOptions.slice(0, 1)
+                                : current.correctOptions,
+                          }))
+                        }
+                      >
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-correctness-single"
+                            value="single"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-correctness-single">
+                            Una sola respuesta correcta
+                          </FieldLabel>
+                        </Field>
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-correctness-any"
+                            value="any"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-correctness-any">
+                            Varias correctas (basta marcar una)
+                          </FieldLabel>
+                        </Field>
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id="multiple-choice-correctness-all"
+                            value="all"
+                          />
+                          <FieldLabel htmlFor="multiple-choice-correctness-all">
+                            Varias correctas (debe marcar todas)
+                          </FieldLabel>
+                        </Field>
+                      </RadioGroup>
+                    </FieldSet>
+                  </div>
+                </FieldGroup>
+                <FieldContent>
+                  <p className="text-sm font-medium leading-snug">
+                    Opciones de respuesta
+                  </p>
                   <FieldDescription>
-                    Todas las respuestas de opción múltiple usarán este mismo
-                    tipo.
+                    Completa al menos dos opciones y marca cuáles deben
+                    aceptarse como correctas.
                   </FieldDescription>
-                  <RadioGroup
-                    value={form.multipleChoiceContentType}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        multipleChoiceContentType: value as "text" | "image",
-                        options: optionLabels.reduce<
-                          Record<OptionKey, ContentBlock[]>
-                        >(
-                          (acc, optionLabel) => {
-                            acc[optionLabel] = current.answerOrder
-                              .slice(0, current.answerCount)
-                              .includes(optionLabel)
-                              ? [
-                                  createContentBlock(
-                                    value === "image" ? "image" : "text",
-                                  ),
-                                ]
-                              : current.options[optionLabel];
-                            return acc;
-                          },
-                          {
-                            A: current.options.A,
-                            B: current.options.B,
-                            C: current.options.C,
-                            D: current.options.D,
-                            E: current.options.E,
-                            F: current.options.F,
-                          },
-                        ),
-                      }))
-                    }
-                  >
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-content-text"
-                        value="text"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-content-text">
-                        Texto
-                      </FieldLabel>
-                    </Field>
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-content-image"
-                        value="image"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-content-image">
-                        Imagen
-                      </FieldLabel>
-                    </Field>
-                  </RadioGroup>
-                </FieldSet>
-                <FieldSet className="gap-4">
-                  <FieldLegend className="mb-0" variant="label">
-                    Orden de las respuestas
-                  </FieldLegend>
-                  <FieldDescription>
-                    Define si el estudiante verá las respuestas en el orden
-                    creado o en orden aleatorio.
-                  </FieldDescription>
-                  <RadioGroup
-                    value={form.multipleChoiceOrderMode}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        multipleChoiceOrderMode:
-                          value as MultipleChoiceOrderMode,
-                      }))
-                    }
-                  >
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-order-fixed"
-                        value="fixed"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-order-fixed">
-                        Orden específico
-                      </FieldLabel>
-                    </Field>
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-order-random"
-                        value="random"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-order-random">
-                        Orden aleatorio
-                      </FieldLabel>
-                    </Field>
-                  </RadioGroup>
-                </FieldSet>
-                <FieldSet className="gap-4">
-                  <FieldLegend className="mb-0" variant="label">
-                    Criterio de corrección
-                  </FieldLegend>
-                  <FieldDescription>
-                    Elige si basta una opción correcta o si se deben marcar
-                    todas.
-                  </FieldDescription>
-                  <RadioGroup
-                    value={form.multipleChoiceCorrectnessMode}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        multipleChoiceCorrectnessMode:
-                          value as MultipleChoiceCorrectnessMode,
-                        correctOptions:
-                          value === "single"
-                            ? current.correctOptions.slice(0, 1)
-                            : current.correctOptions,
-                      }))
-                    }
-                  >
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-correctness-single"
-                        value="single"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-correctness-single">
-                        Respuesta única correcta
-                      </FieldLabel>
-                    </Field>
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-correctness-any"
-                        value="any"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-correctness-any">
-                        Varias correctas (cualquiera suma)
-                      </FieldLabel>
-                    </Field>
-                    <Field orientation="horizontal">
-                      <RadioGroupItem
-                        id="multiple-choice-correctness-all"
-                        value="all"
-                      />
-                      <FieldLabel htmlFor="multiple-choice-correctness-all">
-                        Varias correctas (debe marcar todas)
-                      </FieldLabel>
-                    </Field>
-                  </RadioGroup>
-                </FieldSet>
-                <div className="flex flex-col gap-4">
-                  {activeOptionLabels.map((label, index) => {
+                </FieldContent>
+                {renderCorrectOptionsGroup(
+                  activeOptionLabels.map((label, index) => {
                     const optionBlock =
                       form.options[label][0] ??
                       createContentBlock(form.multipleChoiceContentType);
@@ -1306,62 +1380,101 @@ export function TaskUploadForm({
                         (markedAsCorrect && !optionHasContent));
 
                     return (
-                      <Field key={label} data-invalid={invalid}>
-                        <Card className="rounded-xl border bg-card shadow-sm">
+                      <Field
+                        key={label}
+                        className="h-full"
+                        data-invalid={invalid}
+                      >
+                        <Card className="h-full rounded-xl border bg-card shadow-sm">
                           <CardHeader className="border-b">
                             <div className="flex items-center justify-between gap-4">
                               <Field orientation="horizontal">
-                                <Checkbox
-                                  checked={markedAsCorrect}
-                                  id={`correct-${label}`}
-                                  onCheckedChange={(checked) =>
-                                    setForm((current) => ({
-                                      ...current,
-                                      correctOptions:
-                                        checked === true
-                                          ? current.multipleChoiceCorrectnessMode ===
-                                            "single"
-                                            ? [label]
-                                            : [
+                                {form.multipleChoiceCorrectnessMode ===
+                                "single" ? (
+                                  <RadioGroupItem
+                                    aria-label={`Marcar respuesta ${index + 1} como correcta`}
+                                    id={`correct-${label}`}
+                                    value={label}
+                                  />
+                                ) : (
+                                  <Checkbox
+                                    aria-label={`Marcar respuesta ${index + 1} como correcta`}
+                                    checked={markedAsCorrect}
+                                    id={`correct-${label}`}
+                                    onCheckedChange={(checked) =>
+                                      setForm((current) => ({
+                                        ...current,
+                                        correctOptions:
+                                          checked === true
+                                            ? [
                                                 ...new Set([
                                                   ...current.correctOptions,
                                                   label,
                                                 ]),
                                               ]
-                                          : current.correctOptions.filter(
-                                              (option) => option !== label,
-                                            ),
-                                    }))
-                                  }
-                                />
-                                <FieldContent className="gap-1">
-                                  <FieldLabel htmlFor={`correct-${label}`}>
-                                    Respuesta {index + 1}
-                                  </FieldLabel>
+                                            : current.correctOptions.filter(
+                                                (option) => option !== label,
+                                              ),
+                                      }))
+                                    }
+                                  />
+                                )}
+                                <FieldContent className="gap-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <FieldLabel htmlFor={`correct-${label}`}>
+                                      Respuesta {index + 1}
+                                    </FieldLabel>
+                                    {markedAsCorrect && (
+                                      <Badge variant="secondary">
+                                        Respuesta correcta
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </FieldContent>
                               </Field>
-                              {form.multipleChoiceOrderMode === "fixed" && (
+                              {(form.multipleChoiceOrderMode === "fixed" ||
+                                form.answerCount > minimumAnswerCount) && (
                                 <div className="flex items-center gap-2">
-                                  <Button
-                                    size="icon-sm"
-                                    type="button"
-                                    variant="outline"
-                                    disabled={index === 0}
-                                    onClick={() => moveAnswer(label, "up")}
-                                  >
-                                    <ArrowUpIcon />
-                                  </Button>
-                                  <Button
-                                    size="icon-sm"
-                                    type="button"
-                                    variant="outline"
-                                    disabled={
-                                      index === activeOptionLabels.length - 1
-                                    }
-                                    onClick={() => moveAnswer(label, "down")}
-                                  >
-                                    <ArrowDownIcon />
-                                  </Button>
+                                  {form.multipleChoiceOrderMode === "fixed" && (
+                                    <>
+                                      <Button
+                                        aria-label={`Mover respuesta ${index + 1} antes`}
+                                        size="icon-sm"
+                                        type="button"
+                                        variant="outline"
+                                        disabled={index === 0}
+                                        onClick={() => moveAnswer(label, "up")}
+                                      >
+                                        <ChevronLeftIcon />
+                                      </Button>
+                                      <Button
+                                        aria-label={`Mover respuesta ${index + 1} después`}
+                                        size="icon-sm"
+                                        type="button"
+                                        variant="outline"
+                                        disabled={
+                                          index ===
+                                          activeOptionLabels.length - 1
+                                        }
+                                        onClick={() =>
+                                          moveAnswer(label, "down")
+                                        }
+                                      >
+                                        <ChevronRightIcon />
+                                      </Button>
+                                    </>
+                                  )}
+                                  {form.answerCount > minimumAnswerCount && (
+                                    <Button
+                                      aria-label={`Eliminar respuesta ${index + 1}`}
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="destructive"
+                                      onClick={() => removeAnswer(label)}
+                                    >
+                                      <Trash2Icon />
+                                    </Button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1440,10 +1553,11 @@ export function TaskUploadForm({
                         </Card>
                       </Field>
                     );
-                  })}
-                </div>
+                  }),
+                )}
                 {form.answerCount < optionLabels.length && (
                   <Button
+                    className="w-fit"
                     type="button"
                     onClick={() =>
                       setForm((current) => ({
