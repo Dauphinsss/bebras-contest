@@ -211,7 +211,7 @@ function isOptionKey(value: string): value is OptionKey {
 }
 
 function normalizeOptionKeys(values: string[]) {
-  return values.filter(isOptionKey);
+  return [...new Set(values.filter(isOptionKey))];
 }
 
 export function encodeMultipleChoiceCorrectness(

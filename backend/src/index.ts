@@ -3023,13 +3023,21 @@ function parseMcCorrectness(value: string) {
   if (raw.startsWith("any:")) {
     return {
       mode: "any",
-      ids: raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+      ids: [
+        ...new Set(
+          raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+        ),
+      ],
     };
   }
   if (raw.startsWith("all:")) {
     return {
       mode: "all",
-      ids: raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+      ids: [
+        ...new Set(
+          raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+        ),
+      ],
     };
   }
   return { mode: "single", ids: raw ? [raw] : [] };
@@ -3155,7 +3163,7 @@ function answerIsCorrect(task: PlayTask, payload: unknown) {
     const selected = Array.isArray(response.selected)
       ? response.selected.map(String)
       : [];
-    if (selected.length === 0) {
+    if (selected.length === 0 || new Set(selected).size !== selected.length) {
       return false;
     }
     const { mode, ids } = parseMcCorrectness(task.correctAnswerId);
