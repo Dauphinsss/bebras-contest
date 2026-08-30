@@ -816,6 +816,20 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       "Activa los rangos de edad donde aplica la tarea y luego define su dificultad.",
     ),
   ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Construye el contenido principal con bloques de texto o imagen.",
+    ),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText("Construye la consigna con bloques de texto o imagen."),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText("Agrega texto o imágenes para el cuerpo."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Agrega bloques para redactar la consigna."),
+  ).toHaveCount(0);
 
   const generalHeader = generalCard.locator('[data-slot="card-header"]');
   const titleLabel = page.locator('label[for="title"]');
@@ -931,6 +945,111 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       desktopSecondAgeField!.width -
       (desktopSecondDifficulty!.x + desktopSecondDifficulty!.width),
   ).toBeLessThanOrEqual(1);
+
+  const bodyCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Cuerpo" })
+    .first();
+  const challengeCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Pregunta o desafío" })
+    .first();
+  const bodyHeader = bodyCard.locator('[data-slot="card-header"]');
+  const challengeHeader = challengeCard.locator('[data-slot="card-header"]');
+  const bodyHeaderContent = bodyHeader.locator(":scope > div");
+  const challengeHeaderContent = challengeHeader.locator(":scope > div");
+  const bodyTextarea = bodyCard.getByPlaceholder(
+    "Escribe el contenido del cuerpo.",
+  );
+  const challengeTextarea = challengeCard.getByPlaceholder(
+    "Escribe el contenido de la consigna.",
+  );
+  const bodyAddText = bodyCard.getByRole("button", {
+    name: "Agregar texto",
+  });
+  const challengeAddText = challengeCard.getByRole("button", {
+    name: "Agregar texto",
+  });
+  await expect(
+    bodyHeader.locator('[data-slot="card-description"]'),
+  ).toHaveCount(0);
+  await expect(
+    challengeHeader.locator('[data-slot="card-description"]'),
+  ).toHaveCount(0);
+  const [
+    bodyCardBox,
+    bodyHeaderBox,
+    bodyHeaderContentBox,
+    bodyTextareaBox,
+    bodyAddTextBox,
+    challengeCardBox,
+    challengeHeaderBox,
+    challengeHeaderContentBox,
+    challengeTextareaBox,
+    challengeAddTextBox,
+  ] = await Promise.all([
+    bodyCard.boundingBox(),
+    bodyHeader.boundingBox(),
+    bodyHeaderContent.boundingBox(),
+    bodyTextarea.boundingBox(),
+    bodyAddText.boundingBox(),
+    challengeCard.boundingBox(),
+    challengeHeader.boundingBox(),
+    challengeHeaderContent.boundingBox(),
+    challengeTextarea.boundingBox(),
+    challengeAddText.boundingBox(),
+  ]);
+  expect(bodyCardBox).not.toBeNull();
+  expect(bodyHeaderBox).not.toBeNull();
+  expect(bodyHeaderContentBox).not.toBeNull();
+  expect(bodyTextareaBox).not.toBeNull();
+  expect(bodyAddTextBox).not.toBeNull();
+  expect(challengeCardBox).not.toBeNull();
+  expect(challengeHeaderBox).not.toBeNull();
+  expect(challengeHeaderContentBox).not.toBeNull();
+  expect(challengeTextareaBox).not.toBeNull();
+  expect(challengeAddTextBox).not.toBeNull();
+  const bodyHeaderTopSpace = bodyHeaderContentBox!.y - bodyCardBox!.y;
+  const bodyHeaderBottomSpace =
+    bodyHeaderBox!.y +
+    bodyHeaderBox!.height -
+    (bodyHeaderContentBox!.y + bodyHeaderContentBox!.height);
+  const challengeHeaderTopSpace =
+    challengeHeaderContentBox!.y - challengeCardBox!.y;
+  const challengeHeaderBottomSpace =
+    challengeHeaderBox!.y +
+    challengeHeaderBox!.height -
+    (challengeHeaderContentBox!.y + challengeHeaderContentBox!.height);
+  expect(Math.abs(bodyHeaderTopSpace - bodyHeaderBottomSpace)).toBeLessThanOrEqual(
+    1,
+  );
+  expect(
+    Math.abs(challengeHeaderTopSpace - challengeHeaderBottomSpace),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    bodyTextareaBox!.y - (bodyHeaderBox!.y + bodyHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    challengeTextareaBox!.y -
+      (challengeHeaderBox!.y + challengeHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    bodyAddTextBox!.y - (bodyTextareaBox!.y + bodyTextareaBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    challengeAddTextBox!.y -
+      (challengeTextareaBox!.y + challengeTextareaBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    bodyCardBox!.y +
+      bodyCardBox!.height -
+      (bodyAddTextBox!.y + bodyAddTextBox!.height),
+  ).toBeLessThanOrEqual(21);
+  expect(
+    challengeCardBox!.y +
+      challengeCardBox!.height -
+      (challengeAddTextBox!.y + challengeAddTextBox!.height),
+  ).toBeLessThanOrEqual(21);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
