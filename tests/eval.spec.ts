@@ -830,6 +830,21 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   await expect(
     page.getByText("Agrega bloques para redactar la consigna."),
   ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Explica la respuesta para la revisión interna; esta parte no la ve el estudiante.",
+    ),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText(
+      "Deja trazabilidad pedagógica para revisión y publicación.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Esta parte no la ve el estudiante, pero sí mejora la edición interna.",
+    ),
+  ).toHaveCount(0);
 
   const generalHeader = generalCard.locator('[data-slot="card-header"]');
   const titleLabel = page.locator('label[for="title"]');
@@ -1049,6 +1064,74 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     challengeCardBox!.y +
       challengeCardBox!.height -
       (challengeAddTextBox!.y + challengeAddTextBox!.height),
+  ).toBeLessThanOrEqual(21);
+
+  const explanationCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Explicación de la respuesta" })
+    .first();
+  const explanationHeader = explanationCard.locator(
+    '[data-slot="card-header"]',
+  );
+  const explanationHeaderContent = explanationHeader.locator(":scope > div");
+  const explanationLabel = explanationCard.locator(
+    'label[for="explanation"]',
+  );
+  const explanationTextarea = explanationCard.getByLabel("Explicación", {
+    exact: true,
+  });
+  const explanationFooter = explanationCard.locator(
+    '[data-slot="card-footer"]',
+  );
+  await expect(
+    explanationHeader.locator('[data-slot="card-description"]'),
+  ).toHaveCount(0);
+  const [
+    explanationCardBox,
+    explanationHeaderBox,
+    explanationHeaderContentBox,
+    explanationLabelBox,
+    explanationTextareaBox,
+    explanationFooterBox,
+  ] = await Promise.all([
+    explanationCard.boundingBox(),
+    explanationHeader.boundingBox(),
+    explanationHeaderContent.boundingBox(),
+    explanationLabel.boundingBox(),
+    explanationTextarea.boundingBox(),
+    explanationFooter.boundingBox(),
+  ]);
+  expect(explanationCardBox).not.toBeNull();
+  expect(explanationHeaderBox).not.toBeNull();
+  expect(explanationHeaderContentBox).not.toBeNull();
+  expect(explanationLabelBox).not.toBeNull();
+  expect(explanationTextareaBox).not.toBeNull();
+  expect(explanationFooterBox).not.toBeNull();
+  const explanationHeaderTopSpace =
+    explanationHeaderContentBox!.y - explanationCardBox!.y;
+  const explanationHeaderBottomSpace =
+    explanationHeaderBox!.y +
+    explanationHeaderBox!.height -
+    (explanationHeaderContentBox!.y + explanationHeaderContentBox!.height);
+  expect(
+    Math.abs(explanationHeaderTopSpace - explanationHeaderBottomSpace),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    explanationLabelBox!.y -
+      (explanationHeaderBox!.y + explanationHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    explanationTextareaBox!.y -
+      (explanationLabelBox!.y + explanationLabelBox!.height),
+  ).toBeLessThanOrEqual(16);
+  expect(
+    explanationFooterBox!.y -
+      (explanationTextareaBox!.y + explanationTextareaBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    explanationCardBox!.y +
+      explanationCardBox!.height -
+      (explanationFooterBox!.y + explanationFooterBox!.height),
   ).toBeLessThanOrEqual(21);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
