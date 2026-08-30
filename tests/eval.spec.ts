@@ -1231,14 +1231,51 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   );
   expect(desktopDragDropTypeField!.y).toBe(desktopRangeTypeField!.y);
   expect(desktopDragDropTypeField!.x).toBeGreaterThan(desktopRangeTypeField!.x);
+  await expect(
+    answersCard.getByText(
+      "Configura el fondo, el nombre y la imagen de cada objeto. Selecciona uno y toca o arrástralo sobre el escenario para ubicar su destino; los círculos indican el radio de encaje solo durante la edición.",
+    ),
+  ).toHaveCount(1);
+  await expect(
+    answersCard.getByText(
+      "Define la imagen de fondo, los objetos y la posición correcta de cada uno.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    answersCard.getByText(
+      "Selecciona un objeto y toca el escenario para ubicar su destino. También puedes arrastrar directamente el objeto.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    answersCard.getByText(
+      "Los círculos muestran el radio de encaje y solo aparecen en este editor de autoría.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    answersCard.getByText(
+      "El objeto seleccionado se muestra en su destino sobre el escenario.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    answersCard.getByText(
+      "Define su imagen y su destino fijo sobre el fondo.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    answersCard.getByText("Escenario de fondo", { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    answersCard.getByText("Objetos arrastrables", { exact: true }),
+  ).toHaveCount(1);
 
-  const firstObjectCard = answersCard
-    .locator('[data-slot="card"]')
-    .filter({ hasText: "Objeto 1" })
-    .first();
+  const nameInput = page.locator('input[id^="drag-item-label-"]').first();
+  const firstObjectCard = nameInput.locator(
+    'xpath=ancestor::*[@data-slot="card"][1]',
+  );
   const firstObjectHeader = firstObjectCard.locator(
     '[data-slot="card-header"]',
   );
+  const firstObjectTitle = firstObjectCard.locator('[data-slot="card-title"]');
   const firstObjectContent = firstObjectCard.locator(
     '[data-slot="card-content"]',
   );
@@ -1286,8 +1323,15 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       firstObjectCardBox!.height -
       (firstObjectContentBox!.y + firstObjectContentBox!.height),
   ).toBeLessThanOrEqual(21);
+  const originalObjectName = await nameInput.inputValue();
+  await expect(firstObjectTitle).toHaveText(originalObjectName);
+  await nameInput.fill("Pieza principal");
+  await expect(firstObjectTitle).toHaveText("Pieza principal");
+  await nameInput.fill("");
+  await expect(firstObjectTitle).toHaveText("Objeto 1");
+  await nameInput.fill(originalObjectName);
+  await expect(firstObjectTitle).toHaveText(originalObjectName);
 
-  const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
   const radiusInput = page.locator('input[id^="drag-target-radius-"]').first();
   await expect(nameInput).toBeVisible();
