@@ -983,17 +983,16 @@ export function TaskUploadForm({
             <FileTextIcon className="text-muted-foreground" />
             <div>
               <CardTitle>Cuerpo</CardTitle>
-              <CardDescription>
-                Construye el contenido principal de la tarea con bloques.
-              </CardDescription>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Construye el contenido principal con bloques de texto o imagen.
+              </p>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent>
           <TaskContentBuilder
             allowedBlockTypes={["text", "image"]}
             blocks={form.bodyBlocks}
-            description="Agrega texto o imágenes para el cuerpo."
             onAddBlock={(type) => addSectionBlock("bodyBlocks", type)}
             onRemoveBlock={(blockId) =>
               removeSectionBlock("bodyBlocks", blockId)
@@ -1025,18 +1024,16 @@ export function TaskUploadForm({
             <MessageSquareTextIcon className="text-muted-foreground" />
             <div>
               <CardTitle>Pregunta o desafío</CardTitle>
-              <CardDescription>
-                Mantén la consigna en una sección aparte, usando el mismo editor
-                de bloques.
-              </CardDescription>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Construye la consigna con bloques de texto o imagen.
+              </p>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent>
           <TaskContentBuilder
             allowedBlockTypes={["text", "image"]}
             blocks={form.challengeBlocks}
-            description="Agrega bloques para redactar la consigna."
             onAddBlock={(type) =>
               addSectionBlock("challengeBlocks", type ?? "text")
             }

@@ -19,7 +19,6 @@ import { GripVerticalIcon, PlusIcon, XIcon } from "lucide-react";
 
 type TaskContentBuilderProps = {
   blocks: ContentBlock[];
-  description: string;
   allowedBlockTypes: ContentBlockType[];
   textPlaceholder: string;
   onAddBlock: (type?: ContentBlockType) => string | null;
@@ -40,7 +39,6 @@ type TaskContentBuilderProps = {
 
 export function TaskContentBuilder({
   blocks,
-  description,
   allowedBlockTypes,
   textPlaceholder,
   onAddBlock,
@@ -167,8 +165,7 @@ export function TaskContentBuilder({
   };
 
   return (
-    <FieldGroup>
-      <FieldDescription>{description}</FieldDescription>
+    <FieldGroup className="gap-4">
       {blocks.map((block) => (
         <div
           key={block.id}
