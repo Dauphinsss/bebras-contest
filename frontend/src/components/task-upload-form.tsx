@@ -902,7 +902,7 @@ export function TaskUploadForm({
           </div>
         </CardHeader>
         <CardContent>
-          <FieldGroup className="gap-3 md:grid md:grid-cols-2">
+          <FieldGroup className="gap-3 md:grid md:grid-cols-2 md:gap-x-6">
             {ageRanges.map((range) => (
               <Field
                 key={range}
@@ -950,7 +950,7 @@ export function TaskUploadForm({
                   }
                 >
                   <SelectTrigger
-                    className="ml-auto w-36 shrink-0"
+                    className="ml-auto w-40 shrink-0 min-[360px]:w-48"
                     aria-label={`Dificultad para ${range}`}
                   >
                     <SelectValue placeholder="Selecciona dificultad" />
