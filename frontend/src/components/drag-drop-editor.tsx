@@ -56,6 +56,10 @@ type StageSize = {
   height: number;
 };
 
+function roundCoordinate(value: number) {
+  return Math.round(value * 1000) / 1000;
+}
+
 export function DragDropEditor({
   backgroundUrl,
   items,
@@ -121,18 +125,22 @@ export function DragDropEditor({
     }
 
     onUpdateTarget(targetId, {
-      x: Math.max(
-        0,
-        Math.min(
-          100,
-          ((clientX - rect.left - stage.clientLeft) / width) * 100,
+      x: roundCoordinate(
+        Math.max(
+          0,
+          Math.min(
+            100,
+            ((clientX - rect.left - stage.clientLeft) / width) * 100,
+          ),
         ),
       ),
-      y: Math.max(
-        0,
-        Math.min(
-          100,
-          ((clientY - rect.top - stage.clientTop) / height) * 100,
+      y: roundCoordinate(
+        Math.max(
+          0,
+          Math.min(
+            100,
+            ((clientY - rect.top - stage.clientTop) / height) * 100,
+          ),
         ),
       ),
     });
@@ -185,7 +193,7 @@ export function DragDropEditor({
         <FieldLegend variant="label">Escenario de fondo</FieldLegend>
         <FieldDescription>
           Selecciona un objeto y toca el escenario para ubicar su destino.
-          También puedes arrastrar directamente el objeto o ajustar X e Y.
+          También puedes arrastrar directamente el objeto.
         </FieldDescription>
         <Field>
           <FieldContent className="gap-4">
@@ -398,21 +406,85 @@ export function DragDropEditor({
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4 pt-6">
-                  <Field>
-                    <FieldLabel htmlFor={`drag-item-label-${item.id}`}>
-                      Nombre
-                    </FieldLabel>
-                    <FieldContent>
-                      <Input
-                        id={`drag-item-label-${item.id}`}
-                        placeholder="Ej. Pieza azul"
-                        value={item.label}
-                        onChange={(event) =>
-                          onUpdateItem(item.id, { label: event.target.value })
-                        }
-                      />
-                    </FieldContent>
-                  </Field>
+                  <div
+                    className={cn("grid gap-4", target && "md:grid-cols-3")}
+                  >
+                    <Field>
+                      <FieldLabel htmlFor={`drag-item-label-${item.id}`}>
+                        Nombre
+                      </FieldLabel>
+                      <FieldContent>
+                        <Input
+                          id={`drag-item-label-${item.id}`}
+                          placeholder="Ej. Pieza azul"
+                          value={item.label}
+                          onChange={(event) =>
+                            onUpdateItem(item.id, { label: event.target.value })
+                          }
+                        />
+                      </FieldContent>
+                    </Field>
+
+                    {target && (
+                      <>
+                        <Field>
+                          <FieldLabel htmlFor={`drag-item-width-${item.id}`}>
+                            Ancho en escenario (%)
+                          </FieldLabel>
+                          <FieldContent>
+                            <Input
+                              id={`drag-item-width-${item.id}`}
+                              max="100"
+                              min="0.1"
+                              step="0.1"
+                              type="number"
+                              value={
+                                Number.isFinite(item.widthPercent)
+                                  ? item.widthPercent
+                                  : ""
+                              }
+                              onChange={(event) =>
+                                onUpdateItem(item.id, {
+                                  widthPercent: event.target.valueAsNumber,
+                                })
+                              }
+                            />
+                            <FieldDescription>
+                              Porcentaje del ancho del escenario.
+                            </FieldDescription>
+                          </FieldContent>
+                        </Field>
+
+                        <Field>
+                          <FieldLabel htmlFor={`drag-target-radius-${target.id}`}>
+                            Radio de encaje (%)
+                          </FieldLabel>
+                          <FieldContent>
+                            <Input
+                              id={`drag-target-radius-${target.id}`}
+                              max="100"
+                              min="0.1"
+                              step="0.1"
+                              type="number"
+                              value={
+                                Number.isFinite(target.snapRadius)
+                                  ? target.snapRadius
+                                  : ""
+                              }
+                              onChange={(event) =>
+                                onUpdateTarget(target.id, {
+                                  snapRadius: event.target.valueAsNumber,
+                                })
+                              }
+                            />
+                            <FieldDescription>
+                              Porcentaje del lado más corto del escenario.
+                            </FieldDescription>
+                          </FieldContent>
+                        </Field>
+                      </>
+                    )}
+                  </div>
 
                   <Field>
                     <FieldLabel>Imagen del objeto</FieldLabel>
@@ -460,104 +532,6 @@ export function DragDropEditor({
                     </FieldContent>
                   </Field>
 
-                  {target && (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      <Field>
-                        <FieldLabel htmlFor={`drag-item-width-${item.id}`}>
-                          Ancho en escenario (%)
-                        </FieldLabel>
-                        <FieldContent>
-                          <Input
-                            id={`drag-item-width-${item.id}`}
-                            max="100"
-                            min="0.1"
-                            step="0.1"
-                            type="number"
-                            value={
-                              Number.isFinite(item.widthPercent)
-                                ? item.widthPercent
-                                : ""
-                            }
-                            onChange={(event) =>
-                              onUpdateItem(item.id, {
-                                widthPercent: event.target.valueAsNumber,
-                              })
-                            }
-                          />
-                          <FieldDescription>
-                            Porcentaje del ancho del escenario.
-                          </FieldDescription>
-                        </FieldContent>
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor={`drag-target-x-${target.id}`}>
-                          X (%)
-                        </FieldLabel>
-                        <FieldContent>
-                          <Input
-                            id={`drag-target-x-${target.id}`}
-                            max="100"
-                            min="0"
-                            step="any"
-                            type="number"
-                            value={Number.isFinite(target.x) ? target.x : ""}
-                            onChange={(event) =>
-                              onUpdateTarget(target.id, {
-                                x: event.target.valueAsNumber,
-                              })
-                            }
-                          />
-                        </FieldContent>
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor={`drag-target-y-${target.id}`}>
-                          Y (%)
-                        </FieldLabel>
-                        <FieldContent>
-                          <Input
-                            id={`drag-target-y-${target.id}`}
-                            max="100"
-                            min="0"
-                            step="any"
-                            type="number"
-                            value={Number.isFinite(target.y) ? target.y : ""}
-                            onChange={(event) =>
-                              onUpdateTarget(target.id, {
-                                y: event.target.valueAsNumber,
-                              })
-                            }
-                          />
-                        </FieldContent>
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor={`drag-target-radius-${target.id}`}>
-                          Radio de encaje (%)
-                        </FieldLabel>
-                        <FieldContent>
-                          <Input
-                            id={`drag-target-radius-${target.id}`}
-                            max="100"
-                            min="0.1"
-                            step="0.1"
-                            type="number"
-                            value={
-                              Number.isFinite(target.snapRadius)
-                                ? target.snapRadius
-                                : ""
-                            }
-                            onChange={(event) =>
-                              onUpdateTarget(target.id, {
-                                snapRadius: event.target.valueAsNumber,
-                              })
-                            }
-                          />
-                          <FieldDescription>
-                            Porcentaje del lado más corto del escenario.
-                          </FieldDescription>
-                        </FieldContent>
-                      </Field>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             );

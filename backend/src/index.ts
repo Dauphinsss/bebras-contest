@@ -266,6 +266,10 @@ function readFiniteNumber(value: unknown) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function normalizeDragDropCoordinate(value: unknown) {
+  return Math.round(readFiniteNumber(value) * 1000) / 1000;
+}
+
 function normalizeDragDropWidth(value: unknown) {
   return typeof value === "number" &&
     Number.isFinite(value) &&
@@ -307,8 +311,8 @@ function normalizeDragDropConfig(value: unknown): DragDropConfig {
         typeof item.id === "string" && item.id
           ? item.id
           : `legacy-item-${index + 1}`;
-      const x = readFiniteNumber(item.targetX);
-      const y = readFiniteNumber(item.targetY);
+      const x = normalizeDragDropCoordinate(item.targetX);
+      const y = normalizeDragDropCoordinate(item.targetY);
       const snapRadius = readFiniteNumber(item.tolerance);
       const targetIdBase = legacyDragDropTargetId(index, id, x, y, snapRadius);
       let targetId = targetIdBase;
@@ -376,8 +380,8 @@ function normalizeDragDropConfig(value: unknown): DragDropConfig {
           typeof target.id === "string" && target.id
             ? target.id
             : `target-${index + 1}`,
-        x: readFiniteNumber(target.x),
-        y: readFiniteNumber(target.y),
+        x: normalizeDragDropCoordinate(target.x),
+        y: normalizeDragDropCoordinate(target.y),
         snapRadius: readFiniteNumber(target.snapRadius),
       };
     }),
@@ -767,7 +771,12 @@ function parseTaskPayload(body: Record<string, unknown>) {
         );
       }
 
-      normalizedTargets.push({ id, x, y, snapRadius });
+      normalizedTargets.push({
+        id,
+        x: normalizeDragDropCoordinate(x),
+        y: normalizeDragDropCoordinate(y),
+        snapRadius,
+      });
     }
 
     const usedTargetIds = new Set<string>();
