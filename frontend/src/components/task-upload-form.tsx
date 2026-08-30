@@ -909,7 +909,7 @@ export function TaskUploadForm({
                 className="items-center"
                 orientation="horizontal"
               >
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="flex w-16 shrink-0 items-center gap-3">
                   <Checkbox
                     className="-translate-y-0.5"
                     checked={form.selectedAgeRanges[range]}
@@ -947,7 +947,7 @@ export function TaskUploadForm({
                   }
                 >
                   <SelectTrigger
-                    className="ml-auto min-w-0 flex-1 sm:max-w-64"
+                    className="w-40 shrink-0"
                     aria-label={`Dificultad para ${range}`}
                   >
                     <SelectValue placeholder="Selecciona dificultad" />
