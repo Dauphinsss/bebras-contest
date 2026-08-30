@@ -845,6 +845,17 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       "Esta parte no la ve el estudiante, pero sí mejora la edición interna.",
     ),
   ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Define el tipo de respuesta y configura cómo se validará.",
+    ),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText("Define el tipo de respuesta y su configuración."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Elige cómo responderá el participante esta tarea."),
+  ).toHaveCount(0);
 
   const generalHeader = generalCard.locator('[data-slot="card-header"]');
   const titleLabel = page.locator('label[for="title"]');
@@ -1134,6 +1145,140 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       (explanationFooterBox!.y + explanationFooterBox!.height),
   ).toBeLessThanOrEqual(21);
 
+  const answersCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Respuestas" })
+    .first();
+  const answersHeader = answersCard.locator('[data-slot="card-header"]').first();
+  const answersHeaderContent = answersHeader.locator(":scope > div");
+  const answerTypeLegend = answersCard
+    .locator('[data-slot="field-legend"]')
+    .filter({ hasText: "Tipo de respuesta" });
+  const multipleChoiceType = answersCard.getByRole("radio", {
+    name: "Opción múltiple",
+  });
+  const shortTextType = answersCard.getByRole("radio", {
+    name: "Respuesta corta",
+  });
+  const rangeType = answersCard.getByRole("radio", {
+    name: "Respuesta por rangos",
+  });
+  const dragDropType = answersCard.getByRole("radio", {
+    name: "Arrastrar y soltar",
+  });
+  const multipleChoiceTypeField = multipleChoiceType.locator("..");
+  const shortTextTypeField = shortTextType.locator("..");
+  const rangeTypeField = rangeType.locator("..");
+  const dragDropTypeField = dragDropType.locator("..");
+  await expect(
+    answersHeader.locator('[data-slot="card-description"]'),
+  ).toHaveCount(0);
+  const [
+    answersCardBox,
+    answersHeaderBox,
+    answersHeaderContentBox,
+    answerTypeLegendBox,
+    desktopMultipleChoiceTypeField,
+    desktopShortTextTypeField,
+    desktopRangeTypeField,
+    desktopDragDropTypeField,
+  ] = await Promise.all([
+    answersCard.boundingBox(),
+    answersHeader.boundingBox(),
+    answersHeaderContent.boundingBox(),
+    answerTypeLegend.boundingBox(),
+    multipleChoiceTypeField.boundingBox(),
+    shortTextTypeField.boundingBox(),
+    rangeTypeField.boundingBox(),
+    dragDropTypeField.boundingBox(),
+  ]);
+  expect(answersCardBox).not.toBeNull();
+  expect(answersHeaderBox).not.toBeNull();
+  expect(answersHeaderContentBox).not.toBeNull();
+  expect(answerTypeLegendBox).not.toBeNull();
+  expect(desktopMultipleChoiceTypeField).not.toBeNull();
+  expect(desktopShortTextTypeField).not.toBeNull();
+  expect(desktopRangeTypeField).not.toBeNull();
+  expect(desktopDragDropTypeField).not.toBeNull();
+  const answersHeaderTopSpace = answersHeaderContentBox!.y - answersCardBox!.y;
+  const answersHeaderBottomSpace =
+    answersHeaderBox!.y +
+    answersHeaderBox!.height -
+    (answersHeaderContentBox!.y + answersHeaderContentBox!.height);
+  expect(
+    Math.abs(answersHeaderTopSpace - answersHeaderBottomSpace),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    answerTypeLegendBox!.y -
+      (answersHeaderBox!.y + answersHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(desktopShortTextTypeField!.y).toBe(
+    desktopMultipleChoiceTypeField!.y,
+  );
+  expect(desktopShortTextTypeField!.x).toBeGreaterThan(
+    desktopMultipleChoiceTypeField!.x,
+  );
+  expect(desktopRangeTypeField!.y).toBeGreaterThan(
+    desktopMultipleChoiceTypeField!.y,
+  );
+  expect(desktopDragDropTypeField!.y).toBe(desktopRangeTypeField!.y);
+  expect(desktopDragDropTypeField!.x).toBeGreaterThan(desktopRangeTypeField!.x);
+
+  const firstObjectCard = answersCard
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Objeto 1" })
+    .first();
+  const firstObjectHeader = firstObjectCard.locator(
+    '[data-slot="card-header"]',
+  );
+  const firstObjectContent = firstObjectCard.locator(
+    '[data-slot="card-content"]',
+  );
+  const firstObjectNameLabel = firstObjectCard.locator(
+    'label[for^="drag-item-label-"]',
+  );
+  const firstObjectFields = firstObjectContent.locator(":scope > div.grid");
+  const firstObjectImageField = firstObjectCard
+    .locator('[data-slot="field"]')
+    .filter({ hasText: "Imagen del objeto" });
+  await expect(
+    firstObjectHeader.locator('[data-slot="card-description"]'),
+  ).toHaveCount(0);
+  const [
+    firstObjectCardBox,
+    firstObjectHeaderBox,
+    firstObjectContentBox,
+    firstObjectNameLabelBox,
+    firstObjectFieldsBox,
+    firstObjectImageFieldBox,
+  ] = await Promise.all([
+    firstObjectCard.boundingBox(),
+    firstObjectHeader.boundingBox(),
+    firstObjectContent.boundingBox(),
+    firstObjectNameLabel.boundingBox(),
+    firstObjectFields.boundingBox(),
+    firstObjectImageField.boundingBox(),
+  ]);
+  expect(firstObjectCardBox).not.toBeNull();
+  expect(firstObjectHeaderBox).not.toBeNull();
+  expect(firstObjectContentBox).not.toBeNull();
+  expect(firstObjectNameLabelBox).not.toBeNull();
+  expect(firstObjectFieldsBox).not.toBeNull();
+  expect(firstObjectImageFieldBox).not.toBeNull();
+  expect(
+    firstObjectNameLabelBox!.y -
+      (firstObjectHeaderBox!.y + firstObjectHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    firstObjectImageFieldBox!.y -
+      (firstObjectFieldsBox!.y + firstObjectFieldsBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    firstObjectCardBox!.y +
+      firstObjectCardBox!.height -
+      (firstObjectContentBox!.y + firstObjectContentBox!.height),
+  ).toBeLessThanOrEqual(21);
+
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
   const radiusInput = page.locator('input[id^="drag-target-radius-"]').first();
@@ -1203,6 +1348,110 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     );
   expect(updatedTarget).toMatchObject(movedTarget);
 
+  await multipleChoiceType.click();
+  await expect(multipleChoiceType).toBeChecked();
+  const firstOptionCard = answersCard
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Respuesta 1" })
+    .first();
+  const secondOptionCard = answersCard
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Respuesta 2" })
+    .first();
+  const firstOptionHeader = firstOptionCard.locator(
+    '[data-slot="card-header"]',
+  );
+  const firstOptionInput = firstOptionCard.getByPlaceholder(
+    "Escribe la respuesta.",
+  );
+  const [
+    firstOptionCardBox,
+    secondOptionCardBox,
+    firstOptionHeaderBox,
+    firstOptionInputBox,
+  ] = await Promise.all([
+    firstOptionCard.boundingBox(),
+    secondOptionCard.boundingBox(),
+    firstOptionHeader.boundingBox(),
+    firstOptionInput.boundingBox(),
+  ]);
+  expect(firstOptionCardBox).not.toBeNull();
+  expect(secondOptionCardBox).not.toBeNull();
+  expect(firstOptionHeaderBox).not.toBeNull();
+  expect(firstOptionInputBox).not.toBeNull();
+  expect(
+    firstOptionInputBox!.y -
+      (firstOptionHeaderBox!.y + firstOptionHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    firstOptionCardBox!.y +
+      firstOptionCardBox!.height -
+      (firstOptionInputBox!.y + firstOptionInputBox!.height),
+  ).toBeLessThanOrEqual(21);
+  expect(
+    secondOptionCardBox!.y -
+      (firstOptionCardBox!.y + firstOptionCardBox!.height),
+  ).toBeLessThanOrEqual(20);
+
+  await shortTextType.click();
+  await expect(shortTextType).toBeChecked();
+  await expect(answersCard.getByLabel("Respuesta corta esperada")).toBeVisible();
+
+  await rangeType.click();
+  await expect(rangeType).toBeChecked();
+  const firstRangeCard = answersCard
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Rango 1" })
+    .first();
+  const firstRangeHeader = firstRangeCard.locator(
+    '[data-slot="card-header"]',
+  );
+  const firstRangeContent = firstRangeCard.locator(
+    '[data-slot="card-content"]',
+  );
+  const firstRangeLabelField = firstRangeContent
+    .locator(':scope > [data-slot="field"]')
+    .first();
+  const firstRangeLabel = firstRangeCard.getByText("Etiqueta", { exact: true });
+  const firstRangeLimits = firstRangeContent.locator(":scope > div.grid");
+  await expect(
+    firstRangeHeader.locator('[data-slot="card-description"]'),
+  ).toHaveCount(0);
+  const [
+    firstRangeCardBox,
+    firstRangeHeaderBox,
+    firstRangeLabelFieldBox,
+    firstRangeLabelBox,
+    firstRangeLimitsBox,
+  ] = await Promise.all([
+    firstRangeCard.boundingBox(),
+    firstRangeHeader.boundingBox(),
+    firstRangeLabelField.boundingBox(),
+    firstRangeLabel.boundingBox(),
+    firstRangeLimits.boundingBox(),
+  ]);
+  expect(firstRangeCardBox).not.toBeNull();
+  expect(firstRangeHeaderBox).not.toBeNull();
+  expect(firstRangeLabelFieldBox).not.toBeNull();
+  expect(firstRangeLabelBox).not.toBeNull();
+  expect(firstRangeLimitsBox).not.toBeNull();
+  expect(
+    firstRangeLabelBox!.y -
+      (firstRangeHeaderBox!.y + firstRangeHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    firstRangeLimitsBox!.y -
+      (firstRangeLabelFieldBox!.y + firstRangeLabelFieldBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    firstRangeCardBox!.y +
+      firstRangeCardBox!.height -
+      (firstRangeLimitsBox!.y + firstRangeLimitsBox!.height),
+  ).toBeLessThanOrEqual(21);
+
+  await dragDropType.click();
+  await expect(dragDropType).toBeChecked();
+
   await page.setViewportSize({ width: 320, height: 800 });
   const [
     mobileName,
@@ -1216,6 +1465,10 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     mobileFirstAgeField,
     mobileSecondAgeField,
     mobileThirdAgeLabel,
+    mobileMultipleChoiceTypeField,
+    mobileShortTextTypeField,
+    mobileRangeTypeField,
+    mobileDragDropTypeField,
   ] = await Promise.all([
     nameInput.boundingBox(),
     widthInput.boundingBox(),
@@ -1228,6 +1481,10 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     firstAgeField.boundingBox(),
     secondAgeField.boundingBox(),
     thirdAgeLabel.boundingBox(),
+    multipleChoiceTypeField.boundingBox(),
+    shortTextTypeField.boundingBox(),
+    rangeTypeField.boundingBox(),
+    dragDropTypeField.boundingBox(),
   ]);
   expect(mobileName).not.toBeNull();
   expect(mobileWidth).not.toBeNull();
@@ -1240,6 +1497,10 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(mobileFirstAgeField).not.toBeNull();
   expect(mobileSecondAgeField).not.toBeNull();
   expect(mobileThirdAgeLabel).not.toBeNull();
+  expect(mobileMultipleChoiceTypeField).not.toBeNull();
+  expect(mobileShortTextTypeField).not.toBeNull();
+  expect(mobileRangeTypeField).not.toBeNull();
+  expect(mobileDragDropTypeField).not.toBeNull();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -1269,6 +1530,18 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     mobileSecondAgeField!.y -
       (mobileFirstAgeField!.y + mobileFirstAgeField!.height),
   ).toBeLessThanOrEqual(16);
+  expect(mobileShortTextTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
+  expect(mobileRangeTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
+  expect(mobileDragDropTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
+  expect(mobileShortTextTypeField!.y).toBeGreaterThan(
+    mobileMultipleChoiceTypeField!.y + mobileMultipleChoiceTypeField!.height,
+  );
+  expect(mobileRangeTypeField!.y).toBeGreaterThan(
+    mobileShortTextTypeField!.y + mobileShortTextTypeField!.height,
+  );
+  expect(mobileDragDropTypeField!.y).toBeGreaterThan(
+    mobileRangeTypeField!.y + mobileRangeTypeField!.height,
+  );
 
   await page.setViewportSize({ width: 390, height: 844 });
   const [wideMobileDifficulty, wideMobileAgeField] = await Promise.all([
