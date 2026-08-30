@@ -1084,7 +1084,7 @@ export function TaskUploadForm({
                 Tipo de respuesta
               </FieldLegend>
               <RadioGroup
-                className="md:grid-cols-2"
+                className="mt-1 md:grid-cols-2"
                 value={form.answerType}
                 onValueChange={(value) =>
                   setForm((current) => ({

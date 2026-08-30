@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/input";
 import { listTasks } from "@/lib/tasks-api";
 import {
   buildAgeSummary,
-  getQuestionSummary,
   parseMultipleChoiceCorrectness,
   type OptionKey,
   type StoredTask,
@@ -81,6 +80,13 @@ export function TaskTester() {
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [selectedTaskId, tasks],
   );
+  const selectedAnswerType = selectedTask?.answerType ?? "multiple_choice";
+  const answerSectionTitle = {
+    multiple_choice: "Opciones de respuesta",
+    short_text: "Respuesta corta",
+    range: "Respuesta por rangos",
+    drag_drop: "Arrastrar y soltar",
+  }[selectedAnswerType];
 
   const displayedAnswers = useMemo(() => {
     if (!selectedTask) {
@@ -325,7 +331,9 @@ export function TaskTester() {
             </section>
 
             <section className="flex flex-col gap-4">
-              <h2 className="text-xl font-semibold sm:text-2xl">Respuestas</h2>
+              <h2 className="text-xl font-semibold sm:text-2xl">
+                {answerSectionTitle}
+              </h2>
 
               {(selectedTask.answerType ?? "multiple_choice") === "multiple_choice" && (
                 <div className="flex flex-col gap-3 sm:gap-4">
@@ -449,10 +457,7 @@ export function TaskTester() {
               </Alert>
             )}
 
-            <div className="flex flex-col gap-4 border-t pt-5 md:flex-row md:items-center md:justify-between">
-              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-                {getQuestionSummary(selectedTask.challengeBlocks)}
-              </p>
+            <div className="flex flex-col gap-4 border-t pt-5 md:flex-row md:items-center md:justify-end">
               <div className="flex shrink-0 flex-wrap items-center gap-3 md:flex-nowrap">
                 <Button type="button" variant="outline" onClick={handleReset}>
                   <RotateCcwIcon data-icon="inline-start" />
