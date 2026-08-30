@@ -43,12 +43,18 @@ async function run(command: string[], cwd: string) {
 
 async function main() {
   cleanupTestArtifacts();
+  const playwrightArgs = process.argv
+    .slice(2)
+    .filter((argument) => argument !== "--");
 
   try {
     await run(["bun", "run", "prisma:push"], backend);
     await run(["bun", "run", "db:admins"], backend);
     await run(["bun", "run", "db:tasks"], backend);
-    await run(["bun", "x", "playwright", "test"], root);
+    await run(
+      ["bun", "x", "playwright", "test", ...playwrightArgs],
+      root,
+    );
   } finally {
     cleanupTestArtifacts();
   }

@@ -13,7 +13,8 @@
     "db:schools:fetch": "bun run --cwd backend db:schools:fetch",
     "db:clear-teams": "bun run --cwd backend db:clear-teams",
     "db:setup": "bun run db:generate && bun run db:push && bun run db:seed && bun run db:admins",
-    "test:e2e": "bun ./tests/run-e2e.ts"
+    "test:e2e": "bun ./tests/run-e2e.ts",
+    "test:e2e:list": "bun x playwright test --list"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
