@@ -1286,9 +1286,17 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const firstObjectImageField = firstObjectCard
     .locator('[data-slot="field"]')
     .filter({ hasText: "Imagen del objeto" });
-  const replaceObjectImage = firstObjectCard.getByText("Reemplazar imagen", {
+  const firstObjectImageTitle = firstObjectImageField.getByText(
+    "Imagen del objeto",
+    { exact: true },
+  );
+  const firstObjectPreview = firstObjectImageField.locator("img").first();
+  const replaceObjectImage = firstObjectCard.getByText("Reemplazar", {
     exact: true,
   });
+  const replaceObjectImageInput = firstObjectCard.getByLabel(
+    /^Reemplazar imagen de /,
+  );
   await expect(
     firstObjectHeader.locator('[data-slot="card-description"]'),
   ).toHaveCount(0);
@@ -1299,6 +1307,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     firstObjectNameLabelBox,
     firstObjectFieldsBox,
     firstObjectImageFieldBox,
+    firstObjectImageTitleBox,
+    firstObjectPreviewBox,
+    replaceObjectImageBox,
   ] = await Promise.all([
     firstObjectCard.boundingBox(),
     firstObjectHeader.boundingBox(),
@@ -1306,6 +1317,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     firstObjectNameLabel.boundingBox(),
     firstObjectFields.boundingBox(),
     firstObjectImageField.boundingBox(),
+    firstObjectImageTitle.boundingBox(),
+    firstObjectPreview.boundingBox(),
+    replaceObjectImage.boundingBox(),
   ]);
   expect(firstObjectCardBox).not.toBeNull();
   expect(firstObjectHeaderBox).not.toBeNull();
@@ -1313,6 +1327,19 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(firstObjectNameLabelBox).not.toBeNull();
   expect(firstObjectFieldsBox).not.toBeNull();
   expect(firstObjectImageFieldBox).not.toBeNull();
+  expect(firstObjectImageTitleBox).not.toBeNull();
+  expect(firstObjectPreviewBox).not.toBeNull();
+  expect(replaceObjectImageBox).not.toBeNull();
+  await expect(replaceObjectImageInput).toHaveCount(1);
+  await expect(
+    firstObjectCard.getByText("Reemplazar imagen", { exact: true }),
+  ).toHaveCount(0);
+  expect(
+    await replaceObjectImage.evaluate(
+      (element) => element.parentElement?.tagName,
+    ),
+  ).toBe("LABEL");
+  await expect(replaceObjectImage).toHaveCSS("opacity", "0");
   expect(
     firstObjectNameLabelBox!.y -
       (firstObjectHeaderBox!.y + firstObjectHeaderBox!.height),
@@ -1320,6 +1347,25 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(
     firstObjectImageFieldBox!.x,
   ).toBeGreaterThan(firstObjectFieldsBox!.x + firstObjectFieldsBox!.width);
+  expect(
+    Math.abs(
+      firstObjectImageTitleBox!.x +
+        firstObjectImageTitleBox!.width / 2 -
+        (firstObjectImageFieldBox!.x + firstObjectImageFieldBox!.width / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(replaceObjectImageBox!.x - firstObjectPreviewBox!.x),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(replaceObjectImageBox!.y - firstObjectPreviewBox!.y),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(replaceObjectImageBox!.width - firstObjectPreviewBox!.width),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(replaceObjectImageBox!.height - firstObjectPreviewBox!.height),
+  ).toBeLessThanOrEqual(1);
   expect(
     firstObjectCardBox!.y +
       firstObjectCardBox!.height -
@@ -1584,6 +1630,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(mobileDragDropTypeField).not.toBeNull();
   expect(mobileFirstObjectImageField).not.toBeNull();
   expect(mobileReplaceObjectImage).not.toBeNull();
+  await expect(replaceObjectImage).toHaveCSS("opacity", "1");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
