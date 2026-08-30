@@ -808,6 +808,14 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   await expect(
     page.getByText("Debe permitir identificar la tarea rápidamente."),
   ).toHaveCount(0);
+  await expect(
+    page.getByText("Define en qué grupos aplica la tarea y con qué dificultad."),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText(
+      "Activa los rangos de edad donde aplica la tarea y luego define su dificultad.",
+    ),
+  ).toHaveCount(0);
 
   const generalHeader = generalCard.locator('[data-slot="card-header"]');
   const titleLabel = page.locator('label[for="title"]');
@@ -834,6 +842,52 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(
     Math.abs(desktopCategoryOne!.y - desktopCategoryTwo!.y),
   ).toBeLessThanOrEqual(1);
+
+  const difficultyCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Dificultad por rango de edad" })
+    .first();
+  const difficultyHeader = difficultyCard.locator('[data-slot="card-header"]');
+  const difficultyHeaderContent = difficultyHeader.locator(":scope > div");
+  const firstAgeCheckbox = page.getByRole("checkbox", { name: "5–8" });
+  const secondAgeCheckbox = page.getByRole("checkbox", { name: "8–10" });
+  const firstAgeField = difficultyCard
+    .locator('[data-slot="field"]')
+    .filter({ has: firstAgeCheckbox });
+  const secondAgeField = difficultyCard
+    .locator('[data-slot="field"]')
+    .filter({ has: secondAgeCheckbox });
+  const firstDifficulty = firstAgeField.getByRole("combobox", {
+    name: "Dificultad para 5–8",
+  });
+  const [
+    difficultyCardBox,
+    difficultyHeaderBox,
+    difficultyHeaderContentBox,
+    desktopFirstAgeField,
+  ] = await Promise.all([
+    difficultyCard.boundingBox(),
+    difficultyHeader.boundingBox(),
+    difficultyHeaderContent.boundingBox(),
+    firstAgeField.boundingBox(),
+  ]);
+  expect(difficultyCardBox).not.toBeNull();
+  expect(difficultyHeaderBox).not.toBeNull();
+  expect(difficultyHeaderContentBox).not.toBeNull();
+  expect(desktopFirstAgeField).not.toBeNull();
+  const difficultyHeaderTopSpace =
+    difficultyHeaderContentBox!.y - difficultyCardBox!.y;
+  const difficultyHeaderBottomSpace =
+    difficultyHeaderBox!.y +
+    difficultyHeaderBox!.height -
+    (difficultyHeaderContentBox!.y + difficultyHeaderContentBox!.height);
+  expect(
+    Math.abs(difficultyHeaderTopSpace - difficultyHeaderBottomSpace),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    desktopFirstAgeField!.y -
+      (difficultyHeaderBox!.y + difficultyHeaderBox!.height),
+  ).toBeLessThanOrEqual(20);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
@@ -904,30 +958,57 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     );
   expect(updatedTarget).toMatchObject(movedTarget);
 
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 800 });
   const [
     mobileName,
     mobileWidth,
     mobileRadius,
     mobileCategoryOne,
     mobileCategoryTwo,
+    mobileFirstAgeCheckbox,
+    mobileFirstDifficulty,
+    mobileFirstAgeField,
+    mobileSecondAgeField,
   ] = await Promise.all([
     nameInput.boundingBox(),
     widthInput.boundingBox(),
     radiusInput.boundingBox(),
     firstCategory.boundingBox(),
     secondCategory.boundingBox(),
+    firstAgeCheckbox.boundingBox(),
+    firstDifficulty.boundingBox(),
+    firstAgeField.boundingBox(),
+    secondAgeField.boundingBox(),
   ]);
   expect(mobileName).not.toBeNull();
   expect(mobileWidth).not.toBeNull();
   expect(mobileRadius).not.toBeNull();
   expect(mobileCategoryOne).not.toBeNull();
   expect(mobileCategoryTwo).not.toBeNull();
+  expect(mobileFirstAgeCheckbox).not.toBeNull();
+  expect(mobileFirstDifficulty).not.toBeNull();
+  expect(mobileFirstAgeField).not.toBeNull();
+  expect(mobileSecondAgeField).not.toBeNull();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
   expect(mobileWidth!.y).toBeGreaterThan(mobileName!.y + mobileName!.height);
   expect(mobileRadius!.y).toBeGreaterThan(mobileWidth!.y + mobileWidth!.height);
   expect(mobileCategoryTwo!.y).toBeGreaterThan(
     mobileCategoryOne!.y + mobileCategoryOne!.height,
   );
+  const checkboxOpticalOffset =
+    mobileFirstAgeCheckbox!.y +
+    mobileFirstAgeCheckbox!.height / 2 -
+    (mobileFirstDifficulty!.y + mobileFirstDifficulty!.height / 2);
+  expect(checkboxOpticalOffset).toBeGreaterThanOrEqual(-3);
+  expect(checkboxOpticalOffset).toBeLessThanOrEqual(-1);
+  expect(
+    mobileSecondAgeField!.y -
+      (mobileFirstAgeField!.y + mobileFirstAgeField!.height),
+  ).toBeLessThanOrEqual(16);
 });
 
 test("rejects documents whose content does not match the extension", async () => {
