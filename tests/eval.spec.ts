@@ -851,12 +851,16 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const difficultyHeaderContent = difficultyHeader.locator(":scope > div");
   const firstAgeCheckbox = page.getByRole("checkbox", { name: "5–8" });
   const secondAgeCheckbox = page.getByRole("checkbox", { name: "8–10" });
+  const thirdAgeCheckbox = page.getByRole("checkbox", { name: "10–12" });
   const firstAgeField = difficultyCard
     .locator('[data-slot="field"]')
     .filter({ has: firstAgeCheckbox });
   const secondAgeField = difficultyCard
     .locator('[data-slot="field"]')
     .filter({ has: secondAgeCheckbox });
+  const thirdAgeField = difficultyCard
+    .locator('[data-slot="field"]')
+    .filter({ has: thirdAgeCheckbox });
   const firstDifficulty = firstAgeField.getByRole("combobox", {
     name: "Dificultad para 5–8",
   });
@@ -865,16 +869,22 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     difficultyHeaderBox,
     difficultyHeaderContentBox,
     desktopFirstAgeField,
+    desktopSecondAgeField,
+    desktopThirdAgeField,
   ] = await Promise.all([
     difficultyCard.boundingBox(),
     difficultyHeader.boundingBox(),
     difficultyHeaderContent.boundingBox(),
     firstAgeField.boundingBox(),
+    secondAgeField.boundingBox(),
+    thirdAgeField.boundingBox(),
   ]);
   expect(difficultyCardBox).not.toBeNull();
   expect(difficultyHeaderBox).not.toBeNull();
   expect(difficultyHeaderContentBox).not.toBeNull();
   expect(desktopFirstAgeField).not.toBeNull();
+  expect(desktopSecondAgeField).not.toBeNull();
+  expect(desktopThirdAgeField).not.toBeNull();
   const difficultyHeaderTopSpace =
     difficultyHeaderContentBox!.y - difficultyCardBox!.y;
   const difficultyHeaderBottomSpace =
@@ -888,6 +898,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     desktopFirstAgeField!.y -
       (difficultyHeaderBox!.y + difficultyHeaderBox!.height),
   ).toBeLessThanOrEqual(20);
+  expect(desktopSecondAgeField!.y).toBe(desktopFirstAgeField!.y);
+  expect(desktopSecondAgeField!.x).toBeGreaterThan(desktopFirstAgeField!.x);
+  expect(desktopThirdAgeField!.y).toBeGreaterThan(desktopFirstAgeField!.y);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
