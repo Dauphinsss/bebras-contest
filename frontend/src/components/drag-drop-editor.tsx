@@ -394,10 +394,8 @@ export function DragDropEditor({
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                  <div
-                    className={cn("grid gap-4", target && "md:grid-cols-3")}
-                  >
+                <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,0.4fr)] lg:items-start">
+                  <div className="grid gap-4">
                     <Field>
                       <FieldLabel htmlFor={`drag-item-label-${item.id}`}>
                         Nombre
@@ -415,7 +413,7 @@ export function DragDropEditor({
                     </Field>
 
                     {target && (
-                      <>
+                      <div className="grid gap-4 sm:grid-cols-2">
                         <Field>
                           <FieldLabel htmlFor={`drag-item-width-${item.id}`}>
                             Ancho en escenario (%)
@@ -471,7 +469,7 @@ export function DragDropEditor({
                             </FieldDescription>
                           </FieldContent>
                         </Field>
-                      </>
+                      </div>
                     )}
                   </div>
 
@@ -497,7 +495,7 @@ export function DragDropEditor({
                               src={item.image.url}
                             />
                           </div>
-                          <div className="flex justify-start">
+                          <div className="flex justify-center">
                             <label>
                               <input
                                 accept="image/*"
@@ -520,7 +518,6 @@ export function DragDropEditor({
                       )}
                     </FieldContent>
                   </Field>
-
                 </CardContent>
               </Card>
             );
