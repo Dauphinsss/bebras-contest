@@ -864,6 +864,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const firstDifficulty = firstAgeField.getByRole("combobox", {
     name: "Dificultad para 5–8",
   });
+  const secondDifficulty = secondAgeField.getByRole("combobox", {
+    name: "Dificultad para 8–10",
+  });
   const [
     difficultyCardBox,
     difficultyHeaderBox,
@@ -871,6 +874,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     desktopFirstAgeField,
     desktopSecondAgeField,
     desktopThirdAgeField,
+    desktopFirstDifficulty,
+    desktopSecondDifficulty,
   ] = await Promise.all([
     difficultyCard.boundingBox(),
     difficultyHeader.boundingBox(),
@@ -878,6 +883,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     firstAgeField.boundingBox(),
     secondAgeField.boundingBox(),
     thirdAgeField.boundingBox(),
+    firstDifficulty.boundingBox(),
+    secondDifficulty.boundingBox(),
   ]);
   expect(difficultyCardBox).not.toBeNull();
   expect(difficultyHeaderBox).not.toBeNull();
@@ -885,6 +892,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(desktopFirstAgeField).not.toBeNull();
   expect(desktopSecondAgeField).not.toBeNull();
   expect(desktopThirdAgeField).not.toBeNull();
+  expect(desktopFirstDifficulty).not.toBeNull();
+  expect(desktopSecondDifficulty).not.toBeNull();
   const difficultyHeaderTopSpace =
     difficultyHeaderContentBox!.y - difficultyCardBox!.y;
   const difficultyHeaderBottomSpace =
@@ -901,6 +910,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(desktopSecondAgeField!.y).toBe(desktopFirstAgeField!.y);
   expect(desktopSecondAgeField!.x).toBeGreaterThan(desktopFirstAgeField!.x);
   expect(desktopThirdAgeField!.y).toBeGreaterThan(desktopFirstAgeField!.y);
+  expect(desktopFirstDifficulty!.width).toBeLessThanOrEqual(161);
+  expect(desktopSecondDifficulty!.width).toBe(desktopFirstDifficulty!.width);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
@@ -980,6 +991,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     mobileCategoryTwo,
     mobileFirstAgeCheckbox,
     mobileFirstDifficulty,
+    mobileSecondDifficulty,
     mobileFirstAgeField,
     mobileSecondAgeField,
   ] = await Promise.all([
@@ -990,6 +1002,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     secondCategory.boundingBox(),
     firstAgeCheckbox.boundingBox(),
     firstDifficulty.boundingBox(),
+    secondDifficulty.boundingBox(),
     firstAgeField.boundingBox(),
     secondAgeField.boundingBox(),
   ]);
@@ -1000,6 +1013,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(mobileCategoryTwo).not.toBeNull();
   expect(mobileFirstAgeCheckbox).not.toBeNull();
   expect(mobileFirstDifficulty).not.toBeNull();
+  expect(mobileSecondDifficulty).not.toBeNull();
   expect(mobileFirstAgeField).not.toBeNull();
   expect(mobileSecondAgeField).not.toBeNull();
   expect(
@@ -1018,6 +1032,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     (mobileFirstDifficulty!.y + mobileFirstDifficulty!.height / 2);
   expect(checkboxOpticalOffset).toBeGreaterThanOrEqual(-3);
   expect(checkboxOpticalOffset).toBeLessThanOrEqual(-1);
+  expect(mobileFirstDifficulty!.width).toBeLessThanOrEqual(161);
+  expect(mobileSecondDifficulty!.width).toBe(mobileFirstDifficulty!.width);
+  expect(mobileSecondDifficulty!.x).toBe(mobileFirstDifficulty!.x);
   expect(
     mobileSecondAgeField!.y -
       (mobileFirstAgeField!.y + mobileFirstAgeField!.height),
