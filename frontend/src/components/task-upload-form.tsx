@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -1072,20 +1071,20 @@ export function TaskUploadForm({
             <CircleHelpIcon className="text-muted-foreground" />
             <div>
               <CardTitle>Respuestas</CardTitle>
-              <CardDescription>
-                Define el tipo de respuesta y su configuración.
-              </CardDescription>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Define el tipo de respuesta y configura cómo se validará.
+              </p>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
-          <FieldGroup>
-            <FieldSet>
-              <FieldLegend variant="label">Tipo de respuesta</FieldLegend>
-              <FieldDescription>
-                Elige cómo responderá el participante esta tarea.
-              </FieldDescription>
+        <CardContent>
+          <FieldGroup className="gap-4">
+            <FieldSet className="gap-4">
+              <FieldLegend className="mb-0" variant="label">
+                Tipo de respuesta
+              </FieldLegend>
               <RadioGroup
+                className="md:grid-cols-2"
                 value={form.answerType}
                 onValueChange={(value) =>
                   setForm((current) => ({
@@ -1135,16 +1134,18 @@ export function TaskUploadForm({
             </FieldSet>
 
             {form.answerType === "multiple_choice" && (
-              <FieldSet>
-                <FieldLegend variant="label">
+              <FieldSet className="gap-4">
+                <FieldLegend className="mb-0" variant="label">
                   Respuestas disponibles
                 </FieldLegend>
                 <FieldDescription>
                   Configura cómo se valida la respuesta correcta en opción
                   múltiple.
                 </FieldDescription>
-                <FieldSet>
-                  <FieldLegend variant="label">Tipo de contenido</FieldLegend>
+                <FieldSet className="gap-4">
+                  <FieldLegend className="mb-0" variant="label">
+                    Tipo de contenido
+                  </FieldLegend>
                   <FieldDescription>
                     Todas las respuestas de opción múltiple usarán este mismo
                     tipo.
@@ -1202,8 +1203,8 @@ export function TaskUploadForm({
                     </Field>
                   </RadioGroup>
                 </FieldSet>
-                <FieldSet>
-                  <FieldLegend variant="label">
+                <FieldSet className="gap-4">
+                  <FieldLegend className="mb-0" variant="label">
                     Orden de las respuestas
                   </FieldLegend>
                   <FieldDescription>
@@ -1240,8 +1241,8 @@ export function TaskUploadForm({
                     </Field>
                   </RadioGroup>
                 </FieldSet>
-                <FieldSet>
-                  <FieldLegend variant="label">
+                <FieldSet className="gap-4">
+                  <FieldLegend className="mb-0" variant="label">
                     Criterio de corrección
                   </FieldLegend>
                   <FieldDescription>
@@ -1291,7 +1292,7 @@ export function TaskUploadForm({
                     </Field>
                   </RadioGroup>
                 </FieldSet>
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4">
                   {activeOptionLabels.map((label, index) => {
                     const optionBlock =
                       form.options[label][0] ??
@@ -1365,7 +1366,7 @@ export function TaskUploadForm({
                               )}
                             </div>
                           </CardHeader>
-                          <CardContent className="pt-6">
+                          <CardContent>
                             {form.multipleChoiceContentType === "text" ? (
                               <Input
                                 aria-invalid={invalid}
@@ -1490,8 +1491,10 @@ export function TaskUploadForm({
             )}
 
             {form.answerType === "range" && (
-              <FieldSet>
-                <FieldLegend variant="label">Rangos válidos</FieldLegend>
+              <FieldSet className="gap-4">
+                <FieldLegend className="mb-0" variant="label">
+                  Rangos válidos
+                </FieldLegend>
                 <FieldDescription>
                   Define uno o varios intervalos aceptados para la respuesta.
                 </FieldDescription>
@@ -1508,14 +1511,14 @@ export function TaskUploadForm({
                             <CardTitle className="text-base">
                               Rango {index + 1}
                             </CardTitle>
-                            <CardDescription>
+                            <p className="text-sm leading-6 text-muted-foreground">
                               El participante será correcto si su valor cae
                               dentro de este rango.
-                            </CardDescription>
+                            </p>
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="flex flex-col gap-4 pt-6">
+                      <CardContent className="flex flex-col gap-4">
                         <Field>
                           <FieldLabel htmlFor={`range-label-${rangeAnswer.id}`}>
                             Etiqueta
@@ -1640,8 +1643,10 @@ export function TaskUploadForm({
             )}
 
             {form.answerType === "drag_drop" && (
-              <FieldSet>
-                <FieldLegend variant="label">Escenario interactivo</FieldLegend>
+              <FieldSet className="gap-4">
+                <FieldLegend className="mb-0" variant="label">
+                  Escenario interactivo
+                </FieldLegend>
                 <FieldDescription>
                   Define la imagen de fondo, los objetos y la posición correcta
                   de cada uno.

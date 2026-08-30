@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -188,9 +187,11 @@ export function DragDropEditor({
   };
 
   return (
-    <FieldGroup>
-      <FieldSet>
-        <FieldLegend variant="label">Escenario de fondo</FieldLegend>
+    <FieldGroup className="gap-4">
+      <FieldSet className="gap-4">
+        <FieldLegend className="mb-0" variant="label">
+          Escenario de fondo
+        </FieldLegend>
         <FieldDescription>
           Selecciona un objeto y toca el escenario para ubicar su destino.
           También puedes arrastrar directamente el objeto.
@@ -351,8 +352,10 @@ export function DragDropEditor({
         </Field>
       </FieldSet>
 
-      <FieldSet>
-        <FieldLegend variant="label">Objetos arrastrables</FieldLegend>
+      <FieldSet className="gap-4">
+        <FieldLegend className="mb-0" variant="label">
+          Objetos arrastrables
+        </FieldLegend>
         <FieldDescription>
           El objeto seleccionado se muestra en su destino sobre el escenario.
         </FieldDescription>
@@ -377,9 +380,9 @@ export function DragDropEditor({
                       <CardTitle className="text-base">
                         Objeto {index + 1}
                       </CardTitle>
-                      <CardDescription>
+                      <p className="text-sm leading-6 text-muted-foreground">
                         Define su imagen y su destino fijo sobre el fondo.
-                      </CardDescription>
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -405,7 +408,7 @@ export function DragDropEditor({
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-4 pt-6">
+                <CardContent className="flex flex-col gap-4">
                   <div
                     className={cn("grid gap-4", target && "md:grid-cols-3")}
                   >
