@@ -1719,13 +1719,14 @@ export function TaskUploadForm({
             <FolderTreeIcon className="text-muted-foreground" />
             <div>
               <CardTitle>Explicación de la respuesta</CardTitle>
-              <CardDescription>
-                Deja trazabilidad pedagógica para revisión y publicación.
-              </CardDescription>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Explica la respuesta para la revisión interna; esta parte no la
+                ve el estudiante.
+              </p>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent>
           <Field data-invalid={!form.explanation.trim() && errors.length > 0}>
             <FieldLabel htmlFor="explanation">Explicación</FieldLabel>
             <FieldContent>
@@ -1742,10 +1743,6 @@ export function TaskUploadForm({
                   }))
                 }
               />
-              <FieldDescription>
-                Esta parte no la ve el estudiante, pero sí mejora la edición
-                interna.
-              </FieldDescription>
             </FieldContent>
           </Field>
         </CardContent>
