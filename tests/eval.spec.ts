@@ -315,6 +315,7 @@ async function createPracticeTask(
   api: APIRequestContext,
   headers: Record<string, string>,
   answerType: "multiple_choice" | "short_text" | "range" | "drag_drop",
+  overrides: Record<string, unknown> = {},
 ) {
   const suffix = `${answerType}-${Date.now()}`;
   const response = await api.post(`${API}/api/tasks`, {
@@ -348,6 +349,7 @@ async function createPracticeTask(
       explanation: `Explicación ${answerType}`,
       status: "Borrador",
       isPractice: true,
+      ...overrides,
     },
   });
   expect(response.ok(), await response.text()).toBe(true);
@@ -380,7 +382,10 @@ test("allows practice updates through CORS", async () => {
   const headers = await loginAdmin(api);
   const update = await api.patch(
     `${API}/api/tasks/${SEEDED_TASK.taskId}/practice`,
-    { headers, data: { isPractice: true } },
+    {
+      headers,
+      data: { isPractice: true },
+    },
   );
 
   expect(update.ok()).toBe(true);
@@ -466,8 +471,8 @@ test("serves and checks all four public practice answer types", async () => {
       expect(detail.dragDropItems).toHaveLength(DRAG_DROP_ITEMS.length);
       expect(detail.dragDropItems).toEqual(
         expect.arrayContaining(
-          DRAG_DROP_ITEMS.map(({ correctTargetId: _correctTargetId, ...item }) =>
-            item,
+          DRAG_DROP_ITEMS.map(
+            ({ correctTargetId: _correctTargetId, ...item }) => item,
           ),
         ),
       );
@@ -501,7 +506,9 @@ test("serves and checks all four public practice answer types", async () => {
   const checkDragDrop = async (placements: Record<string, unknown>) => {
     const response = await api.post(
       `${API}/api/practice/tasks/${dragDropTask.id}/check`,
-      { data: { payload: { placements } } },
+      {
+        data: { payload: { placements } },
+      },
     );
     expect(response.ok(), await response.text()).toBe(true);
     return response.json();
@@ -524,6 +531,94 @@ test("serves and checks all four public practice answer types", async () => {
       [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_TARGETS[0].id,
     }),
   ).toMatchObject({ correct: false });
+
+  await api.dispose();
+});
+
+test("enforces every multiple-choice correctness criterion", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const answers = ["A", "B", "C"].map((id) => ({
+    id,
+    blocks: [taskBlock(`criterion-${id}-${Date.now()}`, `Respuesta ${id}`)],
+  }));
+  const criteria = [
+    {
+      mode: "single",
+      correctAnswerId: "B",
+      accepted: [["B"]],
+      rejected: [[], ["A"], ["B", "C"], ["B", "B"]],
+    },
+    {
+      mode: "any",
+      correctAnswerId: "any:B,C",
+      accepted: [["B"], ["C"]],
+      rejected: [[], ["A"], ["B", "C"], ["B", "B"]],
+    },
+    {
+      mode: "all",
+      correctAnswerId: "all:B,C",
+      accepted: [
+        ["B", "C"],
+        ["C", "B"],
+      ],
+      rejected: [[], ["B"], ["C"], ["B", "A"], ["B", "C", "A"], ["B", "B"]],
+    },
+  ] as const;
+
+  const tasks = [];
+  for (const criterion of criteria) {
+    const task = await createPracticeTask(api, headers, "multiple_choice", {
+      title: `Criterio ${criterion.mode}`,
+      answers,
+      correctAnswerId: criterion.correctAnswerId,
+    });
+    tasks.push(task);
+
+    const detailResponse = await api.get(
+      `${API}/api/practice/tasks/${task.id}`,
+    );
+    expect(detailResponse.ok(), await detailResponse.text()).toBe(true);
+    expect(await detailResponse.json()).toMatchObject({
+      multipleChoiceMode: criterion.mode,
+    });
+
+    for (const selected of criterion.accepted) {
+      const response = await api.post(
+        `${API}/api/practice/tasks/${task.id}/check`,
+        {
+          data: { payload: { selected } },
+        },
+      );
+      expect(response.ok(), await response.text()).toBe(true);
+      expect(await response.json()).toMatchObject({ correct: true });
+    }
+
+    for (const selected of criterion.rejected) {
+      const response = await api.post(
+        `${API}/api/practice/tasks/${task.id}/check`,
+        {
+          data: { payload: { selected } },
+        },
+      );
+      expect(response.ok(), await response.text()).toBe(true);
+      expect(await response.json()).toMatchObject({ correct: false });
+    }
+  }
+
+  const allTask = tasks.find((task) => task.correctAnswerId === "all:B,C");
+  expect(allTask).toBeTruthy();
+  const duplicateConfiguration = await api.put(
+    `${API}/api/tasks/${allTask.id}`,
+    {
+      headers,
+      data: { ...allTask, correctAnswerId: "all:B,B" },
+    },
+  );
+  expect(duplicateConfiguration.status()).toBe(400);
+  expect(await duplicateConfiguration.json()).toMatchObject({
+    message: "Debes marcar al menos dos respuestas correctas.",
+  });
 
   await api.dispose();
 });
@@ -666,7 +761,8 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   const stageBox = await stage.boundingBox();
   expect(stageBox).not.toBeNull();
   expect(stageBox!.width).toBeLessThanOrEqual(769);
-  const outsideCircleOffset = Math.min(stageBox!.width, stageBox!.height) * 0.08;
+  const outsideCircleOffset =
+    Math.min(stageBox!.width, stageBox!.height) * 0.08;
   await page.mouse.click(
     targetTwoPoint.x + outsideCircleOffset,
     targetTwoPoint.y + outsideCircleOffset,
@@ -776,6 +872,67 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   }
 });
 
+test("uses any and all selection modes in the practice player", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const answers = ["A", "B", "C"].map((id) => ({
+    id,
+    blocks: [taskBlock(`player-${id}-${Date.now()}`, `Respuesta ${id}`)],
+  }));
+  const anyTask = await createPracticeTask(
+    api,
+    headers,
+    "multiple_choice",
+    {
+      title: "Jugador criterio any",
+      answers,
+      correctAnswerId: "any:B,C",
+    },
+  );
+  const allTask = await createPracticeTask(
+    api,
+    headers,
+    "multiple_choice",
+    {
+      title: "Jugador criterio all",
+      answers,
+      correctAnswerId: "all:B,C",
+    },
+  );
+  await api.dispose();
+
+  await page.goto(`/practica/tarea?id=${anyTask.id}&nombre=Titi`);
+  await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
+  await page.getByRole("button", { name: "Respuesta C", exact: true }).click();
+  const anyCheck = page.waitForRequest(
+    (candidate) =>
+      candidate.url() === `${API}/api/practice/tasks/${anyTask.id}/check` &&
+      candidate.method() === "POST",
+  );
+  await page.getByRole("button", { name: "Comprobar" }).click();
+  expect((await anyCheck).postDataJSON().payload.selected).toEqual(["C"]);
+  await expect(page.getByText("¡Correcto!", { exact: true })).toBeVisible();
+
+  await page.goto(`/practica/tarea?id=${allTask.id}&nombre=Titi`);
+  await expect(
+    page.getByText("Debes marcar todas las opciones correctas.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
+  await page.getByRole("button", { name: "Respuesta C", exact: true }).click();
+  const allCheck = page.waitForRequest(
+    (candidate) =>
+      candidate.url() === `${API}/api/practice/tasks/${allTask.id}/check` &&
+      candidate.method() === "POST",
+  );
+  await page.getByRole("button", { name: "Comprobar" }).click();
+  expect((await allCheck).postDataJSON().payload.selected).toEqual(["B", "C"]);
+  await expect(page.getByText("¡Correcto!", { exact: true })).toBeVisible();
+});
+
 test("keeps task authoring fields compact and responsive", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   const api = await request.newContext();
@@ -809,7 +966,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     page.getByText("Debe permitir identificar la tarea rápidamente."),
   ).toHaveCount(0);
   await expect(
-    page.getByText("Define en qué grupos aplica la tarea y con qué dificultad."),
+    page.getByText(
+      "Define en qué grupos aplica la tarea y con qué dificultad.",
+    ),
   ).toHaveCount(1);
   await expect(
     page.getByText(
@@ -836,9 +995,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     ),
   ).toHaveCount(1);
   await expect(
-    page.getByText(
-      "Deja trazabilidad pedagógica para revisión y publicación.",
-    ),
+    page.getByText("Deja trazabilidad pedagógica para revisión y publicación."),
   ).toHaveCount(0);
   await expect(
     page.getByText(
@@ -846,9 +1003,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     ),
   ).toHaveCount(0);
   await expect(
-    page.getByText(
-      "Define el tipo de respuesta y configura cómo se validará.",
-    ),
+    page.getByText("Define el tipo de respuesta y configura cómo se validará."),
   ).toHaveCount(1);
   await expect(
     page.getByText("Define el tipo de respuesta y su configuración."),
@@ -1046,9 +1201,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     challengeHeaderBox!.y +
     challengeHeaderBox!.height -
     (challengeHeaderContentBox!.y + challengeHeaderContentBox!.height);
-  expect(Math.abs(bodyHeaderTopSpace - bodyHeaderBottomSpace)).toBeLessThanOrEqual(
-    1,
-  );
+  expect(
+    Math.abs(bodyHeaderTopSpace - bodyHeaderBottomSpace),
+  ).toBeLessThanOrEqual(1);
   expect(
     Math.abs(challengeHeaderTopSpace - challengeHeaderBottomSpace),
   ).toBeLessThanOrEqual(1);
@@ -1085,9 +1240,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     '[data-slot="card-header"]',
   );
   const explanationHeaderContent = explanationHeader.locator(":scope > div");
-  const explanationLabel = explanationCard.locator(
-    'label[for="explanation"]',
-  );
+  const explanationLabel = explanationCard.locator('label[for="explanation"]');
   const explanationTextarea = explanationCard.getByLabel("Explicación", {
     exact: true,
   });
@@ -1149,7 +1302,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     .locator('[data-slot="card"]')
     .filter({ hasText: "Respuestas" })
     .first();
-  const answersHeader = answersCard.locator('[data-slot="card-header"]').first();
+  const answersHeader = answersCard
+    .locator('[data-slot="card-header"]')
+    .first();
   const answersHeaderContent = answersHeader.locator(":scope > div");
   const answerTypeLegend = answersCard
     .locator('[data-slot="field-legend"]')
@@ -1217,12 +1372,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     Math.abs(answersHeaderTopSpace - answersHeaderBottomSpace),
   ).toBeLessThanOrEqual(1);
   expect(
-    answerTypeLegendBox!.y -
-      (answersHeaderBox!.y + answersHeaderBox!.height),
+    answerTypeLegendBox!.y - (answersHeaderBox!.y + answersHeaderBox!.height),
   ).toBeLessThanOrEqual(20);
-  expect(desktopShortTextTypeField!.y).toBe(
-    desktopMultipleChoiceTypeField!.y,
-  );
+  expect(desktopShortTextTypeField!.y).toBe(desktopMultipleChoiceTypeField!.y);
   expect(desktopShortTextTypeField!.x).toBeGreaterThan(
     desktopMultipleChoiceTypeField!.x,
   );
@@ -1257,9 +1409,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     ),
   ).toHaveCount(0);
   await expect(
-    answersCard.getByText(
-      "Define su imagen y su destino fijo sobre el fondo.",
-    ),
+    answersCard.getByText("Define su imagen y su destino fijo sobre el fondo."),
   ).toHaveCount(0);
   await expect(
     answersCard.getByText("Escenario de fondo", { exact: true }),
@@ -1288,7 +1438,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     .filter({ hasText: "Imagen del objeto" });
   const firstObjectImageTitle = firstObjectImageField.getByText(
     "Imagen del objeto",
-    { exact: true },
+    {
+      exact: true,
+    },
   );
   const firstObjectPreview = firstObjectImageField.locator("img").first();
   const replaceObjectImage = firstObjectCard.getByText("Reemplazar", {
@@ -1344,9 +1496,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     firstObjectNameLabelBox!.y -
       (firstObjectHeaderBox!.y + firstObjectHeaderBox!.height),
   ).toBeLessThanOrEqual(20);
-  expect(
-    firstObjectImageFieldBox!.x,
-  ).toBeGreaterThan(firstObjectFieldsBox!.x + firstObjectFieldsBox!.width);
+  expect(firstObjectImageFieldBox!.x).toBeGreaterThan(
+    firstObjectFieldsBox!.x + firstObjectFieldsBox!.width,
+  );
   expect(
     Math.abs(
       firstObjectImageTitleBox!.x +
@@ -1450,6 +1602,76 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
 
   await multipleChoiceType.click();
   await expect(multipleChoiceType).toBeChecked();
+  await expect(
+    answersCard.getByText(
+      "Define cómo se presentan las opciones y cuáles se aceptan como correctas.",
+    ),
+  ).toHaveCount(1);
+  await expect(
+    answersCard.getByText(
+      "Completa al menos dos opciones y marca cuáles deben aceptarse como correctas.",
+    ),
+  ).toHaveCount(1);
+  const contentConfiguration = answersCard
+    .getByText("Contenido", { exact: true })
+    .locator("..");
+  const presentationConfiguration = answersCard
+    .getByText("Presentación", { exact: true })
+    .locator("..");
+  const correctnessConfiguration = answersCard
+    .getByText("Criterio de corrección", { exact: true })
+    .locator("..");
+  const multipleChoiceConfigurationGrid = contentConfiguration.locator("../..");
+  const multipleChoiceSettings = multipleChoiceConfigurationGrid.locator("..");
+  await expect(
+    answersCard.getByText("Orden para cada estudiante.", { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    answersCard.getByText("Número de respuestas correctas y a marcar.", {
+      exact: true,
+    }),
+  ).toHaveCount(1);
+  const [
+    contentConfigurationBox,
+    presentationConfigurationBox,
+    correctnessConfigurationBox,
+  ] = await Promise.all([
+    contentConfiguration.boundingBox(),
+    presentationConfiguration.boundingBox(),
+    correctnessConfiguration.boundingBox(),
+  ]);
+  expect(contentConfigurationBox).not.toBeNull();
+  expect(presentationConfigurationBox).not.toBeNull();
+  expect(correctnessConfigurationBox).not.toBeNull();
+  expect(presentationConfigurationBox!.y).toBe(contentConfigurationBox!.y);
+  expect(correctnessConfigurationBox!.y).toBe(contentConfigurationBox!.y);
+  expect(presentationConfigurationBox!.x).toBeGreaterThan(
+    contentConfigurationBox!.x,
+  );
+  expect(correctnessConfigurationBox!.x).toBeGreaterThan(
+    presentationConfigurationBox!.x,
+  );
+  expect(
+    await multipleChoiceConfigurationGrid.evaluate(
+      (element) =>
+        window
+          .getComputedStyle(element)
+          .gridTemplateColumns.split(" ")
+          .filter((column) => Number.parseFloat(column) > 0).length,
+    ),
+  ).toBe(3);
+  await expect(multipleChoiceSettings).toHaveCSS("row-gap", "16px");
+  const singleModeConfigurationGridBox =
+    await multipleChoiceConfigurationGrid.boundingBox();
+  expect(singleModeConfigurationGridBox).not.toBeNull();
+  const singleModeConfigurationGridY =
+    singleModeConfigurationGridBox!.y +
+    (await page.evaluate(() => window.scrollY));
+  const addAnswer = answersCard.getByRole("button", {
+    name: "Agregar respuesta",
+  });
+  await addAnswer.click();
+  await addAnswer.click();
   const firstOptionCard = answersCard
     .locator('[data-slot="card"]')
     .filter({ hasText: "Respuesta 1" })
@@ -1457,6 +1679,14 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const secondOptionCard = answersCard
     .locator('[data-slot="card"]')
     .filter({ hasText: "Respuesta 2" })
+    .first();
+  const thirdOptionCard = answersCard
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Respuesta 3" })
+    .first();
+  const fourthOptionCard = answersCard
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Respuesta 4" })
     .first();
   const firstOptionHeader = firstOptionCard.locator(
     '[data-slot="card-header"]',
@@ -1467,16 +1697,22 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const [
     firstOptionCardBox,
     secondOptionCardBox,
+    thirdOptionCardBox,
+    fourthOptionCardBox,
     firstOptionHeaderBox,
     firstOptionInputBox,
   ] = await Promise.all([
     firstOptionCard.boundingBox(),
     secondOptionCard.boundingBox(),
+    thirdOptionCard.boundingBox(),
+    fourthOptionCard.boundingBox(),
     firstOptionHeader.boundingBox(),
     firstOptionInput.boundingBox(),
   ]);
   expect(firstOptionCardBox).not.toBeNull();
   expect(secondOptionCardBox).not.toBeNull();
+  expect(thirdOptionCardBox).not.toBeNull();
+  expect(fourthOptionCardBox).not.toBeNull();
   expect(firstOptionHeaderBox).not.toBeNull();
   expect(firstOptionInputBox).not.toBeNull();
   expect(
@@ -1489,13 +1725,112 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       (firstOptionInputBox!.y + firstOptionInputBox!.height),
   ).toBeLessThanOrEqual(21);
   expect(
-    secondOptionCardBox!.y -
-      (firstOptionCardBox!.y + firstOptionCardBox!.height),
-  ).toBeLessThanOrEqual(20);
+    Math.abs(secondOptionCardBox!.y - firstOptionCardBox!.y),
+  ).toBeLessThanOrEqual(1);
+  expect(secondOptionCardBox!.x).toBeGreaterThan(firstOptionCardBox!.x);
+  expect(thirdOptionCardBox!.y).toBeGreaterThan(
+    firstOptionCardBox!.y + firstOptionCardBox!.height,
+  );
+  expect(
+    Math.abs(fourthOptionCardBox!.y - thirdOptionCardBox!.y),
+  ).toBeLessThanOrEqual(1);
+  expect(fourthOptionCardBox!.x).toBeGreaterThan(thirdOptionCardBox!.x);
+
+  const singleCorrectOptionRadios = [1, 2, 3, 4].map((answerNumber) =>
+    answersCard.getByRole("radio", {
+      name: `Marcar respuesta ${answerNumber} como correcta`,
+    }),
+  );
+  await expect(singleCorrectOptionRadios[0]).toHaveCount(1);
+  await expect(
+    answersCard.getByRole("checkbox", {
+      name: /^Marcar respuesta \d como correcta$/,
+    }),
+  ).toHaveCount(0);
+  await singleCorrectOptionRadios[1].click();
+  await expect(singleCorrectOptionRadios[1]).toBeChecked();
+  await expect(singleCorrectOptionRadios[0]).not.toBeChecked();
+  await expect(
+    firstOptionCard.getByText("Respuesta correcta", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    secondOptionCard.getByText("Respuesta correcta", { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    answersCard.getByText("Marcar como correcta", { exact: true }),
+  ).toHaveCount(0);
+
+  await answersCard
+    .getByRole("radio", {
+      name: "Varias correctas (debe marcar todas)",
+    })
+    .click();
+  await expect(multipleChoiceSettings).toHaveCSS("row-gap", "16px");
+  const multipleModeConfigurationGridBox =
+    await multipleChoiceConfigurationGrid.boundingBox();
+  expect(multipleModeConfigurationGridBox).not.toBeNull();
+  const multipleModeConfigurationGridY =
+    multipleModeConfigurationGridBox!.y +
+    (await page.evaluate(() => window.scrollY));
+  expect(multipleModeConfigurationGridY).toBe(singleModeConfigurationGridY);
+  await expect(
+    answersCard.getByRole("radio", {
+      name: /^Marcar respuesta \d como correcta$/,
+    }),
+  ).toHaveCount(0);
+  const correctOptionCheckboxes = [1, 2, 3, 4].map((answerNumber) =>
+    answersCard.getByRole("checkbox", {
+      name: `Marcar respuesta ${answerNumber} como correcta`,
+    }),
+  );
+  for (const checkbox of correctOptionCheckboxes) {
+    if (!(await checkbox.isChecked())) {
+      await checkbox.click();
+    }
+    await expect(checkbox).toBeChecked();
+    await expect(checkbox).toBeEnabled();
+    await expect(checkbox).toHaveCSS("opacity", "1");
+  }
+  await expect(
+    answersCard.getByText("Respuesta correcta", { exact: true }),
+  ).toHaveCount(4);
+  await expect(
+    firstOptionCard.getByRole("button", {
+      name: "Mover respuesta 1 antes",
+    }),
+  ).toBeDisabled();
+  await expect(
+    firstOptionCard.getByRole("button", {
+      name: "Mover respuesta 1 después",
+    }),
+  ).toBeEnabled();
+  await expect(
+    fourthOptionCard.getByRole("button", {
+      name: "Mover respuesta 4 después",
+    }),
+  ).toBeDisabled();
+  await fourthOptionCard
+    .getByRole("button", { name: "Eliminar respuesta 4" })
+    .click();
+  await expect(
+    answersCard.getByPlaceholder("Escribe la respuesta."),
+  ).toHaveCount(3);
+  await thirdOptionCard
+    .getByRole("button", { name: "Eliminar respuesta 3" })
+    .click();
+  await expect(
+    answersCard.getByPlaceholder("Escribe la respuesta."),
+  ).toHaveCount(2);
+  await expect(
+    answersCard.getByRole("button", { name: /^Eliminar respuesta \d$/ }),
+  ).toHaveCount(0);
+  await expect(addAnswer).toBeVisible();
 
   await shortTextType.click();
   await expect(shortTextType).toBeChecked();
-  await expect(answersCard.getByLabel("Respuesta corta esperada")).toBeVisible();
+  await expect(
+    answersCard.getByLabel("Respuesta corta esperada"),
+  ).toBeVisible();
 
   await rangeType.click();
   await expect(rangeType).toBeChecked();
@@ -1518,9 +1853,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const firstRangeCard = firstRangeName.locator(
     'xpath=ancestor::*[@data-slot="card"][1]',
   );
-  const firstRangeHeader = firstRangeCard.locator(
-    '[data-slot="card-header"]',
-  );
+  const firstRangeHeader = firstRangeCard.locator('[data-slot="card-header"]');
   const firstRangeTitle = firstRangeCard.locator('[data-slot="card-title"]');
   const firstRangeContent = firstRangeCard.locator(
     '[data-slot="card-content"]',
@@ -1681,6 +2014,55 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     ),
   ).toBeLessThanOrEqual(1);
 
+  await multipleChoiceType.click();
+  const [
+    mobileFirstOptionCard,
+    mobileSecondOptionCard,
+    mobileContentConfiguration,
+    mobilePresentationConfiguration,
+    mobileCorrectnessConfiguration,
+  ] = await Promise.all([
+    firstOptionCard.boundingBox(),
+    secondOptionCard.boundingBox(),
+    contentConfiguration.boundingBox(),
+    presentationConfiguration.boundingBox(),
+    correctnessConfiguration.boundingBox(),
+  ]);
+  expect(mobileFirstOptionCard).not.toBeNull();
+  expect(mobileSecondOptionCard).not.toBeNull();
+  expect(mobileContentConfiguration).not.toBeNull();
+  expect(mobilePresentationConfiguration).not.toBeNull();
+  expect(mobileCorrectnessConfiguration).not.toBeNull();
+  expect(mobileSecondOptionCard!.x).toBe(mobileFirstOptionCard!.x);
+  expect(mobileSecondOptionCard!.y).toBeGreaterThan(
+    mobileFirstOptionCard!.y + mobileFirstOptionCard!.height,
+  );
+  expect(mobilePresentationConfiguration!.x).toBe(
+    mobileContentConfiguration!.x,
+  );
+  expect(mobileCorrectnessConfiguration!.x).toBe(mobileContentConfiguration!.x);
+  expect(mobilePresentationConfiguration!.y).toBeGreaterThan(
+    mobileContentConfiguration!.y + mobileContentConfiguration!.height,
+  );
+  expect(mobileCorrectnessConfiguration!.y).toBeGreaterThan(
+    mobilePresentationConfiguration!.y +
+      mobilePresentationConfiguration!.height,
+  );
+  expect(
+    await multipleChoiceConfigurationGrid.evaluate(
+      (element) =>
+        window
+          .getComputedStyle(element)
+          .gridTemplateColumns.split(" ")
+          .filter((column) => Number.parseFloat(column) > 0).length,
+    ),
+  ).toBe(1);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
   await page.setViewportSize({ width: 390, height: 844 });
   const [wideMobileDifficulty, wideMobileAgeField] = await Promise.all([
     firstDifficulty.boundingBox(),
@@ -1697,6 +2079,146 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       wideMobileAgeField!.width -
       (wideMobileDifficulty!.x + wideMobileDifficulty!.width),
   ).toBeLessThanOrEqual(1);
+});
+
+test("serializes every multiple-choice correctness criterion", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const session = await api
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((response) => response.json());
+  const headers = { authorization: `Bearer ${session.token}` };
+  const task = await createPracticeTask(
+    api,
+    headers,
+    "multiple_choice",
+  );
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+  await page.goto(`/tareas/editar?id=${task.id}`);
+
+  const answersCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Respuestas" })
+    .first();
+  const saveCriterion = async (expected: string) => {
+    const updateResponse = page.waitForResponse(
+      (candidate) =>
+        candidate.url() === `${API}/api/tasks/${task.id}` &&
+        candidate.request().method() === "PUT",
+    );
+    await page.getByRole("button", { name: "Guardar cambios" }).click();
+    const response = await updateResponse;
+    expect(response.ok(), await response.text()).toBe(true);
+    expect(response.request().postDataJSON().correctAnswerId).toBe(expected);
+  };
+
+  await expect(
+    answersCard.getByRole("radio", {
+      name: "Una sola respuesta correcta",
+    }),
+  ).toBeChecked();
+  await saveCriterion("B");
+
+  await answersCard
+    .getByRole("radio", {
+      name: "Varias correctas (basta marcar una)",
+    })
+    .click();
+  const optionCheckboxes = [1, 2].map((answerNumber) =>
+    answersCard.getByRole("checkbox", {
+      name: `Marcar respuesta ${answerNumber} como correcta`,
+    }),
+  );
+  await expect(optionCheckboxes[1]).toBeChecked();
+  await optionCheckboxes[0].click();
+  await saveCriterion("any:B,A");
+
+  await answersCard
+    .getByRole("radio", {
+      name: "Varias correctas (debe marcar todas)",
+    })
+    .click();
+  await expect(optionCheckboxes[0]).toBeChecked();
+  await expect(optionCheckboxes[1]).toBeChecked();
+  await saveCriterion("all:B,A");
+
+  const persistedResponse = await api.get(`${API}/api/tasks/${task.id}`, {
+    headers,
+  });
+  expect(persistedResponse.ok(), await persistedResponse.text()).toBe(true);
+  expect(await persistedResponse.json()).toMatchObject({
+    correctAnswerId: "all:B,A",
+  });
+  await page.reload();
+  await expect(
+    answersCard.getByRole("radio", {
+      name: "Varias correctas (debe marcar todas)",
+    }),
+  ).toBeChecked();
+  await expect(optionCheckboxes[0]).toBeChecked();
+  await expect(optionCheckboxes[1]).toBeChecked();
+  await api.dispose();
+});
+
+test("evaluates any and all criteria in the task tester", async ({ page }) => {
+  const api = await request.newContext();
+  const session = await api
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((response) => response.json());
+  const headers = { authorization: `Bearer ${session.token}` };
+  const answers = ["A", "B", "C"].map((id) => ({
+    id,
+    blocks: [taskBlock(`tester-${id}-${Date.now()}`, `Respuesta ${id}`)],
+  }));
+  const anyTask = await createPracticeTask(
+    api,
+    headers,
+    "multiple_choice",
+    {
+      title: "Probador criterio any",
+      answers,
+      correctAnswerId: "any:B,C",
+    },
+  );
+  const allTask = await createPracticeTask(
+    api,
+    headers,
+    "multiple_choice",
+    {
+      title: "Probador criterio all",
+      answers,
+      correctAnswerId: "all:B,C",
+    },
+  );
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+
+  await page.goto(`/tareas/probador?id=${anyTask.id}`);
+  const resultAlert = page.locator("main").getByRole("alert");
+  await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
+  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await expect(resultAlert.getByText("Correcto", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reiniciar" }).click();
+  await page.getByRole("button", { name: "Respuesta A", exact: true }).click();
+  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await expect(resultAlert.getByText("Incorrecto", { exact: true })).toBeVisible();
+
+  await page.goto(`/tareas/probador?id=${allTask.id}`);
+  await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
+  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await expect(resultAlert.getByText("Incorrecto", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Respuesta C", exact: true }).click();
+  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await expect(resultAlert.getByText("Correcto", { exact: true })).toBeVisible();
+  await api.dispose();
 });
 
 test("labels tester controls for each answer type", async ({ page }) => {
@@ -2580,7 +3102,9 @@ test("serializes answer saves for the same task", async ({ page }) => {
   await api.dispose();
 });
 
-test("blocks submission until failed answers can be saved", async ({ page }) => {
+test("blocks submission until failed answers can be saved", async ({
+  page,
+}) => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const contest = await createContest(api, headers);
@@ -2630,8 +3154,12 @@ test("blocks submission until failed answers can be saved", async ({ page }) => 
   ).toBeVisible({ timeout: 10000 });
   expect(answerRequests).toBeGreaterThanOrEqual(3);
   expect(submitRequests).toBe(0);
-  await expect(page.getByRole("button", { name: "Entregar" }).first()).toBeEnabled();
-  await expect(page.getByRole("button", { name: /Reintentar/i })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Entregar" }).first(),
+  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Reintentar/i })).toHaveCount(
+    0,
+  );
 
   failAnswerRequests = false;
   await page.getByRole("button", { name: "Entregar" }).first().click();
@@ -2648,7 +3176,9 @@ test("blocks submission until failed answers can be saved", async ({ page }) => 
   await api.dispose();
 });
 
-test("results appear only after consolidating and publishing", async ({ page }) => {
+test("results appear only after consolidating and publishing", async ({
+  page,
+}) => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
 
@@ -2742,7 +3272,9 @@ test("results appear only after consolidating and publishing", async ({ page }) 
     .getByRole("alertdialog")
     .getByRole("button", { name: "Publicar resultados" })
     .click();
-  await expect(page.getByRole("button", { name: "Ocultar resultados" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Ocultar resultados" }),
+  ).toBeVisible();
 
   const afterPublish = await api
     .get(`${API}/api/play/attempt/${personalCode}`)
@@ -2758,7 +3290,9 @@ test("results appear only after consolidating and publishing", async ({ page }) 
     .getByRole("alertdialog")
     .getByRole("button", { name: "Ocultar resultados" })
     .click();
-  await expect(page.getByRole("button", { name: "Publicar resultados" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Publicar resultados" }),
+  ).toBeVisible();
 
   const afterUnpublish = await api
     .get(`${API}/api/play/attempt/${personalCode}`)
@@ -2783,9 +3317,13 @@ test("filters navigation sections by user role", () => {
   expect(canAccessSiteNav("staff")).toBe(false);
 });
 
-test("keeps the new contest form within a mobile viewport", async ({ page }) => {
+test("keeps the new contest form within a mobile viewport", async ({
+  page,
+}) => {
   const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, { data: ADMIN });
+  const loginResponse = await api.post(`${API}/api/auth/login`, {
+    data: ADMIN,
+  });
   expect(loginResponse.ok()).toBe(true);
   const session = (await loginResponse.json()) as {
     token: string;
@@ -2798,7 +3336,9 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/competencias/nueva");
 
-  await expect(page.getByText("Datos generales", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Datos generales", { exact: true }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -2833,10 +3373,10 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
   await page.getByRole("button", { name: "Cerrar menú" }).click();
   await expect(mobileNavigation).toBeHidden();
 
-  await page
-    .getByRole("button", { name: /Ventana de disponibilidad/ })
-    .click();
-  const calendarBounds = await page.locator('[data-slot="calendar"]').boundingBox();
+  await page.getByRole("button", { name: /Ventana de disponibilidad/ }).click();
+  const calendarBounds = await page
+    .locator('[data-slot="calendar"]')
+    .boundingBox();
   expect(calendarBounds).not.toBeNull();
   expect(calendarBounds!.x).toBeGreaterThanOrEqual(0);
   expect(calendarBounds!.x + calendarBounds!.width).toBeLessThanOrEqual(320);
@@ -2852,9 +3392,7 @@ test("keeps the new contest form within a mobile viewport", async ({ page }) => 
     ),
   ).toBe(false);
 
-  await page
-    .getByRole("link", { name: "Volver: Crear competencia" })
-    .click();
+  await page.getByRole("link", { name: "Volver: Crear competencia" }).click();
   await expect(page).toHaveURL(/\/competencias\/?$/);
 
   await api.dispose();
@@ -2864,7 +3402,9 @@ test("keeps contest and task card actions responsive and compact", async ({
   page,
 }) => {
   const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, { data: ADMIN });
+  const loginResponse = await api.post(`${API}/api/auth/login`, {
+    data: ADMIN,
+  });
   expect(loginResponse.ok()).toBe(true);
   const session = (await loginResponse.json()) as {
     token: string;
@@ -2906,8 +3446,12 @@ test("keeps contest and task card actions responsive and compact", async ({
   );
   expect(mobileContestActions[0]!.width).toBe(mobileContestActions[1]!.width);
   expect(mobileContestActions[1]!.width).toBe(mobileContestActions[2]!.width);
-  expect(mobileContestActions[1]!.y).toBeGreaterThan(mobileContestActions[0]!.y);
-  expect(mobileContestActions[2]!.y).toBeGreaterThan(mobileContestActions[1]!.y);
+  expect(mobileContestActions[1]!.y).toBeGreaterThan(
+    mobileContestActions[0]!.y,
+  );
+  expect(mobileContestActions[2]!.y).toBeGreaterThan(
+    mobileContestActions[1]!.y,
+  );
   const contestTasks = contestCard.locator('[data-slot="card-footer"] > div');
   await expect(contestTasks).toHaveCount(3);
   const mobileContestTasks = await Promise.all(
@@ -2924,8 +3468,12 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[0]!.width).toBe(desktopContestActions[1]!.width);
   expect(desktopContestActions[1]!.width).toBe(desktopContestActions[2]!.width);
   expect(desktopContestActions[1]!.y).toBe(desktopContestActions[0]!.y);
-  expect(desktopContestActions[1]!.x).toBeGreaterThan(desktopContestActions[0]!.x);
-  expect(desktopContestActions[2]!.y).toBeGreaterThan(desktopContestActions[0]!.y);
+  expect(desktopContestActions[1]!.x).toBeGreaterThan(
+    desktopContestActions[0]!.x,
+  );
+  expect(desktopContestActions[2]!.y).toBeGreaterThan(
+    desktopContestActions[0]!.y,
+  );
   const desktopContestTasks = await Promise.all(
     [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
   );
@@ -2972,9 +3520,13 @@ test("keeps contest and task card actions responsive and compact", async ({
   await api.dispose();
 });
 
-test("keeps group and teacher cards responsive and compact", async ({ page }) => {
+test("keeps group and teacher cards responsive and compact", async ({
+  page,
+}) => {
   const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, { data: ADMIN });
+  const loginResponse = await api.post(`${API}/api/auth/login`, {
+    data: ADMIN,
+  });
   expect(loginResponse.ok()).toBe(true);
   const session = (await loginResponse.json()) as {
     token: string;
