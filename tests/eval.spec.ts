@@ -861,6 +861,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const thirdAgeField = difficultyCard
     .locator('[data-slot="field"]')
     .filter({ has: thirdAgeCheckbox });
+  const thirdAgeLabel = page.locator('label[for="age-range-10–12"]');
   const firstDifficulty = firstAgeField.getByRole("combobox", {
     name: "Dificultad para 5–8",
   });
@@ -876,6 +877,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     desktopThirdAgeField,
     desktopFirstDifficulty,
     desktopSecondDifficulty,
+    desktopThirdAgeLabel,
   ] = await Promise.all([
     difficultyCard.boundingBox(),
     difficultyHeader.boundingBox(),
@@ -885,6 +887,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     thirdAgeField.boundingBox(),
     firstDifficulty.boundingBox(),
     secondDifficulty.boundingBox(),
+    thirdAgeLabel.boundingBox(),
   ]);
   expect(difficultyCardBox).not.toBeNull();
   expect(difficultyHeaderBox).not.toBeNull();
@@ -894,6 +897,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(desktopThirdAgeField).not.toBeNull();
   expect(desktopFirstDifficulty).not.toBeNull();
   expect(desktopSecondDifficulty).not.toBeNull();
+  expect(desktopThirdAgeLabel).not.toBeNull();
   const difficultyHeaderTopSpace =
     difficultyHeaderContentBox!.y - difficultyCardBox!.y;
   const difficultyHeaderBottomSpace =
@@ -910,8 +914,19 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(desktopSecondAgeField!.y).toBe(desktopFirstAgeField!.y);
   expect(desktopSecondAgeField!.x).toBeGreaterThan(desktopFirstAgeField!.x);
   expect(desktopThirdAgeField!.y).toBeGreaterThan(desktopFirstAgeField!.y);
-  expect(desktopFirstDifficulty!.width).toBeLessThanOrEqual(161);
+  expect(desktopThirdAgeLabel!.height).toBeLessThanOrEqual(20);
+  expect(desktopFirstDifficulty!.width).toBeLessThanOrEqual(145);
   expect(desktopSecondDifficulty!.width).toBe(desktopFirstDifficulty!.width);
+  expect(
+    desktopFirstAgeField!.x +
+      desktopFirstAgeField!.width -
+      (desktopFirstDifficulty!.x + desktopFirstDifficulty!.width),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    desktopSecondAgeField!.x +
+      desktopSecondAgeField!.width -
+      (desktopSecondDifficulty!.x + desktopSecondDifficulty!.width),
+  ).toBeLessThanOrEqual(1);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
@@ -994,6 +1009,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     mobileSecondDifficulty,
     mobileFirstAgeField,
     mobileSecondAgeField,
+    mobileThirdAgeLabel,
   ] = await Promise.all([
     nameInput.boundingBox(),
     widthInput.boundingBox(),
@@ -1005,6 +1021,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     secondDifficulty.boundingBox(),
     firstAgeField.boundingBox(),
     secondAgeField.boundingBox(),
+    thirdAgeLabel.boundingBox(),
   ]);
   expect(mobileName).not.toBeNull();
   expect(mobileWidth).not.toBeNull();
@@ -1016,6 +1033,7 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(mobileSecondDifficulty).not.toBeNull();
   expect(mobileFirstAgeField).not.toBeNull();
   expect(mobileSecondAgeField).not.toBeNull();
+  expect(mobileThirdAgeLabel).not.toBeNull();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -1032,9 +1050,15 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     (mobileFirstDifficulty!.y + mobileFirstDifficulty!.height / 2);
   expect(checkboxOpticalOffset).toBeGreaterThanOrEqual(-3);
   expect(checkboxOpticalOffset).toBeLessThanOrEqual(-1);
-  expect(mobileFirstDifficulty!.width).toBeLessThanOrEqual(161);
+  expect(mobileFirstDifficulty!.width).toBeLessThanOrEqual(145);
   expect(mobileSecondDifficulty!.width).toBe(mobileFirstDifficulty!.width);
   expect(mobileSecondDifficulty!.x).toBe(mobileFirstDifficulty!.x);
+  expect(mobileThirdAgeLabel!.height).toBeLessThanOrEqual(20);
+  expect(
+    mobileFirstAgeField!.x +
+      mobileFirstAgeField!.width -
+      (mobileFirstDifficulty!.x + mobileFirstDifficulty!.width),
+  ).toBeLessThanOrEqual(1);
   expect(
     mobileSecondAgeField!.y -
       (mobileFirstAgeField!.y + mobileFirstAgeField!.height),
