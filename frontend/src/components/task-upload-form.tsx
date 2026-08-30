@@ -902,7 +902,7 @@ export function TaskUploadForm({
           </div>
         </CardHeader>
         <CardContent>
-          <FieldGroup className="gap-3">
+          <FieldGroup className="gap-3 md:grid md:grid-cols-2">
             {ageRanges.map((range) => (
               <Field
                 key={range}
