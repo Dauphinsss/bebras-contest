@@ -1286,6 +1286,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const firstObjectImageField = firstObjectCard
     .locator('[data-slot="field"]')
     .filter({ hasText: "Imagen del objeto" });
+  const replaceObjectImage = firstObjectCard.getByText("Reemplazar imagen", {
+    exact: true,
+  });
   await expect(
     firstObjectHeader.locator('[data-slot="card-description"]'),
   ).toHaveCount(0);
@@ -1315,9 +1318,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       (firstObjectHeaderBox!.y + firstObjectHeaderBox!.height),
   ).toBeLessThanOrEqual(20);
   expect(
-    firstObjectImageFieldBox!.y -
-      (firstObjectFieldsBox!.y + firstObjectFieldsBox!.height),
-  ).toBeLessThanOrEqual(20);
+    firstObjectImageFieldBox!.x,
+  ).toBeGreaterThan(firstObjectFieldsBox!.x + firstObjectFieldsBox!.width);
   expect(
     firstObjectCardBox!.y +
       firstObjectCardBox!.height -
@@ -1348,8 +1350,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(desktopName).not.toBeNull();
   expect(desktopWidth).not.toBeNull();
   expect(desktopRadius).not.toBeNull();
-  expect(Math.abs(desktopName!.y - desktopWidth!.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(desktopName!.y - desktopRadius!.y)).toBeLessThanOrEqual(1);
+  expect(desktopWidth!.y).toBeGreaterThan(desktopName!.y + desktopName!.height);
+  expect(Math.abs(desktopWidth!.y - desktopRadius!.y)).toBeLessThanOrEqual(1);
 
   const stage = page.getByRole("group", {
     name: "Ubicación de los destinos de encaje",
@@ -1544,6 +1546,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     mobileShortTextTypeField,
     mobileRangeTypeField,
     mobileDragDropTypeField,
+    mobileFirstObjectImageField,
+    mobileReplaceObjectImage,
   ] = await Promise.all([
     nameInput.boundingBox(),
     widthInput.boundingBox(),
@@ -1560,6 +1564,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
     shortTextTypeField.boundingBox(),
     rangeTypeField.boundingBox(),
     dragDropTypeField.boundingBox(),
+    firstObjectImageField.boundingBox(),
+    replaceObjectImage.boundingBox(),
   ]);
   expect(mobileName).not.toBeNull();
   expect(mobileWidth).not.toBeNull();
@@ -1576,6 +1582,8 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(mobileShortTextTypeField).not.toBeNull();
   expect(mobileRangeTypeField).not.toBeNull();
   expect(mobileDragDropTypeField).not.toBeNull();
+  expect(mobileFirstObjectImageField).not.toBeNull();
+  expect(mobileReplaceObjectImage).not.toBeNull();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -1617,6 +1625,14 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   expect(mobileDragDropTypeField!.y).toBeGreaterThan(
     mobileRangeTypeField!.y + mobileRangeTypeField!.height,
   );
+  expect(
+    Math.abs(
+      mobileReplaceObjectImage!.x +
+        mobileReplaceObjectImage!.width / 2 -
+        (mobileFirstObjectImageField!.x +
+          mobileFirstObjectImageField!.width / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const [wideMobileDifficulty, wideMobileAgeField] = await Promise.all([
