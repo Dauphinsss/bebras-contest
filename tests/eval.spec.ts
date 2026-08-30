@@ -263,7 +263,7 @@ const DRAG_DROP_BACKGROUND = {
   name: "escenario.svg",
   url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'%3E%3Crect width='800' height='500' fill='%23e2e8f0'/%3E%3C/svg%3E",
 };
-const DRAG_DROP_TARGETS = [
+const DRAG_DROP_INPUT_TARGETS = [
   {
     id: "drop-zone-two",
     x: 75.123456789,
@@ -277,6 +277,11 @@ const DRAG_DROP_TARGETS = [
     snapRadius: 10,
   },
 ];
+const DRAG_DROP_TARGETS = DRAG_DROP_INPUT_TARGETS.map((target) => ({
+  ...target,
+  x: Math.round(target.x * 1000) / 1000,
+  y: Math.round(target.y * 1000) / 1000,
+}));
 const DRAG_DROP_ITEMS = [
   {
     id: "drag-item-a",
@@ -338,14 +343,19 @@ async function createPracticeTask(
       dragDropBackground:
         answerType === "drag_drop" ? DRAG_DROP_BACKGROUND : null,
       dragDropItems: answerType === "drag_drop" ? DRAG_DROP_ITEMS : [],
-      dragDropTargets: answerType === "drag_drop" ? DRAG_DROP_TARGETS : [],
+      dragDropTargets:
+        answerType === "drag_drop" ? DRAG_DROP_INPUT_TARGETS : [],
       explanation: `Explicación ${answerType}`,
       status: "Borrador",
       isPractice: true,
     },
   });
   expect(response.ok(), await response.text()).toBe(true);
-  return response.json();
+  const task = await response.json();
+  if (answerType === "drag_drop") {
+    expect(task.dragDropTargets).toEqual(DRAG_DROP_TARGETS);
+  }
+  return task;
 }
 
 test("allows practice updates through CORS", async () => {
@@ -764,6 +774,100 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   } finally {
     await touchContext.close();
   }
+});
+
+test("keeps drag-drop authoring fields focused and responsive", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  const api = await request.newContext();
+  const session = await api
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((response) => response.json());
+  const task = await createPracticeTask(
+    api,
+    { authorization: `Bearer ${session.token}` },
+    "drag_drop",
+  );
+
+  await page.addInitScript(
+    ({ token, user }) => {
+      window.localStorage.setItem("bebras_token", token);
+      window.localStorage.setItem("bebras_user", JSON.stringify(user));
+    },
+    session,
+  );
+  await page.goto(`/tareas/editar?id=${task.id}`);
+  await api.dispose();
+
+  const nameInput = page.locator('input[id^="drag-item-label-"]').first();
+  const widthInput = page.locator('input[id^="drag-item-width-"]').first();
+  const radiusInput = page.locator('input[id^="drag-target-radius-"]').first();
+  await expect(nameInput).toBeVisible();
+  await expect(widthInput).toBeVisible();
+  await expect(radiusInput).toBeVisible();
+  await expect(page.locator('input[id^="drag-target-x-"]')).toHaveCount(0);
+  await expect(page.locator('input[id^="drag-target-y-"]')).toHaveCount(0);
+
+  const [desktopName, desktopWidth, desktopRadius] = await Promise.all([
+    nameInput.boundingBox(),
+    widthInput.boundingBox(),
+    radiusInput.boundingBox(),
+  ]);
+  expect(desktopName).not.toBeNull();
+  expect(desktopWidth).not.toBeNull();
+  expect(desktopRadius).not.toBeNull();
+  expect(Math.abs(desktopName!.y - desktopWidth!.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(desktopName!.y - desktopRadius!.y)).toBeLessThanOrEqual(1);
+
+  const stage = page.getByRole("group", {
+    name: "Ubicación de los destinos de encaje",
+  });
+  const movedTarget = await stage.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      clientX: rect.left + element.clientLeft + element.clientWidth * 0.3333357,
+      clientY: rect.top + element.clientTop + element.clientHeight * 0.4444457,
+    });
+    const coordinate = (
+      position: number,
+      start: number,
+      border: number,
+      size: number,
+    ) =>
+      Math.round(
+        Math.max(0, Math.min(100, ((position - start - border) / size) * 100)) *
+          1000,
+      ) / 1000;
+    element.dispatchEvent(event);
+    return {
+      x: coordinate(event.clientX, rect.left, element.clientLeft, element.clientWidth),
+      y: coordinate(event.clientY, rect.top, element.clientTop, element.clientHeight),
+    };
+  });
+  const updateRequest = page.waitForRequest(
+    (candidate) =>
+      candidate.url() === `${API}/api/tasks/${task.id}` &&
+      candidate.method() === "PUT",
+  );
+  await page.getByRole("button", { name: "Guardar cambios" }).click();
+  const updatedTarget = (await updateRequest).postDataJSON().dragDropTargets.find(
+    (target: { id: string }) => target.id === DRAG_DROP_TARGETS[0].id,
+  );
+  expect(updatedTarget).toMatchObject(movedTarget);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const [mobileName, mobileWidth, mobileRadius] = await Promise.all([
+    nameInput.boundingBox(),
+    widthInput.boundingBox(),
+    radiusInput.boundingBox(),
+  ]);
+  expect(mobileName).not.toBeNull();
+  expect(mobileWidth).not.toBeNull();
+  expect(mobileRadius).not.toBeNull();
+  expect(mobileWidth!.y).toBeGreaterThan(mobileName!.y + mobileName!.height);
+  expect(mobileRadius!.y).toBeGreaterThan(mobileWidth!.y + mobileWidth!.height);
 });
 
 test("rejects documents whose content does not match the extension", async () => {
