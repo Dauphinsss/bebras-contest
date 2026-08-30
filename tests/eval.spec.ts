@@ -1154,6 +1154,9 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   const answerTypeLegend = answersCard
     .locator('[data-slot="field-legend"]')
     .filter({ hasText: "Tipo de respuesta" });
+  const answerTypeGroup = answerTypeLegend
+    .locator("..")
+    .locator('[data-slot="radio-group"]');
   const multipleChoiceType = answersCard.getByRole("radio", {
     name: "Opción múltiple",
   });
@@ -1173,6 +1176,11 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   await expect(
     answersHeader.locator('[data-slot="card-description"]'),
   ).toHaveCount(0);
+  expect(
+    await answerTypeGroup.evaluate(
+      (element) => window.getComputedStyle(element).marginTop,
+    ),
+  ).toBe("4px");
   const [
     answersCardBox,
     answersHeaderBox,
@@ -1559,6 +1567,51 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       wideMobileAgeField!.width -
       (wideMobileDifficulty!.x + wideMobileDifficulty!.width),
   ).toBeLessThanOrEqual(1);
+});
+
+test("labels tester controls for each answer type", async ({ page }) => {
+  const api = await request.newContext();
+  const session = await api
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((response) => response.json());
+  const headers = { authorization: `Bearer ${session.token}` };
+  const cases = [
+    { answerType: "multiple_choice", heading: "Opciones de respuesta" },
+    { answerType: "short_text", heading: "Respuesta corta" },
+    { answerType: "range", heading: "Respuesta por rangos" },
+    { answerType: "drag_drop", heading: "Arrastrar y soltar" },
+  ] as const;
+  const tasks = [];
+
+  for (const testCase of cases) {
+    tasks.push(await createPracticeTask(api, headers, testCase.answerType));
+  }
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+
+  for (const [index, testCase] of cases.entries()) {
+    const task = tasks[index];
+    await page.goto(`/tareas/probador?id=${task.id}`);
+    await expect(
+      page.getByRole("heading", { name: task.title, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: testCase.heading, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Respuestas", exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByText("Resuelve", { exact: true })).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Probar respuesta" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reiniciar" })).toBeVisible();
+  }
+
+  await api.dispose();
 });
 
 test("rejects documents whose content does not match the extension", async () => {
