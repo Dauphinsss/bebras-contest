@@ -776,9 +776,7 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   }
 });
 
-test("keeps drag-drop authoring fields focused and responsive", async ({
-  page,
-}) => {
+test("keeps task authoring fields compact and responsive", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   const api = await request.newContext();
   const session = await api
@@ -790,15 +788,52 @@ test("keeps drag-drop authoring fields focused and responsive", async ({
     "drag_drop",
   );
 
-  await page.addInitScript(
-    ({ token, user }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem("bebras_user", JSON.stringify(user));
-    },
-    session,
-  );
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
   await page.goto(`/tareas/editar?id=${task.id}`);
   await api.dispose();
+
+  const generalCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Información general" })
+    .first();
+  await expect(generalCard).toBeVisible();
+  await expect(
+    page.getByText(
+      "Define la identidad y la clasificación principal de la tarea.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Debe permitir identificar la tarea rápidamente."),
+  ).toHaveCount(0);
+
+  const generalHeader = generalCard.locator('[data-slot="card-header"]');
+  const titleLabel = page.locator('label[for="title"]');
+  const firstCategory = page.getByRole("checkbox", {
+    name: "Algoritmos y programación",
+  });
+  const secondCategory = page.getByRole("checkbox", {
+    name: "Estructuras de datos y representaciones",
+  });
+  const [headerBox, titleLabelBox, desktopCategoryOne, desktopCategoryTwo] =
+    await Promise.all([
+      generalHeader.boundingBox(),
+      titleLabel.boundingBox(),
+      firstCategory.boundingBox(),
+      secondCategory.boundingBox(),
+    ]);
+  expect(headerBox).not.toBeNull();
+  expect(titleLabelBox).not.toBeNull();
+  expect(desktopCategoryOne).not.toBeNull();
+  expect(desktopCategoryTwo).not.toBeNull();
+  expect(
+    titleLabelBox!.y - (headerBox!.y + headerBox!.height),
+  ).toBeLessThanOrEqual(20);
+  expect(
+    Math.abs(desktopCategoryOne!.y - desktopCategoryTwo!.y),
+  ).toBeLessThanOrEqual(1);
 
   const nameInput = page.locator('input[id^="drag-item-label-"]').first();
   const widthInput = page.locator('input[id^="drag-item-width-"]').first();
@@ -842,8 +877,18 @@ test("keeps drag-drop authoring fields focused and responsive", async ({
       ) / 1000;
     element.dispatchEvent(event);
     return {
-      x: coordinate(event.clientX, rect.left, element.clientLeft, element.clientWidth),
-      y: coordinate(event.clientY, rect.top, element.clientTop, element.clientHeight),
+      x: coordinate(
+        event.clientX,
+        rect.left,
+        element.clientLeft,
+        element.clientWidth,
+      ),
+      y: coordinate(
+        event.clientY,
+        rect.top,
+        element.clientTop,
+        element.clientHeight,
+      ),
     };
   });
   const updateRequest = page.waitForRequest(
@@ -852,22 +897,37 @@ test("keeps drag-drop authoring fields focused and responsive", async ({
       candidate.method() === "PUT",
   );
   await page.getByRole("button", { name: "Guardar cambios" }).click();
-  const updatedTarget = (await updateRequest).postDataJSON().dragDropTargets.find(
-    (target: { id: string }) => target.id === DRAG_DROP_TARGETS[0].id,
-  );
+  const updatedTarget = (await updateRequest)
+    .postDataJSON()
+    .dragDropTargets.find(
+      (target: { id: string }) => target.id === DRAG_DROP_TARGETS[0].id,
+    );
   expect(updatedTarget).toMatchObject(movedTarget);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  const [mobileName, mobileWidth, mobileRadius] = await Promise.all([
+  const [
+    mobileName,
+    mobileWidth,
+    mobileRadius,
+    mobileCategoryOne,
+    mobileCategoryTwo,
+  ] = await Promise.all([
     nameInput.boundingBox(),
     widthInput.boundingBox(),
     radiusInput.boundingBox(),
+    firstCategory.boundingBox(),
+    secondCategory.boundingBox(),
   ]);
   expect(mobileName).not.toBeNull();
   expect(mobileWidth).not.toBeNull();
   expect(mobileRadius).not.toBeNull();
+  expect(mobileCategoryOne).not.toBeNull();
+  expect(mobileCategoryTwo).not.toBeNull();
   expect(mobileWidth!.y).toBeGreaterThan(mobileName!.y + mobileName!.height);
   expect(mobileRadius!.y).toBeGreaterThan(mobileWidth!.y + mobileWidth!.height);
+  expect(mobileCategoryTwo!.y).toBeGreaterThan(
+    mobileCategoryOne!.y + mobileCategoryOne!.height,
+  );
 });
 
 test("rejects documents whose content does not match the extension", async () => {
