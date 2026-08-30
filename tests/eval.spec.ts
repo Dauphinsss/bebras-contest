@@ -1407,20 +1407,38 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
 
   await rangeType.click();
   await expect(rangeType).toBeChecked();
-  const firstRangeCard = answersCard
-    .locator('[data-slot="card"]')
-    .filter({ hasText: "Rango 1" })
-    .first();
+  await expect(
+    answersCard.getByText(
+      "Define uno o varios intervalos aceptados. La respuesta será correcta si el valor cae dentro de al menos uno de ellos.",
+    ),
+  ).toHaveCount(1);
+  await expect(
+    answersCard.getByText(
+      "Define uno o varios intervalos aceptados para la respuesta.",
+    ),
+  ).toHaveCount(0);
+  await expect(
+    answersCard.getByText(
+      "El participante será correcto si su valor cae dentro de este rango.",
+    ),
+  ).toHaveCount(0);
+  const firstRangeName = answersCard.getByLabel("Nombre del rango").first();
+  const firstRangeCard = firstRangeName.locator(
+    'xpath=ancestor::*[@data-slot="card"][1]',
+  );
   const firstRangeHeader = firstRangeCard.locator(
     '[data-slot="card-header"]',
   );
+  const firstRangeTitle = firstRangeCard.locator('[data-slot="card-title"]');
   const firstRangeContent = firstRangeCard.locator(
     '[data-slot="card-content"]',
   );
   const firstRangeLabelField = firstRangeContent
     .locator(':scope > [data-slot="field"]')
     .first();
-  const firstRangeLabel = firstRangeCard.getByText("Etiqueta", { exact: true });
+  const firstRangeLabel = firstRangeCard.getByText("Nombre del rango", {
+    exact: true,
+  });
   const firstRangeLimits = firstRangeContent.locator(":scope > div.grid");
   await expect(
     firstRangeHeader.locator('[data-slot="card-description"]'),
@@ -1456,6 +1474,11 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
       firstRangeCardBox!.height -
       (firstRangeLimitsBox!.y + firstRangeLimitsBox!.height),
   ).toBeLessThanOrEqual(21);
+  await expect(firstRangeTitle).toHaveText("Rango válido");
+  await firstRangeName.fill("Intervalo principal");
+  await expect(firstRangeTitle).toHaveText("Intervalo principal");
+  await firstRangeName.fill("");
+  await expect(firstRangeTitle).toHaveText("Rango 1");
 
   await dragDropType.click();
   await expect(dragDropType).toBeChecked();
