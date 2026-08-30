@@ -192,10 +192,6 @@ export function DragDropEditor({
         <FieldLegend className="mb-0" variant="label">
           Escenario de fondo
         </FieldLegend>
-        <FieldDescription>
-          Selecciona un objeto y toca el escenario para ubicar su destino.
-          También puedes arrastrar directamente el objeto.
-        </FieldDescription>
         <Field>
           <FieldContent className="gap-4">
             {!backgroundUrl && (
@@ -323,10 +319,6 @@ export function DragDropEditor({
                     );
                   })}
                 </div>
-                <FieldDescription>
-                  Los círculos muestran el radio de encaje y solo aparecen en
-                  este editor de autoría.
-                </FieldDescription>
                 <div className="flex justify-start">
                   <label>
                     <input
@@ -356,9 +348,6 @@ export function DragDropEditor({
         <FieldLegend className="mb-0" variant="label">
           Objetos arrastrables
         </FieldLegend>
-        <FieldDescription>
-          El objeto seleccionado se muestra en su destino sobre el escenario.
-        </FieldDescription>
         <div className="flex flex-col gap-4">
           {items.map((item, index) => {
             const target = targets.find(
@@ -378,11 +367,8 @@ export function DragDropEditor({
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <CardTitle className="text-base">
-                        Objeto {index + 1}
+                        {item.label.trim() || `Objeto ${index + 1}`}
                       </CardTitle>
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        Define su imagen y su destino fijo sobre el fondo.
-                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button

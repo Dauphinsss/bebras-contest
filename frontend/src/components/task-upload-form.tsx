@@ -1645,8 +1645,10 @@ export function TaskUploadForm({
                   Escenario interactivo
                 </FieldLegend>
                 <FieldDescription>
-                  Define la imagen de fondo, los objetos y la posición correcta
-                  de cada uno.
+                  Configura el fondo, el nombre y la imagen de cada objeto.
+                  Selecciona uno y toca o arrástralo sobre el escenario para
+                  ubicar su destino; los círculos indican el radio de encaje
+                  solo durante la edición.
                 </FieldDescription>
                 <DragDropEditor
                   backgroundUrl={form.dragDropBackground?.url ?? null}
