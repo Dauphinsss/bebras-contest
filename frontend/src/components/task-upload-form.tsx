@@ -825,11 +825,8 @@ export function TaskUploadForm({
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Información general</CardTitle>
-          <CardDescription>
-            Define la identidad y la clasificación principal de la tarea.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent>
           <FieldGroup>
             <Field data-invalid={!form.title.trim() && errors.length > 0}>
               <FieldLabel htmlFor="title">Título</FieldLabel>
@@ -846,9 +843,6 @@ export function TaskUploadForm({
                     }))
                   }
                 />
-                <FieldDescription>
-                  Debe permitir identificar la tarea rápidamente.
-                </FieldDescription>
               </FieldContent>
             </Field>
 
@@ -857,7 +851,7 @@ export function TaskUploadForm({
               <FieldDescription>
                 Selecciona una o varias categorías para la tarea.
               </FieldDescription>
-              <div className="flex flex-col gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {categories.map((category) => {
                   const checked = form.categories.includes(category);
 
