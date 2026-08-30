@@ -474,7 +474,9 @@ export function DragDropEditor({
                   </div>
 
                   <Field>
-                    <FieldLabel>Imagen del objeto</FieldLabel>
+                    <FieldLabel className="justify-center text-center">
+                      Imagen del objeto
+                    </FieldLabel>
                     <FieldContent className="gap-4">
                       {!item.image && (
                         <Input
@@ -487,33 +489,31 @@ export function DragDropEditor({
                         />
                       )}
                       {item.image && (
-                        <div className="flex flex-col gap-4">
-                          <div className="flex justify-center">
+                        <div className="flex justify-center">
+                          <label className="group/image relative block cursor-pointer overflow-hidden rounded-lg outline-none focus-within:ring-[3px] focus-within:ring-ring/50">
+                            <input
+                              accept="image/*"
+                              aria-label={`Reemplazar imagen de ${item.label || `objeto ${index + 1}`}`}
+                              className="sr-only"
+                              type="file"
+                              onChange={(event) => {
+                                onReplaceItemImage(
+                                  item.id,
+                                  event.target.files,
+                                );
+                                event.target.value = "";
+                              }}
+                            />
                             <img
                               alt={item.image.name}
                               className="block h-auto max-h-44 max-w-full rounded-lg"
                               src={item.image.url}
                             />
-                          </div>
-                          <div className="flex justify-center">
-                            <label>
-                              <input
-                                accept="image/*"
-                                className="sr-only"
-                                type="file"
-                                onChange={(event) => {
-                                  onReplaceItemImage(
-                                    item.id,
-                                    event.target.files,
-                                  );
-                                  event.target.value = "";
-                                }}
-                              />
-                              <Button type="button" variant="outline" asChild>
-                                <span>Reemplazar imagen</span>
-                              </Button>
-                            </label>
-                          </div>
+                            <span className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/55 px-3 text-sm font-semibold text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover/image:opacity-100 sm:group-focus-within/image:opacity-100">
+                              <ImagePlusIcon className="size-4" />
+                              Reemplazar
+                            </span>
+                          </label>
                         </div>
                       )}
                     </FieldContent>
