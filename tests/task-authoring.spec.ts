@@ -1155,6 +1155,230 @@ test("keeps task authoring fields compact and responsive", async ({ page }) => {
   ).toBeLessThanOrEqual(1);
 });
 
+test("edits task content with touch without adding mobile controls", async ({
+  browser,
+}) => {
+  const api = await request.newContext();
+  const session = await api
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((response) => response.json());
+  const headers = { authorization: `Bearer ${session.token}` };
+  const blockIds = {
+    first: `touch-first-${Date.now()}`,
+    image: `touch-image-${Date.now()}`,
+    last: `touch-last-${Date.now()}`,
+  };
+  const task = await createPracticeTask(api, headers, "drag_drop", {
+    bodyBlocks: [
+      taskBlock(blockIds.first, "Primer bloque táctil"),
+      {
+        id: blockIds.image,
+        type: "image",
+        content: "",
+        image: {
+          id: `touch-content-image-${Date.now()}`,
+          name: "contenido-tactil.svg",
+          url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='100' viewBox='0 0 400 100'%3E%3Crect width='400' height='100' fill='%2314b8a6'/%3E%3C/svg%3E",
+        },
+        widthPercent: 50,
+      },
+      taskBlock(blockIds.last, "Último bloque táctil"),
+    ],
+  });
+  const touchContext = await browser.newContext({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 1200 },
+  });
+
+  try {
+    await touchContext.addInitScript(({ token, user }) => {
+      window.localStorage.setItem("bebras_token", token);
+      window.localStorage.setItem("bebras_user", JSON.stringify(user));
+    }, session);
+    const page = await touchContext.newPage();
+    const cdp = await touchContext.newCDPSession(page);
+    const dragWithTouch = async (
+      start: { x: number; y: number },
+      end: { x: number; y: number },
+    ) => {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ ...start, id: 1 }],
+      });
+      for (let step = 1; step <= 8; step += 1) {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            {
+              id: 1,
+              x: start.x + ((end.x - start.x) * step) / 8,
+              y: start.y + ((end.y - start.y) * step) / 8,
+            },
+          ],
+        });
+      }
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    };
+
+    await page.goto(`/tareas/editar?id=${task.id}`);
+    await expect(page.getByRole("textbox", { name: "Título" })).toHaveValue(
+      task.title,
+    );
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const initialScroll = await page.evaluate(() => window.scrollY);
+    await dragWithTouch({ x: 380, y: 900 }, { x: 380, y: 300 });
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(initialScroll);
+
+    const bodyCard = page
+      .locator('[data-slot="card"]')
+      .filter({ hasText: "Cuerpo" })
+      .first();
+    const blockRows = bodyCard.locator("[data-content-block-id]");
+    const firstRow = bodyCard.locator(
+      `[data-content-block-id="${blockIds.first}"]`,
+    );
+    const imageRow = bodyCard.locator(
+      `[data-content-block-id="${blockIds.image}"]`,
+    );
+    const image = imageRow.getByRole("img", { name: "contenido-tactil.svg" });
+    const reorderHandle = firstRow.getByRole("button", {
+      name: "Arrastrar para reordenar bloque",
+    });
+    await firstRow.scrollIntoViewIfNeeded();
+    const [reorderHandleBox, imageRowBox] = await Promise.all([
+      reorderHandle.boundingBox(),
+      imageRow.boundingBox(),
+    ]);
+    expect(reorderHandleBox).not.toBeNull();
+    expect(imageRowBox).not.toBeNull();
+    await dragWithTouch(
+      {
+        x: reorderHandleBox!.x + reorderHandleBox!.width / 2,
+        y: reorderHandleBox!.y + reorderHandleBox!.height / 2,
+      },
+      {
+        x: imageRowBox!.x + imageRowBox!.width / 2,
+        y: imageRowBox!.y + imageRowBox!.height * 0.75,
+      },
+    );
+    await expect
+      .poll(() =>
+        blockRows.evaluateAll((rows) =>
+          rows.map((row) => row.getAttribute("data-content-block-id")),
+        ),
+      )
+      .toEqual([blockIds.image, blockIds.first, blockIds.last]);
+
+    const rightResizeHandle = imageRow.getByRole("button", {
+      name: "Reducir o ampliar imagen desde la derecha",
+    });
+    await imageRow.scrollIntoViewIfNeeded();
+    await expect(rightResizeHandle).toBeVisible();
+    await expect(rightResizeHandle).toHaveCSS("touch-action", "none");
+    const [resizeHandleBox, imageAreaWidth] = await Promise.all([
+      rightResizeHandle.boundingBox(),
+      image.evaluate(
+        (element) =>
+          element.parentElement?.parentElement?.getBoundingClientRect().width ??
+          0,
+      ),
+    ]);
+    expect(resizeHandleBox).not.toBeNull();
+    expect(imageAreaWidth).toBeGreaterThan(0);
+    const resizeDelta = 30;
+    const expectedWidth = Math.round(
+      50 + (resizeDelta * 2 * 100) / imageAreaWidth,
+    );
+    const resizeStart = {
+      x: resizeHandleBox!.x + resizeHandleBox!.width / 2,
+      y: resizeHandleBox!.y + resizeHandleBox!.height / 2,
+    };
+    await dragWithTouch(resizeStart, {
+      x: resizeStart.x + resizeDelta,
+      y: resizeStart.y,
+    });
+    await expect
+      .poll(() =>
+        image.evaluate((element) =>
+          Number.parseFloat(element.parentElement?.style.width ?? "0"),
+        ),
+      )
+      .toBe(expectedWidth);
+
+    const stage = page.getByRole("group", {
+      name: "Ubicación de los destinos de encaje",
+    });
+    const marker = page.getByRole("button", {
+      name: "Mover destino de Objeto alfa",
+    });
+    await stage.scrollIntoViewIfNeeded();
+    const [stageBox, markerBox] = await Promise.all([
+      stage.boundingBox(),
+      marker.boundingBox(),
+    ]);
+    expect(stageBox).not.toBeNull();
+    expect(markerBox).not.toBeNull();
+    const targetPoint = {
+      x: stageBox!.x + stageBox!.width * 0.55,
+      y: stageBox!.y + stageBox!.height * 0.25,
+    };
+    await dragWithTouch(
+      {
+        x: markerBox!.x + markerBox!.width / 2,
+        y: markerBox!.y + markerBox!.height / 2,
+      },
+      targetPoint,
+    );
+
+    const updateResponse = page.waitForResponse(
+      (candidate) =>
+        candidate.url() === `${API}/api/tasks/${task.id}` &&
+        candidate.request().method() === "PUT",
+    );
+    await page.getByRole("button", { name: "Guardar cambios" }).click();
+    const response = await updateResponse;
+    expect(response.ok(), await response.text()).toBe(true);
+    const payload = response.request().postDataJSON();
+    expect(payload.bodyBlocks.map((block: { id: string }) => block.id)).toEqual(
+      [blockIds.image, blockIds.first, blockIds.last],
+    );
+    expect(
+      payload.bodyBlocks.find(
+        (block: { id: string }) => block.id === blockIds.image,
+      ).widthPercent,
+    ).toBe(expectedWidth);
+    const movedTarget = payload.dragDropTargets.find(
+      (target: { id: string }) => target.id === DRAG_DROP_TARGETS[0].id,
+    );
+    expect(movedTarget.x).toBeCloseTo(55, 0);
+    expect(movedTarget.y).toBeCloseTo(25, 0);
+
+    const persistedResponse = await api.get(`${API}/api/tasks/${task.id}`, {
+      headers,
+    });
+    expect(persistedResponse.ok(), await persistedResponse.text()).toBe(true);
+    const persisted = await persistedResponse.json();
+    expect(
+      persisted.bodyBlocks.map((block: { id: string }) => block.id),
+    ).toEqual([blockIds.image, blockIds.first, blockIds.last]);
+    expect(
+      persisted.bodyBlocks.find(
+        (block: { id: string }) => block.id === blockIds.image,
+      ).widthPercent,
+    ).toBe(expectedWidth);
+  } finally {
+    await touchContext.close();
+    await api.dispose();
+  }
+});
+
 test("serializes every multiple-choice correctness criterion", async ({
   page,
 }) => {
