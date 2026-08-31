@@ -164,6 +164,8 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
     payload: { placements: DRAG_DROP_CORRECT_PLACEMENTS },
   });
   await expect(page.getByText("¡Correcto!", { exact: true })).toBeVisible();
+  await expect(alpha).toBeDisabled();
+  await expect(beta).toBeDisabled();
 
   const touchContext = await browser.newContext({
     hasTouch: true,
