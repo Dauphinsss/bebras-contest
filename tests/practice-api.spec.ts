@@ -1,4 +1,6 @@
 import { test, expect, request } from "@playwright/test";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import {
   API,
   SEEDED_TASK,
@@ -81,9 +83,7 @@ test("serves and checks all four public practice answer types", async () => {
   );
   expect(createdTasks).toHaveLength(tasks.length);
   expect(
-    createdTasks
-      .map((task: { answerType: string }) => task.answerType)
-      .sort(),
+    createdTasks.map((task: { answerType: string }) => task.answerType).sort(),
   ).toEqual(["drag_drop", "multiple_choice", "range", "short_text"]);
 
   const cases = [
@@ -191,6 +191,72 @@ test("serves and checks all four public practice answer types", async () => {
     await checkDragDrop({
       [DRAG_DROP_ITEMS[0].id]: DRAG_DROP_TARGETS[0].id,
       [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_TARGETS[0].id,
+    }),
+  ).toMatchObject({ correct: false });
+
+  await api.dispose();
+});
+
+test("uses a circular radius for legacy drag-drop coordinates", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const task = await createPracticeTask(api, headers, "drag_drop");
+  const backendRequire = createRequire(
+    resolve(process.cwd(), "backend/package.json"),
+  );
+  const Database = backendRequire("better-sqlite3") as new (path: string) => {
+    prepare: (sql: string) => {
+      run: (...parameters: unknown[]) => unknown;
+    };
+    close: () => void;
+  };
+  const database = new Database(resolve(process.cwd(), "backend/test.db"));
+  try {
+    database
+      .prepare('UPDATE "TaskDraft" SET "dragDropItems" = ? WHERE "id" = ?')
+      .run(
+        JSON.stringify({
+          version: 1,
+          items: DRAG_DROP_ITEMS,
+          targets: DRAG_DROP_TARGETS,
+        }),
+        task.id,
+      );
+  } finally {
+    database.close();
+  }
+
+  const check = async (firstPlacement: { x: number; y: number }) => {
+    const response = await api.post(
+      `${API}/api/practice/tasks/${task.id}/check`,
+      {
+        data: {
+          payload: {
+            placements: {
+              [DRAG_DROP_ITEMS[0].id]: firstPlacement,
+              [DRAG_DROP_ITEMS[1].id]: {
+                x: DRAG_DROP_TARGETS[1].x,
+                y: DRAG_DROP_TARGETS[1].y,
+              },
+            },
+          },
+        },
+      },
+    );
+    expect(response.ok(), await response.text()).toBe(true);
+    return response.json();
+  };
+
+  expect(
+    await check({
+      x: DRAG_DROP_TARGETS[0].x + DRAG_DROP_TARGETS[0].snapRadius,
+      y: DRAG_DROP_TARGETS[0].y,
+    }),
+  ).toMatchObject({ correct: true });
+  expect(
+    await check({
+      x: DRAG_DROP_TARGETS[0].x + 8,
+      y: DRAG_DROP_TARGETS[0].y + 8,
     }),
   ).toMatchObject({ correct: false });
 

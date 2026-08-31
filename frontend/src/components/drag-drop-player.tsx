@@ -105,8 +105,9 @@ export function DragDropPlayer({
   const suppressClickItemIdRef = useRef<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
-  const [keyboardCursor, setKeyboardCursor] =
-    useState<KeyboardCursor | null>(null);
+  const [keyboardCursor, setKeyboardCursor] = useState<KeyboardCursor | null>(
+    null,
+  );
   const [keyboardMode, setKeyboardMode] = useState(false);
 
   const targetById = useMemo(
@@ -525,6 +526,7 @@ export function DragDropPlayer({
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-sm border-2 border-primary bg-background/80 opacity-80 ring-2 ring-ring"
+            data-keyboard-cursor
             style={{
               left: `${keyboardCursor.x}%`,
               top: `${keyboardCursor.y}%`,

@@ -23,8 +23,8 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
 
   const stage = page.locator('[aria-label^="Escenario de la tarea."]');
-  const itemButton = (imageName: string) =>
-    page.getByRole("img", { name: imageName }).locator("..");
+  const itemButton = (label: string) =>
+    page.getByRole("button", { name: label });
   const targetPoint = async (target: (typeof DRAG_DROP_TARGETS)[number]) => {
     const box = await stage.boundingBox();
     expect(box).not.toBeNull();
@@ -34,12 +34,21 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
     };
   };
   const expectAtTarget = async (
-    imageName: string,
+    label: string,
     target: (typeof DRAG_DROP_TARGETS)[number],
+    activeStage = stage,
+    activeItemButton = itemButton(label),
   ) => {
     const [buttonBox, point] = await Promise.all([
-      itemButton(imageName).boundingBox(),
-      targetPoint(target),
+      activeItemButton.boundingBox(),
+      (async () => {
+        const box = await activeStage.boundingBox();
+        expect(box).not.toBeNull();
+        return {
+          x: box!.x + (target.x / 100) * box!.width,
+          y: box!.y + (target.y / 100) * box!.height,
+        };
+      })(),
     ]);
     expect(buttonBox).not.toBeNull();
     expect(
@@ -50,10 +59,10 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
     ).toBeLessThanOrEqual(1);
   };
   const expectScaledWidth = async (
-    imageName: string,
+    label: string,
     widthPercent: number,
     activeStage = stage,
-    activeItemButton = itemButton(imageName),
+    activeItemButton = itemButton(label),
   ) => {
     const [buttonBox, stageBox] = await Promise.all([
       activeItemButton.boundingBox(),
@@ -74,9 +83,16 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
     await expect(page.getByText(target.id, { exact: true })).toHaveCount(0);
   }
 
-  const alpha = itemButton(DRAG_DROP_ITEMS[0].image.name);
+  const alpha = itemButton(DRAG_DROP_ITEMS[0].label);
   await alpha.click();
   await expect(alpha).toHaveAttribute("aria-pressed", "true");
+  const beta = itemButton(DRAG_DROP_ITEMS[1].label);
+  await beta.click();
+  await expect(alpha).toHaveAttribute("aria-pressed", "false");
+  await expect(beta).toHaveAttribute("aria-pressed", "true");
+  await beta.click();
+  await expect(beta).toHaveAttribute("aria-pressed", "false");
+  await alpha.click();
   await stage.click({ position: { x: 400, y: 20 } });
   await expect(stage.getByRole("button")).toHaveCount(0);
   await expect(alpha).toHaveAttribute("aria-pressed", "true");
@@ -95,13 +111,12 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   await expect(alpha).toHaveAttribute("aria-pressed", "true");
 
   await page.mouse.click(targetTwoPoint.x, targetTwoPoint.y);
-  await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[0]);
+  await expectAtTarget(DRAG_DROP_ITEMS[0].label, DRAG_DROP_TARGETS[0]);
   await expectScaledWidth(
-    DRAG_DROP_ITEMS[0].image.name,
+    DRAG_DROP_ITEMS[0].label,
     DRAG_DROP_ITEMS[0].widthPercent,
   );
 
-  const beta = itemButton(DRAG_DROP_ITEMS[1].image.name);
   const betaBox = await beta.boundingBox();
   expect(betaBox).not.toBeNull();
   await page.mouse.move(
@@ -111,26 +126,33 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
   await page.mouse.down();
   await page.mouse.move(targetTwoPoint.x, targetTwoPoint.y, { steps: 8 });
   await page.mouse.up();
-  await expectAtTarget(DRAG_DROP_ITEMS[1].image.name, DRAG_DROP_TARGETS[0]);
+  await expectAtTarget(DRAG_DROP_ITEMS[1].label, DRAG_DROP_TARGETS[0]);
   await expectScaledWidth(
-    DRAG_DROP_ITEMS[1].image.name,
+    DRAG_DROP_ITEMS[1].label,
     DRAG_DROP_ITEMS[1].widthPercent,
   );
   await expect(stage.getByRole("button")).toHaveCount(1);
-  await expect(itemButton(DRAG_DROP_ITEMS[0].image.name)).toContainText(
-    DRAG_DROP_ITEMS[0].label,
-  );
+  await expect(alpha).toHaveAccessibleName(DRAG_DROP_ITEMS[0].label);
 
-  await itemButton(DRAG_DROP_ITEMS[0].image.name).click();
+  await alpha.click();
+  await beta.click();
+  await expectAtTarget(DRAG_DROP_ITEMS[0].label, DRAG_DROP_TARGETS[0]);
+  await expect(stage.getByRole("button")).toHaveCount(1);
+
+  await beta.click();
+  await alpha.click();
+  await expectAtTarget(DRAG_DROP_ITEMS[1].label, DRAG_DROP_TARGETS[0]);
+  await expect(stage.getByRole("button")).toHaveCount(1);
+
+  await alpha.click();
   const targetOnePoint = await targetPoint(DRAG_DROP_TARGETS[1]);
   await page.mouse.click(targetOnePoint.x, targetOnePoint.y);
-  await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[1]);
+  await expectAtTarget(DRAG_DROP_ITEMS[0].label, DRAG_DROP_TARGETS[1]);
 
-  await itemButton(DRAG_DROP_ITEMS[0].image.name).click();
-  const occupiedTargetPoint = await targetPoint(DRAG_DROP_TARGETS[0]);
-  await page.mouse.click(occupiedTargetPoint.x, occupiedTargetPoint.y);
-  await expectAtTarget(DRAG_DROP_ITEMS[0].image.name, DRAG_DROP_TARGETS[0]);
-  await expectAtTarget(DRAG_DROP_ITEMS[1].image.name, DRAG_DROP_TARGETS[1]);
+  await alpha.click();
+  await beta.click();
+  await expectAtTarget(DRAG_DROP_ITEMS[0].label, DRAG_DROP_TARGETS[0]);
+  await expectAtTarget(DRAG_DROP_ITEMS[1].label, DRAG_DROP_TARGETS[1]);
 
   const checkRequest = page.waitForRequest(
     (candidate) =>
@@ -157,9 +179,9 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
     const touchStage = touchPage.locator(
       '[aria-label^="Escenario de la tarea."]',
     );
-    const touchBeta = touchPage
-      .getByRole("img", { name: DRAG_DROP_ITEMS[1].image.name })
-      .locator("..");
+    const touchBeta = touchPage.getByRole("button", {
+      name: DRAG_DROP_ITEMS[1].label,
+    });
     await touchBeta.tap();
     await expect(touchBeta).toHaveAttribute("aria-pressed", "true");
     const touchStageBox = await touchStage.boundingBox();
@@ -186,13 +208,180 @@ test("solves a v2 drag-drop practice task with pointer and touch input", async (
       ),
     ).toBeLessThanOrEqual(1);
     await expectScaledWidth(
-      DRAG_DROP_ITEMS[1].image.name,
+      DRAG_DROP_ITEMS[1].label,
       DRAG_DROP_ITEMS[1].widthPercent,
       touchStage,
       touchBeta,
     );
+
+    const touchAlpha = touchPage.getByRole("button", {
+      name: DRAG_DROP_ITEMS[0].label,
+    });
+    const touchAlphaBox = await touchAlpha.boundingBox();
+    expect(touchAlphaBox).not.toBeNull();
+    const touchTargetTwo = DRAG_DROP_TARGETS[0];
+    const touchTargetTwoPoint = {
+      x: touchStageBox!.x + (touchTargetTwo.x / 100) * touchStageBox!.width,
+      y: touchStageBox!.y + (touchTargetTwo.y / 100) * touchStageBox!.height,
+    };
+    const start = {
+      x: touchAlphaBox!.x + touchAlphaBox!.width / 2,
+      y: touchAlphaBox!.y + touchAlphaBox!.height / 2,
+    };
+    const cdp = await touchContext.newCDPSession(touchPage);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ ...start, id: 1 }],
+    });
+    for (let step = 1; step <= 8; step += 1) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          {
+            id: 1,
+            x: start.x + ((touchTargetTwoPoint.x - start.x) * step) / 8,
+            y: start.y + ((touchTargetTwoPoint.y - start.y) * step) / 8,
+          },
+        ],
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await expectAtTarget(
+      DRAG_DROP_ITEMS[0].label,
+      DRAG_DROP_TARGETS[0],
+      touchStage,
+      touchAlpha,
+    );
   } finally {
     await touchContext.close();
+  }
+});
+
+test("places drag-drop objects with the keyboard without exposing targets", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const task = await createPracticeTask(api, headers, "drag_drop");
+  await api.dispose();
+
+  await page.goto(`/practica/tarea?id=${task.id}&nombre=Titi`);
+  const stage = page.locator('[aria-label^="Escenario de la tarea."]');
+  const alpha = page.getByRole("button", { name: DRAG_DROP_ITEMS[0].label });
+  const beta = page.getByRole("button", { name: DRAG_DROP_ITEMS[1].label });
+  const expectAtTarget = async (
+    button: typeof alpha,
+    target: (typeof DRAG_DROP_TARGETS)[number],
+  ) => {
+    const [buttonBox, stageBox] = await Promise.all([
+      button.boundingBox(),
+      stage.boundingBox(),
+    ]);
+    expect(buttonBox).not.toBeNull();
+    expect(stageBox).not.toBeNull();
+    expect(
+      Math.abs(
+        buttonBox!.x +
+          buttonBox!.width / 2 -
+          (stageBox!.x + (target.x / 100) * stageBox!.width),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        buttonBox!.y +
+          buttonBox!.height / 2 -
+          (stageBox!.y + (target.y / 100) * stageBox!.height),
+      ),
+    ).toBeLessThanOrEqual(1);
+  };
+
+  await expect(alpha).toHaveAccessibleName(DRAG_DROP_ITEMS[0].label);
+  await expect(
+    page.getByRole("img", { name: DRAG_DROP_ITEMS[0].image.name }),
+  ).toHaveCount(0);
+  const dispatchIgnoredPointerDrag = async (
+    pointerId: number,
+    isPrimary: boolean,
+    button: number,
+  ) => {
+    await alpha.dispatchEvent("pointerdown", {
+      button,
+      clientX: 20,
+      clientY: 20,
+      isPrimary,
+      pointerId,
+      pointerType: "pen",
+    });
+    await alpha.dispatchEvent("pointermove", {
+      button,
+      clientX: 200,
+      clientY: 200,
+      isPrimary,
+      pointerId,
+      pointerType: "pen",
+    });
+    await alpha.dispatchEvent("pointerup", {
+      button,
+      clientX: 200,
+      clientY: 200,
+      isPrimary,
+      pointerId,
+      pointerType: "pen",
+    });
+  };
+  await dispatchIgnoredPointerDrag(9, false, 0);
+  await dispatchIgnoredPointerDrag(10, true, 2);
+  await expect(alpha).toHaveAttribute("aria-pressed", "false");
+  await expect(stage.getByRole("button")).toHaveCount(0);
+
+  await alpha.focus();
+  await page.keyboard.press("Enter");
+  await expect(stage).toBeFocused();
+  await expect(alpha).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Enter");
+  await expect(alpha).toHaveAttribute("aria-pressed", "true");
+
+  for (let step = 0; step < 5; step += 1) {
+    await page.keyboard.press("Shift+ArrowRight");
+  }
+  for (let step = 0; step < 3; step += 1) {
+    await page.keyboard.press("Shift+ArrowDown");
+  }
+  await page.keyboard.press("Enter");
+  await expectAtTarget(alpha, DRAG_DROP_TARGETS[0]);
+  await expect(alpha).toBeFocused();
+
+  await beta.focus();
+  await page.keyboard.press("Enter");
+  await expect(stage).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(beta).toHaveAttribute("aria-pressed", "false");
+  await expect(beta).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(stage).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowLeft");
+  for (let step = 0; step < 5; step += 1) {
+    await page.keyboard.press("Shift+ArrowLeft");
+  }
+  for (let step = 0; step < 3; step += 1) {
+    await page.keyboard.press("Shift+ArrowUp");
+  }
+  await expect(stage.locator("[data-keyboard-cursor]")).toHaveAttribute(
+    "style",
+    /left: 25%; top: 35%/,
+  );
+  await page.keyboard.press("Enter");
+  await expectAtTarget(beta, DRAG_DROP_TARGETS[1]);
+
+  const stageHtml = await stage.evaluate((element) => element.outerHTML);
+  expect(stageHtml).not.toContain("snapRadius");
+  for (const target of DRAG_DROP_TARGETS) {
+    await expect(page.getByText(target.id, { exact: true })).toHaveCount(0);
   }
 });
 
@@ -205,26 +394,16 @@ test("uses any and all selection modes in the practice player", async ({
     id,
     blocks: [taskBlock(`player-${id}-${Date.now()}`, `Respuesta ${id}`)],
   }));
-  const anyTask = await createPracticeTask(
-    api,
-    headers,
-    "multiple_choice",
-    {
-      title: "Jugador criterio any",
-      answers,
-      correctAnswerId: "any:B,C",
-    },
-  );
-  const allTask = await createPracticeTask(
-    api,
-    headers,
-    "multiple_choice",
-    {
-      title: "Jugador criterio all",
-      answers,
-      correctAnswerId: "all:B,C",
-    },
-  );
+  const anyTask = await createPracticeTask(api, headers, "multiple_choice", {
+    title: "Jugador criterio any",
+    answers,
+    correctAnswerId: "any:B,C",
+  });
+  const allTask = await createPracticeTask(api, headers, "multiple_choice", {
+    title: "Jugador criterio all",
+    answers,
+    correctAnswerId: "all:B,C",
+  });
   await api.dispose();
 
   await page.goto(`/practica/tarea?id=${anyTask.id}&nombre=Titi`);
