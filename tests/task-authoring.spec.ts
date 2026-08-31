@@ -1379,6 +1379,90 @@ test("edits task content with touch without adding mobile controls", async ({
   }
 });
 
+test("redirects a newly created task to editing with its data preserved", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const session = await api
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((response) => response.json());
+  const title = `Tarea creada ${Date.now()}`;
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+  await page.goto("/tareas/nueva");
+  await page.waitForFunction(() => {
+    const form = document.querySelector("form");
+    const island = form?.closest("astro-island");
+    return island && !island.hasAttribute("ssr");
+  });
+
+  await page.getByLabel("Título", { exact: true }).fill(title);
+  const categoryCheckbox = page.getByRole("checkbox", {
+    name: "Algoritmos y programación",
+  });
+  const ageCheckbox = page.getByRole("checkbox", { name: "10–12" });
+  await page
+    .locator('label[for="category-Algoritmos y programación"]')
+    .click();
+  await expect(categoryCheckbox).toBeChecked();
+  await page.locator('label[for="age-range-10–12"]').click();
+  await expect(ageCheckbox).toBeChecked();
+  await page
+    .getByRole("combobox", { name: "Dificultad para 10–12" })
+    .click();
+  await page.getByRole("option", { name: "Medio", exact: true }).click();
+  await page
+    .getByPlaceholder("Escribe el contenido del cuerpo.")
+    .fill("Contenido que debe conservarse");
+  await page
+    .getByPlaceholder("Escribe el contenido de la consigna.")
+    .fill("Consigna que debe conservarse");
+  await page.getByRole("radio", { name: "Respuesta corta" }).click();
+  await page
+    .getByLabel("Respuesta corta esperada")
+    .fill("Respuesta conservada");
+  await page
+    .getByLabel("Explicación", { exact: true })
+    .fill("Explicación que debe conservarse");
+
+  const createResponse = page.waitForResponse(
+    (candidate) =>
+      candidate.url() === `${API}/api/tasks` &&
+      candidate.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Guardar borrador" }).click();
+  const response = await createResponse;
+  expect(response.ok()).toBe(true);
+  await page.waitForURL((url) => {
+    return (
+      url.pathname === "/tareas/editar" && Boolean(url.searchParams.get("id"))
+    );
+  });
+  const createdTaskId = new URL(page.url()).searchParams.get("id");
+  expect(createdTaskId).not.toBeNull();
+
+  await expect(page.getByLabel("Título", { exact: true })).toHaveValue(title);
+  await expect(
+    page.getByPlaceholder("Escribe el contenido del cuerpo."),
+  ).toHaveValue("Contenido que debe conservarse");
+  await expect(
+    page.getByPlaceholder("Escribe el contenido de la consigna."),
+  ).toHaveValue("Consigna que debe conservarse");
+  await expect(page.getByLabel("Respuesta corta esperada")).toHaveValue(
+    "Respuesta conservada",
+  );
+  await expect(page.getByLabel("Explicación", { exact: true })).toHaveValue(
+    "Explicación que debe conservarse",
+  );
+  await expect(
+    page.getByRole("button", { name: "Guardar cambios" }),
+  ).toBeVisible();
+  await api.dispose();
+});
+
 test("serializes every multiple-choice correctness criterion", async ({
   page,
 }) => {
