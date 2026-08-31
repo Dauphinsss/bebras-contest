@@ -3224,8 +3224,8 @@ function answerIsCorrect(task: PlayTask, payload: unknown) {
       return (
         placement &&
         target &&
-        Math.abs(placement.x - target.x) <= target.snapRadius &&
-        Math.abs(placement.y - target.y) <= target.snapRadius
+        Math.hypot(placement.x - target.x, placement.y - target.y) <=
+          target.snapRadius
       );
     });
   }

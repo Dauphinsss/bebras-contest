@@ -70,8 +70,8 @@ function normalizeDragDropPlacements(
     const target = targets
       .filter(
         (candidate) =>
-          Math.abs(x - candidate.x) <= candidate.snapRadius &&
-          Math.abs(y - candidate.y) <= candidate.snapRadius,
+          Math.hypot(x - candidate.x, y - candidate.y) <=
+          candidate.snapRadius,
       )
       .sort(
         (left, right) =>
