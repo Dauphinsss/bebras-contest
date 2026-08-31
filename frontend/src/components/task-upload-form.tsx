@@ -588,17 +588,22 @@ export function TaskUploadForm({
     const task = loadedTask ? await updateTask(draft) : await createTask(draft);
 
     onSubmitted?.(task);
-    setLoadedTask(task);
-    setForm(loadedTask ? createStateFromTask(task) : createInitialState());
-    setErrors([]);
-    toast.success(
-      loadedTask
-        ? "La tarea se actualizó correctamente."
-        : "La tarea se guardó correctamente.",
-      {
+    if (!loadedTask) {
+      toast.success("La tarea se guardó correctamente.", {
         description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
-      },
-    );
+      });
+      window.location.assign(
+        `/tareas/editar?id=${encodeURIComponent(task.id)}`,
+      );
+      return;
+    }
+
+    setLoadedTask(task);
+    setForm(createStateFromTask(task));
+    setErrors([]);
+    toast.success("La tarea se actualizó correctamente.", {
+      description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
+    });
   };
 
   const handleClearForm = () => {
