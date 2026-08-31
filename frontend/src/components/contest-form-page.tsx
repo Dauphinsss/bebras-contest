@@ -61,6 +61,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
+import { LabelWithHint } from "@/components/field-hint";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -86,9 +87,20 @@ function createDefaultTaskConfig(taskId: string): ContestTaskConfigInput {
   return { taskId };
 }
 
+function defaultContestTitle(category: string) {
+  const year = new Date().getFullYear();
+  return category
+    ? `Desafío Bebras ${year} - ${category}`
+    : `Desafío Bebras ${year}`;
+}
+
+function isGeneratedTitle(title: string, category: string) {
+  return !title.trim() || title === defaultContestTitle(category);
+}
+
 function createInitialState(): FormState {
   return {
-    title: "",
+    title: defaultContestTitle(""),
     category: "",
     durationMinutes: 45,
     startsAt: "",
@@ -286,10 +298,13 @@ function DateRangeField({
       <FieldContent>
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="flex min-w-0 flex-col gap-2">
-            <FieldLabel htmlFor="contest-date-range">
-              Ventana de disponibilidad{" "}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
+            <LabelWithHint
+              htmlFor="contest-date-range"
+              required
+              hint="La competencia queda abierta de forma continua entre las dos fechas y horas, no en un horario que se repite cada día."
+            >
+              Ventana de disponibilidad
+            </LabelWithHint>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -693,23 +708,37 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                         title: event.target.value,
                       }))
                     }
-                    placeholder="Ej. Bebras Secundaria 2026"
+                    placeholder={defaultContestTitle("")}
                   />
                 </FieldContent>
               </Field>
               <Field data-invalid={hasCategoryError || undefined}>
-                <FieldLabel htmlFor="contest-category">
-                  Categoría <span className="text-destructive">*</span>
-                </FieldLabel>
+                <LabelWithHint
+                  htmlFor="contest-category"
+                  required
+                  hint="Define qué cursos pueden inscribirse y de qué rango de edad sale la dificultad de cada tarea para calcular el puntaje."
+                >
+                  Categoría
+                </LabelWithHint>
                 <FieldContent>
                   <Select
                     disabled={locked}
                     value={form.category || "none"}
                     onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        category: value === "none" ? "" : value,
-                      }))
+                      setForm((current) => {
+                        const nextCategory = value === "none" ? "" : value;
+
+                        return {
+                          ...current,
+                          category: nextCategory,
+                          title: isGeneratedTitle(
+                            current.title,
+                            current.category,
+                          )
+                            ? defaultContestTitle(nextCategory)
+                            : current.title,
+                        };
+                      })
                     }
                   >
                     <SelectTrigger
@@ -736,10 +765,13 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 </FieldContent>
               </Field>
               <Field data-invalid={hasDurationError || undefined}>
-                <FieldLabel htmlFor="contest-duration">
-                  Duración por equipo (minutos){" "}
-                  <span className="text-destructive">*</span>
-                </FieldLabel>
+                <LabelWithHint
+                  htmlFor="contest-duration"
+                  required
+                  hint="El reloj arranca cuando el equipo presiona Empezar, no cuando abre la competencia. El estándar Bebras son 45 minutos."
+                >
+                  Duración por equipo (minutos)
+                </LabelWithHint>
                 <FieldContent>
                   <Input
                     id="contest-duration"

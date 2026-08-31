@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   CalendarClockIcon,
-  CalendarIcon,
   ChevronDownIcon,
-  Clock8Icon,
   CopyIcon,
   LinkIcon,
   LoaderCircleIcon,
@@ -19,11 +15,8 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import {
-  gradeLabel,
-  gradesForCategory,
-  toDatetimeLocalValue,
-} from "@/lib/contest-schema";
+import { DateTimeField } from "@/components/datetime-field";
+import { gradeLabel, gradesForCategory } from "@/lib/contest-schema";
 
 import {
   createGroup,
@@ -80,12 +73,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -104,147 +91,6 @@ const sessionFormatter = new Intl.DateTimeFormat("es-BO", {
 
 function formatSession(value: string) {
   return sessionFormatter.format(new Date(value));
-}
-
-function parseDateTimeLocal(value: string) {
-  if (!value) {
-    return null;
-  }
-  const parsedDate = new Date(value);
-  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
-}
-
-function toTimeValue(value: string) {
-  const date = parseDateTimeLocal(value);
-  if (!date) {
-    return "";
-  }
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-function updateDatePart(currentValue: string, nextDate: Date | undefined) {
-  if (!nextDate) {
-    return currentValue;
-  }
-  const currentDate = parseDateTimeLocal(currentValue);
-  const nextValue = new Date(nextDate);
-  if (currentDate) {
-    nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
-  } else {
-    nextValue.setHours(9, 0, 0, 0);
-  }
-  return toDatetimeLocalValue(nextValue.toISOString());
-}
-
-function updateTimePart(currentValue: string, nextTime: string) {
-  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
-  const [hours, minutes] = nextTime.split(":").map((part) => Number(part));
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return currentValue;
-  }
-  const nextValue = new Date(currentDate);
-  nextValue.setHours(hours, minutes, 0, 0);
-  return toDatetimeLocalValue(nextValue.toISOString());
-}
-
-function SessionDateTimeField({
-  value,
-  onChange,
-  minDate,
-  maxDate,
-  disabled = false,
-}: {
-  value: string;
-  onChange: (nextValue: string) => void;
-  minDate: Date | null;
-  maxDate: Date | null;
-  disabled?: boolean;
-}) {
-  const date = parseDateTimeLocal(value);
-  const dateLabel = date
-    ? format(date, "d 'de' MMMM 'de' yyyy", { locale: es })
-    : "Elige un día";
-  const [timeDraft, setTimeDraft] = useState(toTimeValue(value));
-
-  useEffect(() => {
-    setTimeDraft(toTimeValue(value));
-  }, [value]);
-
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-
-  const timeMin =
-    date && minDate && sameDay(date, minDate)
-      ? toTimeValue(minDate.toISOString())
-      : undefined;
-  const timeMax =
-    date && maxDate && sameDay(date, maxDate)
-      ? toTimeValue(maxDate.toISOString())
-      : undefined;
-
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            className={cn(
-              "w-full justify-start text-left font-normal sm:flex-1",
-              !date && "text-muted-foreground",
-            )}
-          >
-            <CalendarIcon data-icon="inline-start" />
-            {dateLabel}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          data-calendar-popover
-          className="w-auto rounded-sm p-0"
-          align="start"
-        >
-          <Calendar
-            initialFocus
-            mode="single"
-            selected={date ?? undefined}
-            defaultMonth={date ?? minDate ?? undefined}
-            disabled={[
-              ...(minDate ? [{ before: minDate }] : []),
-              ...(maxDate ? [{ after: maxDate }] : []),
-            ]}
-            onSelect={(nextDate) => onChange(updateDatePart(value, nextDate))}
-          />
-        </PopoverContent>
-      </Popover>
-      <div className="relative sm:w-36">
-        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3 text-muted-foreground">
-          <Clock8Icon className="size-4" />
-          <span className="sr-only">Hora de la sesión</span>
-        </div>
-        <Input
-          aria-label="Hora de la sesión"
-          className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-          type="time"
-          disabled={disabled || !date}
-          min={timeMin}
-          max={timeMax}
-          value={timeDraft}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            setTimeDraft(nextValue);
-            if (nextValue) {
-              onChange(updateTimePart(value, nextValue));
-            }
-          }}
-        />
-      </div>
-    </div>
-  );
 }
 
 export function GroupsHome() {
@@ -576,9 +422,11 @@ export function GroupsHome() {
         <CardContent className="pt-6">
           {publishedContests.length === 0 ? (
             <Alert>
-              <AlertTitle>No hay competencias publicadas</AlertTitle>
+              <AlertTitle>No hay competencias disponibles</AlertTitle>
               <AlertDescription>
-                Publica una competencia primero para poder crear grupos.
+                Solo se pueden crear grupos para competencias publicadas cuya
+                ventana todavía no terminó. Si las que tienes ya cerraron,
+                publica una nueva con fechas futuras.
               </AlertDescription>
             </Alert>
           ) : (
@@ -624,7 +472,9 @@ export function GroupsHome() {
                   Fecha y hora de la sesión
                 </FieldLabel>
                 <FieldContent>
-                  <SessionDateTimeField
+                  <DateTimeField
+                    label="Sesión"
+                    fallbackHour={9}
                     value={scheduledAt}
                     onChange={setScheduledAt}
                     minDate={contestStartsAt}
