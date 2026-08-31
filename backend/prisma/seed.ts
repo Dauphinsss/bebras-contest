@@ -52,7 +52,9 @@ function readSnapshot(): SchoolRow[] {
       );
     }
     if (codes.has(row.codUe)) {
-      throw new Error(`El código de unidad educativa ${row.codUe} está duplicado.`);
+      throw new Error(
+        `El código de unidad educativa ${row.codUe} está duplicado.`,
+      );
     }
     codes.add(row.codUe);
   }

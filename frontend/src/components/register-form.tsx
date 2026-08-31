@@ -83,10 +83,7 @@ export function RegisterForm() {
         toast.error("Adjunta el anverso y el reverso de tu carnet.");
         return;
       }
-      if (
-        idFrontFile.size > DOC_MAX_BYTES ||
-        idBackFile.size > DOC_MAX_BYTES
-      ) {
+      if (idFrontFile.size > DOC_MAX_BYTES || idBackFile.size > DOC_MAX_BYTES) {
         toast.error("Cada imagen del carnet no debe superar los 5 MB.");
         return;
       }
@@ -231,7 +228,11 @@ export function RegisterForm() {
             >
               Editar
             </Button>
-            <Button type="button" disabled={submitting} onClick={() => void submit()}>
+            <Button
+              type="button"
+              disabled={submitting}
+              onClick={() => void submit()}
+            >
               {submitting ? "Creando cuenta..." : "Confirmar y crear cuenta"}
             </Button>
           </div>
@@ -339,9 +340,7 @@ export function RegisterForm() {
                     type={showPassword ? "text" : "password"}
                     className="pr-10"
                     value={confirmPassword}
-                    onChange={(event) =>
-                      setConfirmPassword(event.target.value)
-                    }
+                    onChange={(event) => setConfirmPassword(event.target.value)}
                   />
                   <button
                     type="button"
@@ -370,7 +369,9 @@ export function RegisterForm() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice && isSchool ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+              hasSchoolChoice && isSchool
+                ? "grid-rows-[1fr]"
+                : "grid-rows-[0fr]",
             )}
           >
             <div className="overflow-hidden">
@@ -403,7 +404,9 @@ export function RegisterForm() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice && !isSchool ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+              hasSchoolChoice && !isSchool
+                ? "grid-rows-[1fr]"
+                : "grid-rows-[0fr]",
             )}
           >
             <div className="overflow-hidden">

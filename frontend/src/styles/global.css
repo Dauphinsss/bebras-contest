@@ -19,7 +19,7 @@
   --card-foreground: #000000;
   --popover: #ffffff;
   --popover-foreground: #000000;
-  --primary: #E34234;
+  --primary: #e34234;
   --primary-foreground: #ffffff;
   --secondary: #ffff00;
   --secondary-foreground: #000000;
@@ -51,8 +51,8 @@
   --shadow-blur: 0px;
   --shadow-spread: 0px;
   --shadow-color: #000000;
-  --shadow-hard: var(--shadow-offset-x) var(--shadow-offset-y) var(--shadow-blur)
-    var(--shadow-spread) var(--shadow-color);
+  --shadow-hard: var(--shadow-offset-x) var(--shadow-offset-y)
+    var(--shadow-blur) var(--shadow-spread) var(--shadow-color);
   --focus-soft: 0 0 0 3px rgb(255 51 51 / 0.28);
 }
 
@@ -426,7 +426,9 @@
   }
 
   [data-slot="calendar"] .rdp-range_end .rdp-day_button,
-  [data-slot="calendar"] .rdp-selected:not(.rdp-range_start):not(.rdp-range_middle) .rdp-day_button {
+  [data-slot="calendar"]
+    .rdp-selected:not(.rdp-range_start):not(.rdp-range_middle)
+    .rdp-day_button {
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 28%, transparent);
   }
 
@@ -463,19 +465,35 @@
   }
 
   [data-sonner-toaster] [data-type="success"] {
-    background: color-mix(in srgb, var(--background) 94%, var(--primary) 6%) !important;
+    background: color-mix(
+      in srgb,
+      var(--background) 94%,
+      var(--primary) 6%
+    ) !important;
   }
 
   [data-sonner-toaster] [data-type="error"] {
-    background: color-mix(in srgb, var(--background) 94%, var(--destructive) 6%) !important;
+    background: color-mix(
+      in srgb,
+      var(--background) 94%,
+      var(--destructive) 6%
+    ) !important;
   }
 
   [data-sonner-toaster] [data-type="warning"] {
-    background: color-mix(in srgb, var(--background) 92%, var(--secondary) 8%) !important;
+    background: color-mix(
+      in srgb,
+      var(--background) 92%,
+      var(--secondary) 8%
+    ) !important;
   }
 
   [data-sonner-toaster] [data-type="info"] {
-    background: color-mix(in srgb, var(--background) 94%, var(--accent) 6%) !important;
+    background: color-mix(
+      in srgb,
+      var(--background) 94%,
+      var(--accent) 6%
+    ) !important;
   }
 }
 

@@ -44,7 +44,9 @@ export function MaestrosHome() {
       })
       .catch((error: unknown) => {
         toast.error(
-          error instanceof Error ? error.message : "No se pudieron cargar los maestros.",
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los maestros.",
         );
       })
       .finally(() => {
@@ -61,7 +63,9 @@ export function MaestrosHome() {
   const openDoc = (id: number, doc: MaestroDoc) => {
     openMaestroDocument(id, doc).catch((error) =>
       toast.error(
-        error instanceof Error ? error.message : "No se pudo abrir el documento.",
+        error instanceof Error
+          ? error.message
+          : "No se pudo abrir el documento.",
       ),
     );
   };
@@ -107,12 +111,17 @@ export function MaestrosHome() {
           <Alert>
             <AlertTitle>Aún no hay maestros</AlertTitle>
             <AlertDescription>
-              Cuando un maestro se registre, aparecerá aquí para que lo apruebes.
+              Cuando un maestro se registre, aparecerá aquí para que lo
+              apruebes.
             </AlertDescription>
           </Alert>
         ) : (
           maestros.map((maestro) => (
-            <Card key={maestro.id} variant="soft-gradient" className="gap-0 py-0">
+            <Card
+              key={maestro.id}
+              variant="soft-gradient"
+              className="gap-0 py-0"
+            >
               <CardHeader className="gap-3 py-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex min-w-0 flex-col gap-1">
@@ -135,7 +144,8 @@ export function MaestrosHome() {
                     </CardDescription>
                     {maestro.schoolName && (
                       <CardDescription>
-                        {maestro.isHomeschool ? "Modalidad" : "Colegio"}: {maestro.schoolName}
+                        {maestro.isHomeschool ? "Modalidad" : "Colegio"}:{" "}
+                        {maestro.schoolName}
                       </CardDescription>
                     )}
                     {maestro.phone && (

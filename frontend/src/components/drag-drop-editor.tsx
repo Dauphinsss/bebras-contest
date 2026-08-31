@@ -9,12 +9,7 @@ import {
 import { ImagePlusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
   FieldContent,
@@ -443,7 +438,9 @@ export function DragDropEditor({
                         </Field>
 
                         <Field>
-                          <FieldLabel htmlFor={`drag-target-radius-${target.id}`}>
+                          <FieldLabel
+                            htmlFor={`drag-target-radius-${target.id}`}
+                          >
                             Radio de encaje (%)
                           </FieldLabel>
                           <FieldContent>
@@ -497,10 +494,7 @@ export function DragDropEditor({
                               className="sr-only"
                               type="file"
                               onChange={(event) => {
-                                onReplaceItemImage(
-                                  item.id,
-                                  event.target.files,
-                                );
+                                onReplaceItemImage(item.id, event.target.files);
                                 event.target.value = "";
                               }}
                             />

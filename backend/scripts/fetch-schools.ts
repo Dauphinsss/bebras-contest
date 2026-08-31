@@ -12,7 +12,13 @@ import { resolve, dirname } from "node:path";
 const BASE =
   "https://seie.minedu.gob.bo/geoserver/minedu/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=minedu:vw_unidad_geo7&outputFormat=application/json&sortBy=cod_ue";
 const PAGE_SIZE = 2000;
-const SNAPSHOT = resolve(__dirname, "..", "prisma", "seed", "schools.ndjson.gz");
+const SNAPSHOT = resolve(
+  __dirname,
+  "..",
+  "prisma",
+  "seed",
+  "schools.ndjson.gz",
+);
 const TEMP_SNAPSHOT = `${SNAPSHOT}.${process.pid}.tmp`;
 const MIN_EXPECTED_SCHOOLS = 10_000;
 const MIN_EXISTING_RATIO = 0.9;
@@ -85,7 +91,10 @@ async function fetchPage(startIndex: number) {
     const parsedTotal = Number(data.numberMatched);
     return {
       features: data.features ?? [],
-      total: Number.isSafeInteger(parsedTotal) && parsedTotal >= 0 ? parsedTotal : null,
+      total:
+        Number.isSafeInteger(parsedTotal) && parsedTotal >= 0
+          ? parsedTotal
+          : null,
     };
   } finally {
     clearTimeout(timeout);
@@ -115,7 +124,9 @@ function validateRows(rows: SchoolRow[]) {
       );
     }
     if (codes.has(row.codUe)) {
-      throw new Error(`El código de unidad educativa ${row.codUe} está duplicado.`);
+      throw new Error(
+        `El código de unidad educativa ${row.codUe} está duplicado.`,
+      );
     }
     codes.add(row.codUe);
   }
@@ -186,7 +197,11 @@ async function main() {
       );
     }
 
-    if (expectedTotal !== null ? fetchedFeatures === expectedTotal : features.length < PAGE_SIZE) {
+    if (
+      expectedTotal !== null
+        ? fetchedFeatures === expectedTotal
+        : features.length < PAGE_SIZE
+    ) {
       break;
     }
     startIndex += features.length;
@@ -213,13 +228,18 @@ async function main() {
 
   mkdirSync(dirname(SNAPSHOT), { recursive: true });
   const ndjson = rows.map((row) => JSON.stringify(row)).join("\n");
-  writeFileSync(TEMP_SNAPSHOT, gzipSync(Buffer.from(ndjson, "utf8"), { level: 9 }));
+  writeFileSync(
+    TEMP_SNAPSHOT,
+    gzipSync(Buffer.from(ndjson, "utf8"), { level: 9 }),
+  );
 
   try {
     const writtenRows = readSnapshotRows(TEMP_SNAPSHOT);
     validateRows(writtenRows);
     if (writtenRows.length !== rows.length) {
-      throw new Error("El archivo temporal no contiene todos los colegios descargados.");
+      throw new Error(
+        "El archivo temporal no contiene todos los colegios descargados.",
+      );
     }
     renameSync(TEMP_SNAPSHOT, SNAPSHOT);
   } finally {

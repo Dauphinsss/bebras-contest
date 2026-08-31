@@ -55,10 +55,17 @@ async function hasValidDocumentSignature(file: Express.Multer.File) {
       return bytes.subarray(0, 5).equals(Buffer.from("%PDF-"));
     }
     if (extension === ".jpg" || extension === ".jpeg") {
-      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      return (
+        bytes.length >= 3 &&
+        bytes[0] === 0xff &&
+        bytes[1] === 0xd8 &&
+        bytes[2] === 0xff
+      );
     }
     if (extension === ".png") {
-      return bytes.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      return bytes.equals(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      );
     }
 
     return false;
@@ -100,8 +107,13 @@ function registerUploadMiddleware(
   handler(req, res, (err: unknown) => {
     if (err) {
       void cleanupFiles(...uploadedFiles(req)).then(() => {
-        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-          res.status(400).json({ message: "El archivo no debe superar los 5 MB." });
+        if (
+          err instanceof multer.MulterError &&
+          err.code === "LIMIT_FILE_SIZE"
+        ) {
+          res
+            .status(400)
+            .json({ message: "El archivo no debe superar los 5 MB." });
           return;
         }
         if (err instanceof Error && err.message === "INVALID_DOC_TYPE") {
@@ -153,9 +165,7 @@ function pickUploaded(
   req: express.Request,
   field: string,
 ): Express.Multer.File | undefined {
-  const files = req.files as
-    | Record<string, Express.Multer.File[]>
-    | undefined;
+  const files = req.files as Record<string, Express.Multer.File[]> | undefined;
   return files?.[field]?.[0];
 }
 
@@ -365,9 +375,7 @@ function normalizeDragDropConfig(value: unknown): DragDropConfig {
         image: item.image ?? null,
         widthPercent: normalizeDragDropWidth(item.widthPercent),
         correctTargetId:
-          typeof item.correctTargetId === "string"
-            ? item.correctTargetId
-            : "",
+          typeof item.correctTargetId === "string" ? item.correctTargetId : "",
       };
     }),
     targets: config.targets.map((entry, index) => {
@@ -536,7 +544,9 @@ function parseTaskPayload(body: Record<string, unknown>) {
   );
 
   if (activeRanges.length === 0) {
-    throw new Error("Debes activar al menos un rango de edad con su dificultad.");
+    throw new Error(
+      "Debes activar al menos un rango de edad con su dificultad.",
+    );
   }
 
   const unknownRange = activeRanges.find(
@@ -580,14 +590,20 @@ function parseTaskPayload(body: Record<string, unknown>) {
   const answers = Array.isArray(body.answers) ? body.answers : [];
   const correctAnswerId = readText(body.correctAnswerId);
   const shortAnswer = readText(body.shortAnswer);
-  const rangeAnswers = Array.isArray(body.rangeAnswers) ? body.rangeAnswers : [];
+  const rangeAnswers = Array.isArray(body.rangeAnswers)
+    ? body.rangeAnswers
+    : [];
   const dragDropItems = Array.isArray(body.dragDropItems)
     ? body.dragDropItems
     : [];
   const dragDropTargets = Array.isArray(body.dragDropTargets)
     ? body.dragDropTargets
     : [];
-  let dragDropConfig: { version: 2; items: DragDropItem[]; targets: DragDropTarget[] } = {
+  let dragDropConfig: {
+    version: 2;
+    items: DragDropItem[];
+    targets: DragDropTarget[];
+  } = {
     version: 2,
     items: [],
     targets: [],
@@ -693,7 +709,9 @@ function parseTaskPayload(body: Record<string, unknown>) {
       }
 
       if (itemIds.has(id)) {
-        throw new Error("Los IDs de los objetos arrastrables deben ser únicos.");
+        throw new Error(
+          "Los IDs de los objetos arrastrables deben ser únicos.",
+        );
       }
       itemIds.add(id);
 
@@ -717,7 +735,9 @@ function parseTaskPayload(body: Record<string, unknown>) {
       }
 
       if (!correctTargetId) {
-        throw new Error("Cada objeto arrastrable debe tener un destino correcto.");
+        throw new Error(
+          "Cada objeto arrastrable debe tener un destino correcto.",
+        );
       }
 
       normalizedItems.push({
@@ -867,7 +887,10 @@ function parseTaskIds(value: unknown) {
     return [];
   }
 
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return value.filter(
+    (item): item is string =>
+      typeof item === "string" && item.trim().length > 0,
+  );
 }
 
 const BEBRAS_SCORING = {
@@ -920,7 +943,9 @@ async function buildContestTaskWrites(taskIds: string[], category: string) {
   const ageRange = CATEGORY_AGE_RANGE[category];
 
   if (!ageRange) {
-    throw new Error(`La categoría "${category}" no tiene un rango de edad definido.`);
+    throw new Error(
+      `La categoría "${category}" no tiene un rango de edad definido.`,
+    );
   }
 
   const drafts = await prisma.taskDraft.findMany({
@@ -957,9 +982,7 @@ async function buildContestTaskWrites(taskIds: string[], category: string) {
   });
 }
 
-function computeInitialScore(
-  writes: Array<{ minScore: number }>,
-) {
+function computeInitialScore(writes: Array<{ minScore: number }>) {
   return writes.reduce((total, write) => total - write.minScore, 0);
 }
 
@@ -1139,7 +1162,8 @@ function deserializeContest(contest: {
 
 function parseContestPayload(body: Record<string, unknown>) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
-  const category = typeof body.category === "string" ? body.category.trim() : "";
+  const category =
+    typeof body.category === "string" ? body.category.trim() : "";
   const durationMinutes = Number(body.durationMinutes);
   const tasks = parseContestTasks(body);
 
@@ -1196,10 +1220,16 @@ app.use((req, res, next) => {
     );
   });
 
-  res.header("Access-Control-Allow-Origin", req.headers.origin ?? frontendOrigin);
+  res.header(
+    "Access-Control-Allow-Origin",
+    req.headers.origin ?? frontendOrigin,
+  );
   res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  );
 
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
@@ -1279,7 +1309,12 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     return;
   }
 
-  res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
+  res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+  });
 });
 
 app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
@@ -1748,7 +1783,8 @@ app.post("/api/contests", async (req, res) => {
     payload = parseContestPayload(req.body as Record<string, unknown>);
   } catch (error) {
     res.status(400).json({
-      message: error instanceof Error ? error.message : "Invalid contest payload",
+      message:
+        error instanceof Error ? error.message : "Invalid contest payload",
     });
     return;
   }
@@ -1803,7 +1839,8 @@ app.put("/api/contests/:id", async (req, res) => {
     payload = parseContestPayload(req.body as Record<string, unknown>);
   } catch (error) {
     res.status(400).json({
-      message: error instanceof Error ? error.message : "Invalid contest payload",
+      message:
+        error instanceof Error ? error.message : "Invalid contest payload",
     });
     return;
   }
@@ -2133,7 +2170,10 @@ function cleanName(value: string) {
 function formatName(value: string) {
   return cleanName(value)
     .toLowerCase()
-    .replace(/(^|\s|-)(\p{L})/gu, (_match, sep, letter) => sep + letter.toUpperCase());
+    .replace(
+      /(^|\s|-)(\p{L})/gu,
+      (_match, sep, letter) => sep + letter.toUpperCase(),
+    );
 }
 
 function nameKey(first: string, last: string) {
@@ -2394,7 +2434,8 @@ app.post("/api/groups", async (req, res) => {
     scheduledAt = parseOptionalDateInput(req.body?.scheduledAt);
   } catch (error) {
     res.status(400).json({
-      message: error instanceof Error ? error.message : "Fecha de sesión inválida.",
+      message:
+        error instanceof Error ? error.message : "Fecha de sesión inválida.",
     });
     return;
   }
@@ -2407,16 +2448,16 @@ app.post("/api/groups", async (req, res) => {
   }
 
   if (!contest.publishedAt) {
-    res
-      .status(400)
-      .json({ message: "La competencia debe estar publicada para crear grupos." });
+    res.status(400).json({
+      message: "La competencia debe estar publicada para crear grupos.",
+    });
     return;
   }
 
   if (contestHasEnded(computeContestState(contest).state)) {
-    res
-      .status(409)
-      .json({ message: "La competencia ya cerró; no es posible crear grupos." });
+    res.status(409).json({
+      message: "La competencia ya cerró; no es posible crear grupos.",
+    });
     return;
   }
 
@@ -2575,9 +2616,9 @@ app.put("/api/teams/:id", async (req, res) => {
   }
 
   if (isPareja && (!twoFirst || !twoLast)) {
-    res
-      .status(400)
-      .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    res.status(400).json({
+      message: "Faltan los nombres y apellidos del segundo integrante.",
+    });
     return;
   }
 
@@ -2680,9 +2721,9 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   }
 
   if (mode === "pareja" && (!twoFirst || !twoLast)) {
-    res
-      .status(400)
-      .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    res.status(400).json({
+      message: "Faltan los nombres y apellidos del segundo integrante.",
+    });
     return;
   }
 
@@ -2719,7 +2760,9 @@ app.post("/api/groups/:id/teams", async (req, res) => {
 
   const takenKeys = new Set<string>();
   for (const existing of existingTeams) {
-    takenKeys.add(nameKey(existing.memberOneFirstName, existing.memberOneLastName));
+    takenKeys.add(
+      nameKey(existing.memberOneFirstName, existing.memberOneLastName),
+    );
     if (existing.memberTwoFirstName && existing.memberTwoLastName) {
       takenKeys.add(
         nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
@@ -2763,7 +2806,9 @@ app.post("/api/groups/:id/teams", async (req, res) => {
 // ---- Entrada del estudiante (público, sin login) ----
 
 app.get("/api/play/group/:code", async (req, res) => {
-  const code = String(req.params.code ?? "").trim().toUpperCase();
+  const code = String(req.params.code ?? "")
+    .trim()
+    .toUpperCase();
 
   const group = await prisma.contestGroup.findUnique({
     where: { accessCode: code },
@@ -2859,9 +2904,9 @@ app.post("/api/play/join", async (req, res) => {
   }
 
   if (mode === "pareja" && (!memberTwoFirstName || !memberTwoLastName)) {
-    res
-      .status(400)
-      .json({ message: "Faltan los nombres y apellidos del segundo integrante." });
+    res.status(400).json({
+      message: "Faltan los nombres y apellidos del segundo integrante.",
+    });
     return;
   }
 
@@ -3025,7 +3070,11 @@ function parseMcCorrectness(value: string) {
       mode: "any",
       ids: [
         ...new Set(
-          raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+          raw
+            .slice(4)
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
         ),
       ],
     };
@@ -3035,7 +3084,11 @@ function parseMcCorrectness(value: string) {
       mode: "all",
       ids: [
         ...new Set(
-          raw.slice(4).split(",").map((item) => item.trim()).filter(Boolean),
+          raw
+            .slice(4)
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
         ),
       ],
     };
@@ -3102,7 +3155,11 @@ function parseDragDropAnswer(
   }
 
   const placements = (payload as Record<string, unknown>).placements;
-  if (!placements || typeof placements !== "object" || Array.isArray(placements)) {
+  if (
+    !placements ||
+    typeof placements !== "object" ||
+    Array.isArray(placements)
+  ) {
     return null;
   }
 
@@ -3134,7 +3191,11 @@ function parseDragDropAnswer(
 
   const normalizedPlacements: Record<string, { x: number; y: number }> = {};
   for (const [itemId, placement] of entries) {
-    if (!placement || typeof placement !== "object" || Array.isArray(placement)) {
+    if (
+      !placement ||
+      typeof placement !== "object" ||
+      Array.isArray(placement)
+    ) {
       return null;
     }
 
@@ -3182,7 +3243,9 @@ function answerIsCorrect(task: PlayTask, payload: unknown) {
     const text = typeof response.text === "string" ? response.text : "";
     return (
       text.trim().toLowerCase() ===
-      String(task.shortAnswer ?? "").trim().toLowerCase()
+      String(task.shortAnswer ?? "")
+        .trim()
+        .toLowerCase()
     );
   }
   if (type === "range") {
@@ -3397,7 +3460,8 @@ async function finalizeAttempt(attemptId: string, recomputeRank = true) {
   }
 
   const now = currentDate();
-  const finishedAt = attempt.endsAt && attempt.endsAt < now ? attempt.endsAt : now;
+  const finishedAt =
+    attempt.endsAt && attempt.endsAt < now ? attempt.endsAt : now;
 
   await prisma.attempt.update({
     where: { id: attempt.id },
@@ -3488,8 +3552,7 @@ app.post("/api/play/start", async (req, res) => {
 
   if (team.attempt.status === "pending") {
     const now = currentDate();
-    const remainingMinutes =
-      (contest.endsAt.getTime() - now.getTime()) / 60000;
+    const remainingMinutes = (contest.endsAt.getTime() - now.getTime()) / 60000;
 
     if (remainingMinutes < contest.durationMinutes) {
       res.status(409).json({
@@ -3551,7 +3614,9 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
   const finished = attempt.status === "finished";
   const resultsPublished = Boolean(contest.resultsPublishedAt);
   const showResults =
-    finished && resultsPublished && (contest.showFeedback || contest.showSolutions);
+    finished &&
+    resultsPublished &&
+    (contest.showFeedback || contest.showSolutions);
   const tasks = contest.tasks.map((contestTask) => {
     const task = deserializeTask(contestTask.taskDraft) as PlayTask;
     const safe: ReturnType<typeof renderSafeTask> & {
@@ -3640,14 +3705,19 @@ app.post("/api/play/answer", async (req, res) => {
   });
 
   if (!contestTask) {
-    res.status(404).json({ message: "La tarea no pertenece a esta competencia." });
+    res
+      .status(404)
+      .json({ message: "La tarea no pertenece a esta competencia." });
     return;
   }
 
   const task = deserializeTask(contestTask.taskDraft) as PlayTask;
   if (task.answerType === "drag_drop") {
     const answer = parseDragDropAnswer(task, payload);
-    if (!answer || (answer.kind === "coordinates" && task.dragDropVersion !== 1)) {
+    if (
+      !answer ||
+      (answer.kind === "coordinates" && task.dragDropVersion !== 1)
+    ) {
       res.status(400).json({
         message: "La respuesta de arrastrar y soltar no es válida.",
       });
@@ -3657,7 +3727,10 @@ app.post("/api/play/answer", async (req, res) => {
 
   await prisma.attemptAnswer.upsert({
     where: {
-      attemptId_taskDraftId: { attemptId: team.attempt.id, taskDraftId: taskId },
+      attemptId_taskDraftId: {
+        attemptId: team.attempt.id,
+        taskDraftId: taskId,
+      },
     },
     update: {
       responsePayload: JSON.stringify(payload),

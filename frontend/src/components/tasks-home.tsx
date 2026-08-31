@@ -86,8 +86,8 @@ export function TasksHome() {
                   Bebras Bolivia
                 </h1>
                 <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-                  Administra borradores, revisa el estado de cada tarea y prueba su
-                  experiencia final antes de publicarla.
+                  Administra borradores, revisa el estado de cada tarea y prueba
+                  su experiencia final antes de publicarla.
                 </p>
               </div>
             </div>
@@ -198,9 +198,13 @@ export function TasksHome() {
                           void removeTask(task.id)
                             .then(() => {
                               setTasks((current) =>
-                                current.filter((currentTask) => currentTask.id !== task.id),
+                                current.filter(
+                                  (currentTask) => currentTask.id !== task.id,
+                                ),
                               );
-                              toast.success("La tarea se eliminó correctamente.");
+                              toast.success(
+                                "La tarea se eliminó correctamente.",
+                              );
                             })
                             .catch(() => {
                               toast.error("No se pudo eliminar la tarea.");

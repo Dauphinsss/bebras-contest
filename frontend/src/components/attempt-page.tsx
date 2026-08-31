@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -514,7 +520,10 @@ function TaskCard({
         </div>
 
         {task.challengeBlocks.length > 0 && (
-          <TaskContentRenderer blocks={task.challengeBlocks} className="gap-4" />
+          <TaskContentRenderer
+            blocks={task.challengeBlocks}
+            className="gap-4"
+          />
         )}
 
         <PlayTaskFields

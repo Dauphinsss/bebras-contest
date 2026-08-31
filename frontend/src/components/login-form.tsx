@@ -67,9 +67,7 @@ export function LoginForm() {
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle>Iniciar sesión</CardTitle>
-        <CardDescription>
-          Acceso para maestros y organizadores.
-        </CardDescription>
+        <CardDescription>Acceso para maestros y organizadores.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>

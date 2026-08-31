@@ -47,9 +47,12 @@ export function publishContestResults(contestId: string) {
 }
 
 export function unpublishContestResults(contestId: string) {
-  return request<StoredContest>(`/api/contests/${contestId}/results/unpublish`, {
-    method: "POST",
-  });
+  return request<StoredContest>(
+    `/api/contests/${contestId}/results/unpublish`,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export function removeContest(contestId: string) {

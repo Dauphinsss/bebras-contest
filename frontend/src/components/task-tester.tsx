@@ -12,10 +12,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { listTasks } from "@/lib/tasks-api";
 import {
@@ -106,14 +103,20 @@ export function TaskTester() {
     for (let index = answers.length - 1; index > 0; index -= 1) {
       seed = nextSeed(seed);
       const randomIndex = seed % (index + 1);
-      [answers[index], answers[randomIndex]] = [answers[randomIndex], answers[index]];
+      [answers[index], answers[randomIndex]] = [
+        answers[randomIndex],
+        answers[index],
+      ];
     }
 
     return answers;
   }, [selectedTask]);
 
   const multipleChoiceCorrectness = useMemo(() => {
-    if (!selectedTask || (selectedTask.answerType ?? "multiple_choice") !== "multiple_choice") {
+    if (
+      !selectedTask ||
+      (selectedTask.answerType ?? "multiple_choice") !== "multiple_choice"
+    ) {
       return {
         mode: "single" as const,
         correctOptionIds: [] as OptionKey[],
@@ -150,11 +153,15 @@ export function TaskTester() {
         );
       }
 
-      if (checkedIds.length !== multipleChoiceCorrectness.correctOptionIds.length) {
+      if (
+        checkedIds.length !== multipleChoiceCorrectness.correctOptionIds.length
+      ) {
         return false;
       }
 
-      return checkedIds.every((id) => multipleChoiceCorrectness.correctOptionIds.includes(id));
+      return checkedIds.every((id) =>
+        multipleChoiceCorrectness.correctOptionIds.includes(id),
+      );
     }
 
     if (answerType === "short_text") {
@@ -179,7 +186,12 @@ export function TaskTester() {
       (rangeAnswer) =>
         numericValue >= rangeAnswer.min && numericValue <= rangeAnswer.max,
     );
-  }, [checkedValue, dragDropPlacements, multipleChoiceCorrectness, selectedTask]);
+  }, [
+    checkedValue,
+    dragDropPlacements,
+    multipleChoiceCorrectness,
+    selectedTask,
+  ]);
 
   const handleCheckAnswer = () => {
     if (!selectedTask) {
@@ -199,10 +211,15 @@ export function TaskTester() {
 
       const hasAnyCorrect =
         selectedAnswerIds.length === 1 &&
-        multipleChoiceCorrectness.correctOptionIds.includes(selectedAnswerIds[0]);
+        multipleChoiceCorrectness.correctOptionIds.includes(
+          selectedAnswerIds[0],
+        );
       const hasAllCorrect =
-        selectedAnswerIds.length === multipleChoiceCorrectness.correctOptionIds.length &&
-        selectedAnswerIds.every((id) => multipleChoiceCorrectness.correctOptionIds.includes(id));
+        selectedAnswerIds.length ===
+          multipleChoiceCorrectness.correctOptionIds.length &&
+        selectedAnswerIds.every((id) =>
+          multipleChoiceCorrectness.correctOptionIds.includes(id),
+        );
       const correctInSingleMode =
         selectedAnswerIds.length === 1 &&
         selectedAnswerIds[0] === multipleChoiceCorrectness.correctOptionIds[0];
@@ -241,7 +258,11 @@ export function TaskTester() {
     }
 
     if (answerType === "drag_drop") {
-      if ((selectedTask.dragDropItems ?? []).some((item) => !dragDropPlacements[item.id])) {
+      if (
+        (selectedTask.dragDropItems ?? []).some(
+          (item) => !dragDropPlacements[item.id],
+        )
+      ) {
         toast.error("Debes colocar todos los objetos antes de verificar.");
         return;
       }
@@ -293,7 +314,8 @@ export function TaskTester() {
           <AlertCircleIcon />
           <AlertTitle>No hay una tarea seleccionada</AlertTitle>
           <AlertDescription>
-            Abre el probador desde una tarea específica para verla en esta vista.
+            Abre el probador desde una tarea específica para verla en esta
+            vista.
           </AlertDescription>
         </Alert>
       )}
@@ -323,7 +345,9 @@ export function TaskTester() {
             </div>
 
             <section className="flex flex-col gap-3">
-              <h2 className="text-xl font-semibold sm:text-2xl">Pregunta o desafío</h2>
+              <h2 className="text-xl font-semibold sm:text-2xl">
+                Pregunta o desafío
+              </h2>
               <TaskContentRenderer
                 blocks={selectedTask.challengeBlocks}
                 className="gap-5"
@@ -335,7 +359,8 @@ export function TaskTester() {
                 {answerSectionTitle}
               </h2>
 
-              {(selectedTask.answerType ?? "multiple_choice") === "multiple_choice" && (
+              {(selectedTask.answerType ?? "multiple_choice") ===
+                "multiple_choice" && (
                 <div className="flex flex-col gap-3 sm:gap-4">
                   {displayedAnswers.map((answer) => {
                     const selected = selectedAnswerIds.includes(answer.id);
@@ -344,9 +369,10 @@ export function TaskTester() {
                       .map((value) => value.trim())
                       .filter(Boolean) as OptionKey[];
                     const checked = checkedIds.includes(answer.id);
-                    const isCorrectOption = multipleChoiceCorrectness.correctOptionIds.includes(
-                      answer.id,
-                    );
+                    const isCorrectOption =
+                      multipleChoiceCorrectness.correctOptionIds.includes(
+                        answer.id,
+                      );
                     const correct = checked && isCorrectOption;
                     const incorrect = checked && !isCorrectOption;
                     const multi = multipleChoiceCorrectness.mode === "all";
@@ -406,7 +432,8 @@ export function TaskTester() {
                 </div>
               )}
 
-              {(selectedTask.answerType ?? "multiple_choice") === "short_text" && (
+              {(selectedTask.answerType ?? "multiple_choice") ===
+                "short_text" && (
                 <div className="flex max-w-lg flex-col gap-3">
                   <Input
                     placeholder="Escribe tu respuesta"
@@ -427,7 +454,8 @@ export function TaskTester() {
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                     {(selectedTask.rangeAnswers ?? []).map((rangeAnswer) => (
                       <p key={rangeAnswer.id}>
-                        {rangeAnswer.label}: {rangeAnswer.min} a {rangeAnswer.max}
+                        {rangeAnswer.label}: {rangeAnswer.min} a{" "}
+                        {rangeAnswer.max}
                       </p>
                     ))}
                   </div>

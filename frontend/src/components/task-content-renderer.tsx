@@ -12,7 +12,9 @@ export function TaskContentRenderer({
   className,
 }: TaskContentRendererProps) {
   return (
-    <div className={["flex flex-col gap-4", className].filter(Boolean).join(" ")}>
+    <div
+      className={["flex flex-col gap-4", className].filter(Boolean).join(" ")}
+    >
       {blocks.map((block) => {
         if (block.type === "image" && block.image) {
           return (

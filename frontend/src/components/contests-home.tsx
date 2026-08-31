@@ -46,9 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type ConfirmAction =
-  | "consolidate"
-  | "delete";
+type ConfirmAction = "consolidate" | "delete";
 
 type Confirmation = {
   action: ConfirmAction;
@@ -57,7 +55,11 @@ type Confirmation = {
 
 const CONFIRMATION_COPY: Record<
   ConfirmAction,
-  { title: string; description: (contest: StoredContest) => string; confirm: string }
+  {
+    title: string;
+    description: (contest: StoredContest) => string;
+    confirm: string;
+  }
 > = {
   consolidate: {
     title: "¿Consolidar esta competencia?",
@@ -97,7 +99,9 @@ export function ContestsHome() {
       toast.success(successMessage(updated));
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "No se pudo completar la acción.",
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar la acción.",
       );
     } finally {
       setBusyId(null);
@@ -129,7 +133,11 @@ export function ContestsHome() {
         setContests(loadedContests);
       })
       .catch((error) => {
-        toast.error(error instanceof Error ? error.message : "No se pudieron cargar las competencias.");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las competencias.",
+        );
       });
 
     return () => {
@@ -187,7 +195,8 @@ export function ContestsHome() {
                   Competencias
                 </h1>
                 <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-                  Configura las sesiones, revisa su ventana de ejecución y asigna el paquete de tareas.
+                  Configura las sesiones, revisa su ventana de ejecución y
+                  asigna el paquete de tareas.
                 </p>
               </div>
             </div>
@@ -216,25 +225,41 @@ export function ContestsHome() {
             <Alert>
               <AlertTitle>No hay competencias registradas</AlertTitle>
               <AlertDescription>
-                Crea la primera competencia y asígnale tareas para arrancar el flujo.
+                Crea la primera competencia y asígnale tareas para arrancar el
+                flujo.
               </AlertDescription>
             </Alert>
           ) : (
             contests.map((contest) => (
-              <Card key={contest.id} variant="soft-gradient" className="gap-0 py-0">
+              <Card
+                key={contest.id}
+                variant="soft-gradient"
+                className="gap-0 py-0"
+              >
                 <CardHeader className="gap-4 py-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-2">
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{CONTEST_STATE_LABELS[contest.state]}</Badge>
+                        <Badge variant="secondary">
+                          {CONTEST_STATE_LABELS[contest.state]}
+                        </Badge>
                         {contest.category && (
                           <Badge variant="outline">{contest.category}</Badge>
                         )}
-                        <Badge variant="outline">{contest.taskCount} tareas</Badge>
+                        <Badge variant="outline">
+                          {contest.taskCount} tareas
+                        </Badge>
                       </div>
                       <div className="space-y-1">
-                        <CardTitle className="text-xl sm:text-2xl">{contest.title}</CardTitle>
-                        <CardDescription>{formatContestWindow(contest.startsAt, contest.endsAt)}</CardDescription>
+                        <CardTitle className="text-xl sm:text-2xl">
+                          {contest.title}
+                        </CardTitle>
+                        <CardDescription>
+                          {formatContestWindow(
+                            contest.startsAt,
+                            contest.endsAt,
+                          )}
+                        </CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                         <span className="inline-flex items-center gap-2">
@@ -243,7 +268,9 @@ export function ContestsHome() {
                         </span>
                         <span className="inline-flex items-center gap-2">
                           <CalendarRangeIcon className="size-4" />
-                          {contest.allowPairs ? "Permite parejas" : "Solo individual"}
+                          {contest.allowPairs
+                            ? "Permite parejas"
+                            : "Solo individual"}
                         </span>
                       </div>
                     </div>
@@ -257,7 +284,9 @@ export function ContestsHome() {
                             variant="outline"
                             className="w-full justify-start"
                           >
-                            <a href={`/competencias/resultados?id=${contest.id}`}>
+                            <a
+                              href={`/competencias/resultados?id=${contest.id}`}
+                            >
                               <BarChart3Icon data-icon="inline-start" />
                               Resultados
                             </a>
@@ -294,7 +323,9 @@ export function ContestsHome() {
                         variant="outline"
                         disabled={busyId === contest.id}
                         className="w-full justify-start"
-                        onClick={() => setConfirming({ action: "delete", contest })}
+                        onClick={() =>
+                          setConfirming({ action: "delete", contest })
+                        }
                       >
                         <Trash2Icon data-icon="inline-start" />
                         Eliminar
@@ -353,9 +384,7 @@ export function ContestsHome() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmAction}
-            >
+            <AlertDialogAction onClick={confirmAction}>
               {confirming ? CONFIRMATION_COPY[confirming.action].confirm : ""}
             </AlertDialogAction>
           </AlertDialogFooter>

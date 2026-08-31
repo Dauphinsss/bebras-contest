@@ -1,11 +1,13 @@
 "use client";
 
-import { type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
 import {
-  type ContentBlock,
-  type ContentBlockType,
-} from "@/lib/task-schema";
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { cn } from "@/lib/utils";
+import { type ContentBlock, type ContentBlockType } from "@/lib/task-schema";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -265,7 +267,9 @@ export function TaskContentBuilder({
                               : "hidden group-hover/image:flex",
                           )}
                           type="button"
-                          onMouseDown={(event) => startResize(event, block, "left")}
+                          onMouseDown={(event) =>
+                            startResize(event, block, "left")
+                          }
                         >
                           <span className="block h-6 w-0.5 rounded-full bg-current" />
                           <span className="ml-0.5 block h-6 w-0.5 rounded-full bg-current" />
@@ -279,7 +283,9 @@ export function TaskContentBuilder({
                               : "hidden group-hover/image:flex",
                           )}
                           type="button"
-                          onMouseDown={(event) => startResize(event, block, "right")}
+                          onMouseDown={(event) =>
+                            startResize(event, block, "right")
+                          }
                         >
                           <span className="block h-6 w-0.5 rounded-full bg-current" />
                           <span className="ml-0.5 block h-6 w-0.5 rounded-full bg-current" />
@@ -353,10 +359,7 @@ export function TaskContentBuilder({
             </Button>
           )}
           {allowedBlockTypes.includes("challenge") && (
-            <Button
-              type="button"
-              onClick={() => onAddBlock("challenge")}
-            >
+            <Button type="button" onClick={() => onAddBlock("challenge")}>
               <PlusIcon data-icon="inline-start" />
               Agregar pregunta o desafio
             </Button>

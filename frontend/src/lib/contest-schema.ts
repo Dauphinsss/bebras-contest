@@ -1,4 +1,8 @@
-import { buildAgeSummary, type CategoryItem, type DifficultyKey } from "@/lib/task-schema";
+import {
+  buildAgeSummary,
+  type CategoryItem,
+  type DifficultyKey,
+} from "@/lib/task-schema";
 
 /**
  * Categorías oficiales de Bebras Bolivia. Fuente única de verdad: el CMS

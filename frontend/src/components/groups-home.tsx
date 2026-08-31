@@ -178,9 +178,13 @@ function SessionDateTimeField({
     a.getDate() === b.getDate();
 
   const timeMin =
-    date && minDate && sameDay(date, minDate) ? toTimeValue(minDate.toISOString()) : undefined;
+    date && minDate && sameDay(date, minDate)
+      ? toTimeValue(minDate.toISOString())
+      : undefined;
   const timeMax =
-    date && maxDate && sameDay(date, maxDate) ? toTimeValue(maxDate.toISOString()) : undefined;
+    date && maxDate && sameDay(date, maxDate)
+      ? toTimeValue(maxDate.toISOString())
+      : undefined;
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
@@ -245,9 +249,9 @@ function SessionDateTimeField({
 
 export function GroupsHome() {
   const [groups, setGroups] = useState<StoredGroup[]>([]);
-  const [publishedContests, setPublishedContests] = useState<PublishedContest[]>(
-    [],
-  );
+  const [publishedContests, setPublishedContests] = useState<
+    PublishedContest[]
+  >([]);
   const [contestId, setContestId] = useState("");
   const [name, setName] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -293,7 +297,9 @@ export function GroupsHome() {
       })
       .catch((error: unknown) => {
         toast.error(
-          error instanceof Error ? error.message : "No se pudieron cargar los datos.",
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los datos.",
         );
       })
       .finally(() => {
@@ -336,16 +342,16 @@ export function GroupsHome() {
       const group = await createGroup({
         contestId,
         name: name.trim(),
-        scheduledAt: scheduledAt
-          ? new Date(scheduledAt).toISOString()
-          : null,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       });
       setGroups((current) => [group, ...current]);
       setName("");
       setScheduledAt("");
       toast.success(`Grupo creado. Código: ${group.accessCode}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo crear el grupo.");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo crear el grupo.",
+      );
     } finally {
       setCreating(false);
     }
@@ -377,7 +383,11 @@ export function GroupsHome() {
         toast.success("Grupo eliminado.");
       })
       .catch((error) => {
-        toast.error(error instanceof Error ? error.message : "No se pudo eliminar el grupo.");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar el grupo.",
+        );
       });
   };
 
@@ -574,40 +584,40 @@ export function GroupsHome() {
           ) : (
             <form className="flex flex-col gap-4" onSubmit={handleCreate}>
               <div className="grid gap-4 md:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="group-contest">Competencia</FieldLabel>
-                <FieldContent>
-                  <Select
-                    value={contestId}
-                    onValueChange={(value) => {
-                      setContestId(value);
-                      setScheduledAt("");
-                    }}
-                  >
-                    <SelectTrigger id="group-contest" className="w-full">
-                      <SelectValue placeholder="Elige una competencia" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {publishedContests.map((contest) => (
-                        <SelectItem key={contest.id} value={contest.id}>
-                          {contest.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FieldContent>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="group-name">Nombre del grupo</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="group-name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="Ej. 6° A — Colegio San José"
-                  />
-                </FieldContent>
-              </Field>
+                <Field>
+                  <FieldLabel htmlFor="group-contest">Competencia</FieldLabel>
+                  <FieldContent>
+                    <Select
+                      value={contestId}
+                      onValueChange={(value) => {
+                        setContestId(value);
+                        setScheduledAt("");
+                      }}
+                    >
+                      <SelectTrigger id="group-contest" className="w-full">
+                        <SelectValue placeholder="Elige una competencia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {publishedContests.map((contest) => (
+                          <SelectItem key={contest.id} value={contest.id}>
+                            {contest.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="group-name">Nombre del grupo</FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="group-name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="Ej. 6° A — Colegio San José"
+                    />
+                  </FieldContent>
+                </Field>
               </div>
               <Field>
                 <FieldLabel htmlFor="group-scheduled">
@@ -648,7 +658,8 @@ export function GroupsHome() {
         <CardHeader className="border-b">
           <CardTitle>Grupos</CardTitle>
           <CardDescription>
-            Reparte el código a tus estudiantes para que entren a la competencia.
+            Reparte el código a tus estudiantes para que entren a la
+            competencia.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-6">
@@ -661,16 +672,25 @@ export function GroupsHome() {
             </Alert>
           ) : (
             groups.map((group) => (
-              <Card key={group.id} variant="soft-gradient" className="gap-0 py-0">
+              <Card
+                key={group.id}
+                variant="soft-gradient"
+                className="gap-0 py-0"
+              >
                 <CardHeader className="gap-3 py-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex min-w-0 flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="max-w-full truncate">
+                        <Badge
+                          variant="secondary"
+                          className="max-w-full truncate"
+                        >
                           {group.contestTitle}
                         </Badge>
                         {group.contestCategory && (
-                          <Badge variant="outline">{group.contestCategory}</Badge>
+                          <Badge variant="outline">
+                            {group.contestCategory}
+                          </Badge>
                         )}
                         <button
                           type="button"
@@ -698,7 +718,9 @@ export function GroupsHome() {
                       {group.scheduledAt && (
                         <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
                           <CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
-                          <span>Sesión: {formatSession(group.scheduledAt)}</span>
+                          <span>
+                            Sesión: {formatSession(group.scheduledAt)}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -732,9 +754,7 @@ export function GroupsHome() {
                         type="button"
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={() =>
-                          setConfirming({ type: "group", group })
-                        }
+                        onClick={() => setConfirming({ type: "group", group })}
                       >
                         <Trash2Icon data-icon="inline-start" />
                         Eliminar
@@ -1027,7 +1047,9 @@ export function GroupsHome() {
                     <Input
                       id="enroll-two-first"
                       value={enrollTwoFirst}
-                      onChange={(event) => setEnrollTwoFirst(event.target.value)}
+                      onChange={(event) =>
+                        setEnrollTwoFirst(event.target.value)
+                      }
                     />
                   </FieldContent>
                 </Field>

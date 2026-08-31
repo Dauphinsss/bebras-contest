@@ -232,7 +232,8 @@ export function ContestResults() {
             <div className="flex flex-col items-start gap-2">
               <CardTitle>{results.contestTitle}</CardTitle>
               <CardDescription>
-                {results.rows.length} participante(s) · {results.taskCount} tarea(s)
+                {results.rows.length} participante(s) · {results.taskCount}{" "}
+                tarea(s)
               </CardDescription>
               <Badge variant="secondary">
                 {CONTEST_STATE_LABELS[results.state]}

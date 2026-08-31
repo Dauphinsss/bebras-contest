@@ -64,7 +64,10 @@ function fmt(value: string) {
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase()
-    .replace(/(^|\s|-)(\p{L})/gu, (_match, sep, letter) => sep + letter.toUpperCase());
+    .replace(
+      /(^|\s|-)(\p{L})/gu,
+      (_match, sep, letter) => sep + letter.toUpperCase(),
+    );
 }
 
 function nameKey(first: string, last: string) {
@@ -113,7 +116,8 @@ export function JoinForm() {
       if (!response.ok) {
         if (!silent) {
           toast.error(
-            ("message" in data && data.message) || "No se pudo validar el código.",
+            ("message" in data && data.message) ||
+              "No se pudo validar el código.",
           );
         }
         return;
@@ -236,7 +240,9 @@ export function JoinForm() {
         | { message?: string };
 
       if (!response.ok) {
-        toast.error(("message" in data && data.message) || "No se pudo registrar.");
+        toast.error(
+          ("message" in data && data.message) || "No se pudo registrar.",
+        );
         setStep("register");
         return;
       }
@@ -317,7 +323,9 @@ export function JoinForm() {
               {partner}
             </div>
             <div className="text-muted-foreground">
-              {recovered.participationMode === "pareja" ? "Pareja" : "Individual"}
+              {recovered.participationMode === "pareja"
+                ? "Pareja"
+                : "Individual"}
             </div>
           </div>
           <div className="rounded-md border bg-secondary/30 px-4 py-3 text-center">
@@ -363,7 +371,8 @@ export function JoinForm() {
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Curso</dt>
               <dd className="text-right font-medium">
-                {group.grades.find((item) => item.value === grade)?.label ?? "—"}
+                {group.grades.find((item) => item.value === grade)?.label ??
+                  "—"}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
@@ -396,7 +405,11 @@ export function JoinForm() {
             >
               Editar
             </Button>
-            <Button type="button" disabled={loading} onClick={() => void join()}>
+            <Button
+              type="button"
+              disabled={loading}
+              onClick={() => void join()}
+            >
               {loading ? "Entrando..." : "Confirmar y entrar"}
             </Button>
           </div>
@@ -553,7 +566,9 @@ export function JoinForm() {
               <Input
                 id="access-code"
                 value={accessCode}
-                onChange={(event) => setAccessCode(event.target.value.toUpperCase())}
+                onChange={(event) =>
+                  setAccessCode(event.target.value.toUpperCase())
+                }
                 placeholder="Ej. K7M2P9"
                 className="font-mono tracking-widest uppercase"
                 autoComplete="off"

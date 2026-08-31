@@ -102,7 +102,9 @@ function createInitialState(): FormState {
   };
 }
 
-function createStateFromContest(contest: Awaited<ReturnType<typeof getContest>>): FormState {
+function createStateFromContest(
+  contest: Awaited<ReturnType<typeof getContest>>,
+): FormState {
   return {
     title: contest.title,
     category: contest.category,
@@ -285,7 +287,8 @@ function DateRangeField({
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="flex min-w-0 flex-col gap-2">
             <FieldLabel htmlFor="contest-date-range">
-              Ventana de disponibilidad <span className="text-destructive">*</span>
+              Ventana de disponibilidad{" "}
+              <span className="text-destructive">*</span>
             </FieldLabel>
             <Popover>
               <PopoverTrigger asChild>
@@ -325,7 +328,8 @@ function DateRangeField({
               </PopoverContent>
             </Popover>
             <FieldDescription>
-              La competencia se abre y cierra automáticamente dentro de esta ventana.
+              La competencia se abre y cierra automáticamente dentro de esta
+              ventana.
             </FieldDescription>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -399,7 +403,11 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         if (resolvedContestId) {
           setNotFound(true);
         } else {
-          toast.error(error instanceof Error ? error.message : "No se pudieron cargar los datos.");
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "No se pudieron cargar los datos.",
+          );
         }
       })
       .finally(() => {
@@ -421,7 +429,11 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   }, [form.tasks, tasks]);
 
   const availableTasks = useMemo(
-    () => tasks.filter((task) => !form.tasks.some((taskConfig) => taskConfig.taskId === task.id)),
+    () =>
+      tasks.filter(
+        (task) =>
+          !form.tasks.some((taskConfig) => taskConfig.taskId === task.id),
+      ),
     [form.tasks, tasks],
   );
 
@@ -538,7 +550,11 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       setContestState(publishedContest.state);
       toast.success("La competencia quedó publicada.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo publicar la competencia.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo publicar la competencia.",
+      );
     } finally {
       setPublishing(false);
     }
@@ -620,7 +636,11 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       setContestState(savedContest.state);
       toast.success("La competencia se guardó correctamente.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo guardar la competencia.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar la competencia.",
+      );
     } finally {
       setSaving(false);
     }
@@ -668,7 +688,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                     disabled={locked}
                     value={form.title}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, title: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
                     }
                     placeholder="Ej. Bebras Secundaria 2026"
                   />
@@ -697,7 +720,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                       <SelectValue placeholder="Selecciona una categoría" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none" disabled={Boolean(form.category)}>
+                      <SelectItem
+                        value="none"
+                        disabled={Boolean(form.category)}
+                      >
                         Sin categoría
                       </SelectItem>
                       {CONTEST_CATEGORIES.map((category) => (
@@ -711,7 +737,8 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </Field>
               <Field data-invalid={hasDurationError || undefined}>
                 <FieldLabel htmlFor="contest-duration">
-                  Duración por equipo (minutos) <span className="text-destructive">*</span>
+                  Duración por equipo (minutos){" "}
+                  <span className="text-destructive">*</span>
                 </FieldLabel>
                 <FieldContent>
                   <Input
@@ -758,7 +785,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
             {hasDateError && (
               <FieldError
                 errors={[
-                  { message: "La fecha de fin debe ser posterior a la de inicio." },
+                  {
+                    message:
+                      "La fecha de fin debe ser posterior a la de inicio.",
+                  },
                 ]}
               />
             )}
@@ -816,10 +846,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   checked={form.allowPairs}
                   disabled={locked}
                   onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, allowPairs: checked === true }))
+                    setForm((current) => ({
+                      ...current,
+                      allowPairs: checked === true,
+                    }))
                   }
                 />
-                <FieldLabel htmlFor="contest-allow-pairs" className="font-normal">
+                <FieldLabel
+                  htmlFor="contest-allow-pairs"
+                  className="font-normal"
+                >
                   Permitir parejas
                 </FieldLabel>
               </Field>
@@ -829,10 +865,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   checked={form.showTotalScore}
                   disabled={locked}
                   onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, showTotalScore: checked === true }))
+                    setForm((current) => ({
+                      ...current,
+                      showTotalScore: checked === true,
+                    }))
                   }
                 />
-                <FieldLabel htmlFor="contest-show-total-score" className="font-normal">
+                <FieldLabel
+                  htmlFor="contest-show-total-score"
+                  className="font-normal"
+                >
                   Mostrar puntaje total al terminar
                 </FieldLabel>
               </Field>
@@ -842,10 +884,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   checked={form.showFeedback}
                   disabled={locked}
                   onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, showFeedback: checked === true }))
+                    setForm((current) => ({
+                      ...current,
+                      showFeedback: checked === true,
+                    }))
                   }
                 />
-                <FieldLabel htmlFor="contest-show-feedback" className="font-normal">
+                <FieldLabel
+                  htmlFor="contest-show-feedback"
+                  className="font-normal"
+                >
                   Mostrar feedback al terminar
                 </FieldLabel>
               </Field>
@@ -855,10 +903,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   checked={form.showSolutions}
                   disabled={locked}
                   onCheckedChange={(checked) =>
-                    setForm((current) => ({ ...current, showSolutions: checked === true }))
+                    setForm((current) => ({
+                      ...current,
+                      showSolutions: checked === true,
+                    }))
                   }
                 />
-                <FieldLabel htmlFor="contest-show-solutions" className="font-normal">
+                <FieldLabel
+                  htmlFor="contest-show-solutions"
+                  className="font-normal"
+                >
                   Mostrar soluciones al terminar
                 </FieldLabel>
               </Field>
@@ -890,7 +944,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </Alert>
             ) : (
               availableTasks.concat(selectedTasks).map((task) => {
-                const selected = form.tasks.some((taskConfig) => taskConfig.taskId === task.id);
+                const selected = form.tasks.some(
+                  (taskConfig) => taskConfig.taskId === task.id,
+                );
 
                 return (
                   <Card
@@ -901,8 +957,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                     <CardHeader className="gap-3">
                       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="flex min-w-0 flex-col gap-1">
-                          <CardTitle className="break-words text-lg">{task.title}</CardTitle>
-                          <CardDescription>{formatTaskMeta(task)}</CardDescription>
+                          <CardTitle className="break-words text-lg">
+                            {task.title}
+                          </CardTitle>
+                          <CardDescription>
+                            {formatTaskMeta(task)}
+                          </CardDescription>
                         </div>
                         <Button
                           type="button"
@@ -946,16 +1006,26 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </Alert>
             ) : (
               selectedTasks.map((task, index) => (
-                <Card key={task.id} variant="soft-gradient" className="gap-3 py-4">
+                <Card
+                  key={task.id}
+                  variant="soft-gradient"
+                  className="gap-3 py-4"
+                >
                   <CardHeader className="gap-3">
                     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                       <div className="flex min-w-0 flex-col gap-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="secondary">#{index + 1}</Badge>
-                          <Badge variant="outline">{buildAgeSummary(task.difficulties)}</Badge>
+                          <Badge variant="outline">
+                            {buildAgeSummary(task.difficulties)}
+                          </Badge>
                         </div>
-                        <CardTitle className="break-words text-lg">{task.title}</CardTitle>
-                        <CardDescription>{task.categories.join(", ") || "Sin categoría"}</CardDescription>
+                        <CardTitle className="break-words text-lg">
+                          {task.title}
+                        </CardTitle>
+                        <CardDescription>
+                          {task.categories.join(", ") || "Sin categoría"}
+                        </CardDescription>
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                         <Button
@@ -971,7 +1041,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                           size="icon-sm"
                           type="button"
                           variant="outline"
-                          disabled={locked || index === selectedTasks.length - 1}
+                          disabled={
+                            locked || index === selectedTasks.length - 1
+                          }
                           onClick={() => moveTask(task.id, "down")}
                         >
                           <ArrowDownIcon />
@@ -1044,7 +1116,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
           <div className="flex flex-wrap gap-6 rounded-md bg-secondary/30 px-4 py-3 text-sm">
             <div>
               <div className="text-muted-foreground">Puntaje inicial</div>
-              <div className="text-lg font-semibold">{scoring.initialScore}</div>
+              <div className="text-lg font-semibold">
+                {scoring.initialScore}
+              </div>
             </div>
             <div>
               <div className="text-muted-foreground">Puntaje máximo</div>
@@ -1063,18 +1137,20 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               </AlertTitle>
               <AlertDescription>
                 Cada tarea necesita una dificultad asignada al rango de edad de{" "}
-                {form.category || "la categoría elegida"}. Edítalas o quítalas de
-                la competencia.
+                {form.category || "la categoría elegida"}. Edítalas o quítalas
+                de la competencia.
               </AlertDescription>
             </Alert>
           )}
 
           {scoring.unresolved === 0 && !scoring.isStandard && (
             <Alert>
-              <AlertTitle>La composición no es la estándar de Bebras</AlertTitle>
+              <AlertTitle>
+                La composición no es la estándar de Bebras
+              </AlertTitle>
               <AlertDescription>
-                Lo habitual son 15 tareas: 5 fáciles, 5 medias y 5 difíciles, que
-                dan 45 de puntaje inicial y 180 de máximo. Puedes publicarla
+                Lo habitual son 15 tareas: 5 fáciles, 5 medias y 5 difíciles,
+                que dan 45 de puntaje inicial y 180 de máximo. Puedes publicarla
                 igual, pero los puntajes no coincidirán con los que anuncia el
                 sitio.
               </AlertDescription>

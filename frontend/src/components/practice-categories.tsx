@@ -8,7 +8,10 @@ import {
   listPracticeCategories,
   type PracticeCategory,
 } from "@/lib/practice-api";
-import { practiceCategoryHref, practiceOrigin } from "@/lib/practice-navigation";
+import {
+  practiceCategoryHref,
+  practiceOrigin,
+} from "@/lib/practice-navigation";
 
 export function PracticeCategories() {
   const [categories, setCategories] = useState<PracticeCategory[] | null>(null);

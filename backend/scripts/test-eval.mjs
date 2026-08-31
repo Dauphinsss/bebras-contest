@@ -5,7 +5,11 @@ function correctSelection(correctAnswerId) {
   const raw = String(correctAnswerId || "").trim();
   if (raw.startsWith("any:")) return [raw.slice(4).split(",")[0].trim()];
   if (raw.startsWith("all:"))
-    return raw.slice(4).split(",").map((s) => s.trim()).filter(Boolean);
+    return raw
+      .slice(4)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   return [raw];
 }
 
@@ -122,6 +126,9 @@ const results = await fetch(base + "/api/contests/" + contest.id + "/results", {
 console.log(
   "RANKING",
   results.rows
-    .map((r) => "#" + r.rankPosition + " " + r.memberOneFirstName + "=" + r.totalScore)
+    .map(
+      (r) =>
+        "#" + r.rankPosition + " " + r.memberOneFirstName + "=" + r.totalScore,
+    )
     .join(" | "),
 );

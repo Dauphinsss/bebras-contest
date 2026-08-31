@@ -20,7 +20,8 @@ const tasks = [
     question: "¿Qué número continúa la secuencia 2, 4, 6?",
     answers: ["7", "8", "9", "10"],
     correctAnswerId: "B",
-    explanation: "La secuencia aumenta de dos en dos, por lo que continúa con 8.",
+    explanation:
+      "La secuencia aumenta de dos en dos, por lo que continúa con 8.",
   },
   {
     id: "seed-bebras-hard",
@@ -65,9 +66,7 @@ async function main() {
       answers: JSON.stringify(
         task.answers.map((answer, index) => ({
           id: String.fromCharCode(65 + index),
-          blocks: [
-            contentBlock(`${task.id}-answer-${index}`, "text", answer),
-          ],
+          blocks: [contentBlock(`${task.id}-answer-${index}`, "text", answer)],
         })),
       ),
       correctAnswerId: task.correctAnswerId,

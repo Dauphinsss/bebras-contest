@@ -58,6 +58,9 @@ export async function apiRequest<T>(
   return (await response.json()) as T;
 }
 
-export function publicRequest<T>(path: string, options: ApiRequestOptions = {}) {
+export function publicRequest<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+) {
   return apiRequest<T>(path, { ...options, auth: false });
 }
