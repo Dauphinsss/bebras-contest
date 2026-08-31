@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useRef,
   useState,
@@ -57,8 +57,12 @@ export function TaskContentBuilder({
   const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const imageAreaRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const pendingImageBlockIdRef = useRef<string | null>(null);
-  const draggingBlockIdRef = useRef<string | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    blockId: string;
+  } | null>(null);
   const resizeStateRef = useRef<{
+    pointerId: number;
     blockId: string;
     side: "left" | "right";
     startX: number;
@@ -86,43 +90,6 @@ export function TaskContentBuilder({
     pendingImageBlockIdRef.current = null;
   }, [blocks]);
 
-  useEffect(() => {
-    if (!activeResizeBlockId) {
-      return;
-    }
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const resizeState = resizeStateRef.current;
-      if (!resizeState) {
-        return;
-      }
-
-      const deltaX = event.clientX - resizeState.startX;
-      const nextWidthPx =
-        resizeState.startWidthPx +
-        (resizeState.side === "right" ? deltaX * 2 : -deltaX * 2);
-      const nextWidthPercent = Math.max(
-        20,
-        Math.min(100, (nextWidthPx / resizeState.containerWidth) * 100),
-      );
-
-      onUpdateBlockWidth(resizeState.blockId, Math.round(nextWidthPercent));
-    };
-
-    const handleMouseUp = () => {
-      resizeStateRef.current = null;
-      setActiveResizeBlockId(null);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [activeResizeBlockId, onUpdateBlockWidth]);
-
   const handleAddImage = () => {
     const blockId = onAddBlock("image");
     if (blockId) {
@@ -130,33 +97,87 @@ export function TaskContentBuilder({
     }
   };
 
-  const handleDrop = (targetBlockId: string) => {
-    const sourceBlockId = draggingBlockIdRef.current;
-    const position = dropIndicator?.position ?? "after";
+  const findDropTarget = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY);
+    const row = element?.closest<HTMLElement>("[data-content-block-id]");
+    const blockId = row?.dataset.contentBlockId;
 
-    if (!sourceBlockId || sourceBlockId === targetBlockId) {
-      draggingBlockIdRef.current = null;
-      setDropIndicator(null);
+    if (!row || !blockId || !blocks.some((block) => block.id === blockId)) {
+      return null;
+    }
+
+    const rect = row.getBoundingClientRect();
+    return {
+      blockId,
+      position: clientY < rect.top + rect.height / 2 ? "before" : "after",
+    } as const;
+  };
+
+  const handleBlockPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    blockId: string,
+  ) => {
+    if (!event.isPrimary || event.button !== 0) {
       return;
     }
 
-    onMoveBlock(sourceBlockId, targetBlockId, position);
-    draggingBlockIdRef.current = null;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStateRef.current = { pointerId: event.pointerId, blockId };
+  };
+
+  const handleBlockPointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (dragStateRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    setDropIndicator(findDropTarget(event.clientX, event.clientY));
+  };
+
+  const finishBlockDrag = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    commit: boolean,
+  ) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const target = commit ? findDropTarget(event.clientX, event.clientY) : null;
+    dragStateRef.current = null;
     setDropIndicator(null);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (target && target.blockId !== dragState.blockId) {
+      onMoveBlock(dragState.blockId, target.blockId, target.position);
+    }
   };
 
   const startResize = (
-    event: ReactMouseEvent<HTMLButtonElement>,
+    event: ReactPointerEvent<HTMLButtonElement>,
     block: ContentBlock,
     side: "left" | "right",
   ) => {
+    if (!event.isPrimary || event.button !== 0) {
+      return;
+    }
+
     const imageArea = imageAreaRefs.current[block.id];
     if (!imageArea) {
       return;
     }
 
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
     const containerWidth = imageArea.getBoundingClientRect().width;
     resizeStateRef.current = {
+      pointerId: event.pointerId,
       blockId: block.id,
       side,
       startX: event.clientX,
@@ -166,30 +187,47 @@ export function TaskContentBuilder({
     setActiveResizeBlockId(block.id);
   };
 
+  const handleResizePointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const resizeState = resizeStateRef.current;
+    if (!resizeState || resizeState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    const deltaX = event.clientX - resizeState.startX;
+    const nextWidthPx =
+      resizeState.startWidthPx +
+      (resizeState.side === "right" ? deltaX * 2 : -deltaX * 2);
+    const nextWidthPercent = Math.max(
+      20,
+      Math.min(100, (nextWidthPx / resizeState.containerWidth) * 100),
+    );
+
+    onUpdateBlockWidth(resizeState.blockId, Math.round(nextWidthPercent));
+  };
+
+  const finishResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (resizeStateRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    resizeStateRef.current = null;
+    setActiveResizeBlockId(null);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
     <FieldGroup className="gap-4">
       {blocks.map((block) => (
         <div
           key={block.id}
           className="relative flex items-center gap-3"
-          onDragOver={(event) => {
-            event.preventDefault();
-
-            const rect = event.currentTarget.getBoundingClientRect();
-            const position =
-              event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-
-            setDropIndicator({
-              blockId: block.id,
-              position,
-            });
-          }}
-          onDragLeave={() => {
-            setDropIndicator((current) =>
-              current?.blockId === block.id ? null : current,
-            );
-          }}
-          onDrop={() => handleDrop(block.id)}
+          data-content-block-id={block.id}
         >
           {dropIndicator?.blockId === block.id &&
             dropIndicator.position === "before" && (
@@ -197,18 +235,15 @@ export function TaskContentBuilder({
             )}
           {allowReorderingBlocks ? (
             <Button
-              className="cursor-grab"
-              draggable
+              aria-label="Arrastrar para reordenar bloque"
+              className="cursor-grab touch-none select-none active:cursor-grabbing"
               size="icon-sm"
               type="button"
               variant="ghost"
-              onDragEnd={() => {
-                draggingBlockIdRef.current = null;
-                setDropIndicator(null);
-              }}
-              onDragStart={() => {
-                draggingBlockIdRef.current = block.id;
-              }}
+              onPointerCancel={(event) => finishBlockDrag(event, false)}
+              onPointerDown={(event) => handleBlockPointerDown(event, block.id)}
+              onPointerMove={handleBlockPointerMove}
+              onPointerUp={(event) => finishBlockDrag(event, true)}
             >
               <GripVerticalIcon />
             </Button>
@@ -261,15 +296,18 @@ export function TaskContentBuilder({
                         <button
                           aria-label="Reducir o ampliar imagen desde la izquierda"
                           className={cn(
-                            "absolute top-1/2 left-0 h-12 w-4 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border bg-background/90 text-muted-foreground shadow-sm",
+                            "absolute top-1/2 left-0 h-12 w-6 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border bg-background/90 text-muted-foreground shadow-sm sm:w-4",
                             activeResizeBlockId === block.id
                               ? "flex"
-                              : "hidden group-hover/image:flex",
+                              : "hidden group-hover/image:flex [@media(hover:none)]:flex",
                           )}
                           type="button"
-                          onMouseDown={(event) =>
+                          onPointerCancel={finishResize}
+                          onPointerDown={(event) =>
                             startResize(event, block, "left")
                           }
+                          onPointerMove={handleResizePointerMove}
+                          onPointerUp={finishResize}
                         >
                           <span className="block h-6 w-0.5 rounded-full bg-current" />
                           <span className="ml-0.5 block h-6 w-0.5 rounded-full bg-current" />
@@ -277,15 +315,18 @@ export function TaskContentBuilder({
                         <button
                           aria-label="Reducir o ampliar imagen desde la derecha"
                           className={cn(
-                            "absolute top-1/2 right-0 h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border bg-background/90 text-muted-foreground shadow-sm",
+                            "absolute top-1/2 right-0 h-12 w-6 translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border bg-background/90 text-muted-foreground shadow-sm sm:w-4",
                             activeResizeBlockId === block.id
                               ? "flex"
-                              : "hidden group-hover/image:flex",
+                              : "hidden group-hover/image:flex [@media(hover:none)]:flex",
                           )}
                           type="button"
-                          onMouseDown={(event) =>
+                          onPointerCancel={finishResize}
+                          onPointerDown={(event) =>
                             startResize(event, block, "right")
                           }
+                          onPointerMove={handleResizePointerMove}
+                          onPointerUp={finishResize}
                         >
                           <span className="block h-6 w-0.5 rounded-full bg-current" />
                           <span className="ml-0.5 block h-6 w-0.5 rounded-full bg-current" />
