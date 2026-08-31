@@ -31,6 +31,12 @@ type DragPreview = {
   width: number;
 };
 
+type KeyboardCursor = {
+  itemId: string;
+  x: number;
+  y: number;
+};
+
 type DragDropPlayerProps = {
   backgroundUrl: string;
   items: PublicDragDropItem[];
@@ -94,10 +100,14 @@ export function DragDropPlayer({
   onChange,
 }: DragDropPlayerProps) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const pointerDragRef = useRef<PointerDrag | null>(null);
   const suppressClickItemIdRef = useRef<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+  const [keyboardCursor, setKeyboardCursor] =
+    useState<KeyboardCursor | null>(null);
+  const [keyboardMode, setKeyboardMode] = useState(false);
 
   const targetById = useMemo(
     () => new Map(targets.map((target) => [target.id, target])),
@@ -114,11 +124,45 @@ export function DragDropPlayer({
   const previewItem = dragPreview
     ? items.find((item) => item.id === dragPreview.itemId)
     : null;
+  const keyboardCursorItem = keyboardCursor
+    ? items.find((item) => item.id === keyboardCursor.itemId)
+    : null;
 
   const itemWidth = (item: PublicDragDropItem) =>
     Number.isFinite(item.widthPercent) && item.widthPercent > 0
       ? item.widthPercent
       : DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT;
+
+  const cursorForItem = (itemId: string): KeyboardCursor => {
+    const target = targetById.get(placements[itemId] ?? "");
+    return {
+      itemId,
+      x: target?.x ?? 50,
+      y: target?.y ?? 50,
+    };
+  };
+
+  const clearSelection = () => {
+    setSelectedItemId(null);
+    setKeyboardCursor(null);
+    setKeyboardMode(false);
+  };
+
+  const selectItem = (itemId: string, fromKeyboard: boolean) => {
+    setSelectedItemId(itemId);
+    setKeyboardCursor(cursorForItem(itemId));
+    setKeyboardMode(fromKeyboard);
+
+    if (fromKeyboard) {
+      window.requestAnimationFrame(() => stageRef.current?.focus());
+    }
+  };
+
+  const focusItem = (itemId: string) => {
+    window.requestAnimationFrame(() => {
+      itemButtonRefs.current.get(itemId)?.focus();
+    });
+  };
 
   const placeItem = (itemId: string, targetId: string) => {
     if (
@@ -160,7 +204,43 @@ export function DragDropPlayer({
     }
 
     onChange(next);
-    setSelectedItemId(null);
+    clearSelection();
+    return true;
+  };
+
+  const swapItemLocations = (firstItemId: string, secondItemId: string) => {
+    const firstTargetId = targetById.has(placements[firstItemId] ?? "")
+      ? placements[firstItemId]
+      : undefined;
+    const secondTargetId = targetById.has(placements[secondItemId] ?? "")
+      ? placements[secondItemId]
+      : undefined;
+
+    if (!firstTargetId && !secondTargetId) {
+      return false;
+    }
+
+    const next = Object.fromEntries(
+      items.flatMap((item) => {
+        const targetId = placements[item.id];
+        return targetById.has(targetId ?? "") ? [[item.id, targetId]] : [];
+      }),
+    );
+
+    if (secondTargetId) {
+      next[firstItemId] = secondTargetId;
+    } else {
+      delete next[firstItemId];
+    }
+
+    if (firstTargetId) {
+      next[secondItemId] = firstTargetId;
+    } else {
+      delete next[secondItemId];
+    }
+
+    onChange(next);
+    clearSelection();
     return true;
   };
 
@@ -184,7 +264,7 @@ export function DragDropPlayer({
     event: React.PointerEvent<HTMLButtonElement>,
     itemId: string,
   ) => {
-    if (disabled) {
+    if (disabled || !event.isPrimary || event.button !== 0) {
       return;
     }
 
@@ -214,6 +294,7 @@ export function DragDropPlayer({
 
     drag.moved = true;
     setSelectedItemId(drag.itemId);
+    setKeyboardMode(false);
     event.preventDefault();
     const item = items.find((candidate) => candidate.id === drag.itemId);
     const stageWidth = stageRef.current?.clientWidth ?? 0;
@@ -259,9 +340,17 @@ export function DragDropPlayer({
     setDragPreview(null);
   };
 
-  const itemButtonProps = (itemId: string) => ({
-    "aria-pressed": selectedItemId === itemId,
+  const itemButtonProps = (item: PublicDragDropItem) => ({
+    "aria-label": item.label || "Objeto",
+    "aria-pressed": selectedItemId === item.id,
     disabled,
+    ref: (node: HTMLButtonElement | null) => {
+      if (node) {
+        itemButtonRefs.current.set(item.id, node);
+      } else {
+        itemButtonRefs.current.delete(item.id);
+      }
+    },
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
 
@@ -269,27 +358,29 @@ export function DragDropPlayer({
         return;
       }
 
-      if (suppressClickItemIdRef.current === itemId) {
+      if (suppressClickItemIdRef.current === item.id) {
         suppressClickItemIdRef.current = null;
         return;
       }
 
-      if (selectedItemId && selectedItemId !== itemId) {
-        if (event.detail === 0) {
-          const occupiedTargetId = placements[itemId];
-          if (targetById.has(occupiedTargetId ?? "")) {
-            placeItem(selectedItemId, occupiedTargetId);
-          }
+      if (selectedItemId === item.id) {
+        clearSelection();
+        return;
+      }
+
+      if (selectedItemId) {
+        if (swapItemLocations(selectedItemId, item.id)) {
+          focusItem(item.id);
         } else {
-          placeItemAtPoint(selectedItemId, event.clientX, event.clientY);
+          selectItem(item.id, event.detail === 0);
         }
       } else {
-        setSelectedItemId(itemId);
+        selectItem(item.id, event.detail === 0);
       }
     },
     onPointerCancel: handlePointerCancel,
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) =>
-      handlePointerDown(event, itemId),
+      handlePointerDown(event, item.id),
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
   });
@@ -298,18 +389,92 @@ export function DragDropPlayer({
     <div className="flex flex-col gap-4">
       <div
         ref={stageRef}
-        aria-label="Escenario de la tarea. Selecciona un objeto y toca el escenario para colocarlo."
+        aria-label="Escenario de la tarea. Selecciona un objeto y toca el escenario, o usa las flechas y Enter, para colocarlo."
         className={cn(
-          "relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border bg-muted/30 [box-shadow:var(--shadow-hard)]",
+          "relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border bg-muted/30 [box-shadow:var(--shadow-hard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           selectedItemId && !disabled && "cursor-crosshair",
         )}
+        onFocus={() => {
+          if (!selectedItemId || disabled) {
+            return;
+          }
+
+          setKeyboardCursor((current) =>
+            current?.itemId === selectedItemId
+              ? current
+              : cursorForItem(selectedItemId),
+          );
+          setKeyboardMode(true);
+        }}
+        onKeyDown={(event) => {
+          if (!selectedItemId || disabled) {
+            return;
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            const itemId = selectedItemId;
+            clearSelection();
+            focusItem(itemId);
+            return;
+          }
+
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const stageElement = stageRef.current;
+            const cursor = keyboardCursor;
+            if (!stageElement || !cursor) {
+              return;
+            }
+
+            const stage = getStageBounds(stageElement);
+            if (
+              placeItemAtPoint(
+                selectedItemId,
+                stage.left + (cursor.x / 100) * stage.width,
+                stage.top + (cursor.y / 100) * stage.height,
+              )
+            ) {
+              focusItem(selectedItemId);
+            }
+            return;
+          }
+
+          const movement = {
+            ArrowDown: [0, 1],
+            ArrowLeft: [-1, 0],
+            ArrowRight: [1, 0],
+            ArrowUp: [0, -1],
+          }[event.key];
+
+          if (!movement) {
+            return;
+          }
+
+          event.preventDefault();
+          const step = event.shiftKey ? 5 : 1;
+          setKeyboardCursor((current) => {
+            const cursor =
+              current?.itemId === selectedItemId
+                ? current
+                : cursorForItem(selectedItemId);
+            return {
+              itemId: selectedItemId,
+              x: Math.min(100, Math.max(0, cursor.x + movement[0] * step)),
+              y: Math.min(100, Math.max(0, cursor.y + movement[1] * step)),
+            };
+          });
+          setKeyboardMode(true);
+        }}
         onClick={(event) => {
           if (!selectedItemId || disabled) {
             return;
           }
 
+          setKeyboardMode(false);
           placeItemAtPoint(selectedItemId, event.clientX, event.clientY);
         }}
+        tabIndex={selectedItemId && !disabled ? 0 : -1}
       >
         <img
           alt="Escenario de la tarea"
@@ -327,7 +492,7 @@ export function DragDropPlayer({
           return (
             <button
               key={item.id}
-              {...itemButtonProps(item.id)}
+              {...itemButtonProps(item)}
               className={cn(
                 "absolute touch-none -translate-x-1/2 -translate-y-1/2 cursor-grab overflow-hidden rounded-sm border-2 border-transparent bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
                 selectedItemId === item.id && "ring-2 ring-primary",
@@ -342,7 +507,7 @@ export function DragDropPlayer({
             >
               {item.image ? (
                 <img
-                  alt={item.image.name}
+                  alt=""
                   className="block h-auto w-full object-contain"
                   draggable={false}
                   src={item.image.url}
@@ -355,17 +520,43 @@ export function DragDropPlayer({
             </button>
           );
         })}
+
+        {keyboardMode && keyboardCursor && keyboardCursorItem && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-sm border-2 border-primary bg-background/80 opacity-80 ring-2 ring-ring"
+            style={{
+              left: `${keyboardCursor.x}%`,
+              top: `${keyboardCursor.y}%`,
+              width: `${itemWidth(keyboardCursorItem)}%`,
+            }}
+          >
+            {keyboardCursorItem.image ? (
+              <img
+                alt=""
+                className="block h-auto w-full object-contain"
+                src={keyboardCursorItem.image.url}
+              />
+            ) : (
+              <span className="block bg-background/90 px-2 py-1 text-sm font-medium">
+                {keyboardCursorItem.label || "Objeto"}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           Arrastra un objeto, o selecciónalo y toca el escenario para colocarlo.
+          Con teclado, usa las flechas para moverlo, Shift para avanzar más y
+          Enter para intentar encajarlo.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {trayItems.map((item) => (
             <button
               key={item.id}
-              {...itemButtonProps(item.id)}
+              {...itemButtonProps(item)}
               className={cn(
                 "flex min-h-32 touch-none cursor-grab flex-col items-center justify-center gap-3 rounded-sm border bg-background p-4 text-center [box-shadow:var(--shadow-hard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-70",
                 selectedItemId === item.id &&
@@ -376,7 +567,7 @@ export function DragDropPlayer({
             >
               {item.image ? (
                 <img
-                  alt={item.image.name}
+                  alt=""
                   className="block max-h-20 max-w-full object-contain"
                   draggable={false}
                   src={item.image.url}
