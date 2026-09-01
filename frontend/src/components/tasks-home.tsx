@@ -161,11 +161,13 @@ export function TasksHome() {
               <Card
                 key={task.id}
                 variant="soft-gradient"
-                className="cursor-pointer gap-0 py-0 transition hover:border-primary/40"
-                onDoubleClick={() => {
-                  window.location.href = `/tareas/editar?id=${task.id}`;
-                }}
+                className="relative isolate gap-0 py-0 transition hover:border-primary/40 focus-within:border-primary/40"
               >
+                <a
+                  href={`/tareas/editar?id=${task.id}`}
+                  aria-label={`Abrir edición de ${task.title}`}
+                  className="absolute inset-0 z-0 rounded-[inherit] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                />
                 <CardHeader className="gap-4 py-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex min-w-0 flex-col gap-3">
@@ -188,16 +190,13 @@ export function TasksHome() {
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
+                    <div className="relative z-10 grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                       <Button
                         size="sm"
                         type="button"
                         variant={task.isPractice ? "default" : "outline"}
                         className="w-full justify-start"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          togglePractice(task);
-                        }}
+                        onClick={() => togglePractice(task)}
                       >
                         <GraduationCapIcon data-icon="inline-start" />
                         {task.isPractice ? "En práctica" : "Práctica"}
@@ -229,10 +228,7 @@ export function TasksHome() {
                         type="button"
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setTaskToDelete(task);
-                        }}
+                        onClick={() => setTaskToDelete(task)}
                       >
                         <Trash2Icon data-icon="inline-start" />
                         Eliminar
