@@ -125,6 +125,30 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopTaskActions[3]!.y).toBe(desktopTaskActions[2]!.y);
   expect((await taskCard.boundingBox())!.height).toBeLessThan(260);
 
+  const taskCardLink = taskCard.getByRole("link", {
+    name: `Abrir edición de ${listedTask.title}`,
+    exact: true,
+  });
+  await expect(taskCardLink).toHaveAttribute(
+    "href",
+    `/tareas/editar?id=${listedTask.id}`,
+  );
+
+  await taskCard.getByRole("link", { name: "Probar", exact: true }).click();
+  await expect(page).toHaveURL(`/tareas/probador?id=${listedTask.id}`);
+  await page.goBack();
+  await expect(taskCard).toBeVisible();
+
+  const taskFooterBox = await taskCard
+    .locator('[data-slot="card-footer"]')
+    .boundingBox();
+  expect(taskFooterBox).not.toBeNull();
+  await page.mouse.click(
+    taskFooterBox!.x + taskFooterBox!.width / 2,
+    taskFooterBox!.y + taskFooterBox!.height / 2,
+  );
+  await expect(page).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
+
   await api.dispose();
 });
 
