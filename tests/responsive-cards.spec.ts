@@ -7,6 +7,7 @@ import {
 } from "./support/helpers";
 
 test("keeps contest and task card actions responsive and compact", async ({
+  browser,
   page,
 }) => {
   const api = await request.newContext();
@@ -148,6 +149,45 @@ test("keeps contest and task card actions responsive and compact", async ({
     taskFooterBox!.y + taskFooterBox!.height / 2,
   );
   await expect(page).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
+
+  await page.goBack();
+  await expect(taskCard).toBeVisible();
+  await taskCardLink.focus();
+  await expect(taskCardLink).toBeFocused();
+  await taskCardLink.press("Enter");
+  await expect(page).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
+
+  const touchContext = await browser.newContext({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    const touchPage = await touchContext.newPage();
+    await touchPage.addInitScript(({ token, user }) => {
+      window.localStorage.setItem("bebras_token", token);
+      window.localStorage.setItem("bebras_user", JSON.stringify(user));
+    }, session);
+    await touchPage.goto("/tareas");
+    const touchTaskCard = touchPage
+      .getByText(listedTask.title, { exact: true })
+      .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    const touchCardLink = touchTaskCard.getByRole("link", {
+      name: `Abrir edición de ${listedTask.title}`,
+      exact: true,
+    });
+    const touchCardLinkBox = await touchCardLink.boundingBox();
+    expect(touchCardLinkBox).not.toBeNull();
+    await touchCardLink.tap({
+      position: {
+        x: touchCardLinkBox!.width / 2,
+        y: touchCardLinkBox!.height - 16,
+      },
+    });
+    await expect(touchPage).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
+  } finally {
+    await touchContext.close();
+  }
 
   await api.dispose();
 });
