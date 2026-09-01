@@ -301,7 +301,7 @@ function DateRangeField({
             <LabelWithHint
               htmlFor="contest-date-range"
               required
-              hint="La competencia queda abierta de forma continua entre las dos fechas y horas, no en un horario que se repite cada día."
+              hint="El desafío queda abierto de forma continua entre las dos fechas y horas, no en un horario que se repite cada día."
             >
               Ventana de disponibilidad
             </LabelWithHint>
@@ -343,7 +343,7 @@ function DateRangeField({
               </PopoverContent>
             </Popover>
             <FieldDescription>
-              La competencia se abre y cierra automáticamente dentro de esta
+              El desafío se abre y cierra automáticamente dentro de esta
               ventana.
             </FieldDescription>
           </div>
@@ -456,7 +456,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     const errors: string[] = [];
 
     if (!form.title.trim()) {
-      errors.push("El nombre de la competencia es obligatorio.");
+      errors.push("El nombre del desafío es obligatorio.");
     }
 
     if (!Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0) {
@@ -474,7 +474,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     }
 
     if (!form.category) {
-      errors.push("Debes elegir la categoría de la competencia.");
+      errors.push("Debes elegir la categoría del desafío.");
     }
 
     for (const selected of selectedTasks) {
@@ -541,7 +541,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     }
 
     if (!resolvedContestId) {
-      toast.error("Primero guarda la competencia antes de publicarla.");
+      toast.error("Primero guarda el desafío antes de publicarla.");
       return;
     }
 
@@ -563,12 +563,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
       setForm(createStateFromContest(publishedContest));
       setContestState(publishedContest.state);
-      toast.success("La competencia quedó publicada.");
+      toast.success("El desafío quedó publicado.");
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudo publicar la competencia.",
+          : "No se pudo publicar el desafío.",
       );
     } finally {
       setPublishing(false);
@@ -649,12 +649,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
       setForm(createStateFromContest(savedContest));
       setContestState(savedContest.state);
-      toast.success("La competencia se guardó correctamente.");
+      toast.success("El desafío se guardó correctamente.");
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudo guardar la competencia.",
+          : "No se pudo guardar el desafío.",
       );
     } finally {
       setSaving(false);
@@ -672,9 +672,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   if (notFound) {
     return (
       <Alert>
-        <AlertTitle>Competencia no encontrada</AlertTitle>
+        <AlertTitle>Desafío no encontrado</AlertTitle>
         <AlertDescription>
-          No se pudo cargar la competencia que intentas editar.
+          No se pudo cargar el desafío que intentas editar.
         </AlertDescription>
       </Alert>
     );
@@ -686,7 +686,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         <CardHeader className="border-b">
           <CardTitle>Datos generales</CardTitle>
           <CardDescription>
-            Define el nombre, la duración y la ventana de la competencia.
+            Define el nombre, la duración y la ventana del desafío.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -768,7 +768,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 <LabelWithHint
                   htmlFor="contest-duration"
                   required
-                  hint="El reloj arranca cuando el equipo presiona Empezar, no cuando abre la competencia. El estándar Bebras son 45 minutos."
+                  hint="El reloj arranca cuando el equipo presiona Empezar, no cuando abre el desafío. El estándar Bebras son 45 minutos."
                 >
                   Duración por equipo (minutos)
                 </LabelWithHint>
@@ -961,7 +961,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               <div className="min-w-0">
                 <CardTitle>Tareas disponibles</CardTitle>
                 <CardDescription>
-                  Selecciona las tareas que formarán parte de la competencia.
+                  Selecciona las tareas que formarán parte del desafío.
                 </CardDescription>
               </div>
             </div>
@@ -971,7 +971,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               <Alert>
                 <AlertTitle>No hay tareas registradas</AlertTitle>
                 <AlertDescription>
-                  Crea tareas primero para poder armar una competencia.
+                  Crea tareas primero para poder armar un desafío.
                 </AlertDescription>
               </Alert>
             ) : (
@@ -1023,7 +1023,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
         <Card>
           <CardHeader className="border-b">
-            <CardTitle>Orden de la competencia</CardTitle>
+            <CardTitle>Orden del desafío</CardTitle>
             <CardDescription>
               Revisa el orden final de las tareas seleccionadas.
             </CardDescription>
@@ -1108,7 +1108,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
       {locked && (
         <Alert>
-          <AlertTitle>Esta competencia ya no se puede modificar</AlertTitle>
+          <AlertTitle>Este desafío ya no se puede modificar</AlertTitle>
           <AlertDescription>
             {contestState === "abierta"
               ? "Está en curso. Cambiar las tareas o los puntajes ahora afectaría a los estudiantes que están rindiendo."
@@ -1170,7 +1170,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               <AlertDescription>
                 Cada tarea necesita una dificultad asignada al rango de edad de{" "}
                 {form.category || "la categoría elegida"}. Edítalas o quítalas
-                de la competencia.
+                del desafío.
               </AlertDescription>
             </Alert>
           )}
@@ -1199,7 +1199,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 {form.tasks.length} tarea(s) seleccionada(s)
               </div>
               <div className="text-sm text-muted-foreground">
-                Guarda la competencia para dejar persistido el orden actual.
+                Guarda el desafío para dejar persistido el orden actual.
               </div>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -1212,8 +1212,8 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 {saving
                   ? "Guardando..."
                   : resolvedContestId
-                    ? "Guardar competencia"
-                    : "Crear competencia"}
+                    ? "Guardar desafío"
+                    : "Crear desafío"}
               </Button>
               <Button
                 type="button"
@@ -1222,7 +1222,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 className="w-full sm:w-auto"
                 onClick={handlePublish}
               >
-                {publishing ? "Publicando..." : "Publicar competencia"}
+                {publishing ? "Publicando..." : "Publicar desafío"}
               </Button>
             </div>
           </div>

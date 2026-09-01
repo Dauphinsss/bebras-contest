@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import { ClientRouter, slide } from "astro:transitions";
 import { AppToaster } from "../components/app-toaster";
 import AuthGuard from "../components/AuthGuard.astro";
 import SiteHeader from "../components/SiteHeader.astro";
@@ -23,22 +24,28 @@ const {
 ---
 
 <!doctype html>
-<html lang="es">
+<html lang="es" transition:name="app-root" transition:animate="none">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/png" href="/castor.png" />
     <title>{title}</title>
+    <ClientRouter />
     {requireAuth && <AuthGuard allowMaestro={allowMaestro} />}
   </head>
   <body>
     <div class="flex min-h-screen flex-col">
       <SiteHeader heading={heading} backHref={backHref} />
-      <div class="flex-1">
+      <div
+        class="flex-1"
+        data-page-content
+        transition:name="app-content"
+        transition:animate={slide({ duration: "220ms" })}
+      >
         <slot />
       </div>
       <SiteFooter />
     </div>
-    <AppToaster client:load />
+    <AppToaster client:load transition:persist="app-toaster" />
   </body>
 </html>

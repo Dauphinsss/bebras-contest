@@ -7,7 +7,7 @@ const { allowMaestro = false } = Astro.props;
 ---
 
 <script is:inline define:vars={{ allowMaestro }}>
-  (function () {
+  function bebrasAuthGuard() {
     const raw = localStorage.getItem("bebras_user");
     const user = raw ? JSON.parse(raw) : null;
     if (!localStorage.getItem("bebras_token") || !user) {
@@ -18,6 +18,14 @@ const { allowMaestro = false } = Astro.props;
       user.role === "admin" || (allowMaestro && user.role === "maestro");
     if (!ok) {
       window.location.replace("/");
+      return;
     }
-  })();
+    const approved = (user.status || "approved") === "approved";
+    if (!approved && window.location.pathname !== "/perfil") {
+      window.location.replace("/perfil");
+    }
+  }
+
+  bebrasAuthGuard();
+  document.addEventListener("astro:page-load", bebrasAuthGuard);
 </script>

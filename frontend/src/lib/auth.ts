@@ -6,6 +6,11 @@ export interface AuthUser {
   email: string;
   name: string | null;
   role: string;
+  status?: string;
+}
+
+export function isApproved(user: AuthUser | null) {
+  return Boolean(user) && (user!.status ?? "approved") === "approved";
 }
 
 export function getToken(): string | null {

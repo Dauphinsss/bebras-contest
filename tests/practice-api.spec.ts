@@ -399,7 +399,7 @@ test("validates v2 drag-drop answers within their contest", async () => {
   });
   expect(unrelatedTask.status(), await unrelatedTask.text()).toBe(404);
   expect((await unrelatedTask.json()).message).toContain(
-    "no pertenece a esta competencia",
+    "no pertenece a este desafío",
   );
 
   const valid = await api.post(`${API}/api/play/answer`, {

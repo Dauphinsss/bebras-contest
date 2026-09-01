@@ -112,7 +112,7 @@ export function LiveContests() {
             {contest.durationMinutes} minutos para rendir una vez que empieces.
           </p>
           <Button asChild className="mt-4">
-            <a href="/entrar">Entrar a la competencia</a>
+            <a href="/entrar">Entrar al desafío</a>
           </Button>
         </div>
       ))}
@@ -122,7 +122,7 @@ export function LiveContests() {
           <div className="flex items-center gap-2 text-muted-foreground">
             <CalendarClockIcon className="size-4" />
             <span className="text-xs font-semibold uppercase tracking-wide">
-              Próxima competencia
+              Próximo desafío
             </span>
             {countdown(next.startsAt) && (
               <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">

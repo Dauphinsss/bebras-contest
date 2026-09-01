@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2Icon, LoaderCircleIcon, SearchIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  HouseIcon,
+  LoaderCircleIcon,
+  SearchIcon,
+  SquarePenIcon,
+} from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { searchSchools, type SchoolResult } from "@/lib/schools-api";
@@ -82,6 +88,9 @@ export function SchoolPicker({
           }
           placeholder="Nombre de tu unidad educativa"
         />
+        <p className="pt-0.5 text-xs text-muted-foreground">
+          Escribe el nombre completo. Te pediremos la carta del director.
+        </p>
         <button
           type="button"
           onClick={() => {
@@ -219,31 +228,39 @@ export function SchoolPicker({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button
-          type="button"
-          onClick={() => {
-            setManual(true);
-            onChange({ codUe: null, name: "", institutionType: "school" });
-          }}
-          className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-        >
-          No encuentro mi colegio
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setManual(false);
-            onChange({
-              codUe: null,
-              name: "Educación en casa",
-              institutionType: "homeschool",
-            });
-          }}
-          className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-        >
-          Enseño en casa
-        </button>
+      <div className="flex flex-col gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <button
+            type="button"
+            onClick={() => {
+              setManual(true);
+              onChange({ codUe: null, name: "", institutionType: "school" });
+            }}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground"
+          >
+            <SquarePenIcon className="size-4" />
+            Mi colegio no está en la lista
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setManual(false);
+              onChange({
+                codUe: null,
+                name: "Educación en casa",
+                institutionType: "homeschool",
+              });
+            }}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground"
+          >
+            <HouseIcon className="size-4" />
+            Enseño en casa
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Con un colegio te pediremos la carta del director; si enseñas en casa,
+          tu carnet de identidad.
+        </p>
       </div>
     </div>
   );

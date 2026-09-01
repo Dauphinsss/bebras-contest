@@ -1,6 +1,8 @@
 import { test, expect, request } from "@playwright/test";
+import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
+  E2E_CLOCK_FILE,
   SEEDED_TASK,
   loginAdmin,
   createContest,
@@ -8,6 +10,10 @@ import {
   createScoringTask,
   taskBlock,
 } from "./support/helpers";
+
+test.afterEach(() => {
+  rmSync(E2E_CLOCK_FILE, { force: true });
+});
 
 test("rejects a grade that does not match the contest category", async () => {
   const api = await request.newContext();
@@ -207,7 +213,7 @@ test("protects tasks and played contest records from deletion", async () => {
     headers,
   });
   expect(removeUsedTask.status()).toBe(409);
-  expect((await removeUsedTask.json()).message).toContain("competencia");
+  expect((await removeUsedTask.json()).message).toContain("desafío");
 
   const start = await api.post(`${API}/api/play/start`, {
     data: { personalCode },
@@ -340,6 +346,236 @@ test("freezes a contest once it is running", async () => {
 
   expect(edit.status()).toBe(409);
   expect((await edit.json()).message).toContain("en curso");
+
+  await api.dispose();
+});
+
+test("suspends a running contest and blocks every play action", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers);
+  const personalCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+  );
+  const latecomerCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+    "Latecomer",
+  );
+
+  await api.post(`${API}/api/play/start`, { data: { personalCode } });
+
+  const suspended = await api.post(
+    `${API}/api/contests/${contest.id}/suspend`,
+    { headers },
+  );
+  expect(suspended.ok(), await suspended.text()).toBe(true);
+  expect((await suspended.json()).state).toBe("suspendida");
+
+  const attempt = await api
+    .get(`${API}/api/play/attempt/${personalCode}`)
+    .then((r) => r.json());
+  expect(attempt.state).toBe("suspendida");
+  expect(attempt.status).toBe("in_progress");
+  expect(attempt.suspendedAt).not.toBeNull();
+
+  const answer = await api.post(`${API}/api/play/answer`, {
+    data: {
+      personalCode,
+      taskId: SEEDED_TASK.taskId,
+      payload: { selected: ["A"] },
+    },
+  });
+  expect(answer.status()).toBe(409);
+  expect((await answer.json()).message).toContain("suspendido");
+
+  const submit = await api.post(`${API}/api/play/submit`, {
+    data: { personalCode },
+  });
+  expect(submit.status()).toBe(409);
+
+  const latecomer = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: latecomerCode },
+  });
+  expect(latecomer.status()).toBe(409);
+
+  const secondSuspend = await api.post(
+    `${API}/api/contests/${contest.id}/suspend`,
+    { headers },
+  );
+  expect(secondSuspend.status()).toBe(409);
+
+  await api.dispose();
+});
+
+test("gives the paused time back when the contest resumes", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers);
+  const personalCode = await joinContest(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+  );
+
+  await api.post(`${API}/api/play/start`, { data: { personalCode } });
+  const before = await api
+    .get(`${API}/api/play/attempt/${personalCode}`)
+    .then((r) => r.json());
+  const deadlineBefore = new Date(before.endsAt).getTime();
+
+  await api.post(`${API}/api/contests/${contest.id}/suspend`, { headers });
+
+  const pauseMinutes = 10;
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(Date.now() + pauseMinutes * 60000).toISOString(),
+  );
+
+  const resumed = await api.post(`${API}/api/contests/${contest.id}/resume`, {
+    headers,
+  });
+  expect(resumed.ok(), await resumed.text()).toBe(true);
+  const resumedContest = await resumed.json();
+  expect(resumedContest.state).toBe("abierta");
+  expect(resumedContest.suspendedAt).toBeNull();
+  expect(resumedContest.resumedAttempts).toBe(1);
+
+  const after = await api
+    .get(`${API}/api/play/attempt/${personalCode}`)
+    .then((r) => r.json());
+  const shiftedMinutes =
+    (new Date(after.endsAt).getTime() - deadlineBefore) / 60000;
+  expect(shiftedMinutes).toBeGreaterThan(pauseMinutes - 0.5);
+  expect(shiftedMinutes).toBeLessThan(pauseMinutes + 0.5);
+
+  const answer = await api.post(`${API}/api/play/answer`, {
+    data: {
+      personalCode,
+      taskId: SEEDED_TASK.taskId,
+      payload: { selected: ["A"] },
+    },
+  });
+  expect(answer.status(), await answer.text()).toBe(204);
+
+  const resumeAgain = await api.post(
+    `${API}/api/contests/${contest.id}/resume`,
+    {
+      headers,
+    },
+  );
+  expect(resumeAgain.status()).toBe(409);
+
+  await api.dispose();
+});
+
+test("enrolls a whole roster from a spreadsheet", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers, { allowPairs: true });
+  const group = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: contest.id, name: "Grupo planilla" },
+    })
+    .then((r) => r.json());
+
+  const template = await api.get(
+    `${API}/api/groups/${group.id}/roster-template`,
+    { headers },
+  );
+  expect(template.ok(), await template.text()).toBe(true);
+  expect(template.headers()["content-type"]).toContain("spreadsheetml");
+
+  const rows = [
+    ["Nombres", "Apellidos", "Curso", "Modalidad"],
+    ["Ana", "Quispe", contest.picked.grade, "individual"],
+    ["Luis", "Mamani", contest.picked.grade, "individual"],
+    ["", "", "", ""],
+    ["Sin", "", contest.picked.grade, "individual"],
+    ["Mal", "Curso", "S6", "individual"],
+    ["Ana", "Quispe", contest.picked.grade, "individual"],
+  ];
+  const csv = rows.map((row) => row.join(",")).join("\n");
+
+  const imported = await api.post(`${API}/api/groups/${group.id}/roster`, {
+    headers,
+    multipart: {
+      file: {
+        name: "participantes.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(csv, "utf8"),
+      },
+    },
+  });
+  expect(imported.status(), await imported.text()).toBe(201);
+  const result = await imported.json();
+
+  expect(result.created).toHaveLength(2);
+  expect(result.created[0].name).toBe("Ana Quispe");
+  expect(result.created[0].personalCode).toBeTruthy();
+
+  const reasons = result.skipped.map((item: { reason: string }) => item.reason);
+  expect(result.skipped).toHaveLength(3);
+  expect(reasons[0]).toContain("Faltan nombres");
+  expect(reasons[1]).toContain("categoría");
+  expect(reasons[2]).toContain("Ya está inscrito");
+
+  const teams = await api
+    .get(`${API}/api/groups`, { headers })
+    .then((r) => r.json());
+  const stored = teams.find((item: { id: string }) => item.id === group.id);
+  expect(stored.teams).toHaveLength(2);
+
+  const otherContest = await createContest(api, headers, { allowPairs: true });
+  const templateGroup = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: otherContest.id, name: "Grupo plantilla" },
+    })
+    .then((r) => r.json());
+  const otherTemplate = await api.get(
+    `${API}/api/groups/${templateGroup.id}/roster-template`,
+    { headers },
+  );
+  expect(otherTemplate.ok(), await otherTemplate.text()).toBe(true);
+  const roundTrip = await api.post(
+    `${API}/api/groups/${templateGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "plantilla.xlsx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          buffer: await otherTemplate.body(),
+        },
+      },
+    },
+  );
+  expect(roundTrip.status(), await roundTrip.text()).toBe(201);
+  const roundTripResult = await roundTrip.json();
+  expect(roundTripResult.created.length).toBeGreaterThan(0);
+  expect(roundTripResult.skipped).toHaveLength(0);
+
+  const wrong = await api.post(`${API}/api/groups/${group.id}/roster`, {
+    headers,
+    multipart: {
+      file: {
+        name: "otra.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from("Alumno,Grado\nAna,P3", "utf8"),
+      },
+    },
+  });
+  expect(wrong.status()).toBe(400);
+  expect((await wrong.json()).message).toContain("columnas");
 
   await api.dispose();
 });

@@ -1404,15 +1404,11 @@ test("redirects a newly created task to editing with its data preserved", async 
     name: "Algoritmos y programación",
   });
   const ageCheckbox = page.getByRole("checkbox", { name: "10–12" });
-  await page
-    .locator('label[for="category-Algoritmos y programación"]')
-    .click();
+  await page.locator('label[for="category-Algoritmos y programación"]').click();
   await expect(categoryCheckbox).toBeChecked();
   await page.locator('label[for="age-range-10–12"]').click();
   await expect(ageCheckbox).toBeChecked();
-  await page
-    .getByRole("combobox", { name: "Dificultad para 10–12" })
-    .click();
+  await page.getByRole("combobox", { name: "Dificultad para 10–12" }).click();
   await page.getByRole("option", { name: "Medio", exact: true }).click();
   await page
     .getByPlaceholder("Escribe el contenido del cuerpo.")
@@ -1471,11 +1467,7 @@ test("serializes every multiple-choice correctness criterion", async ({
     .post(`${API}/api/auth/login`, { data: ADMIN })
     .then((response) => response.json());
   const headers = { authorization: `Bearer ${session.token}` };
-  const task = await createPracticeTask(
-    api,
-    headers,
-    "multiple_choice",
-  );
+  const task = await createPracticeTask(api, headers, "multiple_choice");
 
   await page.addInitScript(({ token, user }) => {
     window.localStorage.setItem("bebras_token", token);
@@ -1557,26 +1549,16 @@ test("evaluates any and all criteria in the task tester", async ({ page }) => {
     id,
     blocks: [taskBlock(`tester-${id}-${Date.now()}`, `Respuesta ${id}`)],
   }));
-  const anyTask = await createPracticeTask(
-    api,
-    headers,
-    "multiple_choice",
-    {
-      title: "Probador criterio any",
-      answers,
-      correctAnswerId: "any:B,C",
-    },
-  );
-  const allTask = await createPracticeTask(
-    api,
-    headers,
-    "multiple_choice",
-    {
-      title: "Probador criterio all",
-      answers,
-      correctAnswerId: "all:B,C",
-    },
-  );
+  const anyTask = await createPracticeTask(api, headers, "multiple_choice", {
+    title: "Probador criterio any",
+    answers,
+    correctAnswerId: "any:B,C",
+  });
+  const allTask = await createPracticeTask(api, headers, "multiple_choice", {
+    title: "Probador criterio all",
+    answers,
+    correctAnswerId: "all:B,C",
+  });
 
   await page.addInitScript(({ token, user }) => {
     window.localStorage.setItem("bebras_token", token);
@@ -1587,19 +1569,27 @@ test("evaluates any and all criteria in the task tester", async ({ page }) => {
   const resultAlert = page.locator("main").getByRole("alert");
   await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
   await page.getByRole("button", { name: "Probar respuesta" }).click();
-  await expect(resultAlert.getByText("Correcto", { exact: true })).toBeVisible();
+  await expect(
+    resultAlert.getByText("Correcto", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Reiniciar" }).click();
   await page.getByRole("button", { name: "Respuesta A", exact: true }).click();
   await page.getByRole("button", { name: "Probar respuesta" }).click();
-  await expect(resultAlert.getByText("Incorrecto", { exact: true })).toBeVisible();
+  await expect(
+    resultAlert.getByText("Incorrecto", { exact: true }),
+  ).toBeVisible();
 
   await page.goto(`/tareas/probador?id=${allTask.id}`);
   await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
   await page.getByRole("button", { name: "Probar respuesta" }).click();
-  await expect(resultAlert.getByText("Incorrecto", { exact: true })).toBeVisible();
+  await expect(
+    resultAlert.getByText("Incorrecto", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Respuesta C", exact: true }).click();
   await page.getByRole("button", { name: "Probar respuesta" }).click();
-  await expect(resultAlert.getByText("Correcto", { exact: true })).toBeVisible();
+  await expect(
+    resultAlert.getByText("Correcto", { exact: true }),
+  ).toBeVisible();
   await api.dispose();
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LogOutIcon } from "lucide-react";
+import { ChevronDownIcon, LogOutIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -22,6 +22,11 @@ function getInitials(user: AuthUser) {
   }
 
   return source.slice(0, 2).toUpperCase();
+}
+
+function firstName(user: AuthUser) {
+  const source = (user.name && user.name.trim()) || user.email;
+  return source.split(/\s+/)[0] ?? source;
 }
 
 export function UserMenu() {
@@ -49,13 +54,17 @@ export function UserMenu() {
         <button
           type="button"
           aria-label="Menú de usuario"
-          className="rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="flex items-center gap-2 rounded-full py-0.5 pr-1 pl-0.5 outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Avatar className="after:hidden">
             <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
               {getInitials(user)}
             </AvatarFallback>
           </Avatar>
+          <span className="hidden max-w-40 truncate text-sm font-medium sm:inline">
+            {firstName(user)}
+          </span>
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 p-2">
@@ -74,6 +83,10 @@ export function UserMenu() {
             </p>
           </div>
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <a href="/perfil">Mi perfil</a>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={handleLogout}>
           <LogOutIcon />

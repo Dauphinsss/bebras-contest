@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  TeacherSchool: 'TeacherSchool',
   School: 'School',
   TaskDraft: 'TaskDraft',
   Contest: 'Contest',
@@ -97,6 +98,20 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const TeacherSchoolScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  schoolCodUe: 'schoolCodUe',
+  schoolName: 'schoolName',
+  letterFilename: 'letterFilename',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TeacherSchoolScalarFieldEnum = (typeof TeacherSchoolScalarFieldEnum)[keyof typeof TeacherSchoolScalarFieldEnum]
 
 
 export const SchoolScalarFieldEnum = {
@@ -157,6 +172,7 @@ export const ContestScalarFieldEnum = {
   showSolutions: 'showSolutions',
   showTotalScore: 'showTotalScore',
   publishedAt: 'publishedAt',
+  suspendedAt: 'suspendedAt',
   consolidatedAt: 'consolidatedAt',
   resultsPublishedAt: 'resultsPublishedAt',
   createdAt: 'createdAt',
@@ -209,6 +225,8 @@ export const TeamScalarFieldEnum = {
   memberTwoFirstName: 'memberTwoFirstName',
   memberTwoLastName: 'memberTwoLastName',
   personalCode: 'personalCode',
+  sessionToken: 'sessionToken',
+  sessionSeenAt: 'sessionSeenAt',
   status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

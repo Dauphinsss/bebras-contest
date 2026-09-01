@@ -22,7 +22,11 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
 );
 ---
 
-<header class="border-b bg-background">
+<header
+  class="border-b bg-background"
+  transition:name="app-header"
+  transition:animate="none"
+>
   <div
     class="flex w-full flex-wrap items-center justify-between gap-x-2 px-4 py-3 sm:px-8 lg:flex-nowrap lg:gap-4 lg:px-12"
   >
@@ -76,7 +80,7 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         ]}
       >
-        Desafíos
+        Práctica
       </a>
       <nav class="flex items-center gap-1">
         {
@@ -98,16 +102,21 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
         }
       </nav>
     </div>
-    <MobileNavigation pathname={pathname} client:only="react" />
-    <UserMenu client:only="react" />
+    <MobileNavigation
+      pathname={pathname}
+      client:only="react"
+      transition:persist="mobile-navigation"
+    />
+    <UserMenu client:only="react" transition:persist="user-menu" />
   </div>
 </header>
 
 <script is:inline>
-  (function () {
+  function bebrasRevealNav() {
     const raw = localStorage.getItem("bebras_user");
     const user = raw ? JSON.parse(raw) : null;
     if (!user) return;
+    if ((user.status || "approved") !== "approved") return;
 
     document.querySelectorAll("[data-nav-role]").forEach(function (el) {
       const role = el.getAttribute("data-nav-role");
@@ -119,15 +128,22 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
         el.classList.remove("hidden");
       }
     });
-  })();
+  }
+
+  bebrasRevealNav();
+  document.addEventListener("astro:page-load", bebrasRevealNav);
 </script>
 
 <script>
-  const backLink = document.querySelector<HTMLAnchorElement>(
-    "[data-practice-back]",
-  );
+  function setPracticeBackLink() {
+    const backLink = document.querySelector<HTMLAnchorElement>(
+      "[data-practice-back]",
+    );
 
-  if (backLink) {
+    if (!backLink) {
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const origin = params.get("from") === "/entrar" ? "/entrar" : "/practica";
     const category = (params.get("nombre") ?? "").trim();
@@ -142,4 +158,7 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
       backLink.href = origin;
     }
   }
+
+  setPracticeBackLink();
+  document.addEventListener("astro:page-load", setPracticeBackLink);
 </script>

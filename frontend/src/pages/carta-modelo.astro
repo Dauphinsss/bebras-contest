@@ -1,0 +1,474 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const title = "Carta de autorización (modelo)";
+---
+
+<Layout title={title} heading="Carta de autorización" backHref="/perfil">
+  <main
+    class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8"
+  >
+    <section class="flex flex-col gap-3 print:hidden">
+      <p class="text-sm leading-6 text-muted-foreground">
+        Completa los datos en la carta y descárgala o imprímela. Hazla firmar y
+        sellar por la dirección de tu colegio, y súbela escaneada o fotografiada
+        desde tu perfil. Lo que escribas se guarda en este navegador.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          id="download-letter"
+          type="button"
+          class="inline-flex h-9 items-center gap-2 border border-border bg-primary px-3 text-sm font-semibold text-primary-foreground [box-shadow:var(--shadow-hard)] transition hover:opacity-90"
+        >
+          <svg
+            class="size-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" x2="12" y1="15" y2="3"></line>
+          </svg>
+          <span id="download-label">Descargar en PDF</span>
+        </button>
+        <button
+          id="print-letter"
+          type="button"
+          class="inline-flex h-9 items-center gap-2 border border-border bg-background px-3 text-sm font-semibold [box-shadow:var(--shadow-hard)] transition hover:bg-muted"
+        >
+          <svg
+            class="size-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9V2h12v7"></path>
+            <path
+              d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+            ></path>
+            <rect x="6" y="14" width="12" height="8" rx="1"></rect>
+          </svg>
+          Imprimir
+        </button>
+        <button
+          id="clear-letter"
+          type="button"
+          class="inline-flex h-9 items-center gap-2 border border-border bg-background px-3 text-sm font-semibold [box-shadow:var(--shadow-hard)] transition hover:bg-muted"
+        >
+          <svg
+            class="size-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M7 21h13M11.5 21 3.6 13.1a2 2 0 0 1 0-2.8l7.2-7.2a2 2 0 0 1 2.8 0l6.3 6.3a2 2 0 0 1 0 2.8L11.5 21Z"
+            ></path>
+          </svg>
+          Vaciar
+        </button>
+      </div>
+    </section>
+
+    <article
+      id="letter"
+      class="flex flex-col gap-5 border border-border bg-background px-6 py-8 text-sm leading-7 [box-shadow:var(--shadow-hard)] print:border-0 print:shadow-none"
+    >
+      <p class="text-right">
+        <span class="campo" data-field="ciudad" data-placeholder="Ciudad"
+        ></span>, <span class="campo" data-field="dia" data-placeholder="día"
+        ></span> de <span class="campo" data-field="mes" data-placeholder="mes"
+        ></span> de <span class="campo" data-field="anio" data-placeholder="año"
+        ></span>
+      </p>
+
+      <p>
+        <strong>Señores</strong><br />
+        Comité Organizador del Desafío Bebras Bolivia<br />
+        Presente.—
+      </p>
+
+      <p><strong>Ref.: Autorización para participar como maestro</strong></p>
+
+      <p>De mi mayor consideración:</p>
+
+      <p>
+        Por medio de la presente, en mi calidad de director(a) de la unidad
+        educativa <span
+          class="campo"
+          data-field="colegio"
+          data-placeholder="nombre completo del colegio"></span>, autorizo al/a
+        la maestro(a) <span
+          class="campo"
+          data-field="maestro"
+          data-placeholder="nombres y apellidos del maestro"></span>, con cédula
+        de identidad <span class="campo" data-field="ci" data-placeholder="C.I."
+        ></span>, a representar a nuestra unidad educativa en el Desafío Bebras
+        Bolivia.
+      </p>
+
+      <p>
+        En esa condición podrá registrar a nuestros estudiantes, organizar los
+        grupos de participación y acompañarlos durante el desafío, en las fechas
+        que el comité organizador establezca.
+      </p>
+
+      <p>
+        Sin otro particular, saludo a ustedes con las consideraciones más
+        distinguidas.
+      </p>
+
+      <div class="firma-bloque flex flex-col gap-1">
+        <span class="firma" aria-hidden="true"></span>
+        <p>
+          <span
+            class="campo"
+            data-field="director"
+            data-placeholder="nombres y apellidos del director(a)"></span><br />
+          Director(a) de <span
+            class="campo"
+            data-field="colegio-firma"
+            data-placeholder="nombre del colegio"></span>
+        </p>
+      </div>
+    </article>
+
+    <p class="text-xs text-muted-foreground print:hidden">
+      Al imprimirla debe llevar la firma del director(a) y el sello del colegio.
+      Si enseñas en casa no necesitas esta carta: en su lugar te pediremos el
+      anverso y el reverso de tu cédula de identidad.
+    </p>
+  </main>
+</Layout>
+
+<script>
+  function setUpLetter() {
+    const STORAGE_KEY = "bebras_carta_modelo";
+    const fields = Array.from(
+      document.querySelectorAll<HTMLElement>("#letter .campo"),
+    );
+
+    const read = () => {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Record<
+          string,
+          string
+        >;
+      } catch {
+        return {} as Record<string, string>;
+      }
+    };
+
+    const save = () => {
+      const data: Record<string, string> = {};
+      for (const field of fields) {
+        data[field.dataset.field ?? ""] = field.textContent?.trim() ?? "";
+      }
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch {
+        return;
+      }
+    };
+
+    const stored = read();
+    const today = new Date();
+    const months = [
+      "enero",
+      "febrero",
+      "marzo",
+      "abril",
+      "mayo",
+      "junio",
+      "julio",
+      "agosto",
+      "septiembre",
+      "octubre",
+      "noviembre",
+      "diciembre",
+    ];
+
+    let teacherName = "";
+    try {
+      const raw = localStorage.getItem("bebras_user");
+      teacherName = raw ? (JSON.parse(raw).name ?? "") : "";
+    } catch {
+      teacherName = "";
+    }
+
+    const askedSchool =
+      new URLSearchParams(window.location.search).get("colegio")?.trim() ?? "";
+
+    const defaults: Record<string, string> = {
+      dia: String(today.getDate()),
+      mes: months[today.getMonth()],
+      anio: String(today.getFullYear()),
+      maestro: teacherName,
+      colegio: askedSchool,
+      "colegio-firma": askedSchool,
+    };
+
+    const fillField = (field: HTMLElement, value: string) => {
+      const key = field.dataset.field ?? "";
+      field.textContent = stored[key] || value || "";
+    };
+
+    for (const field of fields) {
+      const key = field.dataset.field ?? "";
+      field.setAttribute("contenteditable", "true");
+      field.setAttribute("role", "textbox");
+      field.setAttribute("aria-label", field.dataset.placeholder ?? key);
+      fillField(field, defaults[key] ?? "");
+      field.addEventListener("input", () => {
+        const twin =
+          key === "colegio"
+            ? "colegio-firma"
+            : key === "colegio-firma"
+              ? "colegio"
+              : "";
+
+        if (twin) {
+          for (const other of fields) {
+            if (other.dataset.field === twin) {
+              other.textContent = field.textContent?.trim() ?? "";
+            }
+          }
+        }
+
+        save();
+      });
+      field.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+        }
+      });
+    }
+
+    save();
+
+    const token = localStorage.getItem("bebras_token");
+
+    if (token && !askedSchool) {
+      const base =
+        import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
+        "http://localhost:3000";
+
+      void fetch(`${base}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((profile) => {
+          if (!profile) {
+            return;
+          }
+
+          for (const field of fields) {
+            const key = field.dataset.field ?? "";
+
+            if (field.textContent?.trim()) {
+              continue;
+            }
+
+            if (key === "colegio" || key === "colegio-firma") {
+              field.textContent =
+                profile.institutionType === "homeschool"
+                  ? ""
+                  : (profile.schoolName ?? "");
+            }
+
+            if (key === "maestro") {
+              field.textContent = profile.name ?? "";
+            }
+          }
+
+          save();
+        })
+        .catch(() => undefined);
+    }
+
+    document.getElementById("print-letter")?.addEventListener("click", () => {
+      window.print();
+    });
+
+    const downloadButton = document.getElementById(
+      "download-letter",
+    ) as HTMLButtonElement | null;
+
+    downloadButton?.addEventListener("click", async () => {
+      const base =
+        import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
+        "http://localhost:3000";
+      const payload: Record<string, string> = {};
+
+      for (const field of fields) {
+        const key = field.dataset.field ?? "";
+        payload[key === "colegio-firma" ? "colegioFirma" : key] =
+          field.textContent?.trim() ?? "";
+      }
+
+      const label = document.getElementById("download-label");
+      const previous = label?.textContent ?? "Descargar en PDF";
+      downloadButton.disabled = true;
+
+      if (label) {
+        label.textContent = "Preparando...";
+      }
+
+      try {
+        const response = await fetch(`${base}/api/letter/pdf`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error("fallo");
+        }
+
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "carta-autorizacion-bebras.pdf";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch {
+        window.print();
+      } finally {
+        downloadButton.disabled = false;
+
+        if (label) {
+          label.textContent = previous;
+        }
+      }
+    });
+
+    document.getElementById("clear-letter")?.addEventListener("click", () => {
+      for (const field of fields) {
+        field.textContent = "";
+      }
+      save();
+      fields[0]?.focus();
+    });
+  }
+
+  setUpLetter();
+  document.addEventListener("astro:page-load", setUpLetter);
+</script>
+
+<style is:global>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  #letter {
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.8;
+    hyphens: auto;
+  }
+
+  #letter p:not(.text-right) {
+    text-align: justify;
+  }
+
+  .firma-bloque {
+    margin-top: 7rem;
+  }
+
+  .firma {
+    display: block;
+    width: min(18rem, 70%);
+    border-top: 1px solid currentColor;
+  }
+
+  .campo {
+    display: inline-block;
+    min-width: 6ch;
+    border-bottom: 1px dashed var(--border);
+    padding: 0 0.15rem;
+    font-weight: 600;
+    outline: none;
+  }
+
+  .campo:focus {
+    background: color-mix(in srgb, var(--secondary) 35%, transparent);
+  }
+
+  .campo[data-field="dia"] {
+    min-width: 2.5ch;
+  }
+
+  .campo[data-field="anio"] {
+    min-width: 4.5ch;
+  }
+
+  .campo[data-field="mes"],
+  .campo[data-field="ciudad"] {
+    min-width: 5ch;
+  }
+
+  .campo:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted-foreground);
+    font-weight: 400;
+  }
+
+  @media print {
+    header,
+    footer {
+      display: none !important;
+    }
+
+    main {
+      max-width: none !important;
+      padding: 0 !important;
+    }
+
+    #letter {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 21cm;
+      margin: 0 auto;
+      gap: 1.15rem;
+      border: 0;
+      padding: 2.2cm 2.4cm;
+      font-size: 12pt;
+      line-height: 1.9;
+      box-shadow: none;
+    }
+
+    .firma-bloque {
+      margin-top: 8rem;
+    }
+
+    .campo {
+      min-width: 0;
+      border-bottom: 0;
+      padding: 0;
+    }
+
+    .campo:focus {
+      background: transparent;
+    }
+
+    .campo:empty::before {
+      content: "____________";
+      color: inherit;
+    }
+  }
+</style>

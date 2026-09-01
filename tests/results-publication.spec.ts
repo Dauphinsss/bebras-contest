@@ -102,7 +102,7 @@ test("results appear only after consolidating and publishing", async ({
     { token: headers.authorization.replace("Bearer ", "") },
   );
   await page.goto(`/competencias/resultados?id=${contest.id}`);
-  await expect(page.getByText("Consolidada", { exact: true })).toBeVisible();
+  await expect(page.getByText("Consolidado", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Publicar resultados" }).click();
   await page
     .getByRole("alertdialog")

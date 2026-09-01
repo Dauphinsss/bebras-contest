@@ -107,6 +107,50 @@ export async function joinContest(
   return join.personalCode as string;
 }
 
+export function playHeaders(sessionToken: string) {
+  return { "x-play-session": sessionToken };
+}
+
+export async function joinContestSession(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  contestId: string,
+  grade: string,
+  firstName = "Playwright",
+  lastName = "Tester",
+) {
+  const group = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId, name: "PW Group" },
+    })
+    .then((r) => r.json());
+
+  const join = await api.post(`${API}/api/play/join`, {
+    data: {
+      accessCode: group.accessCode,
+      participationMode: "individual",
+      grade,
+      memberOneFirstName: firstName,
+      memberOneLastName: lastName,
+    },
+  });
+  expect(join.ok(), await join.text()).toBe(true);
+
+  const session = await api.post(`${API}/api/play/session`, {
+    data: { accessCode: group.accessCode, firstName, lastName },
+  });
+  expect(session.ok(), await session.text()).toBe(true);
+
+  return {
+    accessCode: group.accessCode as string,
+    personalCode: (await join.json()).personalCode as string,
+    sessionToken: (await session.json()).sessionToken as string,
+    firstName,
+    lastName,
+  };
+}
+
 export async function createScoringTask(
   api: APIRequestContext,
   headers: Record<string, string>,

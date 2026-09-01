@@ -47,6 +47,7 @@ export type AttemptState = {
   status: "pending" | "in_progress" | "finished";
   startedAt: string | null;
   endsAt: string | null;
+  suspendedAt: string | null;
   resultsPublished: boolean;
   showFeedback: boolean;
   showSolutions: boolean;
@@ -87,31 +88,92 @@ export function answerHasResponse(answerType: string, payload: unknown) {
   return false;
 }
 
-export function getAttempt(personalCode: string) {
-  return request<AttemptState>(`/api/play/attempt/${personalCode}`);
+const PLAY_SESSION_KEY = "bebras_play_session";
+
+export function readPlaySession() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    return window.localStorage.getItem(PLAY_SESSION_KEY) ?? "";
+  } catch {
+    return "";
+  }
 }
 
-export function startAttempt(personalCode: string) {
-  return request<{ ok: boolean }>("/api/play/start", {
-    method: "POST",
-    body: JSON.stringify({ personalCode }),
+export function storePlaySession(sessionToken: string) {
+  try {
+    window.localStorage.setItem(PLAY_SESSION_KEY, sessionToken);
+  } catch {
+    return;
+  }
+}
+
+export function forgetPlaySession() {
+  try {
+    window.localStorage.removeItem(PLAY_SESSION_KEY);
+  } catch {
+    return;
+  }
+}
+
+function playRequest<T>(path: string, options: RequestInit = {}) {
+  const sessionToken = readPlaySession();
+
+  return request<T>(path, {
+    ...options,
+    headers: sessionToken ? { "x-play-session": sessionToken } : undefined,
   });
 }
 
-export function saveAnswer(
-  personalCode: string,
-  taskId: string,
-  payload: unknown,
+export type PlaySession = {
+  sessionToken: string;
+  groupName: string;
+  contestTitle: string;
+  participationMode: string;
+  memberOneFirstName: string;
+  memberOneLastName: string;
+  memberTwoFirstName: string | null;
+  memberTwoLastName: string | null;
+};
+
+export function openPlaySession(
+  accessCode: string,
+  firstName: string,
+  lastName: string,
 ) {
-  return request<null>("/api/play/answer", {
+  return request<PlaySession>("/api/play/session", {
     method: "POST",
-    body: JSON.stringify({ personalCode, taskId, payload }),
+    body: JSON.stringify({ accessCode, firstName, lastName }),
   });
 }
 
-export function submitAttempt(personalCode: string) {
-  return request<{ ok: boolean }>("/api/play/submit", {
+export function closePlaySession() {
+  return playRequest<null>("/api/play/session/close", { method: "POST" });
+}
+
+export function sendPlayHeartbeat() {
+  return playRequest<{ ok: boolean }>("/api/play/heartbeat", {
     method: "POST",
-    body: JSON.stringify({ personalCode }),
   });
+}
+
+export function getAttempt() {
+  return playRequest<AttemptState>("/api/play/attempt");
+}
+
+export function startAttempt() {
+  return playRequest<{ ok: boolean }>("/api/play/start", { method: "POST" });
+}
+
+export function saveAnswer(taskId: string, payload: unknown) {
+  return playRequest<null>("/api/play/answer", {
+    method: "POST",
+    body: JSON.stringify({ taskId, payload }),
+  });
+}
+
+export function submitAttempt() {
+  return playRequest<{ ok: boolean }>("/api/play/submit", { method: "POST" });
 }

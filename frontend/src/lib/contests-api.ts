@@ -33,6 +33,19 @@ export function publishContest(contestId: string) {
   });
 }
 
+export function suspendContest(contestId: string) {
+  return request<StoredContest>(`/api/contests/${contestId}/suspend`, {
+    method: "POST",
+  });
+}
+
+export function resumeContest(contestId: string) {
+  return request<StoredContest & { resumedAttempts: number }>(
+    `/api/contests/${contestId}/resume`,
+    { method: "POST" },
+  );
+}
+
 export function consolidateContest(contestId: string) {
   return request<StoredContest & { closedAttempts: number }>(
     `/api/contests/${contestId}/consolidate`,

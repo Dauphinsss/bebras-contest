@@ -1,9 +1,5 @@
 import { test, expect, request } from "@playwright/test";
-import {
-  API,
-  ADMIN,
-  createContest,
-} from "./support/helpers";
+import { API, ADMIN, createContest } from "./support/helpers";
 
 test("keeps contest and task card actions responsive and compact", async ({
   page,
@@ -45,6 +41,7 @@ test("keeps contest and task card actions responsive and compact", async ({
     .locator('xpath=ancestor::*[@data-slot="card"][1]');
   const contestActions = [
     contestCard.getByRole("link", { name: "Resultados" }),
+    contestCard.getByRole("button", { name: "Suspender" }),
     contestCard.getByRole("link", { name: "Editar" }),
     contestCard.getByRole("button", { name: "Eliminar" }),
   ];
@@ -53,11 +50,15 @@ test("keeps contest and task card actions responsive and compact", async ({
   );
   expect(mobileContestActions[0]!.width).toBe(mobileContestActions[1]!.width);
   expect(mobileContestActions[1]!.width).toBe(mobileContestActions[2]!.width);
+  expect(mobileContestActions[2]!.width).toBe(mobileContestActions[3]!.width);
   expect(mobileContestActions[1]!.y).toBeGreaterThan(
     mobileContestActions[0]!.y,
   );
   expect(mobileContestActions[2]!.y).toBeGreaterThan(
     mobileContestActions[1]!.y,
+  );
+  expect(mobileContestActions[3]!.y).toBeGreaterThan(
+    mobileContestActions[2]!.y,
   );
   const contestTasks = contestCard.locator('[data-slot="card-footer"] > div');
   await expect(contestTasks).toHaveCount(3);
@@ -74,12 +75,17 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[0]!.width).toBeLessThan(160);
   expect(desktopContestActions[0]!.width).toBe(desktopContestActions[1]!.width);
   expect(desktopContestActions[1]!.width).toBe(desktopContestActions[2]!.width);
+  expect(desktopContestActions[2]!.width).toBe(desktopContestActions[3]!.width);
   expect(desktopContestActions[1]!.y).toBe(desktopContestActions[0]!.y);
   expect(desktopContestActions[1]!.x).toBeGreaterThan(
     desktopContestActions[0]!.x,
   );
   expect(desktopContestActions[2]!.y).toBeGreaterThan(
     desktopContestActions[0]!.y,
+  );
+  expect(desktopContestActions[3]!.y).toBe(desktopContestActions[2]!.y);
+  expect(desktopContestActions[3]!.x).toBeGreaterThan(
+    desktopContestActions[2]!.x,
   );
   const desktopContestTasks = await Promise.all(
     [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
@@ -146,7 +152,7 @@ test("keeps group and teacher cards responsive and compact", async ({
       json: [
         {
           id: "responsive-contest",
-          title: "Competencia responsive",
+          title: "Desafío responsive",
           category: "Capibara",
           startsAt: now,
           endsAt: new Date(Date.now() + 3600000).toISOString(),
@@ -162,7 +168,7 @@ test("keeps group and teacher cards responsive and compact", async ({
           name: "Grupo responsive",
           accessCode: "ABC123",
           contestId: "responsive-contest",
-          contestTitle: "Competencia responsive",
+          contestTitle: "Desafío responsive",
           contestCategory: "Capibara",
           contestAllowPairs: true,
           scheduledAt: now,
@@ -204,6 +210,7 @@ test("keeps group and teacher cards responsive and compact", async ({
           hasIdFront: true,
           hasIdBack: true,
           createdAt: now,
+          schools: [],
         },
       ],
     }),

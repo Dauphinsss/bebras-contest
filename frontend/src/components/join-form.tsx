@@ -23,6 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { API_BASE_URL } from "@/lib/api-client";
+import {
+  forgetPlaySession,
+  getAttempt,
+  openPlaySession,
+  readPlaySession,
+  storePlaySession,
+} from "@/lib/play-api";
 
 type GroupGrade = {
   value: string;
@@ -46,18 +53,7 @@ type JoinResult = {
   contestTitle: string;
 };
 
-type RecoveredTeam = {
-  personalCode: string;
-  participationMode: string;
-  memberOneFirstName: string;
-  memberOneLastName: string;
-  memberTwoFirstName: string | null;
-  memberTwoLastName: string | null;
-  groupName: string;
-  contestTitle: string;
-};
-
-type Step = "code" | "register" | "confirm" | "recovered" | "done";
+type Step = "code" | "identify" | "register" | "confirm" | "done";
 
 function fmt(value: string) {
   return value
@@ -92,7 +88,6 @@ export function JoinForm() {
   const [twoFirst, setTwoFirst] = useState("");
   const [twoLast, setTwoLast] = useState("");
   const [result, setResult] = useState<JoinResult | null>(null);
-  const [recovered, setRecovered] = useState<RecoveredTeam | null>(null);
   const [loading, setLoading] = useState(false);
 
   const performLookup = async (rawCode: string, silent = false) => {
@@ -127,26 +122,17 @@ export function JoinForm() {
       setMode("individual");
       setGrade("");
 
-      // Recuperación: si en este navegador ya hay un registro para este código,
-      // lo validamos y mostramos el estado en vez de volver a registrar.
-      const storedCode = window.localStorage.getItem(`bebras_play_${code}`);
-      if (storedCode) {
+      if (readPlaySession()) {
         try {
-          const teamResponse = await fetch(
-            `${API_BASE_URL}/api/play/team/${storedCode}`,
-          );
-          if (teamResponse.ok) {
-            setRecovered((await teamResponse.json()) as RecoveredTeam);
-            setStep("recovered");
-            return;
-          }
-          window.localStorage.removeItem(`bebras_play_${code}`);
+          await getAttempt();
+          window.location.href = "/rendir";
+          return;
         } catch {
-          // Si falla la validación, seguimos al registro normal.
+          forgetPlaySession();
         }
       }
 
-      setStep("register");
+      setStep("identify");
     } catch {
       if (!silent) {
         toast.error("No se pudo conectar con el servidor.");
@@ -157,10 +143,7 @@ export function JoinForm() {
   };
 
   const registerAnother = () => {
-    window.localStorage.removeItem(
-      `bebras_play_${accessCode.trim().toUpperCase()}`,
-    );
-    setRecovered(null);
+    forgetPlaySession();
     setMode("individual");
     setGrade("");
     setOneFirst("");
@@ -217,6 +200,33 @@ export function JoinForm() {
     setStep("confirm");
   };
 
+  const enterWithName = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!oneFirst.trim() || !oneLast.trim()) {
+      toast.error("Escribe tu nombre y tu apellido.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const session = await openPlaySession(
+        accessCode.trim().toUpperCase(),
+        fmt(oneFirst),
+        fmt(oneLast),
+      );
+      storePlaySession(session.sessionToken);
+      window.location.href = "/rendir";
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo entrar.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const join = async () => {
     setLoading(true);
 
@@ -248,14 +258,18 @@ export function JoinForm() {
       }
 
       const joinResult = data as JoinResult;
+
       try {
-        window.localStorage.setItem(
-          `bebras_play_${accessCode.trim().toUpperCase()}`,
-          joinResult.personalCode,
+        const session = await openPlaySession(
+          accessCode.trim().toUpperCase(),
+          fmt(oneFirst),
+          fmt(oneLast),
         );
+        storePlaySession(session.sessionToken);
       } catch {
-        // localStorage opcional.
+        forgetPlaySession();
       }
+
       setResult(joinResult);
       setStep("done");
     } catch {
@@ -278,18 +292,12 @@ export function JoinForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="rounded-md border bg-secondary/30 px-4 py-3 text-center">
-            <div className="text-xs text-muted-foreground">
-              Tu código de equipo (guárdalo para volver)
-            </div>
-            <div className="font-mono text-xl font-semibold tracking-widest">
-              {result.personalCode}
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Si vuelves a entrar, usa el código de tu maestro y tu nombre. No
+            necesitas guardar ningún código.
+          </p>
           <Button asChild className="w-full">
-            <a href={`/rendir?code=${result.personalCode}`}>
-              Ir a la competencia
-            </a>
+            <a href="/rendir">Ir al desafío</a>
           </Button>
           <p className="text-xs text-muted-foreground">
             Si aún no inicia, podrás empezar cuando tu maestro la abra.
@@ -299,54 +307,56 @@ export function JoinForm() {
     );
   }
 
-  if (step === "recovered" && recovered) {
-    const partner =
-      recovered.participationMode === "pareja" && recovered.memberTwoFirstName
-        ? ` y ${recovered.memberTwoFirstName} ${recovered.memberTwoLastName ?? ""}`.trim()
-        : "";
-
+  if (step === "identify" && group) {
     return (
       <Card className="mx-auto w-full max-w-md">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <CheckCircle2Icon className="size-5 text-primary" />
-            <CardTitle>Ya estás registrado</CardTitle>
-          </div>
+          <CardTitle>¿Quién eres?</CardTitle>
           <CardDescription>
-            En {recovered.contestTitle} ({recovered.groupName}).
+            {group.contestTitle} ({group.groupName}). Escribe tu nombre tal como
+            te registraste.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="rounded-md border bg-background px-4 py-3 text-sm">
-            <div className="font-medium">
-              {recovered.memberOneFirstName} {recovered.memberOneLastName}
-              {partner}
-            </div>
-            <div className="text-muted-foreground">
-              {recovered.participationMode === "pareja"
-                ? "Pareja"
-                : "Individual"}
-            </div>
-          </div>
-          <div className="rounded-md border bg-secondary/30 px-4 py-3 text-center">
-            <div className="text-xs text-muted-foreground">
-              Tu código de equipo
-            </div>
-            <div className="font-mono text-xl font-semibold tracking-widest">
-              {recovered.personalCode}
-            </div>
-          </div>
-          <Button asChild className="w-full">
-            <a href={`/rendir?code=${recovered.personalCode}`}>
-              Continuar a la competencia
-            </a>
-          </Button>
+          <form className="flex flex-col gap-4" onSubmit={enterWithName}>
+            <Field>
+              <FieldLabel htmlFor="student-first-name">Nombres</FieldLabel>
+              <FieldContent>
+                <Input
+                  id="student-first-name"
+                  autoComplete="given-name"
+                  value={oneFirst}
+                  onChange={(event) => setOneFirst(event.target.value)}
+                />
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="student-last-name">Apellidos</FieldLabel>
+              <FieldContent>
+                <Input
+                  id="student-last-name"
+                  autoComplete="family-name"
+                  value={oneLast}
+                  onChange={(event) => setOneLast(event.target.value)}
+                />
+              </FieldContent>
+            </Field>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : null}
+              {loading ? "Entrando..." : "Entrar"}
+            </Button>
+          </form>
           <button
             type="button"
             onClick={registerAnother}
             className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
           >
-            ¿No eres tú? Registrar otro equipo
+            Todavía no me registré
           </button>
         </CardContent>
       </Card>
@@ -365,7 +375,7 @@ export function JoinForm() {
         <CardContent className="flex flex-col gap-4">
           <dl className="flex flex-col gap-2 rounded-md border bg-background px-4 py-3 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Competencia</dt>
+              <dt className="text-muted-foreground">Desafío</dt>
               <dd className="text-right font-medium">{group.contestTitle}</dd>
             </div>
             <div className="flex justify-between gap-4">
@@ -433,7 +443,7 @@ export function JoinForm() {
           <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
             {group.state === "programada" && (
               <Alert>
-                <AlertTitle>La competencia aún no inicia</AlertTitle>
+                <AlertTitle>El desafío aún no inicia</AlertTitle>
                 <AlertDescription>
                   Puedes registrarte ahora; podrás rendir cuando tu maestro la
                   abra.
@@ -553,7 +563,7 @@ export function JoinForm() {
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
-        <CardTitle>Entrar a la competencia</CardTitle>
+        <CardTitle>Entrar al desafío</CardTitle>
         <CardDescription>
           Escribe el código que te dio tu maestro.
         </CardDescription>

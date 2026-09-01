@@ -47,11 +47,12 @@ export function gradeLabel(value: string | null) {
   return SCHOOL_GRADES.find((grade) => grade.value === value)?.label ?? "—";
 }
 
-/** Estado derivado de la competencia (no es un campo editable). */
+/** Estado derivado del desafío (no es un campo editable). */
 export type ContestState =
   | "borrador"
   | "programada"
   | "abierta"
+  | "suspendida"
   | "cerrada"
   | "consolidada"
   | "publicada";
@@ -130,6 +131,7 @@ export type StoredContest = {
   showSolutions: boolean;
   showTotalScore: boolean;
   publishedAt: string | null;
+  suspendedAt: string | null;
   consolidatedAt: string | null;
   resultsPublishedAt: string | null;
   state: ContestState;
@@ -156,10 +158,11 @@ export type ContestDraftInput = {
 
 export const CONTEST_STATE_LABELS: Record<ContestState, string> = {
   borrador: "Borrador",
-  programada: "Programada",
-  abierta: "Abierta",
-  cerrada: "Cerrada",
-  consolidada: "Consolidada",
+  programada: "Programado",
+  abierta: "Abierto",
+  suspendida: "Suspendido",
+  cerrada: "Cerrado",
+  consolidada: "Consolidado",
   publicada: "Resultados publicados",
 };
 

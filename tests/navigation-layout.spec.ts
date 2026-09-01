@@ -1,9 +1,6 @@
 import { test, expect, request } from "@playwright/test";
 import { canAccessSiteNav } from "../frontend/src/lib/site-navigation";
-import {
-  API,
-  ADMIN,
-} from "./support/helpers";
+import { API, ADMIN } from "./support/helpers";
 
 test("blocks the panel for users without a session", async ({ page }) => {
   await page.goto("/competencias");
@@ -56,13 +53,13 @@ test("keeps the new contest form within a mobile viewport", async ({
   });
   await expect(mobileNavigation).toBeVisible();
   await expect(
-    mobileNavigation.getByRole("link", { name: "Desafíos" }),
+    mobileNavigation.getByRole("link", { name: "Práctica" }),
   ).toBeVisible();
   await expect(
     mobileNavigation.getByRole("link", { name: "Tareas" }),
   ).toBeVisible();
   await expect(
-    mobileNavigation.getByRole("link", { name: "Competencias" }),
+    mobileNavigation.getByRole("link", { name: "Desafíos" }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
     mobileNavigation.getByRole("link", { name: "Grupos" }),
@@ -94,8 +91,25 @@ test("keeps the new contest form within a mobile viewport", async ({
     ),
   ).toBe(false);
 
-  await page.getByRole("link", { name: "Volver: Crear competencia" }).click();
+  await page.evaluate(() => {
+    (
+      window as Window & { __bebrasClientNavigation?: boolean }
+    ).__bebrasClientNavigation = true;
+  });
+  await page.getByRole("link", { name: "Volver: Crear desafío" }).click();
   await expect(page).toHaveURL(/\/competencias\/?$/);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __bebrasClientNavigation?: boolean })
+          .__bebrasClientNavigation,
+    ),
+  ).toBe(true);
+  await expect(page.locator("html")).toHaveCSS("scrollbar-width", "none");
+  await expect(page.locator("header")).toHaveCSS(
+    "view-transition-name",
+    "app-header",
+  );
 
   await api.dispose();
 });
