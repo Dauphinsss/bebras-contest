@@ -1,33 +1,30 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   CalendarClockIcon,
-  CalendarIcon,
   ChevronDownIcon,
-  Clock8Icon,
   CopyIcon,
   LinkIcon,
   LoaderCircleIcon,
   PencilIcon,
   PlusIcon,
+  UploadIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import {
-  gradeLabel,
-  gradesForCategory,
-  toDatetimeLocalValue,
-} from "@/lib/contest-schema";
+import { DateTimeField } from "@/components/datetime-field";
+import { gradeLabel, gradesForCategory } from "@/lib/contest-schema";
 
 import {
   createGroup,
+  downloadRosterTemplate,
   enrollTeam,
+  importRoster,
+  type RosterImportResult,
   listGroups,
   listPublishedContests,
   removeGroup,
@@ -80,12 +77,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -104,147 +95,6 @@ const sessionFormatter = new Intl.DateTimeFormat("es-BO", {
 
 function formatSession(value: string) {
   return sessionFormatter.format(new Date(value));
-}
-
-function parseDateTimeLocal(value: string) {
-  if (!value) {
-    return null;
-  }
-  const parsedDate = new Date(value);
-  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
-}
-
-function toTimeValue(value: string) {
-  const date = parseDateTimeLocal(value);
-  if (!date) {
-    return "";
-  }
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-function updateDatePart(currentValue: string, nextDate: Date | undefined) {
-  if (!nextDate) {
-    return currentValue;
-  }
-  const currentDate = parseDateTimeLocal(currentValue);
-  const nextValue = new Date(nextDate);
-  if (currentDate) {
-    nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
-  } else {
-    nextValue.setHours(9, 0, 0, 0);
-  }
-  return toDatetimeLocalValue(nextValue.toISOString());
-}
-
-function updateTimePart(currentValue: string, nextTime: string) {
-  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
-  const [hours, minutes] = nextTime.split(":").map((part) => Number(part));
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return currentValue;
-  }
-  const nextValue = new Date(currentDate);
-  nextValue.setHours(hours, minutes, 0, 0);
-  return toDatetimeLocalValue(nextValue.toISOString());
-}
-
-function SessionDateTimeField({
-  value,
-  onChange,
-  minDate,
-  maxDate,
-  disabled = false,
-}: {
-  value: string;
-  onChange: (nextValue: string) => void;
-  minDate: Date | null;
-  maxDate: Date | null;
-  disabled?: boolean;
-}) {
-  const date = parseDateTimeLocal(value);
-  const dateLabel = date
-    ? format(date, "d 'de' MMMM 'de' yyyy", { locale: es })
-    : "Elige un día";
-  const [timeDraft, setTimeDraft] = useState(toTimeValue(value));
-
-  useEffect(() => {
-    setTimeDraft(toTimeValue(value));
-  }, [value]);
-
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-
-  const timeMin =
-    date && minDate && sameDay(date, minDate)
-      ? toTimeValue(minDate.toISOString())
-      : undefined;
-  const timeMax =
-    date && maxDate && sameDay(date, maxDate)
-      ? toTimeValue(maxDate.toISOString())
-      : undefined;
-
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            className={cn(
-              "w-full justify-start text-left font-normal sm:flex-1",
-              !date && "text-muted-foreground",
-            )}
-          >
-            <CalendarIcon data-icon="inline-start" />
-            {dateLabel}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          data-calendar-popover
-          className="w-auto rounded-sm p-0"
-          align="start"
-        >
-          <Calendar
-            initialFocus
-            mode="single"
-            selected={date ?? undefined}
-            defaultMonth={date ?? minDate ?? undefined}
-            disabled={[
-              ...(minDate ? [{ before: minDate }] : []),
-              ...(maxDate ? [{ after: maxDate }] : []),
-            ]}
-            onSelect={(nextDate) => onChange(updateDatePart(value, nextDate))}
-          />
-        </PopoverContent>
-      </Popover>
-      <div className="relative sm:w-36">
-        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3 text-muted-foreground">
-          <Clock8Icon className="size-4" />
-          <span className="sr-only">Hora de la sesión</span>
-        </div>
-        <Input
-          aria-label="Hora de la sesión"
-          className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-          type="time"
-          disabled={disabled || !date}
-          min={timeMin}
-          max={timeMax}
-          value={timeDraft}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            setTimeDraft(nextValue);
-            if (nextValue) {
-              onChange(updateTimePart(value, nextValue));
-            }
-          }}
-        />
-      </div>
-    </div>
-  );
 }
 
 export function GroupsHome() {
@@ -269,6 +119,10 @@ export function GroupsHome() {
   const [editGrade, setEditGrade] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [enrolling, setEnrolling] = useState<StoredGroup | null>(null);
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<
+    (RosterImportResult & { groupId: string }) | null
+  >(null);
   const [enrollMode, setEnrollMode] = useState<"individual" | "pareja">(
     "individual",
   );
@@ -327,7 +181,7 @@ export function GroupsHome() {
     event.preventDefault();
 
     if (!contestId) {
-      toast.error("Elige una competencia publicada.");
+      toast.error("Elige un desafío publicado.");
       return;
     }
 
@@ -478,6 +332,59 @@ export function GroupsHome() {
     }
   };
 
+  const pickRoster = (group: StoredGroup) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept =
+      ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
+    input.onchange = () => {
+      const file = input.files?.[0];
+
+      if (!file) {
+        return;
+      }
+
+      setImportingId(group.id);
+      setImportResult(null);
+      void importRoster(group.id, file)
+        .then((result) => {
+          setImportResult({ ...result, groupId: group.id });
+
+          if (result.created.length > 0) {
+            toast.success(
+              `Se inscribieron ${result.created.length} participante(s).`,
+            );
+            void listGroups()
+              .then(setGroups)
+              .catch(() => undefined);
+          } else {
+            toast.error("No se inscribió a nadie; revisa el detalle.");
+          }
+        })
+        .catch((error: unknown) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "No se pudo importar la planilla.",
+          );
+        })
+        .finally(() => setImportingId(null));
+    };
+    input.click();
+  };
+
+  const getTemplate = (group: StoredGroup) => {
+    void downloadRosterTemplate(group.id, group.name).catch(
+      (error: unknown) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo descargar la plantilla.",
+        );
+      },
+    );
+  };
+
   const openEnroll = (group: StoredGroup) => {
     setEnrolling(group);
     setEnrollMode("individual");
@@ -533,7 +440,9 @@ export function GroupsHome() {
             : group,
         ),
       );
-      toast.success(`Participante inscrito. Código: ${team.personalCode}`);
+      toast.success(
+        `${team.memberOneFirstName} quedó inscrito. Entra con el código del grupo y su nombre.`,
+      );
       setEnrolling(null);
     } catch (error) {
       toast.error(
@@ -570,22 +479,24 @@ export function GroupsHome() {
           <CardTitle>Crear grupo</CardTitle>
           <CardDescription>
             Genera un código de acceso para que tus estudiantes entren a una
-            competencia publicada.
+            desafío publicado.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           {publishedContests.length === 0 ? (
             <Alert>
-              <AlertTitle>No hay competencias publicadas</AlertTitle>
+              <AlertTitle>No hay desafíos disponibles</AlertTitle>
               <AlertDescription>
-                Publica una competencia primero para poder crear grupos.
+                Solo se pueden crear grupos para desafíos publicados cuya
+                ventana todavía no terminó. Si las que tienes ya cerraron,
+                publica una nueva con fechas futuras.
               </AlertDescription>
             </Alert>
           ) : (
             <form className="flex flex-col gap-4" onSubmit={handleCreate}>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field>
-                  <FieldLabel htmlFor="group-contest">Competencia</FieldLabel>
+                  <FieldLabel htmlFor="group-contest">Desafío</FieldLabel>
                   <FieldContent>
                     <Select
                       value={contestId}
@@ -595,7 +506,7 @@ export function GroupsHome() {
                       }}
                     >
                       <SelectTrigger id="group-contest" className="w-full">
-                        <SelectValue placeholder="Elige una competencia" />
+                        <SelectValue placeholder="Elige un desafío" />
                       </SelectTrigger>
                       <SelectContent>
                         {publishedContests.map((contest) => (
@@ -624,7 +535,9 @@ export function GroupsHome() {
                   Fecha y hora de la sesión
                 </FieldLabel>
                 <FieldContent>
-                  <SessionDateTimeField
+                  <DateTimeField
+                    label="Sesión"
+                    fallbackHour={9}
                     value={scheduledAt}
                     onChange={setScheduledAt}
                     minDate={contestStartsAt}
@@ -633,8 +546,8 @@ export function GroupsHome() {
                   />
                   {!selectedContest && (
                     <FieldDescription>
-                      Elige primero una competencia para fijar la sesión dentro
-                      de su horario.
+                      Elige primero un desafío para fijar la sesión dentro de su
+                      horario.
                     </FieldDescription>
                   )}
                 </FieldContent>
@@ -658,8 +571,7 @@ export function GroupsHome() {
         <CardHeader className="border-b">
           <CardTitle>Grupos</CardTitle>
           <CardDescription>
-            Reparte el código a tus estudiantes para que entren a la
-            competencia.
+            Reparte el código a tus estudiantes para que entren a la desafío.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-6">
@@ -667,7 +579,7 @@ export function GroupsHome() {
             <Alert>
               <AlertTitle>No hay grupos creados</AlertTitle>
               <AlertDescription>
-                Crea el primer grupo para una competencia publicada.
+                Crea el primer grupo para un desafío publicado.
               </AlertDescription>
             </Alert>
           ) : (
@@ -826,17 +738,64 @@ export function GroupsHome() {
                           ))}
                         </ul>
                       )}
-                      <div className="mt-4 pb-1.5 pl-0.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() => openEnroll(group)}
-                        >
-                          <PlusIcon data-icon="inline-start" />
-                          Inscribir participante
-                        </Button>
+                      <div className="mt-4 flex flex-col gap-3 pb-1.5 pl-0.5">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto"
+                            onClick={() => openEnroll(group)}
+                          >
+                            <PlusIcon data-icon="inline-start" />
+                            Inscribir participante
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={importingId === group.id}
+                            className="w-full sm:w-auto"
+                            onClick={() => pickRoster(group)}
+                          >
+                            <UploadIcon data-icon="inline-start" />
+                            {importingId === group.id
+                              ? "Importando..."
+                              : "Importar planilla"}
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => getTemplate(group)}
+                            className="self-start text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground sm:self-center"
+                          >
+                            Descargar plantilla de Excel
+                          </button>
+                        </div>
+                        {importResult?.groupId === group.id && (
+                          <div className="flex flex-col gap-1 border-t pt-3 text-sm">
+                            <span className="font-medium">
+                              Se inscribieron {importResult.created.length}{" "}
+                              participante(s).
+                            </span>
+                            {importResult.skipped.length > 0 && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  No se pudo con {importResult.skipped.length}{" "}
+                                  fila(s):
+                                </span>
+                                <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                                  {importResult.skipped.map((item) => (
+                                    <li key={item.row}>
+                                      Fila {item.row}
+                                      {item.name ? ` (${item.name})` : ""}:{" "}
+                                      {item.reason}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </div>
@@ -1010,8 +969,8 @@ export function GroupsHome() {
                 </Select>
                 <FieldDescription>
                   {enrolling?.contestCategory
-                    ? `Esta competencia es de categoría ${enrolling.contestCategory}.`
-                    : "Esta competencia no tiene categoría asignada."}
+                    ? `Este desafío es de categoría ${enrolling.contestCategory}.`
+                    : "Este desafío no tiene categoría asignada."}
                 </FieldDescription>
               </FieldContent>
             </Field>

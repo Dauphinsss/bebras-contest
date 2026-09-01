@@ -1,6 +1,15 @@
 import { authHeaders, handleUnauthorized } from "@/lib/auth";
 import { API_BASE_URL, apiRequest as request } from "@/lib/api-client";
 
+export type MaestroSchool = {
+  id: string;
+  schoolCodUe: string | null;
+  schoolName: string;
+  status: string;
+  hasLetter: boolean;
+  createdAt: string;
+};
+
 export type Maestro = {
   id: number;
   name: string | null;
@@ -14,6 +23,7 @@ export type Maestro = {
   hasIdFront: boolean;
   hasIdBack: boolean;
   createdAt: string;
+  schools: MaestroSchool[];
 };
 
 export function listMaestros() {
@@ -28,6 +38,21 @@ export function approveMaestro(id: number) {
 
 export function rejectMaestro(id: number) {
   return request<{ id: number; status: string }>(`/api/users/${id}/reject`, {
+    method: "POST",
+  });
+}
+
+export function suspendMaestro(id: number) {
+  return request<{ id: number; status: string }>(`/api/users/${id}/suspend`, {
+    method: "POST",
+  });
+}
+
+export function decideMaestroSchool(
+  schoolId: string,
+  decision: "approve" | "reject",
+) {
+  return request<MaestroSchool>(`/api/users/schools/${schoolId}/${decision}`, {
     method: "POST",
   });
 }

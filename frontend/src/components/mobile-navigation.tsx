@@ -20,7 +20,7 @@ export function MobileNavigation({ pathname }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
   const [user] = useState(getUser);
   const links = SITE_NAV_ITEMS.filter((item) =>
-    canAccessSiteNav(item.role, user?.role),
+    canAccessSiteNav(item.role, user?.role, user?.status),
   );
 
   return (
@@ -55,7 +55,11 @@ export function MobileNavigation({ pathname }: MobileNavigationProps) {
                 variant={active ? "default" : "ghost"}
                 className="w-full justify-start"
               >
-                <a href={link.href} aria-current={active ? "page" : undefined}>
+                <a
+                  href={link.href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
                   {link.label}
                 </a>
               </Button>

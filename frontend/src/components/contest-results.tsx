@@ -216,9 +216,9 @@ export function ContestResults() {
   if (!results) {
     return (
       <Alert>
-        <AlertTitle>Competencia no encontrada</AlertTitle>
+        <AlertTitle>Desafío no encontrado</AlertTitle>
         <AlertDescription>
-          Abre los resultados desde una competencia.
+          Abre los resultados desde un desafío.
         </AlertDescription>
       </Alert>
     );

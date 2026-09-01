@@ -3,7 +3,10 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
+import ExcelJS from "exceljs";
+import PDFDocument from "pdfkit";
 import { readFileSync } from "node:fs";
+import { Readable } from "node:stream";
 import { mkdir, open, unlink } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { prisma } from "./lib/prisma";
@@ -93,6 +96,69 @@ const uploadDocs = multer({
   },
 });
 
+const uploadRoster = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+}).single("file");
+
+function rosterUploadMiddleware(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  uploadRoster(req, res, (err: unknown) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        res
+          .status(400)
+          .json({ message: "La planilla no debe superar los 2 MB." });
+        return;
+      }
+
+      res.status(400).json({ message: "No se pudo leer la planilla." });
+      return;
+    }
+
+    next();
+  });
+}
+
+const ROSTER_COLUMNS = [
+  "Nombres",
+  "Apellidos",
+  "Curso",
+  "Modalidad",
+  "Nombres del compañero",
+  "Apellidos del compañero",
+];
+
+function normalizeHeader(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+function gradeFromCell(value: unknown, contestCategory: string) {
+  const raw = String(value ?? "").trim();
+
+  if (!raw) {
+    throw new Error("Falta el curso.");
+  }
+
+  const normalized = normalizeHeader(raw);
+  const known =
+    SCHOOL_GRADES.find((grade) => grade.value.toLowerCase() === normalized) ??
+    SCHOOL_GRADES.find((grade) => normalizeHeader(grade.label) === normalized);
+
+  if (!known) {
+    throw new Error(`Curso "${raw}" no reconocido.`);
+  }
+
+  return parseGrade(known.value, contestCategory);
+}
+
 function registerUploadMiddleware(
   req: express.Request,
   res: express.Response,
@@ -159,6 +225,50 @@ async function cleanupFiles(...files: Array<Express.Multer.File | undefined>) {
       }
     }
   }
+}
+
+function serializeTeacherSchool(school: {
+  id: string;
+  schoolCodUe: string | null;
+  schoolName: string;
+  letterFilename: string | null;
+  status: string;
+  createdAt: Date;
+}) {
+  return {
+    id: school.id,
+    schoolCodUe: school.schoolCodUe,
+    schoolName: school.schoolName,
+    status: school.status,
+    hasLetter: Boolean(school.letterFilename),
+    createdAt: school.createdAt.toISOString(),
+  };
+}
+
+function describeUserDocuments(user: {
+  institutionType: string | null;
+  letterFilename: string | null;
+  idFrontFilename: string | null;
+  idBackFilename: string | null;
+}) {
+  const isSchool = user.institutionType !== "homeschool";
+  const missing = isSchool
+    ? user.letterFilename
+      ? []
+      : ["letter"]
+    : [
+        ...(user.idFrontFilename ? [] : ["idFront"]),
+        ...(user.idBackFilename ? [] : ["idBack"]),
+      ];
+
+  return {
+    institutionType: isSchool ? "school" : "homeschool",
+    letter: Boolean(user.letterFilename),
+    idFront: Boolean(user.idFrontFilename),
+    idBack: Boolean(user.idBackFilename),
+    missing,
+    complete: missing.length === 0,
+  };
 }
 
 function pickUploaded(
@@ -1032,7 +1142,7 @@ function parseGrade(value: unknown, contestCategory: string) {
       .map((item) => item.label)
       .join(" o ");
     throw new Error(
-      `${known.label} no corresponde a la categoría ${contestCategory}. Esta competencia es para ${allowed}.`,
+      `${known.label} no corresponde a la categoría ${contestCategory}. Este desafío es para ${allowed}.`,
     );
   }
 
@@ -1043,6 +1153,7 @@ type ContestState =
   | "borrador"
   | "programada"
   | "abierta"
+  | "suspendida"
   | "cerrada"
   | "consolidada"
   | "publicada";
@@ -1053,12 +1164,16 @@ const ENDED_CONTEST_STATES: ContestState[] = [
   "publicada",
 ];
 
+const SUSPENDED_CONTEST_MESSAGE =
+  "El desafío está suspendido. Tu tiempo quedó en pausa; espera a que lo reanuden.";
+
 function contestHasEnded(state: ContestState) {
   return ENDED_CONTEST_STATES.includes(state);
 }
 
 function computeContestState(contest: {
   publishedAt: Date | null;
+  suspendedAt?: Date | null;
   consolidatedAt?: Date | null;
   resultsPublishedAt?: Date | null;
   startsAt: Date;
@@ -1086,6 +1201,10 @@ function computeContestState(contest: {
     return { state: "cerrada", isOpen: false };
   }
 
+  if (contest.suspendedAt) {
+    return { state: "suspendida", isOpen: false };
+  }
+
   return { state: "abierta", isOpen: true };
 }
 
@@ -1103,6 +1222,7 @@ function deserializeContest(contest: {
   showSolutions: boolean;
   showTotalScore: boolean;
   publishedAt: Date | null;
+  suspendedAt: Date | null;
   consolidatedAt: Date | null;
   resultsPublishedAt: Date | null;
   createdAt: Date;
@@ -1139,6 +1259,7 @@ function deserializeContest(contest: {
     showSolutions: contest.showSolutions,
     showTotalScore: contest.showTotalScore,
     publishedAt: contest.publishedAt?.toISOString() ?? null,
+    suspendedAt: contest.suspendedAt?.toISOString() ?? null,
     consolidatedAt: contest.consolidatedAt?.toISOString() ?? null,
     resultsPublishedAt: contest.resultsPublishedAt?.toISOString() ?? null,
     state,
@@ -1168,11 +1289,11 @@ function parseContestPayload(body: Record<string, unknown>) {
   const tasks = parseContestTasks(body);
 
   if (!title) {
-    throw new Error("El nombre de la competencia es obligatorio.");
+    throw new Error("El nombre del desafío es obligatorio.");
   }
 
   if (!category) {
-    throw new Error("Debes elegir la categoría de la competencia.");
+    throw new Error("Debes elegir la categoría del desafío.");
   }
 
   if (!CONTEST_CATEGORY_NAMES.includes(category)) {
@@ -1225,7 +1346,10 @@ app.use((req, res, next) => {
     req.headers.origin ?? frontendOrigin,
   );
   res.header("Vary", "Origin");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Play-Session",
+  );
   res.header(
     "Access-Control-Allow-Methods",
     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
@@ -1283,12 +1407,9 @@ app.post("/api/auth/login", async (req, res) => {
     return;
   }
 
-  if (user.status !== "approved") {
+  if (user.status === "rejected") {
     res.status(403).json({
-      message:
-        user.status === "rejected"
-          ? "Tu cuenta fue rechazada. Contacta al administrador."
-          : "Tu cuenta está pendiente de aprobación.",
+      message: "Tu cuenta fue rechazada. Contacta al administrador.",
     });
     return;
   }
@@ -1297,12 +1418,21 @@ app.post("/api/auth/login", async (req, res) => {
 
   res.json({
     token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status,
+    },
   });
 });
 
 app.get("/api/auth/me", requireAuth, async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    include: { schools: { orderBy: { createdAt: "asc" } } },
+  });
 
   if (!user) {
     res.status(404).json({ message: "Usuario no encontrado." });
@@ -1313,9 +1443,216 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     id: user.id,
     email: user.email,
     name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
     role: user.role,
+    status: user.status,
+    institutionType: user.institutionType,
+    schoolName: user.schoolName,
+    schoolCodUe: user.schoolCodUe,
+    phone: user.phone,
+    createdAt: user.createdAt.toISOString(),
+    documents: describeUserDocuments(user),
+    schools: user.schools.map(serializeTeacherSchool),
   });
 });
+
+app.get("/api/auth/me/schools", requireAuth, async (req, res) => {
+  const schools = await prisma.teacherSchool.findMany({
+    where: { userId: req.user!.id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  res.json(schools.map(serializeTeacherSchool));
+});
+
+app.post(
+  "/api/auth/me/schools",
+  requireAuth,
+  registerUploadMiddleware,
+  async (req, res) => {
+    const letterFile = pickUploaded(req, "letter");
+    const idFrontFile = pickUploaded(req, "idFront");
+    const idBackFile = pickUploaded(req, "idBack");
+    const schoolName =
+      typeof req.body?.schoolName === "string"
+        ? req.body.schoolName.trim()
+        : "";
+    const schoolCodUe =
+      typeof req.body?.schoolCodUe === "string" && req.body.schoolCodUe.trim()
+        ? req.body.schoolCodUe.trim()
+        : null;
+
+    if (idFrontFile || idBackFile) {
+      await cleanupFiles(letterFile, idFrontFile, idBackFile);
+      res.status(400).json({
+        message: "Para un colegio adjunta la carta de su director.",
+      });
+      return;
+    }
+
+    if (!schoolName) {
+      await cleanupFiles(letterFile);
+      res.status(400).json({ message: "Indica el nombre del colegio." });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      include: { schools: true },
+    });
+
+    if (!user) {
+      await cleanupFiles(letterFile);
+      res.status(404).json({ message: "Usuario no encontrado." });
+      return;
+    }
+
+    const alreadyMain =
+      (user.schoolCodUe && user.schoolCodUe === schoolCodUe) ||
+      (user.schoolName ?? "").toLowerCase() === schoolName.toLowerCase();
+    const alreadyExtra = user.schools.some(
+      (school) =>
+        (school.schoolCodUe && school.schoolCodUe === schoolCodUe) ||
+        school.schoolName.toLowerCase() === schoolName.toLowerCase(),
+    );
+
+    if (alreadyMain || alreadyExtra) {
+      await cleanupFiles(letterFile);
+      res.status(409).json({ message: "Ese colegio ya está en tu cuenta." });
+      return;
+    }
+
+    const created = await prisma.teacherSchool.create({
+      data: {
+        userId: user.id,
+        schoolCodUe,
+        schoolName,
+        letterFilename: letterFile?.filename ?? null,
+      },
+    });
+
+    res.status(201).json(serializeTeacherSchool(created));
+  },
+);
+
+app.post(
+  "/api/auth/me/schools/:id/letter",
+  requireAuth,
+  registerUploadMiddleware,
+  async (req, res) => {
+    const letterFile = pickUploaded(req, "letter");
+    const idFrontFile = pickUploaded(req, "idFront");
+    const idBackFile = pickUploaded(req, "idBack");
+    const school = await prisma.teacherSchool.findUnique({
+      where: { id: String(req.params.id) },
+    });
+
+    if (!school || school.userId !== req.user!.id) {
+      await cleanupFiles(letterFile, idFrontFile, idBackFile);
+      res.status(404).json({ message: "Colegio no encontrado." });
+      return;
+    }
+
+    if (idFrontFile || idBackFile) {
+      await cleanupFiles(letterFile, idFrontFile, idBackFile);
+      res.status(400).json({
+        message: "Para un colegio adjunta la carta de su director.",
+      });
+      return;
+    }
+
+    if (!letterFile) {
+      res.status(400).json({ message: "No adjuntaste ninguna carta." });
+      return;
+    }
+
+    const updated = await prisma.teacherSchool.update({
+      where: { id: school.id },
+      data: { letterFilename: letterFile.filename, status: "pending" },
+    });
+
+    res.json(serializeTeacherSchool(updated));
+  },
+);
+
+app.delete("/api/auth/me/schools/:id", requireAuth, async (req, res) => {
+  const school = await prisma.teacherSchool.findUnique({
+    where: { id: String(req.params.id) },
+  });
+
+  if (!school || school.userId !== req.user!.id) {
+    res.status(404).json({ message: "Colegio no encontrado." });
+    return;
+  }
+
+  if (school.status === "approved") {
+    res.status(409).json({
+      message:
+        "Ese colegio ya fue aprobado; pide al administrador que lo quite.",
+    });
+    return;
+  }
+
+  await prisma.teacherSchool.delete({ where: { id: school.id } });
+  res.status(204).end();
+});
+
+app.post(
+  "/api/auth/me/documents",
+  requireAuth,
+  registerUploadMiddleware,
+  async (req, res) => {
+    const letterFile = pickUploaded(req, "letter");
+    const idFrontFile = pickUploaded(req, "idFront");
+    const idBackFile = pickUploaded(req, "idBack");
+    const allFiles = [letterFile, idFrontFile, idBackFile];
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+
+    if (!user) {
+      await cleanupFiles(...allFiles);
+      res.status(404).json({ message: "Usuario no encontrado." });
+      return;
+    }
+
+    const isSchool = user.institutionType !== "homeschool";
+
+    if (isSchool && (idFrontFile || idBackFile)) {
+      await cleanupFiles(...allFiles);
+      res.status(400).json({
+        message: "Tu cuenta es de colegio: adjunta la carta del director.",
+      });
+      return;
+    }
+
+    if (!isSchool && letterFile) {
+      await cleanupFiles(...allFiles);
+      res.status(400).json({
+        message: "Enseñas en casa: adjunta tu carnet de identidad.",
+      });
+      return;
+    }
+
+    if (!letterFile && !idFrontFile && !idBackFile) {
+      res.status(400).json({ message: "No adjuntaste ningún documento." });
+      return;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        letterFilename: letterFile?.filename ?? user.letterFilename,
+        idFrontFilename: idFrontFile?.filename ?? user.idFrontFilename,
+        idBackFilename: idBackFile?.filename ?? user.idBackFilename,
+      },
+    });
+
+    res.json({
+      status: updated.status,
+      documents: describeUserDocuments(updated),
+    });
+  },
+);
 
 app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   const letterFile = pickUploaded(req, "letter");
@@ -1386,22 +1723,6 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  if (isSchool && !letterFile) {
-    await cleanupFiles(...allFiles);
-    res.status(400).json({
-      message: "Debes adjuntar la carta de autorización del director.",
-    });
-    return;
-  }
-
-  if (!isSchool && (!idFrontFile || !idBackFile)) {
-    await cleanupFiles(...allFiles);
-    res.status(400).json({
-      message: "Debes adjuntar el anverso y el reverso de tu carnet.",
-    });
-    return;
-  }
-
   const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
@@ -1410,10 +1731,12 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
+  let created;
+
   try {
     const passwordHash = await bcrypt.hash(password, 10);
 
-    await prisma.user.create({
+    created = await prisma.user.create({
       data: {
         firstName,
         lastName,
@@ -1437,9 +1760,148 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  res.status(201).json({
-    message: "Cuenta de maestro creada. Queda pendiente de aprobación.",
+  const pendingDocuments = isSchool ? !letterFile : !idFrontFile || !idBackFile;
+  const token = signToken({
+    id: created.id,
+    email: created.email,
+    role: created.role,
   });
+
+  res.status(201).json({
+    message: pendingDocuments
+      ? "Cuenta de maestro creada. Sube tus documentos desde tu perfil para que te aprueben."
+      : "Cuenta de maestro creada. Queda pendiente de aprobación.",
+    pendingDocuments,
+    token,
+    user: {
+      id: created.id,
+      email: created.email,
+      name: created.name,
+      role: created.role,
+      status: created.status,
+    },
+  });
+});
+
+app.post("/api/letter/pdf", (req, res) => {
+  const field = (name: string, fallback = "") => {
+    const value = req.body?.[name];
+    const text = typeof value === "string" ? value.trim() : "";
+    return text || fallback;
+  };
+
+  const blank = "____________________";
+  const city = field("ciudad", blank);
+  const day = field("dia", "____");
+  const month = field("mes", "____________");
+  const year = field("anio", "______");
+  const school = field("colegio", blank);
+  const teacher = field("maestro", blank);
+  const id = field("ci", "______________");
+  const director = field("director", blank);
+  const schoolSign = field("colegioFirma", school);
+
+  const doc = new PDFDocument({
+    size: "A4",
+    margins: { top: 62, bottom: 62, left: 68, right: 68 },
+    info: {
+      Title: "Carta de autorización — Desafío Bebras Bolivia",
+      Author: director,
+    },
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="carta-autorizacion-bebras.pdf"',
+  );
+  doc.pipe(res);
+
+  doc.font("Times-Roman").fontSize(12);
+
+  const writeSegments = (segments: Array<[string, boolean]>) => {
+    segments.forEach(([text, bold], index) => {
+      doc
+        .font(bold ? "Times-Bold" : "Times-Roman")
+        .text(text, { continued: index < segments.length - 1, lineGap: 4 });
+    });
+  };
+
+  const dateSegments: Array<[string, boolean]> = [
+    [city, true],
+    [", ", false],
+    [day, true],
+    [" de ", false],
+    [month, true],
+    [" de ", false],
+    [year, true],
+  ];
+  const dateWidth = dateSegments.reduce(
+    (total, [text, bold]) =>
+      total + doc.font(bold ? "Times-Bold" : "Times-Roman").widthOfString(text),
+    0,
+  );
+  doc.x = doc.page.width - doc.page.margins.right - dateWidth;
+  writeSegments(dateSegments);
+  doc.x = doc.page.margins.left;
+  doc.moveDown(1.5);
+
+  doc.font("Times-Bold").text("Señores");
+  doc.font("Times-Roman").text("Comité Organizador del Desafío Bebras Bolivia");
+  doc.text("Presente.—");
+  doc.moveDown(1);
+
+  doc
+    .font("Times-Bold")
+    .text("Ref.: Autorización para participar como maestro");
+  doc.moveDown(1);
+
+  doc.font("Times-Roman").text("De mi mayor consideración:");
+  doc.moveDown(1);
+
+  writeSegments([
+    [
+      "Por medio de la presente, en mi calidad de director(a) de la unidad educativa ",
+      false,
+    ],
+    [school, true],
+    [", autorizo al/a la maestro(a) ", false],
+    [teacher, true],
+    [", con cédula de identidad ", false],
+    [id, true],
+    [
+      ", a representar a nuestra unidad educativa en el Desafío Bebras Bolivia.",
+      false,
+    ],
+  ]);
+  doc.moveDown(1);
+
+  doc.text(
+    "En esa condición podrá registrar a nuestros estudiantes, organizar los grupos de participación y acompañarlos durante el desafío, en las fechas que el comité organizador establezca.",
+    { lineGap: 4 },
+  );
+  doc.moveDown(1);
+
+  doc.text(
+    "Sin otro particular, saludo a ustedes con las consideraciones más distinguidas.",
+    { lineGap: 4 },
+  );
+
+  doc.moveDown(9);
+  const lineY = doc.y;
+  doc
+    .moveTo(doc.page.margins.left, lineY)
+    .lineTo(doc.page.margins.left + 240, lineY)
+    .lineWidth(0.8)
+    .stroke();
+  doc.moveDown(0.6);
+  doc.font("Times-Bold").text(director);
+  writeSegments([
+    ["Director(a) de ", false],
+    [schoolSign, true],
+  ]);
+
+  doc.end();
 });
 
 app.get("/api/schools", async (req, res) => {
@@ -1482,6 +1944,7 @@ app.get("/api/public-contests", async (_req, res) => {
       startsAt: true,
       endsAt: true,
       publishedAt: true,
+      suspendedAt: true,
       consolidatedAt: true,
       resultsPublishedAt: true,
     },
@@ -1607,11 +2070,36 @@ app.post("/api/practice/tasks/:id/check", async (req, res) => {
   });
 });
 
-// Banco de tareas, competencias y gestión de usuarios: solo admin.
+// Banco de tareas, desafíos y gestión de usuarios: solo admin.
 app.use(["/api/tasks", "/api/contests", "/api/users"], requireAdmin);
 // Grupos: admin y maestro (con sesión); el alcance se filtra por rol.
-app.use("/api/groups", requireAuth);
-app.use("/api/teams", requireAuth);
+async function requireApproved(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  requireAuth(req, res, () => {
+    void prisma.user
+      .findUnique({ where: { id: req.user!.id } })
+      .then((user) => {
+        if (!user || user.status !== "approved") {
+          res.status(403).json({
+            message:
+              "Tu cuenta está pendiente de aprobación. Sube tus documentos desde tu perfil.",
+          });
+          return;
+        }
+
+        next();
+      })
+      .catch(() => {
+        res.status(500).json({ message: "No se pudo validar tu cuenta." });
+      });
+  });
+}
+
+app.use("/api/groups", requireApproved);
+app.use("/api/teams", requireApproved);
 
 app.get("/api/tasks", async (_req, res) => {
   const tasks = await prisma.taskDraft.findMany({
@@ -1715,7 +2203,7 @@ app.delete("/api/tasks/:id", async (req, res) => {
 
   if (contestCount > 0) {
     res.status(409).json({
-      message: `Esta tarea está asociada a ${contestCount} competencia(s) y no se puede eliminar.`,
+      message: `Esta tarea está asociada a ${contestCount} desafío(s) y no se puede eliminar.`,
     });
     return;
   }
@@ -1852,6 +2340,7 @@ app.put("/api/contests/:id", async (req, res) => {
     select: {
       id: true,
       publishedAt: true,
+      suspendedAt: true,
       consolidatedAt: true,
       resultsPublishedAt: true,
       startsAt: true,
@@ -1868,12 +2357,14 @@ app.put("/api/contests/:id", async (req, res) => {
 
   const { state: currentState } = computeContestState(existingContest);
 
-  if (currentState === "abierta" || contestHasEnded(currentState)) {
+  const alreadyRunning =
+    currentState === "abierta" || currentState === "suspendida";
+
+  if (alreadyRunning || contestHasEnded(currentState)) {
     res.status(409).json({
-      message:
-        currentState === "abierta"
-          ? "La competencia ya empezó; no se puede modificar mientras está en curso."
-          : "La competencia ya terminó; no se puede modificar.",
+      message: alreadyRunning
+        ? "El desafío ya empezó; no se puede modificar mientras está en curso."
+        : "El desafío ya terminó; no se puede modificar.",
     });
     return;
   }
@@ -1959,7 +2450,7 @@ app.post("/api/contests/:id/publish", async (req, res) => {
   const readinessErrors: string[] = [];
 
   if (!contest.title.trim()) {
-    readinessErrors.push("La competencia necesita nombre.");
+    readinessErrors.push("El desafío necesita nombre.");
   }
 
   if (contest.endsAt <= contest.startsAt) {
@@ -1975,12 +2466,12 @@ app.post("/api/contests/:id/publish", async (req, res) => {
 
   if (windowMinutes < contest.durationMinutes) {
     readinessErrors.push(
-      `La ventana de ejecución (${Math.round(windowMinutes)} min) es más corta que la duración de la competencia (${contest.durationMinutes} min).`,
+      `La ventana de ejecución (${Math.round(windowMinutes)} min) es más corta que la duración del desafío (${contest.durationMinutes} min).`,
     );
   }
 
   if (contest.tasks.length === 0) {
-    readinessErrors.push("La competencia necesita al menos una tarea.");
+    readinessErrors.push("El desafío necesita al menos una tarea.");
   }
 
   if (contest.tasks.some((task) => task.maxScore < task.minScore)) {
@@ -2024,6 +2515,85 @@ const contestWithTasks = {
   },
 };
 
+app.post("/api/contests/:id/suspend", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    include: contestWithTasks,
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  if (computeContestState(contest).state !== "abierta") {
+    res.status(409).json({
+      message: "Solo se puede suspender un desafío que esté en curso.",
+    });
+    return;
+  }
+
+  const suspended = await prisma.contest.update({
+    where: { id: contest.id },
+    data: { suspendedAt: currentDate() },
+    include: contestWithTasks,
+  });
+
+  res.json(deserializeContest(suspended));
+});
+
+app.post("/api/contests/:id/resume", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    include: contestWithTasks,
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  if (
+    computeContestState(contest).state !== "suspendida" ||
+    !contest.suspendedAt
+  ) {
+    res.status(409).json({
+      message: "Solo se puede reanudar un desafío suspendido.",
+    });
+    return;
+  }
+
+  const pausedMs = currentDate().getTime() - contest.suspendedAt.getTime();
+  const pausedAttempts = await prisma.attempt.findMany({
+    where: {
+      status: "in_progress",
+      endsAt: { not: null },
+      team: { group: { contestId: contest.id } },
+    },
+    select: { id: true, endsAt: true },
+  });
+
+  await prisma.$transaction(
+    pausedAttempts.map((attempt) =>
+      prisma.attempt.update({
+        where: { id: attempt.id },
+        data: { endsAt: new Date(attempt.endsAt!.getTime() + pausedMs) },
+      }),
+    ),
+  );
+
+  const resumed = await prisma.contest.update({
+    where: { id: contest.id },
+    data: { suspendedAt: null },
+    include: contestWithTasks,
+  });
+
+  res.json({
+    ...deserializeContest(resumed),
+    resumedAttempts: pausedAttempts.length,
+  });
+});
+
 app.post("/api/contests/:id/consolidate", async (req, res) => {
   const contest = await prisma.contest.findUnique({
     where: { id: req.params.id },
@@ -2039,8 +2609,7 @@ app.post("/api/contests/:id/consolidate", async (req, res) => {
 
   if (!contestHasEnded(state)) {
     res.status(409).json({
-      message:
-        "Solo se puede consolidar una competencia cuya ventana ya terminó.",
+      message: "Solo se puede consolidar un desafío cuya ventana ya terminó.",
     });
     return;
   }
@@ -2069,7 +2638,7 @@ app.post("/api/contests/:id/results/publish", async (req, res) => {
 
   if (!contest.consolidatedAt) {
     res.status(409).json({
-      message: "Primero consolida la competencia para calcular los puntajes.",
+      message: "Primero consolida el desafío para calcular los puntajes.",
     });
     return;
   }
@@ -2113,7 +2682,7 @@ app.delete("/api/contests/:id", async (req, res) => {
 
   if (played > 0) {
     res.status(409).json({
-      message: `Esta competencia tiene ${played} participante(s) que ya rindieron; no se puede eliminar sin perder sus resultados.`,
+      message: `Este desafío tiene ${played} participante(s) que ya rindieron; no se puede eliminar sin perder sus resultados.`,
     });
     return;
   }
@@ -2260,6 +2829,7 @@ app.get("/api/users/maestros", async (_req, res) => {
       idFrontFilename: true,
       idBackFilename: true,
       createdAt: true,
+      schools: { orderBy: { createdAt: "asc" as const } },
     },
   });
 
@@ -2271,9 +2841,11 @@ app.get("/api/users/maestros", async (_req, res) => {
         idBackFilename,
         schoolCodUe,
         institutionType,
+        schools,
         ...maestro
       }) => ({
         ...maestro,
+        schools: schools.map(serializeTeacherSchool),
         institutionType:
           institutionType ?? (schoolCodUe ? "school" : "homeschool"),
         isHomeschool:
@@ -2301,6 +2873,53 @@ app.post("/api/users/:id/reject", async (req, res) => {
   const user = await prisma.user.update({
     where: { id: Number(req.params.id) },
     data: { status: "rejected" },
+    select: { id: true, status: true },
+  });
+  res.json(user);
+});
+
+app.post("/api/users/schools/:schoolId/:decision", async (req, res) => {
+  const decision = req.params.decision;
+
+  if (decision !== "approve" && decision !== "reject") {
+    res.status(400).json({ message: "Decisión inválida." });
+    return;
+  }
+
+  const school = await prisma.teacherSchool.findUnique({
+    where: { id: req.params.schoolId },
+  });
+
+  if (!school) {
+    res.status(404).json({ message: "Colegio no encontrado." });
+    return;
+  }
+
+  const updated = await prisma.teacherSchool.update({
+    where: { id: school.id },
+    data: { status: decision === "approve" ? "approved" : "rejected" },
+  });
+
+  res.json(serializeTeacherSchool(updated));
+});
+
+app.get("/api/users/schools/:schoolId/letter", async (req, res) => {
+  const school = await prisma.teacherSchool.findUnique({
+    where: { id: req.params.schoolId },
+  });
+
+  if (!school?.letterFilename) {
+    res.status(404).json({ message: "Documento no encontrado." });
+    return;
+  }
+
+  res.sendFile(resolve(UPLOADS_DIR, school.letterFilename));
+});
+
+app.post("/api/users/:id/suspend", async (req, res) => {
+  const user = await prisma.user.update({
+    where: { id: Number(req.params.id) },
+    data: { status: "suspended" },
     select: { id: true, status: true },
   });
   res.json(user);
@@ -2359,7 +2978,7 @@ app.get("/api/users/:id/documents/:doc", async (req, res) => {
   });
 });
 
-// ---- Competencias publicadas para armar grupos (admin y maestro) ----
+// ---- Desafíos publicados para armar grupos (admin y maestro) ----
 
 app.get("/api/published-contests", requireAuth, async (_req, res) => {
   const contests = await prisma.contest.findMany({
@@ -2443,20 +3062,20 @@ app.post("/api/groups", async (req, res) => {
   const contest = await prisma.contest.findUnique({ where: { id: contestId } });
 
   if (!contest) {
-    res.status(400).json({ message: "La competencia no existe." });
+    res.status(400).json({ message: "El desafío no existe." });
     return;
   }
 
   if (!contest.publishedAt) {
     res.status(400).json({
-      message: "La competencia debe estar publicada para crear grupos.",
+      message: "El desafío debe estar publicado para crear grupos.",
     });
     return;
   }
 
   if (contestHasEnded(computeContestState(contest).state)) {
     res.status(409).json({
-      message: "La competencia ya cerró; no es posible crear grupos.",
+      message: "El desafío ya cerró; no es posible crear grupos.",
     });
     return;
   }
@@ -2466,7 +3085,7 @@ app.post("/api/groups", async (req, res) => {
     (scheduledAt < contest.startsAt || scheduledAt > contest.endsAt)
   ) {
     res.status(400).json({
-      message: "La sesión debe estar dentro del horario de la competencia.",
+      message: "La sesión debe estar dentro del horario del desafío.",
     });
     return;
   }
@@ -2567,7 +3186,7 @@ app.delete("/api/teams/:id", async (req, res) => {
   if (team.attempt && team.attempt.status !== "pending") {
     res.status(409).json({
       message:
-        "Este participante ya rindió la competencia; no se puede eliminar sin perder su resultado.",
+        "Este participante ya rindió el desafío; no se puede eliminar sin perder su resultado.",
     });
     return;
   }
@@ -2652,14 +3271,14 @@ app.put("/api/teams/:id", async (req, res) => {
 
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
-      message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en esta competencia.`,
+      message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en este desafío.`,
     });
     return;
   }
 
   if (isPareja && takenKeys.has(keyTwo)) {
     res.status(409).json({
-      message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en esta competencia.`,
+      message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en este desafío.`,
     });
     return;
   }
@@ -2676,6 +3295,315 @@ app.put("/api/teams/:id", async (req, res) => {
   });
 
   res.json(serializeTeam(updated));
+});
+
+app.get("/api/groups/:id/roster-template", async (req, res) => {
+  const group = await prisma.contestGroup.findUnique({
+    where: { id: String(req.params.id) },
+    include: { contest: true },
+  });
+
+  if (
+    !group ||
+    (req.user?.role === "maestro" && group.createdById !== req.user.id)
+  ) {
+    res.status(404).json({ message: "Grupo no encontrado." });
+    return;
+  }
+
+  const grades = gradesForCategory(group.contest.category);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Participantes");
+
+  sheet.columns = ROSTER_COLUMNS.map((header) => ({
+    header,
+    key: header,
+    width: header.length + 14,
+  }));
+  sheet.getRow(1).font = { bold: true };
+
+  sheet.addRow([
+    "Ana",
+    "Quispe",
+    grades[0]?.value ?? "P3",
+    "individual",
+    "",
+    "",
+  ]);
+
+  if (group.contest.allowPairs) {
+    sheet.addRow([
+      "Luis",
+      "Mamani",
+      grades[0]?.value ?? "P3",
+      "pareja",
+      "Sofía",
+      "Rojas",
+    ]);
+  }
+
+  const notes = workbook.addWorksheet("Instrucciones");
+  notes.columns = [{ width: 100 }];
+  notes.addRow(["Cómo llenar esta planilla"]);
+  notes.getRow(1).font = { bold: true };
+  notes.addRow([""]);
+  notes.addRow(["Una fila por participante (o por pareja)."]);
+  notes.addRow([
+    "Modalidad: escribe individual o pareja. " +
+      (group.contest.allowPairs
+        ? "Este desafío permite parejas."
+        : "Este desafío es solo individual."),
+  ]);
+  notes.addRow([
+    "En pareja, llena también las columnas del compañero. En individual, déjalas vacías.",
+  ]);
+  notes.addRow([
+    `Cursos válidos para la categoría ${group.contest.category}: ${grades
+      .map((grade) => `${grade.value} (${grade.label})`)
+      .join(", ")}.`,
+  ]);
+  notes.addRow(["No cambies los títulos de las columnas ni el orden."]);
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="participantes-${group.accessCode}.xlsx"`,
+  );
+  res.end(Buffer.from(buffer as unknown as ArrayBuffer));
+});
+
+app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
+  const group = await prisma.contestGroup.findUnique({
+    where: { id: String(req.params.id) },
+    include: { contest: true },
+  });
+
+  if (
+    !group ||
+    (req.user?.role === "maestro" && group.createdById !== req.user.id)
+  ) {
+    res.status(404).json({ message: "Grupo no encontrado." });
+    return;
+  }
+
+  if (contestHasEnded(computeContestState(group.contest).state)) {
+    res
+      .status(409)
+      .json({ message: "El desafío ya cerró; no es posible inscribir." });
+    return;
+  }
+
+  if (!req.file) {
+    res.status(400).json({ message: "Adjunta la planilla." });
+    return;
+  }
+
+  const workbook = new ExcelJS.Workbook();
+
+  try {
+    if (req.file.originalname.toLowerCase().endsWith(".csv")) {
+      await workbook.csv.read(Readable.from(req.file.buffer.toString("utf8")));
+    } else {
+      await workbook.xlsx.load(
+        req.file.buffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
+      );
+    }
+  } catch {
+    res.status(400).json({
+      message: "No pudimos leer la planilla. Usa la plantilla del desafío.",
+    });
+    return;
+  }
+
+  const sheet = workbook.worksheets[0];
+
+  if (!sheet) {
+    res.status(400).json({ message: "La planilla está vacía." });
+    return;
+  }
+
+  const headerRow = sheet.getRow(1);
+  const columnByHeader = new Map<string, number>();
+  headerRow.eachCell((cell, column) => {
+    columnByHeader.set(normalizeHeader(cell.value), column);
+  });
+
+  const columnOf = (header: string) =>
+    columnByHeader.get(normalizeHeader(header)) ?? 0;
+  const firstNameColumn = columnOf("Nombres");
+  const lastNameColumn = columnOf("Apellidos");
+
+  if (!firstNameColumn || !lastNameColumn || !columnOf("Curso")) {
+    res.status(400).json({
+      message:
+        "La planilla necesita las columnas Nombres, Apellidos y Curso. Descarga la plantilla.",
+    });
+    return;
+  }
+
+  const existingTeams = await prisma.team.findMany({
+    where: { group: { contestId: group.contestId } },
+    select: {
+      memberOneFirstName: true,
+      memberOneLastName: true,
+      memberTwoFirstName: true,
+      memberTwoLastName: true,
+    },
+  });
+
+  const takenKeys = new Set<string>();
+  for (const existing of existingTeams) {
+    takenKeys.add(
+      nameKey(existing.memberOneFirstName, existing.memberOneLastName),
+    );
+    if (existing.memberTwoFirstName && existing.memberTwoLastName) {
+      takenKeys.add(
+        nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
+      );
+    }
+  }
+
+  const cellText = (row: ExcelJS.Row, column: number) => {
+    if (!column) {
+      return "";
+    }
+
+    const value = row.getCell(column).value;
+
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    if (typeof value === "object" && "richText" in value) {
+      return value.richText
+        .map((part) => part.text)
+        .join("")
+        .trim();
+    }
+
+    if (typeof value === "object" && "text" in value) {
+      return String(value.text).trim();
+    }
+
+    return String(value).trim();
+  };
+
+  const created: Array<{ row: number; name: string; personalCode: string }> =
+    [];
+  const skipped: Array<{ row: number; name: string; reason: string }> = [];
+
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const oneFirst = cellText(row, firstNameColumn);
+    const oneLast = cellText(row, lastNameColumn);
+    const twoFirst = cellText(row, columnOf("Nombres del compañero"));
+    const twoLast = cellText(row, columnOf("Apellidos del compañero"));
+    const rawMode = normalizeHeader(cellText(row, columnOf("Modalidad")));
+    const label = `${oneFirst} ${oneLast}`.trim();
+
+    if (!oneFirst && !oneLast && !twoFirst && !twoLast) {
+      continue;
+    }
+
+    if (!oneFirst || !oneLast) {
+      skipped.push({
+        row: rowNumber,
+        name: label || "(sin nombre)",
+        reason: "Faltan nombres o apellidos.",
+      });
+      continue;
+    }
+
+    const isPair = rawMode === "pareja" || Boolean(twoFirst || twoLast);
+
+    if (isPair && !group.contest.allowPairs) {
+      skipped.push({
+        row: rowNumber,
+        name: label,
+        reason: "Este desafío no permite parejas.",
+      });
+      continue;
+    }
+
+    if (isPair && (!twoFirst || !twoLast)) {
+      skipped.push({
+        row: rowNumber,
+        name: label,
+        reason: "Faltan los datos del compañero.",
+      });
+      continue;
+    }
+
+    let grade: string;
+
+    try {
+      grade = gradeFromCell(
+        cellText(row, columnOf("Curso")),
+        group.contest.category,
+      );
+    } catch (error) {
+      skipped.push({
+        row: rowNumber,
+        name: label,
+        reason: error instanceof Error ? error.message : "Curso inválido.",
+      });
+      continue;
+    }
+
+    const keyOne = nameKey(oneFirst, oneLast);
+    const keyTwo = isPair ? nameKey(twoFirst, twoLast) : "";
+
+    if (isPair && keyOne === keyTwo) {
+      skipped.push({
+        row: rowNumber,
+        name: label,
+        reason: "Los dos integrantes son la misma persona.",
+      });
+      continue;
+    }
+
+    if (takenKeys.has(keyOne) || (keyTwo && takenKeys.has(keyTwo))) {
+      skipped.push({
+        row: rowNumber,
+        name: label,
+        reason: "Ya está inscrito en este desafío.",
+      });
+      continue;
+    }
+
+    const personalCode = await generateUniquePersonalCode();
+    await prisma.team.create({
+      data: {
+        groupId: group.id,
+        participationMode: isPair ? "pareja" : "individual",
+        grade,
+        memberOneFirstName: formatName(oneFirst),
+        memberOneLastName: formatName(oneLast),
+        memberTwoFirstName: isPair ? formatName(twoFirst) : null,
+        memberTwoLastName: isPair ? formatName(twoLast) : null,
+        personalCode,
+        attempt: { create: { status: "pending" } },
+      },
+    });
+
+    takenKeys.add(keyOne);
+    if (keyTwo) {
+      takenKeys.add(keyTwo);
+    }
+
+    created.push({
+      row: rowNumber,
+      name: `${formatName(oneFirst)} ${formatName(oneLast)}`,
+      personalCode,
+    });
+  }
+
+  res.status(created.length > 0 ? 201 : 200).json({ created, skipped });
 });
 
 app.post("/api/groups/:id/teams", async (req, res) => {
@@ -2695,7 +3623,7 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   if (contestHasEnded(computeContestState(group.contest).state)) {
     res
       .status(409)
-      .json({ message: "La competencia ya cerró; no es posible inscribir." });
+      .json({ message: "El desafío ya cerró; no es posible inscribir." });
     return;
   }
 
@@ -2716,7 +3644,7 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   }
 
   if (mode === "pareja" && !group.contest.allowPairs) {
-    res.status(400).json({ message: "Esta competencia no permite parejas." });
+    res.status(400).json({ message: "Este desafío no permite parejas." });
     return;
   }
 
@@ -2772,14 +3700,14 @@ app.post("/api/groups/:id/teams", async (req, res) => {
 
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
-      message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en esta competencia.`,
+      message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en este desafío.`,
     });
     return;
   }
 
   if (mode === "pareja" && takenKeys.has(keyTwo)) {
     res.status(409).json({
-      message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en esta competencia.`,
+      message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en este desafío.`,
     });
     return;
   }
@@ -2826,14 +3754,14 @@ app.get("/api/play/group/:code", async (req, res) => {
   }
 
   if (!group.contest.publishedAt) {
-    res.status(409).json({ message: "La competencia aún no está disponible." });
+    res.status(409).json({ message: "El desafío aún no está disponible." });
     return;
   }
 
   const { state } = computeContestState(group.contest);
 
   if (contestHasEnded(state)) {
-    res.status(409).json({ message: "La competencia ya cerró." });
+    res.status(409).json({ message: "El desafío ya cerró." });
     return;
   }
 
@@ -2887,19 +3815,19 @@ app.post("/api/play/join", async (req, res) => {
   }
 
   if (!group.contest.publishedAt) {
-    res.status(409).json({ message: "La competencia aún no está disponible." });
+    res.status(409).json({ message: "El desafío aún no está disponible." });
     return;
   }
 
   if (contestHasEnded(computeContestState(group.contest).state)) {
     res
       .status(409)
-      .json({ message: "La competencia ya cerró; no es posible registrarse." });
+      .json({ message: "El desafío ya cerró; no es posible registrarse." });
     return;
   }
 
   if (mode === "pareja" && !group.contest.allowPairs) {
-    res.status(400).json({ message: "Esta competencia no permite parejas." });
+    res.status(400).json({ message: "Este desafío no permite parejas." });
     return;
   }
 
@@ -2985,7 +3913,7 @@ app.post("/api/play/join", async (req, res) => {
   const oneName = `${formatName(memberOneFirstName)} ${formatName(memberOneLastName)}`;
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
-      message: `${oneName} ya está registrado en esta competencia.`,
+      message: `${oneName} ya está registrado en este desafío.`,
     });
     return;
   }
@@ -2993,7 +3921,7 @@ app.post("/api/play/join", async (req, res) => {
   if (mode === "pareja" && takenKeys.has(keyTwo)) {
     const twoName = `${formatName(memberTwoFirstName)} ${formatName(memberTwoLastName)}`;
     res.status(409).json({
-      message: `${twoName} ya está registrado en esta competencia.`,
+      message: `${twoName} ya está registrado en este desafío.`,
     });
     return;
   }
@@ -3504,35 +4432,274 @@ async function consolidateContest(contestId: string) {
   return expired.length;
 }
 
-function findTeamForPlay(personalCode: string) {
-  return prisma.team.findUnique({
-    where: { personalCode },
+const playTeamInclude = {
+  attempt: true,
+  group: {
     include: {
-      attempt: true,
-      group: {
+      contest: {
         include: {
-          contest: {
-            include: {
-              tasks: {
-                orderBy: { position: "asc" },
-                include: { taskDraft: true },
-              },
-            },
+          tasks: {
+            orderBy: { position: "asc" as const },
+            include: { taskDraft: true },
           },
         },
       },
     },
+  },
+};
+
+const playTeamLightInclude = {
+  attempt: true,
+  group: { select: { contestId: true, contest: true } },
+};
+
+function findTeamForPlay(personalCode: string) {
+  return prisma.team.findUnique({
+    where: { personalCode },
+    include: playTeamInclude,
   });
 }
+
+function findTeamBySession(sessionToken: string) {
+  return prisma.team.findUnique({
+    where: { sessionToken },
+    include: playTeamInclude,
+  });
+}
+
+function findLightTeamForPlay(personalCode: string) {
+  return prisma.team.findUnique({
+    where: { personalCode },
+    include: playTeamLightInclude,
+  });
+}
+
+function findLightTeamBySession(sessionToken: string) {
+  return prisma.team.findUnique({
+    where: { sessionToken },
+    include: playTeamLightInclude,
+  });
+}
+
+const PLAY_SESSION_TTL_MS = 30000;
+
+type PlaySessionState = {
+  sessionToken: string | null;
+  sessionSeenAt: Date | null;
+};
+
+function playSessionIsLive(team: PlaySessionState) {
+  return Boolean(
+    team.sessionToken &&
+    team.sessionSeenAt &&
+    currentDate().getTime() - team.sessionSeenAt.getTime() <
+      PLAY_SESSION_TTL_MS,
+  );
+}
+
+function readSessionToken(req: {
+  header: (name: string) => string | undefined;
+}) {
+  const value = req.header("x-play-session");
+  return typeof value === "string" ? value.trim() : "";
+}
+
+type PlayAuthFailure = "not_found" | "session_gone" | "session_taken";
+
+const PLAY_AUTH_ERRORS: Record<
+  PlayAuthFailure,
+  { status: number; message: string }
+> = {
+  not_found: { status: 404, message: "Registro no encontrado." },
+  session_gone: {
+    status: 401,
+    message: "Tu sesión se cerró. Vuelve a entrar con tu nombre.",
+  },
+  session_taken: {
+    status: 409,
+    message: "Ya hay una sesión abierta con tu nombre en otro dispositivo.",
+  },
+};
+
+async function authorizePlay<T extends PlaySessionState & { id: string }>(
+  req: { header: (name: string) => string | undefined },
+  personalCode: string,
+  findByToken: (token: string) => Promise<T | null>,
+  findByCode: (code: string) => Promise<T | null>,
+): Promise<
+  { team: T; error?: never } | { team?: never; error: PlayAuthFailure }
+> {
+  const token = readSessionToken(req);
+
+  if (token) {
+    const team = await findByToken(token);
+
+    if (!team) {
+      return { error: "session_gone" };
+    }
+
+    await prisma.team.update({
+      where: { id: team.id },
+      data: { sessionSeenAt: currentDate() },
+    });
+
+    return { team };
+  }
+
+  const team = personalCode ? await findByCode(personalCode) : null;
+
+  if (!team) {
+    return { error: "not_found" };
+  }
+
+  if (playSessionIsLive(team)) {
+    return { error: "session_taken" };
+  }
+
+  return { team };
+}
+
+app.post("/api/play/session", async (req, res) => {
+  const accessCode =
+    typeof req.body?.accessCode === "string"
+      ? req.body.accessCode.trim().toUpperCase()
+      : "";
+  const firstName =
+    typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
+  const lastName =
+    typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
+
+  if (!firstName || !lastName) {
+    res.status(400).json({ message: "Escribe tu nombre y tu apellido." });
+    return;
+  }
+
+  const group = await prisma.contestGroup.findUnique({
+    where: { accessCode },
+    include: { contest: true },
+  });
+
+  if (!group) {
+    res.status(404).json({ message: "Código no encontrado." });
+    return;
+  }
+
+  if (group.expiresAt && group.expiresAt < currentDate()) {
+    res.status(410).json({ message: "El código ya expiró." });
+    return;
+  }
+
+  if (!group.contest.publishedAt) {
+    res.status(409).json({ message: "El desafío aún no está disponible." });
+    return;
+  }
+
+  if (contestHasEnded(computeContestState(group.contest).state)) {
+    res.status(409).json({ message: "El desafío ya cerro." });
+    return;
+  }
+
+  const key = nameKey(firstName, lastName);
+  const teams = await prisma.team.findMany({ where: { groupId: group.id } });
+  const team = teams.find(
+    (candidate) =>
+      nameKey(candidate.memberOneFirstName, candidate.memberOneLastName) ===
+        key ||
+      (candidate.memberTwoFirstName !== null &&
+        candidate.memberTwoLastName !== null &&
+        nameKey(candidate.memberTwoFirstName, candidate.memberTwoLastName) ===
+          key),
+  );
+
+  if (!team) {
+    res.status(404).json({
+      message:
+        "No encontramos tu registro en este grupo. Revisa cómo escribiste tu nombre.",
+    });
+    return;
+  }
+
+  if (playSessionIsLive(team)) {
+    res.status(409).json({
+      message:
+        "Ya hay una sesión abierta con tu nombre. Ciérrala o espera medio minuto e inténtalo otra vez.",
+    });
+    return;
+  }
+
+  const sessionToken = randomUUID();
+  await prisma.team.update({
+    where: { id: team.id },
+    data: { sessionToken, sessionSeenAt: currentDate() },
+  });
+
+  res.status(201).json({
+    sessionToken,
+    groupName: group.name,
+    contestTitle: group.contest.title,
+    participationMode: team.participationMode,
+    memberOneFirstName: team.memberOneFirstName,
+    memberOneLastName: team.memberOneLastName,
+    memberTwoFirstName: team.memberTwoFirstName,
+    memberTwoLastName: team.memberTwoLastName,
+  });
+});
+
+app.post("/api/play/session/close", async (req, res) => {
+  const token = readSessionToken(req);
+
+  if (token) {
+    await prisma.team.updateMany({
+      where: { sessionToken: token },
+      data: { sessionToken: null, sessionSeenAt: null },
+    });
+  }
+
+  res.status(204).end();
+});
+
+app.post("/api/play/heartbeat", async (req, res) => {
+  const token = readSessionToken(req);
+
+  if (!token) {
+    res.status(401).json({ message: PLAY_AUTH_ERRORS.session_gone.message });
+    return;
+  }
+
+  const refreshed = await prisma.team.updateMany({
+    where: { sessionToken: token },
+    data: { sessionSeenAt: currentDate() },
+  });
+
+  if (refreshed.count === 0) {
+    res.status(401).json({ message: PLAY_AUTH_ERRORS.session_gone.message });
+    return;
+  }
+
+  res.json({ ok: true });
+});
 
 app.post("/api/play/start", async (req, res) => {
   const personalCode =
     typeof req.body?.personalCode === "string"
       ? req.body.personalCode.trim().toUpperCase()
       : "";
-  const team = await findTeamForPlay(personalCode);
+  const auth = await authorizePlay(
+    req,
+    personalCode,
+    findTeamBySession,
+    findTeamForPlay,
+  );
 
-  if (!team || !team.attempt) {
+  if (auth.error) {
+    const failure = PLAY_AUTH_ERRORS[auth.error];
+    res.status(failure.status).json({ message: failure.message });
+    return;
+  }
+
+  const team = auth.team;
+
+  if (!team.attempt) {
     res.status(404).json({ message: "Registro no encontrado." });
     return;
   }
@@ -3541,12 +4708,12 @@ app.post("/api/play/start", async (req, res) => {
   if (computeContestState(contest).state !== "abierta") {
     res
       .status(409)
-      .json({ message: "La competencia no está abierta en este momento." });
+      .json({ message: "El desafío no está abierto en este momento." });
     return;
   }
 
   if (team.attempt.status === "finished") {
-    res.status(409).json({ message: "Ya entregaste esta competencia." });
+    res.status(409).json({ message: "Ya entregaste este desafío." });
     return;
   }
 
@@ -3557,7 +4724,7 @@ app.post("/api/play/start", async (req, res) => {
     if (remainingMinutes < contest.durationMinutes) {
       res.status(409).json({
         message:
-          "Ya no queda tiempo suficiente para rendir la competencia completa. Habla con tu maestro.",
+          "Ya no queda tiempo suficiente para rendir el desafío completo. Habla con tu maestro.",
       });
       return;
     }
@@ -3572,23 +4739,38 @@ app.post("/api/play/start", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/play/attempt/:personalCode", async (req, res) => {
+const playAttemptHandler: express.RequestHandler = async (req, res) => {
   const personalCode = String(req.params.personalCode ?? "")
     .trim()
     .toUpperCase();
-  const team = await findTeamForPlay(personalCode);
+  const auth = await authorizePlay(
+    req,
+    personalCode,
+    findTeamBySession,
+    findTeamForPlay,
+  );
 
-  if (!team || !team.attempt) {
+  if (auth.error) {
+    const failure = PLAY_AUTH_ERRORS[auth.error];
+    res.status(failure.status).json({ message: failure.message });
+    return;
+  }
+
+  const team = auth.team;
+
+  if (!team.attempt) {
     res.status(404).json({ message: "Registro no encontrado." });
     return;
   }
 
   let attempt = team.attempt;
   const contest = team.group.contest;
+  const contestState = computeContestState(contest).state;
 
   if (
     attempt.status === "in_progress" &&
     attempt.endsAt &&
+    contestState !== "suspendida" &&
     currentDate() > attempt.endsAt
   ) {
     await finalizeAttempt(attempt.id);
@@ -3641,10 +4823,11 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
     contestTitle: contest.title,
     durationMinutes: contest.durationMinutes,
     questionDisplayMode: contest.questionDisplayMode,
-    state: computeContestState(contest).state,
+    state: contestState,
     status: attempt.status,
     startedAt: attempt.startedAt?.toISOString() ?? null,
     endsAt: attempt.endsAt?.toISOString() ?? null,
+    suspendedAt: contest.suspendedAt?.toISOString() ?? null,
     resultsPublished,
     showFeedback: resultsPublished && contest.showFeedback,
     showSolutions: resultsPublished && contest.showSolutions,
@@ -3660,7 +4843,10 @@ app.get("/api/play/attempt/:personalCode", async (req, res) => {
         }
       : null,
   });
-});
+};
+
+app.get("/api/play/attempt", playAttemptHandler);
+app.get("/api/play/attempt/:personalCode", playAttemptHandler);
 
 app.post("/api/play/answer", async (req, res) => {
   const personalCode =
@@ -3670,21 +4856,33 @@ app.post("/api/play/answer", async (req, res) => {
   const taskId = typeof req.body?.taskId === "string" ? req.body.taskId : "";
   const payload = req.body?.payload ?? null;
 
-  const team = await prisma.team.findUnique({
-    where: { personalCode },
-    include: {
-      attempt: true,
-      group: { select: { contestId: true } },
-    },
-  });
+  const auth = await authorizePlay(
+    req,
+    personalCode,
+    findLightTeamBySession,
+    findLightTeamForPlay,
+  );
 
-  if (!team || !team.attempt) {
+  if (auth.error) {
+    const failure = PLAY_AUTH_ERRORS[auth.error];
+    res.status(failure.status).json({ message: failure.message });
+    return;
+  }
+
+  const team = auth.team;
+
+  if (!team.attempt) {
     res.status(404).json({ message: "Registro no encontrado." });
     return;
   }
 
   if (team.attempt.status !== "in_progress") {
-    res.status(409).json({ message: "La competencia no está en curso." });
+    res.status(409).json({ message: "El desafío no está en curso." });
+    return;
+  }
+
+  if (computeContestState(team.group.contest).state === "suspendida") {
+    res.status(409).json({ message: SUSPENDED_CONTEST_MESSAGE });
     return;
   }
 
@@ -3705,9 +4903,7 @@ app.post("/api/play/answer", async (req, res) => {
   });
 
   if (!contestTask) {
-    res
-      .status(404)
-      .json({ message: "La tarea no pertenece a esta competencia." });
+    res.status(404).json({ message: "La tarea no pertenece a este desafío." });
     return;
   }
 
@@ -3752,12 +4948,22 @@ app.post("/api/play/submit", async (req, res) => {
     typeof req.body?.personalCode === "string"
       ? req.body.personalCode.trim().toUpperCase()
       : "";
-  const team = await prisma.team.findUnique({
-    where: { personalCode },
-    include: { attempt: true },
-  });
+  const auth = await authorizePlay(
+    req,
+    personalCode,
+    findLightTeamBySession,
+    findLightTeamForPlay,
+  );
 
-  if (!team || !team.attempt) {
+  if (auth.error) {
+    const failure = PLAY_AUTH_ERRORS[auth.error];
+    res.status(failure.status).json({ message: failure.message });
+    return;
+  }
+
+  const team = auth.team;
+
+  if (!team.attempt) {
     res.status(404).json({ message: "Registro no encontrado." });
     return;
   }
@@ -3767,8 +4973,13 @@ app.post("/api/play/submit", async (req, res) => {
     return;
   }
 
+  if (computeContestState(team.group.contest).state === "suspendida") {
+    res.status(409).json({ message: SUSPENDED_CONTEST_MESSAGE });
+    return;
+  }
+
   if (team.attempt.status !== "in_progress") {
-    res.status(409).json({ message: "La competencia no está en curso." });
+    res.status(409).json({ message: "El desafío no está en curso." });
     return;
   }
 
@@ -3790,7 +5001,7 @@ app.get("/api/contests/:id/results", async (req, res) => {
   });
 
   if (!contest) {
-    res.status(404).json({ message: "Competencia no encontrada." });
+    res.status(404).json({ message: "Desafío no encontrado." });
     return;
   }
 

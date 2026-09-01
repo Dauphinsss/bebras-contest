@@ -1,4 +1,5 @@
-import { apiRequest as request } from "@/lib/api-client";
+import { API_BASE_URL, apiRequest as request } from "@/lib/api-client";
+import { authHeaders } from "@/lib/auth";
 
 export type GroupTeam = {
   id: string;
@@ -82,6 +83,52 @@ export function enrollTeam(groupId: string, data: EnrollTeamInput) {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export type RosterImportResult = {
+  created: Array<{ row: number; name: string; personalCode: string }>;
+  skipped: Array<{ row: number; name: string; reason: string }>;
+};
+
+export async function downloadRosterTemplate(groupId: string, name: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/groups/${groupId}/roster-template`,
+    { headers: authHeaders() },
+  );
+
+  if (!response.ok) {
+    throw new Error("No se pudo descargar la plantilla.");
+  }
+
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `participantes-${name}.xlsx`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function importRoster(groupId: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/api/groups/${groupId}/roster`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: form,
+  });
+
+  const data = (await response.json().catch(() => ({}))) as
+    | RosterImportResult
+    | { message?: string };
+
+  if (!response.ok) {
+    throw new Error(
+      ("message" in data && data.message) || "No se pudo importar la planilla.",
+    );
+  }
+
+  return data as RosterImportResult;
 }
 
 export type TeamUpdateInput = {

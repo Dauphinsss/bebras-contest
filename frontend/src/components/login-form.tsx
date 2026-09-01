@@ -55,7 +55,11 @@ export function LoginForm() {
       setUser(data.user);
       toast.success("Sesión iniciada.");
       window.location.href =
-        data.user.role === "admin" ? "/competencias" : "/grupos";
+        data.user.status && data.user.status !== "approved"
+          ? "/perfil"
+          : data.user.role === "admin"
+            ? "/competencias"
+            : "/grupos";
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {

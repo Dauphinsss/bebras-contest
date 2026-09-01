@@ -51,10 +51,7 @@ async function main() {
     await run(["bun", "run", "prisma:push"], backend);
     await run(["bun", "run", "db:admins"], backend);
     await run(["bun", "run", "db:tasks"], backend);
-    await run(
-      ["bun", "x", "playwright", "test", ...playwrightArgs],
-      root,
-    );
+    await run(["bun", "x", "playwright", "test", ...playwrightArgs], root);
   } finally {
     cleanupTestArtifacts();
   }

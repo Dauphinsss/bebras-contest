@@ -6,6 +6,7 @@ import {
   useEffectEvent,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
   CheckCircle2Icon,
@@ -37,8 +38,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   answerHasResponse,
+  forgetPlaySession,
   getAttempt,
+  readPlaySession,
   saveAnswer,
+  sendPlayHeartbeat,
   startAttempt,
   submitAttempt,
   type AttemptState,
@@ -59,16 +63,12 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function saveAnswerWithRetry(
-  personalCode: string,
-  taskId: string,
-  payload: unknown,
-) {
+async function saveAnswerWithRetry(taskId: string, payload: unknown) {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= SAVE_RETRY_DELAYS.length; attempt += 1) {
     try {
-      await saveAnswer(personalCode, taskId, payload);
+      await saveAnswer(taskId, payload);
       return;
     } catch (error) {
       lastError = error;
@@ -84,13 +84,8 @@ async function saveAnswerWithRetry(
 }
 
 export function AttemptPage() {
-  const [personalCode] = useState(() =>
-    typeof window !== "undefined"
-      ? (new URLSearchParams(window.location.search).get("code") ?? "")
-          .trim()
-          .toUpperCase()
-      : "",
-  );
+  const [sessionToken] = useState(() => readPlaySession());
+  const [sessionLost, setSessionLost] = useState(false);
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
@@ -106,23 +101,29 @@ export function AttemptPage() {
   const automaticFinishAttemptedRef = useRef(false);
 
   const load = useCallback(async () => {
-    if (!personalCode) {
+    if (!sessionToken) {
       setLoading(false);
       return;
     }
     try {
-      const data = await getAttempt(personalCode);
+      const data = await getAttempt();
       setAttempt(data);
       answersRef.current = data.answers ?? {};
       setAnswers(answersRef.current);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo cargar.",
-      );
+      const message =
+        error instanceof Error ? error.message : "No se pudo cargar.";
+
+      if (message.includes("sesión")) {
+        forgetPlaySession();
+        setSessionLost(true);
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
-  }, [personalCode]);
+  }, [sessionToken]);
 
   useEffect(() => {
     void load();
@@ -133,14 +134,19 @@ export function AttemptPage() {
     return () => clearInterval(id);
   }, []);
 
+  const suspended = attempt?.state === "suspendida";
+  const suspendedAtMs = attempt?.suspendedAt
+    ? new Date(attempt.suspendedAt).getTime()
+    : 0;
   const endsAtMs = attempt?.endsAt ? new Date(attempt.endsAt).getTime() : 0;
-  const remaining = endsAtMs - now;
+  const remaining =
+    endsAtMs - (suspended && suspendedAtMs ? suspendedAtMs : now);
 
   const queueSave = (taskId: string, payload: unknown) => {
     const previousSave = saveQueues.current[taskId] ?? Promise.resolve();
     const nextSave = previousSave
       .catch(() => undefined)
-      .then(() => saveAnswerWithRetry(personalCode, taskId, payload));
+      .then(() => saveAnswerWithRetry(taskId, payload));
 
     saveQueues.current[taskId] = nextSave;
     return nextSave;
@@ -181,12 +187,12 @@ export function AttemptPage() {
       } catch {
         // The server enforces the deadline, so finalization must still continue.
       }
-      await submitAttempt(personalCode);
+      await submitAttempt();
       await load();
     } catch {
       submittedRef.current = false;
       toast.error(
-        "No pudimos entregar la competencia. Revisa la conexión e inténtalo nuevamente.",
+        "No pudimos entregar el desafío. Revisa la conexión e inténtalo nuevamente.",
       );
     } finally {
       setSubmitting(false);
@@ -196,6 +202,7 @@ export function AttemptPage() {
   useEffect(() => {
     if (
       attempt?.status === "in_progress" &&
+      !suspended &&
       endsAtMs > 0 &&
       remaining <= 0 &&
       !submittedRef.current &&
@@ -205,7 +212,27 @@ export function AttemptPage() {
       submittedRef.current = true;
       void finishAutomatically();
     }
-  }, [remaining, attempt?.status, endsAtMs]);
+  }, [remaining, attempt?.status, endsAtMs, suspended]);
+
+  useEffect(() => {
+    if (!suspended) {
+      return;
+    }
+
+    const id = setInterval(() => void load(), 5000);
+    return () => clearInterval(id);
+  }, [suspended, load]);
+
+  useEffect(() => {
+    if (!sessionToken || sessionLost) {
+      return;
+    }
+
+    const id = setInterval(() => {
+      void sendPlayHeartbeat().catch(() => undefined);
+    }, 10000);
+    return () => clearInterval(id);
+  }, [sessionToken, sessionLost]);
 
   useEffect(
     () => () => {
@@ -217,7 +244,7 @@ export function AttemptPage() {
   const handleStart = async () => {
     setStarting(true);
     try {
-      await startAttempt(personalCode);
+      await startAttempt();
       await load();
     } catch (error) {
       toast.error(
@@ -237,13 +264,13 @@ export function AttemptPage() {
     setSubmitting(true);
     try {
       await flushSaves();
-      await submitAttempt(personalCode);
+      await submitAttempt();
       await load();
-      toast.success("Entregaste la competencia.");
+      toast.success("Entregaste el desafío.");
     } catch {
       submittedRef.current = false;
       toast.error(
-        "No pudimos entregar la competencia. Revisa la conexión e inténtalo nuevamente.",
+        "No pudimos entregar el desafío. Revisa la conexión e inténtalo nuevamente.",
       );
     } finally {
       setSubmitting(false);
@@ -258,12 +285,24 @@ export function AttemptPage() {
     );
   }
 
-  if (!personalCode || !attempt) {
+  if (sessionLost) {
     return (
       <Alert>
-        <AlertTitle>No encontramos tu registro</AlertTitle>
+        <AlertTitle>Tu sesión se cerró</AlertTitle>
         <AlertDescription>
-          Vuelve a entrar con el código de tu maestro.
+          Se abrió tu prueba en otro dispositivo o pasó demasiado tiempo sin
+          conexión. Vuelve a entrar con tu nombre para seguir donde estabas.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!sessionToken || !attempt) {
+    return (
+      <Alert>
+        <AlertTitle>No encontramos tu sesión</AlertTitle>
+        <AlertDescription>
+          Entra con el código de tu maestro y tu nombre para empezar.
         </AlertDescription>
       </Alert>
     );
@@ -280,14 +319,20 @@ export function AttemptPage() {
           </p>
           {attempt.state !== "abierta" ? (
             <Alert>
-              <AlertTitle>La competencia aún no está abierta</AlertTitle>
+              <AlertTitle>
+                {suspended
+                  ? "El desafío está suspendido"
+                  : "El desafío aún no está abierto"}
+              </AlertTitle>
               <AlertDescription>
-                Espera a que tu maestro la abra para empezar.
+                {suspended
+                  ? "Tu maestro la pausó. Deja esta página abierta: se habilita sola cuando la reanuden."
+                  : "Espera a que tu maestro la abra para empezar."}
               </AlertDescription>
             </Alert>
           ) : (
             <Button onClick={handleStart} disabled={starting}>
-              {starting ? "Empezando..." : "Empezar la competencia"}
+              {starting ? "Empezando..." : "Empezar el desafío"}
             </Button>
           )}
         </CardContent>
@@ -301,7 +346,7 @@ export function AttemptPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
             <CheckCircle2Icon className="size-8 text-primary" />
-            <h1 className="text-2xl font-semibold">¡Competencia terminada!</h1>
+            <h1 className="text-2xl font-semibold">¡Desafío terminado!</h1>
             <p className="text-sm text-muted-foreground">
               {attempt.contestTitle}
             </p>
@@ -376,41 +421,35 @@ export function AttemptPage() {
             <ClockIcon className="size-4" />
             {formatRemaining(remaining)}
           </span>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" disabled={submitting}>
-                {submitting ? (
-                  <LoaderCircleIcon
-                    data-icon="inline-start"
-                    className="animate-spin"
-                  />
-                ) : (
-                  <SendIcon data-icon="inline-start" />
-                )}
-                {submitting ? "Entregando..." : "Entregar"}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Entregar la competencia?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Ya no podrás cambiar tus respuestas. Esta acción no se puede
-                  deshacer.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Seguir respondiendo</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={submitting}
-                  onClick={() => void handleSubmit()}
-                >
-                  {submitting ? "Entregando..." : "Entregar"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <SubmitAttemptDialog
+            submitting={submitting}
+            onSubmit={() => void handleSubmit()}
+          >
+            <Button type="button" disabled={submitting || suspended}>
+              {submitting ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : (
+                <SendIcon data-icon="inline-start" />
+              )}
+              {submitting ? "Entregando..." : "Entregar"}
+            </Button>
+          </SubmitAttemptDialog>
         </div>
       </div>
+
+      {suspended && (
+        <Alert>
+          <AlertTitle>El desafío está suspendido</AlertTitle>
+          <AlertDescription>
+            Tu maestro la pausó y tu tiempo quedó detenido. No cierres esta
+            página: se reanuda sola y recuperas los {formatRemaining(remaining)}{" "}
+            que te quedaban.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {attempt.questionDisplayMode === "all" ? (
         attempt.tasks.map((task) => (
@@ -418,7 +457,7 @@ export function AttemptPage() {
             key={task.taskId}
             task={task}
             value={answers[task.taskId]}
-            disabled={submitting}
+            disabled={submitting || suspended}
             onChange={(payload) => setAnswer(task.taskId, payload)}
           />
         ))
@@ -457,7 +496,7 @@ export function AttemptPage() {
               key={attempt.tasks[currentIndex].taskId}
               task={attempt.tasks[currentIndex]}
               value={answers[attempt.tasks[currentIndex].taskId]}
-              disabled={submitting}
+              disabled={submitting || suspended}
               onChange={(payload) =>
                 setAnswer(attempt.tasks[currentIndex].taskId, payload)
               }
@@ -477,23 +516,72 @@ export function AttemptPage() {
             <span className="text-sm text-muted-foreground">
               Tarea {currentIndex + 1} de {attempt.tasks.length}
             </span>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={currentIndex >= attempt.tasks.length - 1}
-              onClick={() =>
-                setCurrentIndex((index) =>
-                  Math.min(attempt.tasks.length - 1, index + 1),
-                )
-              }
-            >
-              Siguiente
-              <ChevronRightIcon data-icon="inline-end" />
-            </Button>
+            {currentIndex >= attempt.tasks.length - 1 ? (
+              <SubmitAttemptDialog
+                submitting={submitting}
+                onSubmit={() => void handleSubmit()}
+              >
+                <Button type="button" disabled={submitting || suspended}>
+                  {submitting ? (
+                    <LoaderCircleIcon
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <SendIcon data-icon="inline-start" />
+                  )}
+                  {submitting ? "Entregando..." : "Terminar"}
+                </Button>
+              </SubmitAttemptDialog>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setCurrentIndex((index) =>
+                    Math.min(attempt.tasks.length - 1, index + 1),
+                  )
+                }
+              >
+                Siguiente
+                <ChevronRightIcon data-icon="inline-end" />
+              </Button>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function SubmitAttemptDialog({
+  submitting,
+  onSubmit,
+  children,
+}: {
+  submitting: boolean;
+  onSubmit: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Entregar el desafío?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Ya no podrás cambiar tus respuestas. Esta acción no se puede
+            deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Seguir respondiendo</AlertDialogCancel>
+          <AlertDialogAction disabled={submitting} onClick={onSubmit}>
+            {submitting ? "Entregando..." : "Entregar"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

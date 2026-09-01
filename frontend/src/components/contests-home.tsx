@@ -8,6 +8,8 @@ import {
   CalendarRangeIcon,
   FilePlus2Icon,
   FilePenLineIcon,
+  PauseIcon,
+  PlayIcon,
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +18,8 @@ import {
   consolidateContest,
   listContests,
   removeContest,
+  resumeContest,
+  suspendContest,
 } from "@/lib/contests-api";
 import {
   CONTEST_STATE_LABELS,
@@ -46,7 +50,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type ConfirmAction = "consolidate" | "delete";
+type ConfirmAction = "suspend" | "resume" | "consolidate" | "delete";
 
 type Confirmation = {
   action: ConfirmAction;
@@ -61,14 +65,26 @@ const CONFIRMATION_COPY: Record<
     confirm: string;
   }
 > = {
+  suspend: {
+    title: "¿Suspender este desafío?",
+    description: () =>
+      "Nadie podrá empezar ni responder mientras esté suspendida, y el tiempo de quienes ya están rindiendo queda en pausa.",
+    confirm: "Suspender",
+  },
+  resume: {
+    title: "¿Reanudar este desafío?",
+    description: () =>
+      "Se habilita de nuevo y a cada equipo que estaba rindiendo se le devuelve el tiempo que estuvo en pausa.",
+    confirm: "Reanudar",
+  },
   consolidate: {
-    title: "¿Consolidar esta competencia?",
+    title: "¿Consolidar este desafío?",
     description: () =>
       "Se cerrarán los intentos que continúen abiertos y se calcularán los resultados definitivos.",
     confirm: "Consolidar",
   },
   delete: {
-    title: "¿Eliminar esta competencia?",
+    title: "¿Eliminar este desafío?",
     description: (contest) =>
       `Se eliminará "${contest.title}" y sus grupos, equipos y resultados. Esta acción no se puede deshacer.`,
     confirm: "Eliminar",
@@ -108,6 +124,27 @@ export function ContestsHome() {
     }
   };
 
+  const handleSuspend = (contest: StoredContest) =>
+    runAction(
+      contest,
+      () => suspendContest(contest.id),
+      () => "Desafío suspendido. El tiempo quedó en pausa.",
+    );
+
+  const handleResume = (contest: StoredContest) =>
+    runAction(
+      contest,
+      () => resumeContest(contest.id),
+      (updated) => {
+        const resumed = (
+          updated as StoredContest & { resumedAttempts?: number }
+        ).resumedAttempts;
+        return resumed
+          ? `Desafío reanudado. Se devolvió el tiempo a ${resumed} intento(s).`
+          : "Desafío reanudado.";
+      },
+    );
+
   const handleConsolidate = (contest: StoredContest) =>
     runAction(
       contest,
@@ -116,8 +153,8 @@ export function ContestsHome() {
         const closed = (updated as StoredContest & { closedAttempts?: number })
           .closedAttempts;
         return closed
-          ? `Competencia consolidada. Se cerraron ${closed} intento(s) vencido(s).`
-          : "Competencia consolidada. Puntajes y ranking al día.";
+          ? `Desafío consolidado. Se cerraron ${closed} intento(s) vencido(s).`
+          : "Desafío consolidado. Puntajes y ranking al día.";
       },
     );
 
@@ -136,7 +173,7 @@ export function ContestsHome() {
         toast.error(
           error instanceof Error
             ? error.message
-            : "No se pudieron cargar las competencias.",
+            : "No se pudieron cargar los desafíos.",
         );
       });
 
@@ -152,13 +189,13 @@ export function ContestsHome() {
         setContests((current) =>
           current.filter((currentContest) => currentContest.id !== contest.id),
         );
-        toast.success("La competencia se eliminó correctamente.");
+        toast.success("El desafío se eliminó correctamente.");
       })
       .catch((error) => {
         toast.error(
           error instanceof Error
             ? error.message
-            : "No se pudo eliminar la competencia.",
+            : "No se pudo eliminar el desafío.",
         );
       })
       .finally(() => {
@@ -174,7 +211,11 @@ export function ContestsHome() {
     const { action, contest } = confirming;
     setConfirming(null);
 
-    if (action === "consolidate") {
+    if (action === "suspend") {
+      void handleSuspend(contest);
+    } else if (action === "resume") {
+      void handleResume(contest);
+    } else if (action === "consolidate") {
       void handleConsolidate(contest);
     } else {
       handleDelete(contest);
@@ -188,11 +229,11 @@ export function ContestsHome() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-2">
               <div className="text-sm text-muted-foreground">
-                Centro de planificación de competencias.
+                Centro de planificación de desafíos.
               </div>
               <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                  Competencias
+                  Desafíos
                 </h1>
                 <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
                   Configura las sesiones, revisa su ventana de ejecución y
@@ -205,7 +246,7 @@ export function ContestsHome() {
               <Button asChild>
                 <a href="/competencias/nueva">
                   <FilePlus2Icon data-icon="inline-start" />
-                  Nueva competencia
+                  Nuevo desafío
                 </a>
               </Button>
             </div>
@@ -217,16 +258,15 @@ export function ContestsHome() {
         <CardHeader className="border-b">
           <CardTitle>Listado</CardTitle>
           <CardDescription>
-            Aquí puedes revisar y editar las competencias creadas.
+            Aquí puedes revisar y editar los desafíos creados.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-6">
           {contests.length === 0 ? (
             <Alert>
-              <AlertTitle>No hay competencias registradas</AlertTitle>
+              <AlertTitle>No hay desafíos registrados</AlertTitle>
               <AlertDescription>
-                Crea la primera competencia y asígnale tareas para arrancar el
-                flujo.
+                Crea el primer desafío y asígnale tareas para arrancar el flujo.
               </AlertDescription>
             </Alert>
           ) : (
@@ -292,6 +332,35 @@ export function ContestsHome() {
                             </a>
                           </Button>
                         )}
+                      {contest.state === "abierta" && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          disabled={busyId === contest.id}
+                          className="w-full justify-start"
+                          onClick={() =>
+                            setConfirming({ action: "suspend", contest })
+                          }
+                        >
+                          <PauseIcon data-icon="inline-start" />
+                          Suspender
+                        </Button>
+                      )}
+                      {contest.state === "suspendida" && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          disabled={busyId === contest.id}
+                          className="w-full justify-start"
+                          onClick={() =>
+                            setConfirming({ action: "resume", contest })
+                          }
+                        >
+                          <PlayIcon data-icon="inline-start" />
+                          Reanudar
+                        </Button>
+                      )}
                       {contest.state === "cerrada" && (
                         <Button
                           size="sm"

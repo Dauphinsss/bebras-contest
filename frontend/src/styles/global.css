@@ -135,7 +135,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-muted text-foreground;
+    @apply bg-background text-foreground;
   }
 
   [data-slot="card"],
@@ -149,6 +149,7 @@
   [data-slot="dropdown-menu-sub-content"],
   [data-slot="dialog-content"],
   [data-slot="alert-dialog-content"],
+  [data-slot="tooltip-content"],
   [data-slot="alert"] {
     border: 1px solid var(--border) !important;
     box-shadow: var(--shadow-hard);
@@ -168,6 +169,7 @@
   [data-slot="popover-content"],
   [data-slot="dropdown-menu-content"],
   [data-slot="dropdown-menu-sub-content"],
+  [data-slot="tooltip-content"],
   [data-slot="alert"] {
     border-radius: 0 !important;
   }
@@ -497,37 +499,15 @@
   }
 }
 
-/* Scrollbar global: reserva su espacio en el body para que abrir un modal o
-   popover no desplace el contenido centrado. Se aplica al body (no al html)
-   para que el overlay fijo del modal siga cubriendo todo el ancho. */
-body {
-  scrollbar-gutter: stable;
-}
-
+/* El desplazamiento sigue habilitado, pero su indicador visual se oculta en
+   la página y en cualquier contenedor desplazable. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--primary) var(--background);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 ::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--background);
-  border-left: 1px solid var(--border);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--primary);
-  border: 1px solid var(--border);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--foreground);
-}
-
-::-webkit-scrollbar-corner {
-  background: var(--background);
+  display: none;
+  width: 0;
+  height: 0;
 }

@@ -47,6 +47,7 @@ test("keeps contest and task card actions responsive and compact", async ({
     .locator('xpath=ancestor::*[@data-slot="card"][1]');
   const contestActions = [
     contestCard.getByRole("link", { name: "Resultados" }),
+    contestCard.getByRole("button", { name: "Suspender" }),
     contestCard.getByRole("link", { name: "Editar" }),
     contestCard.getByRole("button", { name: "Eliminar" }),
   ];
@@ -55,11 +56,15 @@ test("keeps contest and task card actions responsive and compact", async ({
   );
   expect(mobileContestActions[0]!.width).toBe(mobileContestActions[1]!.width);
   expect(mobileContestActions[1]!.width).toBe(mobileContestActions[2]!.width);
+  expect(mobileContestActions[2]!.width).toBe(mobileContestActions[3]!.width);
   expect(mobileContestActions[1]!.y).toBeGreaterThan(
     mobileContestActions[0]!.y,
   );
   expect(mobileContestActions[2]!.y).toBeGreaterThan(
     mobileContestActions[1]!.y,
+  );
+  expect(mobileContestActions[3]!.y).toBeGreaterThan(
+    mobileContestActions[2]!.y,
   );
   const contestTasks = contestCard.locator('[data-slot="card-footer"] > div');
   await expect(contestTasks).toHaveCount(3);
@@ -76,12 +81,17 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[0]!.width).toBeLessThan(160);
   expect(desktopContestActions[0]!.width).toBe(desktopContestActions[1]!.width);
   expect(desktopContestActions[1]!.width).toBe(desktopContestActions[2]!.width);
+  expect(desktopContestActions[2]!.width).toBe(desktopContestActions[3]!.width);
   expect(desktopContestActions[1]!.y).toBe(desktopContestActions[0]!.y);
   expect(desktopContestActions[1]!.x).toBeGreaterThan(
     desktopContestActions[0]!.x,
   );
   expect(desktopContestActions[2]!.y).toBeGreaterThan(
     desktopContestActions[0]!.y,
+  );
+  expect(desktopContestActions[3]!.y).toBe(desktopContestActions[2]!.y);
+  expect(desktopContestActions[3]!.x).toBeGreaterThan(
+    desktopContestActions[2]!.x,
   );
   const desktopContestTasks = await Promise.all(
     [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
@@ -140,14 +150,14 @@ test("keeps contest and task card actions responsive and compact", async ({
   await page.goBack();
   await expect(taskCard).toBeVisible();
 
-  const taskFooterBox = await taskCard
-    .locator('[data-slot="card-footer"]')
-    .boundingBox();
-  expect(taskFooterBox).not.toBeNull();
-  await page.mouse.click(
-    taskFooterBox!.x + taskFooterBox!.width / 2,
-    taskFooterBox!.y + taskFooterBox!.height / 2,
-  );
+  const taskCardLinkBox = await taskCardLink.boundingBox();
+  expect(taskCardLinkBox).not.toBeNull();
+  await taskCardLink.click({
+    position: {
+      x: taskCardLinkBox!.width / 2,
+      y: taskCardLinkBox!.height - 16,
+    },
+  });
   await expect(page).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
 
   await page.goBack();
@@ -219,7 +229,7 @@ test("confirms task deletion and keeps the task list compact", async ({
     },
   );
   await createContest(api, headers, {
-    title: `Competencia que protege tarea ${Date.now()}`,
+    title: `Desafío que protege tarea ${Date.now()}`,
     tasks: [{ taskId: protectedTask.id }],
   });
 
@@ -305,7 +315,7 @@ test("confirms task deletion and keeps the task list compact", async ({
   dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Eliminar", exact: true }).click();
   await expect(
-    page.getByText(/Esta tarea está asociada a 1 competencia/),
+    page.getByText(/Esta tarea está asociada a 1 desafío/),
   ).toBeVisible();
   await expect(dialog).toBeVisible();
   await expect(
@@ -335,7 +345,7 @@ test("keeps group and teacher cards responsive and compact", async ({
       json: [
         {
           id: "responsive-contest",
-          title: "Competencia responsive",
+          title: "Desafío responsive",
           category: "Capibara",
           startsAt: now,
           endsAt: new Date(Date.now() + 3600000).toISOString(),
@@ -351,7 +361,7 @@ test("keeps group and teacher cards responsive and compact", async ({
           name: "Grupo responsive",
           accessCode: "ABC123",
           contestId: "responsive-contest",
-          contestTitle: "Competencia responsive",
+          contestTitle: "Desafío responsive",
           contestCategory: "Capibara",
           contestAllowPairs: true,
           scheduledAt: now,
@@ -393,6 +403,7 @@ test("keeps group and teacher cards responsive and compact", async ({
           hasIdFront: true,
           hasIdBack: true,
           createdAt: now,
+          schools: [],
         },
       ],
     }),
@@ -438,26 +449,23 @@ test("keeps group and teacher cards responsive and compact", async ({
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/maestros");
-  const teacherCard = page
+  const teacherRow = page
     .getByText("Maestro responsive", { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    .locator("xpath=ancestor::article[1]");
   const teacherActions = [
-    teacherCard.getByRole("button", { name: "Ver carta" }),
-    teacherCard.getByRole("button", { name: "Carnet anverso" }),
-    teacherCard.getByRole("button", { name: "Carnet reverso" }),
-    teacherCard.getByRole("button", { name: "Aprobar" }),
-    teacherCard.getByRole("button", { name: "Rechazar" }),
+    teacherRow.getByRole("button", { name: "Carta", exact: true }),
+    teacherRow.getByRole("button", { name: "Carnet anverso" }),
+    teacherRow.getByRole("button", { name: "Carnet reverso" }),
+    teacherRow.getByRole("button", { name: "Aprobar" }),
+    teacherRow.getByRole("button", { name: "Rechazar a Maestro responsive" }),
   ];
   const mobileTeacherActions = await Promise.all(
     teacherActions.map((action) => action.boundingBox()),
   );
-  for (let index = 1; index < mobileTeacherActions.length; index += 1) {
-    expect(mobileTeacherActions[index]!.width).toBe(
-      mobileTeacherActions[0]!.width,
-    );
-    expect(mobileTeacherActions[index]!.y).toBeGreaterThan(
-      mobileTeacherActions[index - 1]!.y,
-    );
+  for (const action of mobileTeacherActions) {
+    expect(action).not.toBeNull();
+    expect(action!.x).toBeGreaterThanOrEqual(0);
+    expect(action!.x + action!.width).toBeLessThanOrEqual(320);
   }
   expect(
     await page.evaluate(
@@ -471,13 +479,12 @@ test("keeps group and teacher cards responsive and compact", async ({
   const desktopTeacherActions = await Promise.all(
     teacherActions.map((action) => action.boundingBox()),
   );
-  expect(desktopTeacherActions[0]!.width).toBeLessThan(170);
-  expect(desktopTeacherActions[0]!.width).toBe(desktopTeacherActions[1]!.width);
+  expect(desktopTeacherActions[0]!.width).toBeLessThan(130);
   expect(desktopTeacherActions[0]!.y).toBe(desktopTeacherActions[1]!.y);
   expect(desktopTeacherActions[1]!.x).toBeGreaterThan(
     desktopTeacherActions[0]!.x,
   );
-  expect((await teacherCard.boundingBox())!.height).toBeLessThan(260);
+  expect((await teacherRow.boundingBox())!.height).toBeLessThan(260);
 
   await api.dispose();
 });

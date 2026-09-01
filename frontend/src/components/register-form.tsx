@@ -5,6 +5,7 @@ import { CheckCircle2Icon, EyeIcon, EyeOffIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api-client";
+import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
 export function RegisterForm() {
   const [step, setStep] = useState<"form" | "confirm" | "done">("form");
@@ -35,6 +37,7 @@ export function RegisterForm() {
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
   const [idBackFile, setIdBackFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [uploadNow, setUploadNow] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const DOC_MAX_BYTES = 5 * 1024 * 1024;
@@ -69,23 +72,28 @@ export function RegisterForm() {
       return;
     }
 
-    if (isSchool) {
-      if (!letterFile) {
-        toast.error("Adjunta la carta de autorización del director.");
-        return;
-      }
-      if (letterFile.size > DOC_MAX_BYTES) {
-        toast.error("La carta no debe superar los 5 MB.");
-        return;
-      }
-    } else {
-      if (!idFrontFile || !idBackFile) {
-        toast.error("Adjunta el anverso y el reverso de tu carnet.");
-        return;
-      }
-      if (idFrontFile.size > DOC_MAX_BYTES || idBackFile.size > DOC_MAX_BYTES) {
-        toast.error("Cada imagen del carnet no debe superar los 5 MB.");
-        return;
+    if (uploadNow) {
+      if (isSchool) {
+        if (!letterFile) {
+          toast.error("Adjunta la carta o elige subirla después.");
+          return;
+        }
+        if (letterFile.size > DOC_MAX_BYTES) {
+          toast.error("La carta no debe superar los 5 MB.");
+          return;
+        }
+      } else {
+        if (!idFrontFile || !idBackFile) {
+          toast.error("Adjunta tu carnet o elige subirlo después.");
+          return;
+        }
+        if (
+          idFrontFile.size > DOC_MAX_BYTES ||
+          idBackFile.size > DOC_MAX_BYTES
+        ) {
+          toast.error("Cada imagen del carnet no debe superar los 5 MB.");
+          return;
+        }
       }
     }
 
@@ -107,16 +115,18 @@ export function RegisterForm() {
       if (school.codUe) {
         form.append("schoolCodUe", school.codUe);
       }
-      if (isSchool) {
-        if (letterFile) {
-          form.append("letter", letterFile);
-        }
-      } else {
-        if (idFrontFile) {
-          form.append("idFront", idFrontFile);
-        }
-        if (idBackFile) {
-          form.append("idBack", idBackFile);
+      if (uploadNow) {
+        if (isSchool) {
+          if (letterFile) {
+            form.append("letter", letterFile);
+          }
+        } else {
+          if (idFrontFile) {
+            form.append("idFront", idFrontFile);
+          }
+          if (idBackFile) {
+            form.append("idBack", idBackFile);
+          }
         }
       }
 
@@ -127,11 +137,18 @@ export function RegisterForm() {
 
       const data = (await response.json().catch(() => ({}))) as {
         message?: string;
+        token?: string;
+        user?: AuthUser;
       };
 
       if (!response.ok) {
         toast.error(data.message ?? "No se pudo crear la cuenta.");
         return;
+      }
+
+      if (data.token && data.user) {
+        setToken(data.token);
+        setUser(data.user);
       }
 
       setStep("done");
@@ -151,13 +168,18 @@ export function RegisterForm() {
             <CardTitle>Cuenta creada</CardTitle>
           </div>
           <CardDescription>
-            Tu cuenta de maestro quedó <strong>pendiente de aprobación</strong>.
-            Podrás iniciar sesión cuando el administrador la apruebe.
+            Ya entraste con tu cuenta. Queda{" "}
+            <strong>pendiente de aprobación</strong>
+            {uploadNow
+              ? ": el administrador revisará tus documentos."
+              : " hasta que subas tus documentos."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild className="w-full">
-            <a href="/login">Ir a iniciar sesión</a>
+            <a href="/perfil">
+              {uploadNow ? "Ir a mi perfil" : "Subir mis documentos"}
+            </a>
           </Button>
         </CardContent>
       </Card>
@@ -246,12 +268,12 @@ export function RegisterForm() {
       <CardHeader>
         <CardTitle>Registro de maestro</CardTitle>
         <CardDescription>
-          Crea tu cuenta. El administrador deberá aprobarla antes de que puedas
-          entrar.
+          Crea tu cuenta y entra enseguida. El administrador la aprueba para que
+          puedas crear grupos e inscribir estudiantes.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
+        <form className="flex flex-col gap-6" onSubmit={goToConfirm}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="reg-first">Nombres</FieldLabel>
@@ -361,7 +383,7 @@ export function RegisterForm() {
             </Field>
           </div>
           <Field>
-            <FieldLabel htmlFor="school-search">Colegio</FieldLabel>
+            <FieldLabel htmlFor="school-search">¿Dónde enseñas?</FieldLabel>
             <FieldContent>
               <SchoolPicker value={school} onChange={setSchool} />
             </FieldContent>
@@ -369,13 +391,32 @@ export function RegisterForm() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice && isSchool
+              hasSchoolChoice ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+          >
+            <div className="overflow-hidden">
+              <Field orientation="horizontal" className="py-2 pr-1">
+                <Checkbox
+                  id="reg-upload-later"
+                  checked={!uploadNow}
+                  onCheckedChange={(checked) => setUploadNow(checked !== true)}
+                />
+                <FieldLabel htmlFor="reg-upload-later" className="font-normal">
+                  Subir mis documentos más tarde
+                </FieldLabel>
+              </Field>
+            </div>
+          </div>
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows] duration-300 ease-out",
+              hasSchoolChoice && uploadNow && isSchool
                 ? "grid-rows-[1fr]"
                 : "grid-rows-[0fr]",
             )}
           >
             <div className="overflow-hidden">
-              <Field className="pt-1">
+              <Field className="pt-2">
                 <FieldLabel htmlFor="reg-letter">
                   Carta de autorización del director
                 </FieldLabel>
@@ -394,7 +435,15 @@ export function RegisterForm() {
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    PDF o imagen (JPG, PNG), máximo 5 MB.
+                    PDF o imagen (JPG, PNG), máximo 5 MB.{" "}
+                    <a
+                      href="/carta-modelo"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline underline-offset-4 hover:text-foreground"
+                    >
+                      Llenar la carta aquí
+                    </a>
                   </p>
                 </FieldContent>
               </Field>
@@ -404,13 +453,13 @@ export function RegisterForm() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice && !isSchool
+              hasSchoolChoice && uploadNow && !isSchool
                 ? "grid-rows-[1fr]"
                 : "grid-rows-[0fr]",
             )}
           >
             <div className="overflow-hidden">
-              <div className="mt-1 flex flex-col gap-3 rounded-md border bg-secondary/20 p-4">
+              <div className="mt-3 flex flex-col gap-3 rounded-md border bg-secondary/20 p-4">
                 <p className="text-sm text-muted-foreground">
                   Como enseñas en casa, adjunta el anverso y el reverso de tu
                   carnet de identidad para verificar tu registro.
