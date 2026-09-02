@@ -39,8 +39,14 @@ export function LoginForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const emailInvalid =
+      Boolean(email.trim()) && Boolean(emailRef.current?.validity.typeMismatch);
     const nextErrors = {
-      email: email.trim() ? undefined : "Ingresa tu correo.",
+      email: !email.trim()
+        ? "Ingresa tu correo."
+        : emailInvalid
+          ? "Ingresa un correo válido."
+          : undefined,
       password: password ? undefined : "Ingresa tu contraseña.",
     };
 
@@ -101,7 +107,11 @@ export function LoginForm() {
         <CardDescription>Acceso para maestros y organizadores.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={handleSubmit}
+          noValidate
+        >
           {errors.form && (
             <Alert variant="destructive">
               <AlertDescription>{errors.form}</AlertDescription>
