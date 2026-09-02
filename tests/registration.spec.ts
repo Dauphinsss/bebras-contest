@@ -31,7 +31,12 @@ test("rejects documents whose content does not match the extension", async () =>
   });
 
   expect(response.status()).toBe(400);
-  expect((await response.json()).message).toContain("contenido del documento");
+  expect(await response.json()).toEqual(
+    expect.objectContaining({
+      message: expect.stringContaining("contenido del documento"),
+      field: "letter",
+    }),
+  );
   await api.dispose();
 });
 
@@ -96,10 +101,16 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
   const assertRejectedWithoutUploads = async (
     multipart: Record<string, string | typeof VALID_PDF>,
     expectedMessage: string,
+    expectedField?: string,
   ) => {
     const response = await api.post(`${API}/api/auth/register`, { multipart });
     expect(response.status()).toBe(400);
-    expect((await response.json()).message).toContain(expectedMessage);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(expectedMessage),
+        ...(expectedField ? { field: expectedField } : {}),
+      }),
+    );
     expect(uploadedDocuments()).toEqual(previousUploads);
   };
 
@@ -114,6 +125,7 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
         },
       },
       "PDF o una imagen",
+      "letter",
     );
     await assertRejectedWithoutUploads(
       {
@@ -125,6 +137,7 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
         },
       },
       "5 MB",
+      "letter",
     );
     await assertRejectedWithoutUploads(
       {
@@ -145,6 +158,7 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
         },
       },
       "PDF o una imagen",
+      "idFront",
     );
   } finally {
     removeNewUploads(previousUploads);
