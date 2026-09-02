@@ -3,9 +3,12 @@ import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
   E2E_CLOCK_FILE,
+  SCORING_TASKS,
   loginAdmin,
   createContest,
   joinContest,
+  joinContestSession,
+  playHeaders,
 } from "./support/helpers";
 
 test.afterEach(() => {
@@ -23,14 +26,16 @@ test("results appear only after consolidating and publishing", async ({
     durationMinutes: 1,
     startsAt: new Date(Date.now() - 60000).toISOString(),
     endsAt: endsAt.toISOString(),
+    tasks: SCORING_TASKS.map(({ taskId }) => ({ taskId })),
   });
 
-  const personalCode = await joinContest(
+  const participant = await joinContestSession(
     api,
     headers,
     contest.id,
     contest.picked.grade,
   );
+  const studentHeaders = playHeaders(participant.sessionToken);
   const expiredPersonalCode = await joinContest(
     api,
     headers,
@@ -47,11 +52,30 @@ test("results appear only after consolidating and publishing", async ({
     .get(`${API}/api/play/attempt/${expiredPersonalCode}`)
     .then((r) => r.json());
   expect(expiredAttempt.status).toBe("in_progress");
-  await api.post(`${API}/api/play/start`, { data: { personalCode } });
-  await api.post(`${API}/api/play/submit`, { data: { personalCode } });
+  await api.post(`${API}/api/play/start`, {
+    headers: studentHeaders,
+    data: {},
+  });
+  for (const [task, selected] of [
+    [SCORING_TASKS[0], "B"],
+    [SCORING_TASKS[1], "A"],
+  ] as const) {
+    const answer = await api.post(`${API}/api/play/answer`, {
+      headers: studentHeaders,
+      data: {
+        taskId: task.taskId,
+        payload: { selected: [selected] },
+      },
+    });
+    expect(answer.status(), await answer.text()).toBe(204);
+  }
+  await api.post(`${API}/api/play/submit`, {
+    headers: studentHeaders,
+    data: {},
+  });
 
   const beforePublish = await api
-    .get(`${API}/api/play/attempt/${personalCode}`)
+    .get(`${API}/api/play/attempt`, { headers: studentHeaders })
     .then((r) => r.json());
   expect(beforePublish.status).toBe("finished");
   expect(beforePublish.resultsPublished).toBe(false);
@@ -113,13 +137,47 @@ test("results appear only after consolidating and publishing", async ({
   ).toBeVisible();
 
   const afterPublish = await api
-    .get(`${API}/api/play/attempt/${personalCode}`)
+    .get(`${API}/api/play/attempt`, { headers: studentHeaders })
     .then((r) => r.json());
   expect(afterPublish.resultsPublished).toBe(true);
   expect(afterPublish.result).not.toBeNull();
   expect(afterPublish.result.rankPosition).toBe(1);
-  expect(afterPublish.result.totalScore).toBe(contest.initialScore);
-  expect(afterPublish.result.answeredCount).toBe(0);
+  expect(afterPublish.result.totalScore).toBe(
+    contest.initialScore +
+      contest.tasks[0].maxScore +
+      contest.tasks[1].minScore,
+  );
+  expect(afterPublish.result.correctCount).toBe(1);
+  expect(afterPublish.result.answeredCount).toBe(2);
+  expect(
+    afterPublish.tasks.map((task: { correct: boolean | null }) => task.correct),
+  ).toEqual([true, false, null]);
+
+  await page.evaluate((sessionToken) => {
+    window.localStorage.setItem("bebras_play_session", sessionToken);
+  }, participant.sessionToken);
+  await page.goto("/rendir");
+  await expect(
+    page.getByText("¡Desafío terminado!", { exact: true }),
+  ).toBeVisible();
+
+  const expectedStatuses = ["Correcta", "Incorrecta", "Sin responder"];
+  for (const [index, task] of afterPublish.tasks.entries()) {
+    const resultCard = page
+      .getByRole("heading", {
+        name: `${task.position}. ${task.title}`,
+        exact: true,
+      })
+      .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    await expect(
+      resultCard.getByText(expectedStatuses[index], { exact: true }),
+    ).toBeVisible();
+  }
+
+  await page.goto(`/competencias/resultados?id=${contest.id}`);
+  await expect(
+    page.getByRole("button", { name: "Ocultar resultados" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Ocultar resultados" }).click();
   await page
@@ -131,7 +189,7 @@ test("results appear only after consolidating and publishing", async ({
   ).toBeVisible();
 
   const afterUnpublish = await api
-    .get(`${API}/api/play/attempt/${personalCode}`)
+    .get(`${API}/api/play/attempt`, { headers: studentHeaders })
     .then((r) => r.json());
   expect(afterUnpublish.resultsPublished).toBe(false);
   expect(afterUnpublish.result).toBeNull();
