@@ -45,6 +45,28 @@ test("keeps contest and task card actions responsive and compact", async ({
   const contestCard = page
     .getByText(listedContest.title, { exact: true })
     .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const contestListTitle = page
+    .locator('[data-slot="card-title"]')
+    .filter({ hasText: /^Listado$/ });
+  const contestListCard = contestListTitle.locator(
+    'xpath=ancestor::*[@data-slot="card"][1]',
+  );
+  const contestListHeader = contestListCard.locator(
+    ':scope > [data-slot="card-header"]',
+  );
+  const firstContestCard = contestListCard
+    .locator(':scope > [data-slot="card-content"] > [data-slot="card"]')
+    .first();
+  const [contestListHeaderBox, firstContestCardBox] = await Promise.all([
+    contestListHeader.boundingBox(),
+    firstContestCard.boundingBox(),
+  ]);
+  expect(contestListHeaderBox).not.toBeNull();
+  expect(firstContestCardBox).not.toBeNull();
+  expect(
+    firstContestCardBox!.y -
+      (contestListHeaderBox!.y + contestListHeaderBox!.height),
+  ).toBeLessThanOrEqual(32);
   const contestActions = [
     contestCard.getByRole("link", { name: "Resultados" }),
     contestCard.getByRole("button", { name: "Suspender" }),

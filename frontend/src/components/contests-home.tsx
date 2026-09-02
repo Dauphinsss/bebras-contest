@@ -261,7 +261,7 @@ export function ContestsHome() {
             Aquí puedes revisar y editar los desafíos creados.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-6">
+        <CardContent className="flex flex-col gap-4">
           {contests.length === 0 ? (
             <Alert>
               <AlertTitle>No hay desafíos registrados</AlertTitle>
