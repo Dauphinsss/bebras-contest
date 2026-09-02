@@ -135,12 +135,41 @@ export function AttemptPage() {
   }, []);
 
   const suspended = attempt?.state === "suspendida";
+  const attemptActive = starting || attempt?.status === "in_progress";
+  const chromeHidden = loading || attemptActive;
   const suspendedAtMs = attempt?.suspendedAt
     ? new Date(attempt.suspendedAt).getTime()
     : 0;
   const endsAtMs = attempt?.endsAt ? new Date(attempt.endsAt).getTime() : 0;
   const remaining =
     endsAtMs - (suspended && suspendedAtMs ? suspendedAtMs : now);
+
+  useEffect(() => {
+    const chrome = document.querySelectorAll<HTMLElement>("[data-site-chrome]");
+    chrome.forEach((element) => {
+      element.hidden = chromeHidden;
+    });
+
+    return () => {
+      chrome.forEach((element) => {
+        element.hidden = false;
+      });
+    };
+  }, [chromeHidden]);
+
+  useEffect(() => {
+    if (!attemptActive) {
+      return;
+    }
+
+    const confirmExit = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", confirmExit);
+    return () => window.removeEventListener("beforeunload", confirmExit);
+  }, [attemptActive]);
 
   const queueSave = (taskId: string, payload: unknown) => {
     const previousSave = saveQueues.current[taskId] ?? Promise.resolve();
