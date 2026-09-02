@@ -4802,11 +4802,11 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
   const tasks = contest.tasks.map((contestTask) => {
     const task = deserializeTask(contestTask.taskDraft) as PlayTask;
     const safe: ReturnType<typeof renderSafeTask> & {
-      correct?: boolean;
+      correct?: boolean | null;
       explanation?: unknown;
     } = renderSafeTask(contestTask, task);
     if (showResults) {
-      safe.correct = correctnessByTask[task.id] ?? false;
+      safe.correct = correctnessByTask[task.id] ?? null;
     }
     if (showResults && contest.showSolutions) {
       safe.explanation = task.explanation;

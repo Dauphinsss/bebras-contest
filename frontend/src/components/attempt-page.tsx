@@ -12,6 +12,7 @@ import {
   CheckCircle2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CircleIcon,
   ClockIcon,
   LoaderCircleIcon,
   SendIcon,
@@ -407,18 +408,35 @@ export function AttemptPage() {
           attempt.tasks.map((task) => (
             <Card key={task.taskId}>
               <CardContent className="flex flex-col gap-2 pt-6">
-                <div className="flex items-center gap-2">
-                  {task.correct ? (
-                    <CheckCircle2Icon className="size-5 shrink-0 text-primary" />
-                  ) : (
-                    <XCircleIcon className="size-5 shrink-0 text-destructive" />
-                  )}
+                <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold">
                     {task.position}. {task.title}
                   </h2>
+                  <Badge
+                    variant={
+                      task.correct === true
+                        ? "default"
+                        : task.correct === false
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {task.correct === true ? (
+                      <CheckCircle2Icon data-icon="inline-start" />
+                    ) : task.correct === false ? (
+                      <XCircleIcon data-icon="inline-start" />
+                    ) : (
+                      <CircleIcon data-icon="inline-start" />
+                    )}
+                    {task.correct === true
+                      ? "Correcta"
+                      : task.correct === false
+                        ? "Incorrecta"
+                        : "Sin responder"}
+                  </Badge>
                 </div>
                 {attempt.showSolutions && task.explanation && (
-                  <p className="pl-7 text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {task.explanation}
                   </p>
                 )}
