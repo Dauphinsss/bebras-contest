@@ -38,10 +38,19 @@ test("associates login errors and focuses the first invalid field", async ({
     "Ingresa tu contraseña.",
   );
 
-  await email.fill(ADMIN.email);
+  await email.fill("correo-invalido");
   await expect(email).toHaveAttribute("aria-invalid", "false");
   await expect(email).not.toHaveAttribute("aria-describedby", /.+/);
   await expect(page.locator("#login-email-error")).toHaveCount(0);
+
+  await submit.click();
+  await expect(email).toBeFocused();
+  await expect(page.locator("#login-email-error")).toHaveText(
+    "Ingresa un correo válido.",
+  );
+
+  await email.fill(ADMIN.email);
+  await expect(email).toHaveAttribute("aria-invalid", "false");
 
   await submit.click();
   await expect(password).toBeFocused();
