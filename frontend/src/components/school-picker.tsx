@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import {
   CheckCircle2Icon,
   HouseIcon,
@@ -22,9 +22,15 @@ export type SchoolValue = {
 export function SchoolPicker({
   value,
   onChange,
+  inputRef,
+  invalid,
+  describedBy,
 }: {
   value: SchoolValue;
   onChange: (next: SchoolValue) => void;
+  inputRef?: Ref<HTMLInputElement>;
+  invalid?: boolean;
+  describedBy?: string;
 }) {
   const [manual, setManual] = useState(
     value.institutionType === "school" && !value.codUe && Boolean(value.name),
@@ -77,7 +83,8 @@ export function SchoolPicker({
     return (
       <div className="flex flex-col gap-2">
         <Input
-          id="school-manual"
+          ref={inputRef}
+          id="school-search"
           value={value.name}
           onChange={(event) =>
             onChange({
@@ -87,6 +94,8 @@ export function SchoolPicker({
             })
           }
           placeholder="Nombre de tu unidad educativa"
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
         />
         <p className="pt-0.5 text-xs text-muted-foreground">
           Escribe el nombre completo. Te pediremos la carta del director.
@@ -155,6 +164,7 @@ export function SchoolPicker({
       <div className="relative">
         <SearchIcon className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
         <Input
+          ref={inputRef}
           id="school-search"
           className="pl-9"
           value={query}
@@ -172,6 +182,8 @@ export function SchoolPicker({
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder="Escribe el nombre de tu colegio"
           autoComplete="off"
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
         />
         {loading && (
           <LoaderCircleIcon className="absolute inset-y-0 right-3 my-auto size-4 animate-spin text-muted-foreground" />

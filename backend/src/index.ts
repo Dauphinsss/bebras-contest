@@ -21,6 +21,12 @@ const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
 const E2E_CLOCK_FILE = process.env.E2E_CLOCK_FILE;
 
+function documentUploadField(value: unknown) {
+  return value === "letter" || value === "idFront" || value === "idBack"
+    ? value
+    : undefined;
+}
+
 function currentDate() {
   if (E2E_CLOCK_FILE) {
     try {
@@ -89,7 +95,9 @@ const uploadDocs = multer({
   limits: { fileSize: DOC_MAX_BYTES, files: 3 },
   fileFilter: (_req, file, cb) => {
     if (!DOC_ALLOWED_EXT.has(extname(file.originalname).toLowerCase())) {
-      cb(new Error("INVALID_DOC_TYPE"));
+      cb(
+        Object.assign(new Error("INVALID_DOC_TYPE"), { field: file.fieldname }),
+      );
       return;
     }
     cb(null, true);
@@ -173,45 +181,61 @@ function registerUploadMiddleware(
   handler(req, res, (err: unknown) => {
     if (err) {
       void cleanupFiles(...uploadedFiles(req)).then(() => {
+        const field = documentUploadField(
+          err instanceof multer.MulterError
+            ? err.field
+            : err instanceof Error && "field" in err
+              ? err.field
+              : undefined,
+        );
         if (
           err instanceof multer.MulterError &&
           err.code === "LIMIT_FILE_SIZE"
         ) {
-          res
-            .status(400)
-            .json({ message: "El archivo no debe superar los 5 MB." });
+          res.status(400).json({
+            message: "El archivo no debe superar los 5 MB.",
+            field,
+          });
           return;
         }
         if (err instanceof Error && err.message === "INVALID_DOC_TYPE") {
           res.status(400).json({
             message:
               "El documento debe ser un archivo PDF o una imagen (JPG, JPEG o PNG).",
+            field,
           });
           return;
         }
-        res.status(400).json({ message: "No se pudo subir el documento." });
+        res.status(400).json({
+          message: "No se pudo subir el documento.",
+          field,
+        });
       });
       return;
     }
 
     const files = uploadedFiles(req);
-    void Promise.all(files.map(hasValidDocumentSignature))
-      .then(async (validFiles) => {
-        if (validFiles.every(Boolean)) {
+    void Promise.allSettled(files.map(hasValidDocumentSignature)).then(
+      async (checks) => {
+        const invalidIndex = checks.findIndex(
+          (check) => check.status === "rejected" || !check.value,
+        );
+        if (invalidIndex === -1) {
           next();
           return;
         }
 
         await cleanupFiles(...files);
+        const check = checks[invalidIndex];
         res.status(400).json({
           message:
-            "El contenido del documento no coincide con un PDF, JPG, JPEG o PNG válido.",
+            check.status === "rejected"
+              ? "No se pudo validar el documento."
+              : "El contenido del documento no coincide con un PDF, JPG, JPEG o PNG válido.",
+          field: documentUploadField(files[invalidIndex]?.fieldname),
         });
-      })
-      .catch(async () => {
-        await cleanupFiles(...files);
-        res.status(400).json({ message: "No se pudo validar el documento." });
-      });
+      },
+    );
   });
 }
 
@@ -1727,7 +1751,10 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
 
   if (existing) {
     await cleanupFiles(...allFiles);
-    res.status(409).json({ message: "Ya existe una cuenta con ese correo." });
+    res.status(409).json({
+      message: "Ya existe una cuenta con ese correo.",
+      field: "email",
+    });
     return;
   }
 
