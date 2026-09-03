@@ -3659,14 +3659,18 @@ app.post("/api/groups/:id/teams", async (req, res) => {
     !group ||
     (req.user?.role === "maestro" && group.createdById !== req.user.id)
   ) {
-    res.status(404).json({ message: "Grupo no encontrado." });
+    res.status(404).json({
+      message: "Grupo no encontrado.",
+      code: "TEAM_GROUP_NOT_FOUND",
+    });
     return;
   }
 
   if (contestHasEnded(computeContestState(group.contest).state)) {
-    res
-      .status(409)
-      .json({ message: "El desafío ya cerró; no es posible inscribir." });
+    res.status(409).json({
+      message: "El desafío ya cerró; no es posible inscribir.",
+      code: "TEAM_CONTEST_CLOSED",
+    });
     return;
   }
 
@@ -3680,20 +3684,33 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   const twoLast = readField(req.body?.memberTwoLastName);
 
   if (!oneFirst || !oneLast) {
-    res
-      .status(400)
-      .json({ message: "Los nombres y apellidos son obligatorios." });
+    res.status(400).json({
+      message: "Los nombres y apellidos son obligatorios.",
+      code: "TEAM_MEMBER_ONE_REQUIRED",
+      fields: [
+        ...(!oneFirst ? ["memberOneFirstName"] : []),
+        ...(!oneLast ? ["memberOneLastName"] : []),
+      ],
+    });
     return;
   }
 
   if (mode === "pareja" && !group.contest.allowPairs) {
-    res.status(400).json({ message: "Este desafío no permite parejas." });
+    res.status(400).json({
+      message: "Este desafío no permite parejas.",
+      code: "TEAM_PAIRS_NOT_ALLOWED",
+    });
     return;
   }
 
   if (mode === "pareja" && (!twoFirst || !twoLast)) {
     res.status(400).json({
       message: "Faltan los nombres y apellidos del segundo integrante.",
+      code: "TEAM_MEMBER_TWO_REQUIRED",
+      fields: [
+        ...(!twoFirst ? ["memberTwoFirstName"] : []),
+        ...(!twoLast ? ["memberTwoLastName"] : []),
+      ],
     });
     return;
   }
@@ -3705,6 +3722,8 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   } catch (error) {
     res.status(400).json({
       message: error instanceof Error ? error.message : "Curso inválido.",
+      code: "TEAM_GRADE_INVALID",
+      field: "grade",
     });
     return;
   }
@@ -3713,9 +3732,11 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   const keyTwo = mode === "pareja" ? nameKey(twoFirst, twoLast) : "";
 
   if (mode === "pareja" && keyOne === keyTwo) {
-    res
-      .status(400)
-      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    res.status(400).json({
+      message: "Los dos integrantes no pueden ser la misma persona.",
+      code: "TEAM_MEMBERS_IDENTICAL",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
+    });
     return;
   }
 
@@ -3744,6 +3765,8 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
       message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberOneFirstName", "memberOneLastName"],
     });
     return;
   }
@@ -3751,6 +3774,8 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   if (mode === "pareja" && takenKeys.has(keyTwo)) {
     res.status(409).json({
       message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
     });
     return;
   }

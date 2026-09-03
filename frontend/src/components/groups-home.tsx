@@ -100,6 +100,38 @@ function formatSession(value: string) {
   return sessionFormatter.format(new Date(value));
 }
 
+type EnrollField =
+  | "grade"
+  | "memberOneFirstName"
+  | "memberOneLastName"
+  | "memberTwoFirstName"
+  | "memberTwoLastName";
+
+function isEnrollField(value: string | undefined): value is EnrollField {
+  return Boolean(
+    value &&
+    [
+      "grade",
+      "memberOneFirstName",
+      "memberOneLastName",
+      "memberTwoFirstName",
+      "memberTwoLastName",
+    ].includes(value),
+  );
+}
+
+function participantNameKey(firstName: string, lastName: string) {
+  const normalize = (value: string) =>
+    value
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
+
+  return `${normalize(firstName)} ${normalize(lastName)}`;
+}
+
 export function GroupsHome() {
   const [groups, setGroups] = useState<StoredGroup[]>([]);
   const [publishedContests, setPublishedContests] = useState<
@@ -141,6 +173,9 @@ export function GroupsHome() {
   const [enrollTwoFirst, setEnrollTwoFirst] = useState("");
   const [enrollTwoLast, setEnrollTwoLast] = useState("");
   const [savingEnroll, setSavingEnroll] = useState(false);
+  const [enrollErrors, setEnrollErrors] = useState<
+    Partial<Record<EnrollField | "form", string>>
+  >({});
   const [confirming, setConfirming] = useState<
     | { type: "group"; group: StoredGroup }
     | { type: "team"; groupId: string; team: GroupTeam }
@@ -153,6 +188,13 @@ export function GroupsHome() {
   const pendingCreateFocusRef = useRef<
     "contestId" | "name" | "scheduledAt" | null
   >(null);
+  const enrollGradeRef = useRef<HTMLButtonElement>(null);
+  const enrollOneFirstRef = useRef<HTMLInputElement>(null);
+  const enrollOneLastRef = useRef<HTMLInputElement>(null);
+  const enrollTwoFirstRef = useRef<HTMLInputElement>(null);
+  const enrollTwoLastRef = useRef<HTMLInputElement>(null);
+  const enrollErrorRef = useRef<HTMLDivElement>(null);
+  const pendingEnrollFocusRef = useRef<EnrollField | "form" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -202,6 +244,21 @@ export function GroupsHome() {
     }
     pendingCreateFocusRef.current = null;
   }, [creating]);
+
+  useEffect(() => {
+    if (savingEnroll || !pendingEnrollFocusRef.current) {
+      return;
+    }
+
+    const target = pendingEnrollFocusRef.current;
+    if (target === "grade") enrollGradeRef.current?.focus();
+    if (target === "memberOneFirstName") enrollOneFirstRef.current?.focus();
+    if (target === "memberOneLastName") enrollOneLastRef.current?.focus();
+    if (target === "memberTwoFirstName") enrollTwoFirstRef.current?.focus();
+    if (target === "memberTwoLastName") enrollTwoLastRef.current?.focus();
+    if (target === "form") enrollErrorRef.current?.focus();
+    pendingEnrollFocusRef.current = null;
+  }, [savingEnroll]);
 
   const selectedContest = publishedContests.find(
     (contest) => contest.id === contestId,
@@ -460,31 +517,68 @@ export function GroupsHome() {
     setEnrollOneLast("");
     setEnrollTwoFirst("");
     setEnrollTwoLast("");
+    setEnrollErrors({});
   };
 
-  const saveEnroll = async () => {
+  const saveEnroll = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     if (!enrolling) {
       return;
     }
 
-    if (!enrollGrade) {
-      toast.error("Elige el curso del participante.");
-      return;
-    }
+    const nextErrors: Partial<Record<EnrollField, string>> = {
+      grade: enrollGrade ? undefined : "Elige el curso del participante.",
+      memberOneFirstName: enrollOneFirst.trim()
+        ? undefined
+        : "Ingresa los nombres.",
+      memberOneLastName: enrollOneLast.trim()
+        ? undefined
+        : "Ingresa los apellidos.",
+      memberTwoFirstName:
+        enrollMode === "pareja" && !enrollTwoFirst.trim()
+          ? "Ingresa los nombres del segundo integrante."
+          : undefined,
+      memberTwoLastName:
+        enrollMode === "pareja" && !enrollTwoLast.trim()
+          ? "Ingresa los apellidos del segundo integrante."
+          : undefined,
+    };
+    const firstError = (
+      [
+        "grade",
+        "memberOneFirstName",
+        "memberOneLastName",
+        "memberTwoFirstName",
+        "memberTwoLastName",
+      ] as const
+    ).find((field) => nextErrors[field]);
 
-    if (!enrollOneFirst.trim() || !enrollOneLast.trim()) {
-      toast.error("Los nombres y apellidos son obligatorios.");
+    if (firstError) {
+      setEnrollErrors(nextErrors);
+      if (firstError === "grade") enrollGradeRef.current?.focus();
+      if (firstError === "memberOneFirstName")
+        enrollOneFirstRef.current?.focus();
+      if (firstError === "memberOneLastName") enrollOneLastRef.current?.focus();
+      if (firstError === "memberTwoFirstName")
+        enrollTwoFirstRef.current?.focus();
+      if (firstError === "memberTwoLastName") enrollTwoLastRef.current?.focus();
       return;
     }
 
     if (
       enrollMode === "pareja" &&
-      (!enrollTwoFirst.trim() || !enrollTwoLast.trim())
+      participantNameKey(enrollOneFirst, enrollOneLast) ===
+        participantNameKey(enrollTwoFirst, enrollTwoLast)
     ) {
-      toast.error("Faltan los nombres y apellidos del segundo integrante.");
+      setEnrollErrors({
+        form: "Los dos integrantes no pueden ser la misma persona.",
+      });
+      enrollTwoFirstRef.current?.focus();
       return;
     }
 
+    setEnrollErrors({});
     setSavingEnroll(true);
 
     try {
@@ -510,11 +604,27 @@ export function GroupsHome() {
       toast.success(
         `${team.memberOneFirstName} quedó inscrito. Entra con el código del grupo y su nombre.`,
       );
+      setEnrollErrors({});
       setEnrolling(null);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo inscribir.",
-      );
+      const message =
+        error instanceof Error ? error.message : "No se pudo inscribir.";
+      toast.error(message);
+
+      if (
+        error instanceof ApiError &&
+        isEnrollField(error.field) &&
+        !error.fields?.length
+      ) {
+        setEnrollErrors({ [error.field]: message });
+        pendingEnrollFocusRef.current = error.field;
+      } else {
+        setEnrollErrors({ form: message });
+        pendingEnrollFocusRef.current =
+          error instanceof ApiError && isEnrollField(error.fields?.[0])
+            ? error.fields[0]
+            : "form";
+      }
     } finally {
       setSavingEnroll(false);
     }
@@ -1063,12 +1173,12 @@ export function GroupsHome() {
       <Dialog
         open={enrolling !== null}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !savingEnroll) {
             setEnrolling(null);
           }
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={!savingEnroll}>
           <DialogHeader>
             <DialogTitle>Inscribir participante</DialogTitle>
             <DialogDescription>
@@ -1076,121 +1186,273 @@ export function GroupsHome() {
               personal automáticamente.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4">
-            {enrolling?.contestAllowPairs && (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={enrollMode === "individual" ? "default" : "outline"}
-                  onClick={() => setEnrollMode("individual")}
-                >
-                  Individual
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={enrollMode === "pareja" ? "default" : "outline"}
-                  onClick={() => setEnrollMode("pareja")}
-                >
-                  Pareja
-                </Button>
-              </div>
+          <form
+            className="flex flex-col gap-6"
+            aria-busy={savingEnroll}
+            noValidate
+            onSubmit={(event) => void saveEnroll(event)}
+          >
+            {enrollErrors.form && (
+              <Alert ref={enrollErrorRef} variant="destructive" tabIndex={-1}>
+                <AlertDescription>{enrollErrors.form}</AlertDescription>
+              </Alert>
             )}
-            <Field>
-              <FieldLabel htmlFor="enroll-grade">Curso</FieldLabel>
-              <FieldContent>
-                <Select value={enrollGrade} onValueChange={setEnrollGrade}>
-                  <SelectTrigger id="enroll-grade" className="w-full">
-                    <SelectValue placeholder="Elige el curso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {gradesForCategory(enrolling?.contestCategory ?? "").map(
-                      (grade) => (
-                        <SelectItem key={grade.value} value={grade.value}>
-                          {grade.label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  {enrolling?.contestCategory
-                    ? `Este desafío es de categoría ${enrolling.contestCategory}.`
-                    : "Este desafío no tiene categoría asignada."}
-                </FieldDescription>
-              </FieldContent>
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="enroll-one-first">Nombres</FieldLabel>
+            <div className="flex flex-col gap-4">
+              {enrolling?.contestAllowPairs && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={savingEnroll}
+                    variant={
+                      enrollMode === "individual" ? "default" : "outline"
+                    }
+                    onClick={() => {
+                      setEnrollMode("individual");
+                      setEnrollErrors({});
+                    }}
+                  >
+                    Individual
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={savingEnroll}
+                    variant={enrollMode === "pareja" ? "default" : "outline"}
+                    onClick={() => {
+                      setEnrollMode("pareja");
+                      setEnrollErrors({});
+                    }}
+                  >
+                    Pareja
+                  </Button>
+                </div>
+              )}
+              <Field data-invalid={Boolean(enrollErrors.grade) || undefined}>
+                <FieldLabel htmlFor="enroll-grade">Curso</FieldLabel>
                 <FieldContent>
-                  <Input
-                    id="enroll-one-first"
-                    value={enrollOneFirst}
-                    onChange={(event) => setEnrollOneFirst(event.target.value)}
-                  />
-                </FieldContent>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="enroll-one-last">Apellidos</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="enroll-one-last"
-                    value={enrollOneLast}
-                    onChange={(event) => setEnrollOneLast(event.target.value)}
-                  />
-                </FieldContent>
-              </Field>
-            </div>
-            {enrollMode === "pareja" && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="enroll-two-first">
-                    Nombres del 2.º integrante
-                  </FieldLabel>
-                  <FieldContent>
-                    <Input
-                      id="enroll-two-first"
-                      value={enrollTwoFirst}
-                      onChange={(event) =>
-                        setEnrollTwoFirst(event.target.value)
+                  <Select
+                    value={enrollGrade}
+                    disabled={savingEnroll}
+                    onValueChange={(value) => {
+                      setEnrollGrade(value);
+                      if (enrollErrors.grade || enrollErrors.form) {
+                        setEnrollErrors((current) => ({
+                          ...current,
+                          grade: undefined,
+                          form: undefined,
+                        }));
                       }
-                    />
-                  </FieldContent>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="enroll-two-last">
-                    Apellidos del 2.º integrante
-                  </FieldLabel>
+                    }}
+                  >
+                    <SelectTrigger
+                      ref={enrollGradeRef}
+                      id="enroll-grade"
+                      className="w-full"
+                      aria-invalid={Boolean(enrollErrors.grade)}
+                      aria-describedby={
+                        enrollErrors.grade
+                          ? "enroll-grade-description enroll-grade-error"
+                          : "enroll-grade-description"
+                      }
+                    >
+                      <SelectValue placeholder="Elige el curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {gradesForCategory(
+                          enrolling?.contestCategory ?? "",
+                        ).map((grade) => (
+                          <SelectItem key={grade.value} value={grade.value}>
+                            {grade.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription id="enroll-grade-description">
+                    {enrolling?.contestCategory
+                      ? `Este desafío es de categoría ${enrolling.contestCategory}.`
+                      : "Este desafío no tiene categoría asignada."}
+                  </FieldDescription>
+                  <FieldError id="enroll-grade-error">
+                    {enrollErrors.grade}
+                  </FieldError>
+                </FieldContent>
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  data-invalid={
+                    Boolean(enrollErrors.memberOneFirstName) || undefined
+                  }
+                >
+                  <FieldLabel htmlFor="enroll-one-first">Nombres</FieldLabel>
                   <FieldContent>
                     <Input
-                      id="enroll-two-last"
-                      value={enrollTwoLast}
-                      onChange={(event) => setEnrollTwoLast(event.target.value)}
+                      ref={enrollOneFirstRef}
+                      id="enroll-one-first"
+                      value={enrollOneFirst}
+                      disabled={savingEnroll}
+                      aria-invalid={Boolean(enrollErrors.memberOneFirstName)}
+                      aria-describedby={
+                        enrollErrors.memberOneFirstName
+                          ? "enroll-one-first-error"
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        setEnrollOneFirst(event.target.value);
+                        if (
+                          enrollErrors.memberOneFirstName ||
+                          enrollErrors.form
+                        ) {
+                          setEnrollErrors((current) => ({
+                            ...current,
+                            memberOneFirstName: undefined,
+                            form: undefined,
+                          }));
+                        }
+                      }}
                     />
+                    <FieldError id="enroll-one-first-error">
+                      {enrollErrors.memberOneFirstName}
+                    </FieldError>
+                  </FieldContent>
+                </Field>
+                <Field
+                  data-invalid={
+                    Boolean(enrollErrors.memberOneLastName) || undefined
+                  }
+                >
+                  <FieldLabel htmlFor="enroll-one-last">Apellidos</FieldLabel>
+                  <FieldContent>
+                    <Input
+                      ref={enrollOneLastRef}
+                      id="enroll-one-last"
+                      value={enrollOneLast}
+                      disabled={savingEnroll}
+                      aria-invalid={Boolean(enrollErrors.memberOneLastName)}
+                      aria-describedby={
+                        enrollErrors.memberOneLastName
+                          ? "enroll-one-last-error"
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        setEnrollOneLast(event.target.value);
+                        if (
+                          enrollErrors.memberOneLastName ||
+                          enrollErrors.form
+                        ) {
+                          setEnrollErrors((current) => ({
+                            ...current,
+                            memberOneLastName: undefined,
+                            form: undefined,
+                          }));
+                        }
+                      }}
+                    />
+                    <FieldError id="enroll-one-last-error">
+                      {enrollErrors.memberOneLastName}
+                    </FieldError>
                   </FieldContent>
                 </Field>
               </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={savingEnroll}
-              onClick={() => setEnrolling(null)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              disabled={savingEnroll}
-              onClick={() => void saveEnroll()}
-            >
-              {savingEnroll ? "Inscribiendo..." : "Inscribir"}
-            </Button>
-          </DialogFooter>
+              {enrollMode === "pareja" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    data-invalid={
+                      Boolean(enrollErrors.memberTwoFirstName) || undefined
+                    }
+                  >
+                    <FieldLabel htmlFor="enroll-two-first">
+                      Nombres del 2.º integrante
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        ref={enrollTwoFirstRef}
+                        id="enroll-two-first"
+                        value={enrollTwoFirst}
+                        disabled={savingEnroll}
+                        aria-invalid={Boolean(enrollErrors.memberTwoFirstName)}
+                        aria-describedby={
+                          enrollErrors.memberTwoFirstName
+                            ? "enroll-two-first-error"
+                            : undefined
+                        }
+                        onChange={(event) => {
+                          setEnrollTwoFirst(event.target.value);
+                          if (
+                            enrollErrors.memberTwoFirstName ||
+                            enrollErrors.form
+                          ) {
+                            setEnrollErrors((current) => ({
+                              ...current,
+                              memberTwoFirstName: undefined,
+                              form: undefined,
+                            }));
+                          }
+                        }}
+                      />
+                      <FieldError id="enroll-two-first-error">
+                        {enrollErrors.memberTwoFirstName}
+                      </FieldError>
+                    </FieldContent>
+                  </Field>
+                  <Field
+                    data-invalid={
+                      Boolean(enrollErrors.memberTwoLastName) || undefined
+                    }
+                  >
+                    <FieldLabel htmlFor="enroll-two-last">
+                      Apellidos del 2.º integrante
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        ref={enrollTwoLastRef}
+                        id="enroll-two-last"
+                        value={enrollTwoLast}
+                        disabled={savingEnroll}
+                        aria-invalid={Boolean(enrollErrors.memberTwoLastName)}
+                        aria-describedby={
+                          enrollErrors.memberTwoLastName
+                            ? "enroll-two-last-error"
+                            : undefined
+                        }
+                        onChange={(event) => {
+                          setEnrollTwoLast(event.target.value);
+                          if (
+                            enrollErrors.memberTwoLastName ||
+                            enrollErrors.form
+                          ) {
+                            setEnrollErrors((current) => ({
+                              ...current,
+                              memberTwoLastName: undefined,
+                              form: undefined,
+                            }));
+                          }
+                        }}
+                      />
+                      <FieldError id="enroll-two-last-error">
+                        {enrollErrors.memberTwoLastName}
+                      </FieldError>
+                    </FieldContent>
+                  </Field>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={savingEnroll}
+                onClick={() => setEnrolling(null)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={savingEnroll}>
+                {savingEnroll ? "Inscribiendo..." : "Inscribir"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
