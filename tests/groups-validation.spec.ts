@@ -213,6 +213,234 @@ test("creates groups with an optional bounded schedule that can be cleared", asy
   await api.dispose();
 });
 
+test("returns structured fields for manual enrollment errors", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers, { allowPairs: true });
+  const groupResponse = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "Grupo contrato inscripción" },
+  });
+  expect(groupResponse.ok(), await groupResponse.text()).toBe(true);
+  const group = (await groupResponse.json()) as { id: string };
+  const endpoint = `${API}/api/groups/${group.id}/teams`;
+
+  const missingFirstMember = await api.post(endpoint, {
+    headers,
+    data: { participationMode: "individual", grade: "P3" },
+  });
+  expect(missingFirstMember.status()).toBe(400);
+  expect(await missingFirstMember.json()).toEqual({
+    message: "Los nombres y apellidos son obligatorios.",
+    code: "TEAM_MEMBER_ONE_REQUIRED",
+    fields: ["memberOneFirstName", "memberOneLastName"],
+  });
+
+  const missingSecondMember = await api.post(endpoint, {
+    headers,
+    data: {
+      participationMode: "pareja",
+      grade: "P3",
+      memberOneFirstName: "Ana",
+      memberOneLastName: "Pérez",
+    },
+  });
+  expect(missingSecondMember.status()).toBe(400);
+  expect(await missingSecondMember.json()).toEqual({
+    message: "Faltan los nombres y apellidos del segundo integrante.",
+    code: "TEAM_MEMBER_TWO_REQUIRED",
+    fields: ["memberTwoFirstName", "memberTwoLastName"],
+  });
+
+  const invalidGrade = await api.post(endpoint, {
+    headers,
+    data: {
+      participationMode: "individual",
+      grade: "S6",
+      memberOneFirstName: "Ana",
+      memberOneLastName: "Pérez",
+    },
+  });
+  expect(invalidGrade.status()).toBe(400);
+  expect(await invalidGrade.json()).toMatchObject({
+    code: "TEAM_GRADE_INVALID",
+    field: "grade",
+  });
+
+  const identicalMembers = await api.post(endpoint, {
+    headers,
+    data: {
+      participationMode: "pareja",
+      grade: "P3",
+      memberOneFirstName: "Ána",
+      memberOneLastName: "Pérez",
+      memberTwoFirstName: "ana",
+      memberTwoLastName: "perez",
+    },
+  });
+  expect(identicalMembers.status()).toBe(400);
+  expect(await identicalMembers.json()).toEqual({
+    message: "Los dos integrantes no pueden ser la misma persona.",
+    code: "TEAM_MEMBERS_IDENTICAL",
+    fields: ["memberTwoFirstName", "memberTwoLastName"],
+  });
+
+  const created = await api.post(endpoint, {
+    headers,
+    data: {
+      participationMode: "individual",
+      grade: "P3",
+      memberOneFirstName: "Ana",
+      memberOneLastName: "Pérez",
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const duplicate = await api.post(endpoint, {
+    headers,
+    data: {
+      participationMode: "individual",
+      grade: "P3",
+      memberOneFirstName: "ana",
+      memberOneLastName: "perez",
+    },
+  });
+  expect(duplicate.status()).toBe(409);
+  expect(await duplicate.json()).toEqual({
+    message: "Ana Perez ya está registrado en este desafío.",
+    code: "TEAM_MEMBER_DUPLICATE",
+    fields: ["memberOneFirstName", "memberOneLastName"],
+  });
+
+  await api.dispose();
+});
+
+test("validates manual enrollment and recovers from a duplicate", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
+  expect(login.ok(), await login.text()).toBe(true);
+  const session = (await login.json()) as {
+    token: string;
+    user: { id: number; email: string; name: string | null; role: string };
+  };
+  const headers = { authorization: `Bearer ${session.token}` };
+  const contest = await createContest(api, headers, {
+    title: "Desafío inscripción manual",
+    allowPairs: true,
+  });
+  const groupResponse = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "Grupo inscripción accesible" },
+  });
+  expect(groupResponse.ok(), await groupResponse.text()).toBe(true);
+  const group = (await groupResponse.json()) as { id: string };
+  const endpoint = `${API}/api/groups/${group.id}/teams`;
+  const existing = await api.post(endpoint, {
+    headers,
+    data: {
+      participationMode: "individual",
+      grade: "P3",
+      memberOneFirstName: "Ana",
+      memberOneLastName: "Pérez",
+    },
+  });
+  expect(existing.ok(), await existing.text()).toBe(true);
+  let releaseEnrollment: (() => void) | undefined;
+  const enrollmentGate = new Promise<void>((resolve) => {
+    releaseEnrollment = resolve;
+  });
+  let holdNextEnrollment = true;
+  await page.route(endpoint, async (route) => {
+    if (route.request().method() === "POST" && holdNextEnrollment) {
+      holdNextEnrollment = false;
+      await enrollmentGate;
+    }
+    await route.continue();
+  });
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+  await page.goto("/grupos");
+  const groupCard = page
+    .getByText("Grupo inscripción accesible", { exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await groupCard.getByRole("button", { name: /1 equipo/ }).click();
+  await groupCard
+    .getByRole("button", { name: "Inscribir participante" })
+    .click();
+
+  const dialog = page.getByRole("dialog", { name: "Inscribir participante" });
+  const grade = dialog.getByRole("combobox", { name: "Curso" });
+  const firstName = dialog.getByLabel("Nombres", { exact: true });
+  const lastName = dialog.getByLabel("Apellidos", { exact: true });
+  const submit = dialog.getByRole("button", { name: "Inscribir" });
+  await submit.click();
+  await expect(grade).toBeFocused();
+  await expect(grade).toHaveAttribute("aria-invalid", "true");
+  await expect(firstName).toHaveAttribute("aria-invalid", "true");
+  await expect(lastName).toHaveAttribute("aria-invalid", "true");
+  await expect(grade).toHaveAttribute(
+    "aria-describedby",
+    "enroll-grade-description enroll-grade-error",
+  );
+
+  await grade.click();
+  await page.getByRole("option", { name: "3.º de primaria" }).click();
+  await expect(grade).toHaveAttribute("aria-invalid", "false");
+  await firstName.fill("Ana");
+  await lastName.fill("Pérez");
+  await expect(firstName).toHaveAttribute("aria-invalid", "false");
+  await dialog.getByRole("button", { name: "Pareja" }).click();
+  await submit.click();
+
+  const secondFirstName = dialog.getByLabel("Nombres del 2.º integrante");
+  const secondLastName = dialog.getByLabel("Apellidos del 2.º integrante");
+  await expect(secondFirstName).toBeFocused();
+  await expect(secondFirstName).toHaveAttribute("aria-invalid", "true");
+  await expect(secondLastName).toHaveAttribute("aria-invalid", "true");
+  await secondFirstName.fill("ana");
+  await secondLastName.fill("perez");
+  await submit.click();
+
+  const identicalMessage =
+    "Los dos integrantes no pueden ser la misma persona.";
+  await expect(dialog.getByRole("alert")).toHaveText(identicalMessage);
+  await expect(secondFirstName).toBeFocused();
+  await secondFirstName.fill("Luis");
+  await secondLastName.fill("Gómez");
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await submit.click();
+
+  await expect(
+    dialog.getByRole("button", { name: "Inscribiendo..." }),
+  ).toBeVisible();
+  await expect(grade).toBeDisabled();
+  await expect(firstName).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Close" })).toHaveCount(0);
+  releaseEnrollment?.();
+
+  const duplicateMessage = "Ana Pérez ya está registrado en este desafío.";
+  await expect(dialog.getByRole("alert")).toHaveText(duplicateMessage);
+  await expect(
+    page.locator("[data-sonner-toast]").filter({ hasText: duplicateMessage }),
+  ).toBeVisible();
+  await expect(firstName).toBeFocused();
+  await firstName.fill("Marta");
+  await lastName.fill("Rojas");
+  await lastName.press("Enter");
+
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    groupCard.getByText("Marta Rojas · Luis Gómez", { exact: true }),
+  ).toBeVisible();
+
+  await api.dispose();
+});
+
 test("associates group creation errors and recovers after a remote rejection", async ({
   page,
 }) => {
