@@ -693,6 +693,335 @@ test("validates participant editing and recovers from a duplicate", async ({
   await api.dispose();
 });
 
+test("validates the roster upload transport contract", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers);
+  const groupResponse = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "Grupo contrato planilla" },
+  });
+  expect(groupResponse.ok(), await groupResponse.text()).toBe(true);
+  const group = (await groupResponse.json()) as { id: string };
+  const endpoint = `${API}/api/groups/${group.id}/roster`;
+
+  const missing = await api.post(endpoint, { headers });
+  expect(missing.status()).toBe(400);
+  expect(await missing.json()).toEqual({ message: "Adjunta la planilla." });
+
+  const unsupported = await api.post(endpoint, {
+    headers,
+    multipart: {
+      file: {
+        name: "participantes.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("contenido", "utf8"),
+      },
+    },
+  });
+  expect(unsupported.status()).toBe(400);
+  expect(await unsupported.json()).toEqual({
+    message: "La planilla debe ser un archivo XLSX o CSV.",
+  });
+
+  const oversized = await api.post(endpoint, {
+    headers,
+    multipart: {
+      file: {
+        name: "participantes.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.alloc(2 * 1024 * 1024 + 1, "a"),
+      },
+    },
+  });
+  expect(oversized.status()).toBe(400);
+  expect(await oversized.json()).toEqual({
+    message: "La planilla no debe superar los 2 MB.",
+  });
+
+  const corrupt = await api.post(endpoint, {
+    headers,
+    multipart: {
+      file: {
+        name: "participantes.xlsx",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        buffer: Buffer.from("no es un xlsx", "utf8"),
+      },
+    },
+  });
+  expect(corrupt.status()).toBe(400);
+  expect(await corrupt.json()).toEqual({
+    message: "No pudimos leer la planilla. Usa la plantilla del desafío.",
+  });
+
+  const allSkipped = await api.post(endpoint, {
+    headers,
+    multipart: {
+      file: {
+        name: "participantes.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(
+          [
+            "Nombres,Apellidos,Curso,Modalidad",
+            `Sin,,${contest.picked.grade},individual`,
+          ].join("\n"),
+          "utf8",
+        ),
+      },
+    },
+  });
+  expect(allSkipped.status()).toBe(200);
+  expect(await allSkipped.json()).toEqual({
+    created: [],
+    skipped: [
+      {
+        row: 2,
+        name: "Sin",
+        reason: "Faltan nombres o apellidos.",
+      },
+    ],
+  });
+
+  await api.dispose();
+});
+
+test("announces roster validation, partial results and refresh failures", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const api = await request.newContext();
+  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
+  expect(login.ok(), await login.text()).toBe(true);
+  const session = (await login.json()) as {
+    token: string;
+    user: { id: number; email: string; name: string | null; role: string };
+  };
+  const headers = { authorization: `Bearer ${session.token}` };
+  const contest = await createContest(api, headers, {
+    title: "Desafío importación accesible",
+  });
+  const groupResponse = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "Grupo importación accesible" },
+  });
+  expect(groupResponse.ok(), await groupResponse.text()).toBe(true);
+  const group = (await groupResponse.json()) as { id: string };
+  const uploadEndpoint = `${API}/api/groups/${group.id}/roster`;
+  let uploadCount = 0;
+  let releaseUpload: (() => void) | undefined;
+  const uploadGate = new Promise<void>((resolve) => {
+    releaseUpload = resolve;
+  });
+  let failNextRefresh = true;
+  let refreshCount = 0;
+  await page.route(uploadEndpoint, async (route) => {
+    uploadCount += 1;
+    if (uploadCount === 2) {
+      await route.fulfill({
+        status: 502,
+        contentType: "text/html",
+        body: "<p>Bad gateway</p>",
+      });
+      return;
+    }
+    if (uploadCount === 3) {
+      await uploadGate;
+    }
+    await route.continue();
+  });
+  await page.route(`${API}/api/groups/${group.id}`, async (route) => {
+    refreshCount += 1;
+    if (failNextRefresh) {
+      failNextRefresh = false;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "No disponible." }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.addInitScript(({ token, user }) => {
+    window.localStorage.setItem("bebras_token", token);
+    window.localStorage.setItem("bebras_user", JSON.stringify(user));
+  }, session);
+  await page.goto("/grupos");
+  const groupCard = page
+    .getByText("Grupo importación accesible", { exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await groupCard.getByRole("button", { name: /0 equipo/ }).click();
+  const input = groupCard.getByLabel("Importar planilla");
+  await expect(input).toHaveAttribute(
+    "accept",
+    ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv",
+  );
+
+  await input.setInputFiles({
+    name: "participantes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("contenido", "utf8"),
+  });
+  const typeMessage = "La planilla debe ser un archivo XLSX o CSV.";
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(input).toHaveAttribute(
+    "aria-describedby",
+    `roster-${group.id}-description roster-${group.id}-error`,
+  );
+  await expect(
+    groupCard.getByText("Archivo: participantes.txt."),
+  ).toBeVisible();
+  await expect(groupCard.locator(`#roster-${group.id}-error`)).toHaveText(
+    typeMessage,
+  );
+  await expect(input).toHaveValue("");
+  expect(uploadCount).toBe(0);
+
+  await input.setInputFiles({
+    name: "demasiado-grande.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.alloc(2 * 1024 * 1024 + 1, "a"),
+  });
+  await expect(groupCard.locator(`#roster-${group.id}-error`)).toHaveText(
+    "La planilla no debe superar los 2 MB.",
+  );
+  await expect(
+    groupCard.getByText("Archivo: demasiado-grande.csv."),
+  ).toBeVisible();
+  expect(uploadCount).toBe(0);
+
+  await input.setInputFiles({
+    name: "dañada.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from("no es un xlsx", "utf8"),
+  });
+  const corruptMessage =
+    "No pudimos leer la planilla. Usa la plantilla del desafío.";
+  await expect(input).toBeFocused();
+  await expect(groupCard.locator(`#roster-${group.id}-error`)).toHaveText(
+    corruptMessage,
+  );
+  await expect(groupCard.getByText("Archivo: dañada.xlsx.")).toBeVisible();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({ hasText: corruptMessage }),
+  ).toBeVisible();
+  expect(uploadCount).toBe(1);
+
+  await input.setInputFiles({
+    name: "respuesta-proxy.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from("contenido", "utf8"),
+  });
+  const fallbackMessage = "No se pudo importar la planilla.";
+  await expect(input).toBeFocused();
+  await expect(groupCard.locator(`#roster-${group.id}-error`)).toHaveText(
+    fallbackMessage,
+  );
+  await expect(
+    groupCard.getByText("Archivo: respuesta-proxy.xlsx."),
+  ).toBeVisible();
+  await expect(input).toHaveValue("");
+  expect(uploadCount).toBe(2);
+
+  const csv = [
+    "Nombres,Apellidos,Curso,Modalidad",
+    `Marta,Rojas,${contest.picked.grade},individual`,
+    `Sin,,${contest.picked.grade},individual`,
+  ].join("\n");
+  const partialFileName = `participantes-${"muy".repeat(30)}.csv`;
+  await input.setInputFiles({
+    name: partialFileName,
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv, "utf8"),
+  });
+  await expect(input).toBeDisabled();
+  await expect(input).toHaveAttribute("aria-invalid", "false");
+  await expect(groupCard).toContainText("Importando...");
+  await groupCard.getByRole("button", { name: /0 equipo/ }).click();
+  await expect(
+    groupCard.getByRole("button", { name: /0 equipo/ }),
+  ).toHaveAttribute("aria-expanded", "false");
+  releaseUpload?.();
+
+  const result = groupCard.getByRole("status");
+  await expect(result).toBeFocused();
+  await expect(
+    groupCard.getByRole("button", { name: /0 equipo/ }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(result).toContainText("Importación parcial");
+  await expect(result).toContainText(
+    `${partialFileName}: se importaron 1 y se omitieron 1 fila(s).`,
+  );
+  await expect(result).toContainText(
+    "Fila 3: Sin. Faltan nombres o apellidos.",
+  );
+  const refreshMessage =
+    "La importación terminó, pero no se pudo actualizar la lista. Recarga la página para ver los cambios.";
+  await expect(groupCard.getByRole("alert")).toContainText(refreshMessage);
+  await expect(
+    page
+      .locator("[data-sonner-toast]")
+      .filter({ hasText: "Se importaron 1 y se omitieron 1 fila(s)." }),
+  ).toBeVisible();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({ hasText: refreshMessage }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  expect(uploadCount).toBe(3);
+  expect(refreshCount).toBe(1);
+
+  await input.setInputFiles({
+    name: "participantes-total.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      [
+        "Nombres,Apellidos,Curso,Modalidad",
+        `Lucía,Flores,${contest.picked.grade},individual`,
+      ].join("\n"),
+      "utf8",
+    ),
+  });
+  await expect(groupCard.getByRole("status")).toContainText(
+    "Importación completada",
+  );
+  await expect(
+    groupCard.getByText("Lucía Flores", { exact: true }),
+  ).toBeVisible();
+  await expect(groupCard.getByRole("alert")).toHaveCount(0);
+  expect(uploadCount).toBe(4);
+  expect(refreshCount).toBe(2);
+
+  await input.setInputFiles({
+    name: "participantes-total.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      [
+        "Nombres,Apellidos,Curso,Modalidad",
+        `Solo,,${contest.picked.grade},individual`,
+      ].join("\n"),
+      "utf8",
+    ),
+  });
+  await expect(groupCard.getByRole("status")).toContainText(
+    "No se importaron participantes",
+  );
+  await expect(groupCard.getByRole("alert")).toHaveCount(0);
+  await expect(input).toHaveValue("");
+  expect(uploadCount).toBe(5);
+  expect(refreshCount).toBe(2);
+
+  await api.dispose();
+});
+
 test("associates group creation errors and recovers after a remote rejection", async ({
   page,
 }) => {
