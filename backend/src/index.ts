@@ -3071,7 +3071,11 @@ app.post("/api/groups", async (req, res) => {
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
 
   if (!name) {
-    res.status(400).json({ message: "El nombre del grupo es obligatorio." });
+    res.status(400).json({
+      message: "El nombre del grupo es obligatorio.",
+      code: "GROUP_NAME_REQUIRED",
+      field: "name",
+    });
     return;
   }
 
@@ -3089,13 +3093,19 @@ app.post("/api/groups", async (req, res) => {
   const contest = await prisma.contest.findUnique({ where: { id: contestId } });
 
   if (!contest) {
-    res.status(400).json({ message: "El desafío no existe." });
+    res.status(400).json({
+      message: "El desafío no existe.",
+      code: "GROUP_CONTEST_NOT_FOUND",
+      field: "contestId",
+    });
     return;
   }
 
   if (!contest.publishedAt) {
     res.status(400).json({
       message: "El desafío debe estar publicado para crear grupos.",
+      code: "GROUP_CONTEST_UNPUBLISHED",
+      field: "contestId",
     });
     return;
   }
@@ -3103,6 +3113,8 @@ app.post("/api/groups", async (req, res) => {
   if (contestHasEnded(computeContestState(contest).state)) {
     res.status(409).json({
       message: "El desafío ya cerró; no es posible crear grupos.",
+      code: "GROUP_CONTEST_CLOSED",
+      field: "contestId",
     });
     return;
   }

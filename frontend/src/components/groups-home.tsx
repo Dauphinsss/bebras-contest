@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   CalendarClockIcon,
   ChevronDownIcon,
@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { DateTimeField } from "@/components/datetime-field";
+import { ApiError } from "@/lib/api-client";
 import { gradeLabel, gradesForCategory } from "@/lib/contest-schema";
 
 import {
@@ -74,12 +75,14 @@ import {
   Field,
   FieldContent,
   FieldDescription,
+  FieldError,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -105,6 +108,11 @@ export function GroupsHome() {
   const [contestId, setContestId] = useState("");
   const [name, setName] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [createErrors, setCreateErrors] = useState<{
+    contestId?: string;
+    name?: string;
+    form?: string;
+  }>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
@@ -137,6 +145,10 @@ export function GroupsHome() {
     | { type: "team"; groupId: string; team: GroupTeam }
     | null
   >(null);
+  const contestRef = useRef<HTMLButtonElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const createErrorRef = useRef<HTMLDivElement>(null);
+  const pendingCreateFocusRef = useRef<"contestId" | "name" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -167,6 +179,24 @@ export function GroupsHome() {
     };
   }, []);
 
+  useEffect(() => {
+    if (createErrors.form) {
+      createErrorRef.current?.focus();
+    }
+  }, [createErrors.form]);
+
+  useEffect(() => {
+    if (creating || !pendingCreateFocusRef.current) {
+      return;
+    }
+    if (pendingCreateFocusRef.current === "contestId") {
+      contestRef.current?.focus();
+    } else {
+      nameRef.current?.focus();
+    }
+    pendingCreateFocusRef.current = null;
+  }, [creating]);
+
   const selectedContest = publishedContests.find(
     (contest) => contest.id === contestId,
   );
@@ -180,16 +210,22 @@ export function GroupsHome() {
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!contestId) {
-      toast.error("Elige un desafío publicado.");
+    const nextErrors = {
+      contestId: contestId ? undefined : "Elige un desafío publicado.",
+      name: name.trim() ? undefined : "Ingresa el nombre del grupo.",
+    };
+
+    if (nextErrors.contestId || nextErrors.name) {
+      setCreateErrors(nextErrors);
+      if (nextErrors.contestId) {
+        contestRef.current?.focus();
+      } else {
+        nameRef.current?.focus();
+      }
       return;
     }
 
-    if (!name.trim()) {
-      toast.error("El nombre del grupo es obligatorio.");
-      return;
-    }
-
+    setCreateErrors({});
     setCreating(true);
 
     try {
@@ -201,11 +237,21 @@ export function GroupsHome() {
       setGroups((current) => [group, ...current]);
       setName("");
       setScheduledAt("");
+      setCreateErrors({});
       toast.success(`Grupo creado. Código: ${group.accessCode}`);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo crear el grupo.",
-      );
+      const message =
+        error instanceof Error ? error.message : "No se pudo crear el grupo.";
+      toast.error(message);
+      if (error instanceof ApiError && error.field === "contestId") {
+        setCreateErrors({ contestId: message });
+        pendingCreateFocusRef.current = "contestId";
+      } else if (error instanceof ApiError && error.field === "name") {
+        setCreateErrors({ name: message });
+        pendingCreateFocusRef.current = "name";
+      } else {
+        setCreateErrors({ form: message });
+      }
     } finally {
       setCreating(false);
     }
@@ -493,40 +539,92 @@ export function GroupsHome() {
               </AlertDescription>
             </Alert>
           ) : (
-            <form className="flex flex-col gap-4" onSubmit={handleCreate}>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={handleCreate}
+              aria-busy={creating}
+            >
+              {createErrors.form && (
+                <Alert ref={createErrorRef} variant="destructive" tabIndex={-1}>
+                  <AlertDescription>{createErrors.form}</AlertDescription>
+                </Alert>
+              )}
               <div className="grid gap-4 md:grid-cols-2">
-                <Field>
+                <Field
+                  data-invalid={Boolean(createErrors.contestId) || undefined}
+                >
                   <FieldLabel htmlFor="group-contest">Desafío</FieldLabel>
                   <FieldContent>
                     <Select
                       value={contestId}
+                      disabled={creating}
                       onValueChange={(value) => {
                         setContestId(value);
                         setScheduledAt("");
+                        if (createErrors.contestId || createErrors.form) {
+                          setCreateErrors((current) => ({
+                            ...current,
+                            contestId: undefined,
+                            form: undefined,
+                          }));
+                        }
                       }}
                     >
-                      <SelectTrigger id="group-contest" className="w-full">
+                      <SelectTrigger
+                        ref={contestRef}
+                        id="group-contest"
+                        className="w-full"
+                        aria-invalid={Boolean(createErrors.contestId)}
+                        aria-describedby={
+                          createErrors.contestId
+                            ? "group-contest-error"
+                            : undefined
+                        }
+                      >
                         <SelectValue placeholder="Elige un desafío" />
                       </SelectTrigger>
                       <SelectContent>
-                        {publishedContests.map((contest) => (
-                          <SelectItem key={contest.id} value={contest.id}>
-                            {contest.title}
-                          </SelectItem>
-                        ))}
+                        <SelectGroup>
+                          {publishedContests.map((contest) => (
+                            <SelectItem key={contest.id} value={contest.id}>
+                              {contest.title}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
+                    <FieldError id="group-contest-error">
+                      {createErrors.contestId}
+                    </FieldError>
                   </FieldContent>
                 </Field>
-                <Field>
+                <Field data-invalid={Boolean(createErrors.name) || undefined}>
                   <FieldLabel htmlFor="group-name">Nombre del grupo</FieldLabel>
                   <FieldContent>
                     <Input
+                      ref={nameRef}
                       id="group-name"
                       value={name}
-                      onChange={(event) => setName(event.target.value)}
+                      disabled={creating}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        if (createErrors.name || createErrors.form) {
+                          setCreateErrors((current) => ({
+                            ...current,
+                            name: undefined,
+                            form: undefined,
+                          }));
+                        }
+                      }}
                       placeholder="Ej. 6° A — Colegio San José"
+                      aria-invalid={Boolean(createErrors.name)}
+                      aria-describedby={
+                        createErrors.name ? "group-name-error" : undefined
+                      }
                     />
+                    <FieldError id="group-name-error">
+                      {createErrors.name}
+                    </FieldError>
                   </FieldContent>
                 </Field>
               </div>
@@ -542,7 +640,7 @@ export function GroupsHome() {
                     onChange={setScheduledAt}
                     minDate={contestStartsAt}
                     maxDate={contestEndsAt}
-                    disabled={!selectedContest}
+                    disabled={!selectedContest || creating}
                   />
                   {!selectedContest && (
                     <FieldDescription>

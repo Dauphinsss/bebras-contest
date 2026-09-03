@@ -8,12 +8,37 @@ export type ApiRequestOptions = RequestInit & {
   auth?: boolean;
 };
 
-async function readErrorMessage(response: Response, fallback: string) {
+type ApiErrorBody = {
+  message?: string;
+  code?: string;
+  field?: string;
+  fields?: string[];
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly field?: string,
+    readonly fields?: string[],
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function readError(response: Response, fallback: string) {
   try {
-    const body = (await response.json()) as { message?: string };
-    return body.message || fallback;
+    const body = (await response.json()) as ApiErrorBody;
+    return {
+      message: body.message || fallback,
+      code: body.code,
+      field: body.field,
+      fields: body.fields,
+    };
   } catch {
-    return fallback;
+    return { message: fallback };
   }
 }
 
@@ -39,15 +64,24 @@ export async function apiRequest<T>(
 
   if (auth && response.status === 401) {
     handleUnauthorized();
-    throw new Error("Sesión expirada. Inicia sesión de nuevo.");
+    throw new ApiError(
+      "Sesión expirada. Inicia sesión de nuevo.",
+      response.status,
+      "UNAUTHORIZED",
+    );
   }
 
   if (!response.ok) {
-    throw new Error(
-      await readErrorMessage(
-        response,
-        `Request failed with status ${response.status}`,
-      ),
+    const error = await readError(
+      response,
+      `Request failed with status ${response.status}`,
+    );
+    throw new ApiError(
+      error.message,
+      response.status,
+      error.code,
+      error.field,
+      error.fields,
     );
   }
 
