@@ -87,6 +87,7 @@ export function RegisterForm() {
   const idFrontRef = useRef<HTMLInputElement>(null);
   const idBackRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
+  const pendingResponseFocusRef = useRef<"email" | DocumentField | null>(null);
 
   const isSchool = school.institutionType === "school";
   const hasSchoolChoice = Boolean(school.name.trim());
@@ -124,6 +125,21 @@ export function RegisterForm() {
       formErrorRef.current?.focus();
     }
   }, [errors.form, step]);
+
+  useEffect(() => {
+    if (submitting || step !== "form" || !pendingResponseFocusRef.current) {
+      return;
+    }
+
+    const refs = {
+      email: emailRef,
+      letter: letterRef,
+      idFront: idFrontRef,
+      idBack: idBackRef,
+    };
+    refs[pendingResponseFocusRef.current].current?.focus();
+    pendingResponseFocusRef.current = null;
+  }, [step, submitting]);
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -253,16 +269,8 @@ export function RegisterForm() {
         toast.error(message);
         if (data.field) {
           setErrors({ [data.field]: message });
+          pendingResponseFocusRef.current = data.field;
           setStep("form");
-          requestAnimationFrame(() => {
-            const refs = {
-              email: emailRef,
-              letter: letterRef,
-              idFront: idFrontRef,
-              idBack: idBackRef,
-            };
-            refs[data.field!].current?.focus();
-          });
         } else {
           setErrors({ form: message });
         }
