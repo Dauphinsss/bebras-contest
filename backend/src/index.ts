@@ -3086,6 +3086,8 @@ app.post("/api/groups", async (req, res) => {
     res.status(400).json({
       message:
         error instanceof Error ? error.message : "Fecha de sesión inválida.",
+      code: "GROUP_SCHEDULE_INVALID",
+      field: "scheduledAt",
     });
     return;
   }
@@ -3125,6 +3127,8 @@ app.post("/api/groups", async (req, res) => {
   ) {
     res.status(400).json({
       message: "La sesión debe estar dentro del horario del desafío.",
+      code: "GROUP_SCHEDULE_OUTSIDE_CONTEST",
+      field: "scheduledAt",
     });
     return;
   }

@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { DateTimeField } from "@/components/datetime-field";
+import { DateTimeField, parseDateTimeLocal } from "@/components/datetime-field";
 import { ApiError } from "@/lib/api-client";
 import { gradeLabel, gradesForCategory } from "@/lib/contest-schema";
 
@@ -111,6 +111,7 @@ export function GroupsHome() {
   const [createErrors, setCreateErrors] = useState<{
     contestId?: string;
     name?: string;
+    scheduledAt?: string;
     form?: string;
   }>({});
   const [loading, setLoading] = useState(true);
@@ -147,8 +148,11 @@ export function GroupsHome() {
   >(null);
   const contestRef = useRef<HTMLButtonElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const scheduledAtRef = useRef<HTMLButtonElement>(null);
   const createErrorRef = useRef<HTMLDivElement>(null);
-  const pendingCreateFocusRef = useRef<"contestId" | "name" | null>(null);
+  const pendingCreateFocusRef = useRef<
+    "contestId" | "name" | "scheduledAt" | null
+  >(null);
 
   useEffect(() => {
     let active = true;
@@ -191,8 +195,10 @@ export function GroupsHome() {
     }
     if (pendingCreateFocusRef.current === "contestId") {
       contestRef.current?.focus();
-    } else {
+    } else if (pendingCreateFocusRef.current === "name") {
       nameRef.current?.focus();
+    } else {
+      scheduledAtRef.current?.focus();
     }
     pendingCreateFocusRef.current = null;
   }, [creating]);
@@ -210,17 +216,29 @@ export function GroupsHome() {
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const parsedScheduledAt = parseDateTimeLocal(scheduledAt);
+    const scheduledAtOutsideContest =
+      parsedScheduledAt &&
+      selectedContest &&
+      (parsedScheduledAt < new Date(selectedContest.startsAt) ||
+        parsedScheduledAt > new Date(selectedContest.endsAt));
+
     const nextErrors = {
       contestId: contestId ? undefined : "Elige un desafío publicado.",
       name: name.trim() ? undefined : "Ingresa el nombre del grupo.",
+      scheduledAt: scheduledAtOutsideContest
+        ? "La sesión debe estar dentro del horario del desafío."
+        : undefined,
     };
 
-    if (nextErrors.contestId || nextErrors.name) {
+    if (nextErrors.contestId || nextErrors.name || nextErrors.scheduledAt) {
       setCreateErrors(nextErrors);
       if (nextErrors.contestId) {
         contestRef.current?.focus();
-      } else {
+      } else if (nextErrors.name) {
         nameRef.current?.focus();
+      } else {
+        scheduledAtRef.current?.focus();
       }
       return;
     }
@@ -249,6 +267,9 @@ export function GroupsHome() {
       } else if (error instanceof ApiError && error.field === "name") {
         setCreateErrors({ name: message });
         pendingCreateFocusRef.current = "name";
+      } else if (error instanceof ApiError && error.field === "scheduledAt") {
+        setCreateErrors({ scheduledAt: message });
+        pendingCreateFocusRef.current = "scheduledAt";
       } else {
         setCreateErrors({ form: message });
       }
@@ -543,6 +564,7 @@ export function GroupsHome() {
               className="flex flex-col gap-4"
               onSubmit={handleCreate}
               aria-busy={creating}
+              noValidate
             >
               {createErrors.form && (
                 <Alert ref={createErrorRef} variant="destructive" tabIndex={-1}>
@@ -628,26 +650,53 @@ export function GroupsHome() {
                   </FieldContent>
                 </Field>
               </div>
-              <Field>
+              <Field
+                data-invalid={Boolean(createErrors.scheduledAt) || undefined}
+              >
                 <FieldLabel htmlFor="group-scheduled">
-                  Fecha y hora de la sesión
+                  Fecha y hora de la sesión (opcional)
                 </FieldLabel>
                 <FieldContent>
                   <DateTimeField
-                    label="Sesión"
+                    id="group-scheduled"
+                    label="Fecha y hora de la sesión"
                     fallbackHour={9}
                     value={scheduledAt}
-                    onChange={setScheduledAt}
+                    onChange={(value) => {
+                      setScheduledAt(value);
+                      if (createErrors.scheduledAt || createErrors.form) {
+                        setCreateErrors((current) => ({
+                          ...current,
+                          scheduledAt: undefined,
+                          form: undefined,
+                        }));
+                      }
+                    }}
                     minDate={contestStartsAt}
                     maxDate={contestEndsAt}
                     disabled={!selectedContest || creating}
+                    invalid={Boolean(createErrors.scheduledAt)}
+                    describedBy={
+                      createErrors.scheduledAt
+                        ? "group-scheduled-description group-scheduled-error"
+                        : "group-scheduled-description"
+                    }
+                    dateRef={scheduledAtRef}
+                    allowClear
                   />
-                  {!selectedContest && (
-                    <FieldDescription>
-                      Elige primero un desafío para fijar la sesión dentro de su
-                      horario.
-                    </FieldDescription>
-                  )}
+                  <FieldDescription id="group-scheduled-description">
+                    {selectedContest ? (
+                      <>Debe estar dentro del horario del desafío.</>
+                    ) : (
+                      <>
+                        Elige primero un desafío para fijar la sesión dentro de
+                        su horario.
+                      </>
+                    )}
+                  </FieldDescription>
+                  <FieldError id="group-scheduled-error">
+                    {createErrors.scheduledAt}
+                  </FieldError>
                 </FieldContent>
               </Field>
               <div className="flex sm:justify-end">

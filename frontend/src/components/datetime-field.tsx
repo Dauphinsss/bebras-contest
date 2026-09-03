@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarIcon, Clock8Icon } from "lucide-react";
+import { CalendarIcon, Clock8Icon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -37,7 +37,13 @@ export function toTimeValue(value: string) {
   return `${hours}:${minutes}`;
 }
 
-function withDate(currentValue: string, nextDate: Date, fallbackHour: number) {
+function withDate(
+  currentValue: string,
+  nextDate: Date,
+  fallbackHour: number,
+  minDate: Date | null,
+  maxDate: Date | null,
+) {
   const currentDate = parseDateTimeLocal(currentValue);
   const nextValue = new Date(nextDate);
 
@@ -45,6 +51,13 @@ function withDate(currentValue: string, nextDate: Date, fallbackHour: number) {
     nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
   } else {
     nextValue.setHours(fallbackHour, 0, 0, 0);
+  }
+
+  if (minDate && isSameDay(nextValue, minDate) && nextValue < minDate) {
+    nextValue.setHours(minDate.getHours(), minDate.getMinutes(), 0, 0);
+  }
+  if (maxDate && isSameDay(nextValue, maxDate) && nextValue > maxDate) {
+    nextValue.setHours(maxDate.getHours(), maxDate.getMinutes(), 0, 0);
   }
 
   return toDatetimeLocalValue(nextValue.toISOString());
@@ -81,6 +94,9 @@ export function DateTimeField({
   fallbackHour = 8,
   disabled = false,
   invalid = false,
+  describedBy,
+  dateRef,
+  allowClear = false,
 }: {
   id?: string;
   value: string;
@@ -91,6 +107,9 @@ export function DateTimeField({
   fallbackHour?: number;
   disabled?: boolean;
   invalid?: boolean;
+  describedBy?: string;
+  dateRef?: Ref<HTMLButtonElement>;
+  allowClear?: boolean;
 }) {
   const date = parseDateTimeLocal(value);
   const dateLabel = date
@@ -116,11 +135,13 @@ export function DateTimeField({
       <Popover>
         <PopoverTrigger asChild>
           <Button
+            ref={dateRef}
             id={id}
             type="button"
             variant="outline"
             disabled={disabled}
             aria-invalid={invalid}
+            aria-describedby={describedBy}
             aria-label={`${label}, día`}
             className={cn(
               "w-full justify-start text-left font-normal sm:flex-1",
@@ -147,7 +168,9 @@ export function DateTimeField({
             ]}
             onSelect={(nextDate) => {
               if (nextDate) {
-                onChange(withDate(value, nextDate, fallbackHour));
+                onChange(
+                  withDate(value, nextDate, fallbackHour, minDate, maxDate),
+                );
               }
             }}
           />
@@ -158,8 +181,10 @@ export function DateTimeField({
           <Clock8Icon className="size-4" />
         </div>
         <Input
+          id={id ? `${id}-time` : undefined}
           aria-label={`${label}, hora`}
           aria-invalid={invalid}
+          aria-describedby={describedBy}
           className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
           type="time"
           disabled={disabled || !date}
@@ -172,10 +197,24 @@ export function DateTimeField({
 
             if (nextValue) {
               onChange(withTime(value, nextValue));
+            } else {
+              onChange("");
             }
           }}
         />
       </div>
+      {allowClear && date && (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          aria-label={`Quitar ${label.toLowerCase()}`}
+          onClick={() => onChange("")}
+        >
+          <XIcon data-icon="inline-start" />
+          Quitar
+        </Button>
+      )}
     </div>
   );
 }
