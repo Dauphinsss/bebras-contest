@@ -3248,7 +3248,10 @@ app.put("/api/teams/:id", async (req, res) => {
     !team ||
     (req.user?.role === "maestro" && team.group.createdById !== req.user.id)
   ) {
-    res.status(404).json({ message: "Participante no encontrado." });
+    res.status(404).json({
+      message: "Participante no encontrado.",
+      code: "TEAM_NOT_FOUND",
+    });
     return;
   }
 
@@ -3266,20 +3269,32 @@ app.put("/api/teams/:id", async (req, res) => {
   } catch (error) {
     res.status(400).json({
       message: error instanceof Error ? error.message : "Curso inválido.",
+      code: "TEAM_GRADE_INVALID",
+      field: "grade",
     });
     return;
   }
 
   if (!oneFirst || !oneLast) {
-    res
-      .status(400)
-      .json({ message: "Los nombres y apellidos son obligatorios." });
+    res.status(400).json({
+      message: "Los nombres y apellidos son obligatorios.",
+      code: "TEAM_MEMBER_ONE_REQUIRED",
+      fields: [
+        ...(!oneFirst ? ["memberOneFirstName"] : []),
+        ...(!oneLast ? ["memberOneLastName"] : []),
+      ],
+    });
     return;
   }
 
   if (isPareja && (!twoFirst || !twoLast)) {
     res.status(400).json({
       message: "Faltan los nombres y apellidos del segundo integrante.",
+      code: "TEAM_MEMBER_TWO_REQUIRED",
+      fields: [
+        ...(!twoFirst ? ["memberTwoFirstName"] : []),
+        ...(!twoLast ? ["memberTwoLastName"] : []),
+      ],
     });
     return;
   }
@@ -3288,9 +3303,11 @@ app.put("/api/teams/:id", async (req, res) => {
   const keyTwo = isPareja ? nameKey(twoFirst, twoLast) : "";
 
   if (isPareja && keyOne === keyTwo) {
-    res
-      .status(400)
-      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    res.status(400).json({
+      message: "Los dos integrantes no pueden ser la misma persona.",
+      code: "TEAM_MEMBERS_IDENTICAL",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
+    });
     return;
   }
 
@@ -3315,6 +3332,8 @@ app.put("/api/teams/:id", async (req, res) => {
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
       message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberOneFirstName", "memberOneLastName"],
     });
     return;
   }
@@ -3322,6 +3341,8 @@ app.put("/api/teams/:id", async (req, res) => {
   if (isPareja && takenKeys.has(keyTwo)) {
     res.status(409).json({
       message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
     });
     return;
   }

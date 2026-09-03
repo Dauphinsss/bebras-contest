@@ -100,14 +100,14 @@ function formatSession(value: string) {
   return sessionFormatter.format(new Date(value));
 }
 
-type EnrollField =
+type TeamField =
   | "grade"
   | "memberOneFirstName"
   | "memberOneLastName"
   | "memberTwoFirstName"
   | "memberTwoLastName";
 
-function isEnrollField(value: string | undefined): value is EnrollField {
+function isTeamField(value: string | undefined): value is TeamField {
   return Boolean(
     value &&
     [
@@ -159,6 +159,9 @@ export function GroupsHome() {
   const [editTwoLast, setEditTwoLast] = useState("");
   const [editGrade, setEditGrade] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editErrors, setEditErrors] = useState<
+    Partial<Record<TeamField | "form", string>>
+  >({});
   const [enrolling, setEnrolling] = useState<StoredGroup | null>(null);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<
@@ -174,7 +177,7 @@ export function GroupsHome() {
   const [enrollTwoLast, setEnrollTwoLast] = useState("");
   const [savingEnroll, setSavingEnroll] = useState(false);
   const [enrollErrors, setEnrollErrors] = useState<
-    Partial<Record<EnrollField | "form", string>>
+    Partial<Record<TeamField | "form", string>>
   >({});
   const [confirming, setConfirming] = useState<
     | { type: "group"; group: StoredGroup }
@@ -188,13 +191,35 @@ export function GroupsHome() {
   const pendingCreateFocusRef = useRef<
     "contestId" | "name" | "scheduledAt" | null
   >(null);
+  const editGradeRef = useRef<HTMLButtonElement>(null);
+  const editOneFirstRef = useRef<HTMLInputElement>(null);
+  const editOneLastRef = useRef<HTMLInputElement>(null);
+  const editTwoFirstRef = useRef<HTMLInputElement>(null);
+  const editTwoLastRef = useRef<HTMLInputElement>(null);
+  const editErrorRef = useRef<HTMLDivElement>(null);
+  const pendingEditFocusRef = useRef<TeamField | "form" | null>(null);
   const enrollGradeRef = useRef<HTMLButtonElement>(null);
   const enrollOneFirstRef = useRef<HTMLInputElement>(null);
   const enrollOneLastRef = useRef<HTMLInputElement>(null);
   const enrollTwoFirstRef = useRef<HTMLInputElement>(null);
   const enrollTwoLastRef = useRef<HTMLInputElement>(null);
   const enrollErrorRef = useRef<HTMLDivElement>(null);
-  const pendingEnrollFocusRef = useRef<EnrollField | "form" | null>(null);
+  const pendingEnrollFocusRef = useRef<TeamField | "form" | null>(null);
+
+  useEffect(() => {
+    if (savingEdit || !pendingEditFocusRef.current) {
+      return;
+    }
+
+    const target = pendingEditFocusRef.current;
+    if (target === "grade") editGradeRef.current?.focus();
+    if (target === "memberOneFirstName") editOneFirstRef.current?.focus();
+    if (target === "memberOneLastName") editOneLastRef.current?.focus();
+    if (target === "memberTwoFirstName") editTwoFirstRef.current?.focus();
+    if (target === "memberTwoLastName") editTwoLastRef.current?.focus();
+    if (target === "form") editErrorRef.current?.focus();
+    pendingEditFocusRef.current = null;
+  }, [savingEdit]);
 
   useEffect(() => {
     let active = true;
@@ -399,30 +424,67 @@ export function GroupsHome() {
     setEditTwoFirst(team.memberTwoFirstName ?? "");
     setEditTwoLast(team.memberTwoLastName ?? "");
     setEditGrade(team.grade ?? "");
+    setEditErrors({});
   };
 
-  const saveEdit = async () => {
+  const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     if (!editing) {
       return;
     }
 
     const isPareja = editing.team.participationMode === "pareja";
+    const nextErrors: Partial<Record<TeamField, string>> = {
+      grade: editGrade ? undefined : "Elige el curso del participante.",
+      memberOneFirstName: editOneFirst.trim()
+        ? undefined
+        : "Ingresa los nombres.",
+      memberOneLastName: editOneLast.trim()
+        ? undefined
+        : "Ingresa los apellidos.",
+      memberTwoFirstName:
+        isPareja && !editTwoFirst.trim()
+          ? "Ingresa los nombres del segundo integrante."
+          : undefined,
+      memberTwoLastName:
+        isPareja && !editTwoLast.trim()
+          ? "Ingresa los apellidos del segundo integrante."
+          : undefined,
+    };
+    const firstError = (
+      [
+        "grade",
+        "memberOneFirstName",
+        "memberOneLastName",
+        "memberTwoFirstName",
+        "memberTwoLastName",
+      ] as const
+    ).find((field) => nextErrors[field]);
 
-    if (!editOneFirst.trim() || !editOneLast.trim()) {
-      toast.error("Los nombres y apellidos son obligatorios.");
+    if (firstError) {
+      setEditErrors(nextErrors);
+      if (firstError === "grade") editGradeRef.current?.focus();
+      if (firstError === "memberOneFirstName") editOneFirstRef.current?.focus();
+      if (firstError === "memberOneLastName") editOneLastRef.current?.focus();
+      if (firstError === "memberTwoFirstName") editTwoFirstRef.current?.focus();
+      if (firstError === "memberTwoLastName") editTwoLastRef.current?.focus();
       return;
     }
 
-    if (!editGrade) {
-      toast.error("Elige el curso del participante.");
+    if (
+      isPareja &&
+      participantNameKey(editOneFirst, editOneLast) ===
+        participantNameKey(editTwoFirst, editTwoLast)
+    ) {
+      setEditErrors({
+        form: "Los dos integrantes no pueden ser la misma persona.",
+      });
+      editTwoFirstRef.current?.focus();
       return;
     }
 
-    if (isPareja && (!editTwoFirst.trim() || !editTwoLast.trim())) {
-      toast.error("Faltan los nombres y apellidos del segundo integrante.");
-      return;
-    }
-
+    setEditErrors({});
     setSavingEdit(true);
 
     try {
@@ -446,11 +508,27 @@ export function GroupsHome() {
         ),
       );
       toast.success("Participante actualizado.");
+      setEditErrors({});
       setEditing(null);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo actualizar.",
-      );
+      const message =
+        error instanceof Error ? error.message : "No se pudo actualizar.";
+      toast.error(message);
+
+      if (
+        error instanceof ApiError &&
+        isTeamField(error.field) &&
+        !error.fields?.length
+      ) {
+        setEditErrors({ [error.field]: message });
+        pendingEditFocusRef.current = error.field;
+      } else {
+        setEditErrors({ form: message });
+        pendingEditFocusRef.current =
+          error instanceof ApiError && isTeamField(error.fields?.[0])
+            ? error.fields[0]
+            : "form";
+      }
     } finally {
       setSavingEdit(false);
     }
@@ -527,7 +605,7 @@ export function GroupsHome() {
       return;
     }
 
-    const nextErrors: Partial<Record<EnrollField, string>> = {
+    const nextErrors: Partial<Record<TeamField, string>> = {
       grade: enrollGrade ? undefined : "Elige el curso del participante.",
       memberOneFirstName: enrollOneFirst.trim()
         ? undefined
@@ -613,7 +691,7 @@ export function GroupsHome() {
 
       if (
         error instanceof ApiError &&
-        isEnrollField(error.field) &&
+        isTeamField(error.field) &&
         !error.fields?.length
       ) {
         setEnrollErrors({ [error.field]: message });
@@ -621,7 +699,7 @@ export function GroupsHome() {
       } else {
         setEnrollErrors({ form: message });
         pendingEnrollFocusRef.current =
-          error instanceof ApiError && isEnrollField(error.fields?.[0])
+          error instanceof ApiError && isTeamField(error.fields?.[0])
             ? error.fields[0]
             : "form";
       }
@@ -1066,107 +1144,240 @@ export function GroupsHome() {
       <Dialog
         open={editing !== null}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !savingEdit) {
             setEditing(null);
           }
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={!savingEdit}>
           <DialogHeader>
             <DialogTitle>Editar participante</DialogTitle>
             <DialogDescription>
               Corrige el curso, los nombres y apellidos del equipo.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel htmlFor="edit-grade">Curso</FieldLabel>
-              <FieldContent>
-                <Select value={editGrade} onValueChange={setEditGrade}>
-                  <SelectTrigger id="edit-grade" className="w-full">
-                    <SelectValue placeholder="Elige el curso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {gradesForCategory(
-                      groups.find((group) => group.id === editing?.groupId)
-                        ?.contestCategory ?? "",
-                    ).map((grade) => (
-                      <SelectItem key={grade.value} value={grade.value}>
-                        {grade.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldContent>
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="edit-one-first">Nombres</FieldLabel>
+          <form
+            className="flex flex-col gap-6"
+            aria-busy={savingEdit}
+            noValidate
+            onSubmit={(event) => void saveEdit(event)}
+          >
+            {editErrors.form && (
+              <Alert ref={editErrorRef} variant="destructive" tabIndex={-1}>
+                <AlertDescription>{editErrors.form}</AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-col gap-4">
+              <Field data-invalid={Boolean(editErrors.grade) || undefined}>
+                <FieldLabel htmlFor="edit-grade">Curso</FieldLabel>
                 <FieldContent>
-                  <Input
-                    id="edit-one-first"
-                    value={editOneFirst}
-                    onChange={(event) => setEditOneFirst(event.target.value)}
-                  />
+                  <Select
+                    value={editGrade}
+                    disabled={savingEdit}
+                    onValueChange={(value) => {
+                      setEditGrade(value);
+                      if (editErrors.grade || editErrors.form) {
+                        setEditErrors((current) => ({
+                          ...current,
+                          grade: undefined,
+                          form: undefined,
+                        }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger
+                      ref={editGradeRef}
+                      id="edit-grade"
+                      className="w-full"
+                      aria-invalid={Boolean(editErrors.grade)}
+                      aria-describedby={
+                        editErrors.grade ? "edit-grade-error" : undefined
+                      }
+                    >
+                      <SelectValue placeholder="Elige el curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {gradesForCategory(
+                          groups.find((group) => group.id === editing?.groupId)
+                            ?.contestCategory ?? "",
+                        ).map((grade) => (
+                          <SelectItem key={grade.value} value={grade.value}>
+                            {grade.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldError id="edit-grade-error">
+                    {editErrors.grade}
+                  </FieldError>
                 </FieldContent>
               </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-one-last">Apellidos</FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="edit-one-last"
-                    value={editOneLast}
-                    onChange={(event) => setEditOneLast(event.target.value)}
-                  />
-                </FieldContent>
-              </Field>
-            </div>
-            {editing?.team.participationMode === "pareja" && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="edit-two-first">
-                    Nombres del 2.º integrante
-                  </FieldLabel>
+                <Field
+                  data-invalid={
+                    Boolean(editErrors.memberOneFirstName) || undefined
+                  }
+                >
+                  <FieldLabel htmlFor="edit-one-first">Nombres</FieldLabel>
                   <FieldContent>
                     <Input
-                      id="edit-two-first"
-                      value={editTwoFirst}
-                      onChange={(event) => setEditTwoFirst(event.target.value)}
+                      ref={editOneFirstRef}
+                      id="edit-one-first"
+                      value={editOneFirst}
+                      disabled={savingEdit}
+                      aria-invalid={Boolean(editErrors.memberOneFirstName)}
+                      aria-describedby={
+                        editErrors.memberOneFirstName
+                          ? "edit-one-first-error"
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        setEditOneFirst(event.target.value);
+                        if (editErrors.memberOneFirstName || editErrors.form) {
+                          setEditErrors((current) => ({
+                            ...current,
+                            memberOneFirstName: undefined,
+                            form: undefined,
+                          }));
+                        }
+                      }}
                     />
+                    <FieldError id="edit-one-first-error">
+                      {editErrors.memberOneFirstName}
+                    </FieldError>
                   </FieldContent>
                 </Field>
-                <Field>
-                  <FieldLabel htmlFor="edit-two-last">
-                    Apellidos del 2.º integrante
-                  </FieldLabel>
+                <Field
+                  data-invalid={
+                    Boolean(editErrors.memberOneLastName) || undefined
+                  }
+                >
+                  <FieldLabel htmlFor="edit-one-last">Apellidos</FieldLabel>
                   <FieldContent>
                     <Input
-                      id="edit-two-last"
-                      value={editTwoLast}
-                      onChange={(event) => setEditTwoLast(event.target.value)}
+                      ref={editOneLastRef}
+                      id="edit-one-last"
+                      value={editOneLast}
+                      disabled={savingEdit}
+                      aria-invalid={Boolean(editErrors.memberOneLastName)}
+                      aria-describedby={
+                        editErrors.memberOneLastName
+                          ? "edit-one-last-error"
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        setEditOneLast(event.target.value);
+                        if (editErrors.memberOneLastName || editErrors.form) {
+                          setEditErrors((current) => ({
+                            ...current,
+                            memberOneLastName: undefined,
+                            form: undefined,
+                          }));
+                        }
+                      }}
                     />
+                    <FieldError id="edit-one-last-error">
+                      {editErrors.memberOneLastName}
+                    </FieldError>
                   </FieldContent>
                 </Field>
               </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={savingEdit}
-              onClick={() => setEditing(null)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              disabled={savingEdit}
-              onClick={() => void saveEdit()}
-            >
-              {savingEdit ? "Guardando..." : "Guardar"}
-            </Button>
-          </DialogFooter>
+              {editing?.team.participationMode === "pareja" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    data-invalid={
+                      Boolean(editErrors.memberTwoFirstName) || undefined
+                    }
+                  >
+                    <FieldLabel htmlFor="edit-two-first">
+                      Nombres del 2.º integrante
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        ref={editTwoFirstRef}
+                        id="edit-two-first"
+                        value={editTwoFirst}
+                        disabled={savingEdit}
+                        aria-invalid={Boolean(editErrors.memberTwoFirstName)}
+                        aria-describedby={
+                          editErrors.memberTwoFirstName
+                            ? "edit-two-first-error"
+                            : undefined
+                        }
+                        onChange={(event) => {
+                          setEditTwoFirst(event.target.value);
+                          if (
+                            editErrors.memberTwoFirstName ||
+                            editErrors.form
+                          ) {
+                            setEditErrors((current) => ({
+                              ...current,
+                              memberTwoFirstName: undefined,
+                              form: undefined,
+                            }));
+                          }
+                        }}
+                      />
+                      <FieldError id="edit-two-first-error">
+                        {editErrors.memberTwoFirstName}
+                      </FieldError>
+                    </FieldContent>
+                  </Field>
+                  <Field
+                    data-invalid={
+                      Boolean(editErrors.memberTwoLastName) || undefined
+                    }
+                  >
+                    <FieldLabel htmlFor="edit-two-last">
+                      Apellidos del 2.º integrante
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        ref={editTwoLastRef}
+                        id="edit-two-last"
+                        value={editTwoLast}
+                        disabled={savingEdit}
+                        aria-invalid={Boolean(editErrors.memberTwoLastName)}
+                        aria-describedby={
+                          editErrors.memberTwoLastName
+                            ? "edit-two-last-error"
+                            : undefined
+                        }
+                        onChange={(event) => {
+                          setEditTwoLast(event.target.value);
+                          if (editErrors.memberTwoLastName || editErrors.form) {
+                            setEditErrors((current) => ({
+                              ...current,
+                              memberTwoLastName: undefined,
+                              form: undefined,
+                            }));
+                          }
+                        }}
+                      />
+                      <FieldError id="edit-two-last-error">
+                        {editErrors.memberTwoLastName}
+                      </FieldError>
+                    </FieldContent>
+                  </Field>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={savingEdit}
+                onClick={() => setEditing(null)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={savingEdit}>
+                {savingEdit ? "Guardando..." : "Guardar"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
