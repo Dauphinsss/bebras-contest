@@ -85,9 +85,11 @@ export function enrollTeam(groupId: string, data: EnrollTeamInput) {
   });
 }
 
+export type RosterIssue = { row: number; name: string; reason: string };
+
 export type RosterImportResult = {
   created: Array<{ row: number; name: string; personalCode: string }>;
-  skipped: Array<{ row: number; name: string; reason: string }>;
+  skipped: RosterIssue[];
 };
 
 export async function downloadRosterTemplate(groupId: string, name: string) {

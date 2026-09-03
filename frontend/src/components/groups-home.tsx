@@ -26,6 +26,7 @@ import {
   getGroup,
   importRoster,
   type RosterImportResult,
+  type RosterIssue,
   listGroups,
   listPublishedContests,
   removeGroup,
@@ -104,6 +105,7 @@ type RosterFeedback = {
   fileName: string;
   result?: RosterImportResult;
   error?: string;
+  issues?: RosterIssue[];
   refreshError?: string;
 };
 
@@ -118,6 +120,21 @@ function rosterFileError(file: File) {
   }
 
   return null;
+}
+
+function rosterIssues(error: unknown) {
+  if (!(error instanceof ApiError) || !Array.isArray(error.details)) {
+    return [];
+  }
+
+  return error.details.filter(
+    (detail): detail is RosterIssue =>
+      typeof detail === "object" &&
+      detail !== null &&
+      typeof detail.row === "number" &&
+      typeof detail.name === "string" &&
+      typeof detail.reason === "string",
+  );
 }
 
 function formatSession(value: string) {
@@ -223,8 +240,11 @@ export function GroupsHome() {
   const editErrorRef = useRef<HTMLDivElement>(null);
   const pendingEditFocusRef = useRef<TeamField | "form" | null>(null);
   const rosterInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const rosterErrorRef = useRef<HTMLDivElement>(null);
   const rosterResultRef = useRef<HTMLDivElement>(null);
-  const pendingRosterFocusRef = useRef<"input" | "result" | null>(null);
+  const pendingRosterFocusRef = useRef<"input" | "error" | "result" | null>(
+    null,
+  );
   const enrollGradeRef = useRef<HTMLButtonElement>(null);
   const enrollOneFirstRef = useRef<HTMLInputElement>(null);
   const enrollOneLastRef = useRef<HTMLInputElement>(null);
@@ -240,6 +260,8 @@ export function GroupsHome() {
 
     if (pendingRosterFocusRef.current === "input") {
       rosterInputRefs.current[rosterFeedback.groupId]?.focus();
+    } else if (pendingRosterFocusRef.current === "error") {
+      rosterErrorRef.current?.focus();
     } else {
       rosterResultRef.current?.focus();
     }
@@ -579,6 +601,10 @@ export function GroupsHome() {
     file: File,
     input: HTMLInputElement,
   ) => {
+    if (importingId) {
+      return;
+    }
+
     const validationError = rosterFileError(file);
 
     if (validationError) {
@@ -645,13 +671,15 @@ export function GroupsHome() {
         error instanceof Error
           ? error.message
           : "No se pudo importar la planilla.";
+      const issues = rosterIssues(error);
       setOpenGroupId(group.id);
       setRosterFeedback({
         groupId: group.id,
         fileName: file.name,
         error: message,
+        issues,
       });
-      pendingRosterFocusRef.current = "input";
+      pendingRosterFocusRef.current = issues.length > 0 ? "error" : "input";
       toast.error(message);
     } finally {
       input.value = "";
@@ -1179,7 +1207,7 @@ export function GroupsHome() {
                         </div>
                         <Field
                           aria-busy={importingId === group.id}
-                          data-disabled={importingId === group.id || undefined}
+                          data-disabled={importingId !== null || undefined}
                           data-invalid={
                             Boolean(
                               rosterFeedback?.groupId === group.id &&
@@ -1198,7 +1226,7 @@ export function GroupsHome() {
                             id={`roster-${group.id}`}
                             type="file"
                             accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                            disabled={importingId === group.id}
+                            disabled={importingId !== null}
                             aria-invalid={Boolean(
                               rosterFeedback?.groupId === group.id &&
                               rosterFeedback.error,
@@ -1221,7 +1249,8 @@ export function GroupsHome() {
                             id={`roster-${group.id}-description`}
                             className="break-words"
                           >
-                            XLSX o CSV de hasta 2 MB.
+                            XLSX o CSV de hasta 2 MB. Solo se procesa una
+                            planilla a la vez en este panel.
                             {rosterFeedback?.groupId === group.id && (
                               <>
                                 {" "}
@@ -1230,12 +1259,41 @@ export function GroupsHome() {
                               </>
                             )}
                           </FieldDescription>
-                          <FieldError id={`roster-${group.id}-error`}>
-                            {rosterFeedback?.groupId === group.id
-                              ? rosterFeedback.error
-                              : undefined}
-                          </FieldError>
+                          {rosterFeedback?.groupId === group.id &&
+                            rosterFeedback.error &&
+                            !rosterFeedback.issues?.length && (
+                              <FieldError id={`roster-${group.id}-error`}>
+                                {rosterFeedback.error}
+                              </FieldError>
+                            )}
                         </Field>
+                        {rosterFeedback?.groupId === group.id &&
+                          rosterFeedback.error &&
+                          Boolean(rosterFeedback.issues?.length) && (
+                            <Alert
+                              ref={rosterErrorRef}
+                              id={`roster-${group.id}-error`}
+                              variant="destructive"
+                              tabIndex={-1}
+                            >
+                              <AlertTitle>{rosterFeedback.error}</AlertTitle>
+                              <AlertDescription>
+                                <ul className="flex list-disc flex-col gap-1 pl-4 text-xs">
+                                  {rosterFeedback.issues?.map(
+                                    (issue, index) => (
+                                      <li
+                                        key={`${issue.row}-${index}`}
+                                        className="break-words"
+                                      >
+                                        Fila {issue.row}: {issue.name}.{" "}
+                                        {issue.reason}
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </AlertDescription>
+                            </Alert>
+                          )}
                         {rosterFeedback?.groupId === group.id &&
                           rosterFeedback.result && (
                             <>

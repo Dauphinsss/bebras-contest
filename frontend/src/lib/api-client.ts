@@ -14,6 +14,7 @@ type ApiErrorBody = {
   code?: string;
   field?: string;
   fields?: string[];
+  details?: unknown;
 };
 
 export class ApiError extends Error {
@@ -23,6 +24,7 @@ export class ApiError extends Error {
     readonly code?: string,
     readonly field?: string,
     readonly fields?: string[],
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -37,6 +39,7 @@ async function readError(response: Response, fallback: string) {
       code: body.code,
       field: body.field,
       fields: body.fields,
+      details: body.details,
     };
   } catch {
     return { message: fallback };
@@ -83,6 +86,7 @@ export async function apiRequest<T>(
       error.code,
       error.field,
       error.fields,
+      error.details,
     );
   }
 
