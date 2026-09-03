@@ -6,6 +6,7 @@ export const API_BASE_URL =
 
 export type ApiRequestOptions = RequestInit & {
   auth?: boolean;
+  fallbackMessage?: string;
 };
 
 type ApiErrorBody = {
@@ -46,7 +47,7 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
-  const { auth = true, headers, ...init } = options;
+  const { auth = true, fallbackMessage, headers, ...init } = options;
   const requestHeaders = new Headers(auth ? authHeaders() : undefined);
 
   new Headers(headers).forEach((value, key) => {
@@ -74,7 +75,7 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const error = await readError(
       response,
-      `Request failed with status ${response.status}`,
+      fallbackMessage ?? `Request failed with status ${response.status}`,
     );
     throw new ApiError(
       error.message,

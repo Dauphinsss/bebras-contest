@@ -9,7 +9,6 @@ import {
   LoaderCircleIcon,
   PencilIcon,
   PlusIcon,
-  UploadIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react";
@@ -24,6 +23,7 @@ import {
   createGroup,
   downloadRosterTemplate,
   enrollTeam,
+  getGroup,
   importRoster,
   type RosterImportResult,
   listGroups,
@@ -96,6 +96,30 @@ const sessionFormatter = new Intl.DateTimeFormat("es-BO", {
   minute: "2-digit",
 });
 
+const ROSTER_ALLOWED_EXTENSIONS = new Set([".xlsx", ".csv"]);
+const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
+
+type RosterFeedback = {
+  groupId: string;
+  fileName: string;
+  result?: RosterImportResult;
+  error?: string;
+  refreshError?: string;
+};
+
+function rosterFileError(file: File) {
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+
+  if (!ROSTER_ALLOWED_EXTENSIONS.has(extension)) {
+    return "La planilla debe ser un archivo XLSX o CSV.";
+  }
+  if (file.size > ROSTER_MAX_BYTES) {
+    return "La planilla no debe superar los 2 MB.";
+  }
+
+  return null;
+}
+
 function formatSession(value: string) {
   return sessionFormatter.format(new Date(value));
 }
@@ -164,9 +188,9 @@ export function GroupsHome() {
   >({});
   const [enrolling, setEnrolling] = useState<StoredGroup | null>(null);
   const [importingId, setImportingId] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<
-    (RosterImportResult & { groupId: string }) | null
-  >(null);
+  const [rosterFeedback, setRosterFeedback] = useState<RosterFeedback | null>(
+    null,
+  );
   const [enrollMode, setEnrollMode] = useState<"individual" | "pareja">(
     "individual",
   );
@@ -198,6 +222,9 @@ export function GroupsHome() {
   const editTwoLastRef = useRef<HTMLInputElement>(null);
   const editErrorRef = useRef<HTMLDivElement>(null);
   const pendingEditFocusRef = useRef<TeamField | "form" | null>(null);
+  const rosterInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const rosterResultRef = useRef<HTMLDivElement>(null);
+  const pendingRosterFocusRef = useRef<"input" | "result" | null>(null);
   const enrollGradeRef = useRef<HTMLButtonElement>(null);
   const enrollOneFirstRef = useRef<HTMLInputElement>(null);
   const enrollOneLastRef = useRef<HTMLInputElement>(null);
@@ -205,6 +232,19 @@ export function GroupsHome() {
   const enrollTwoLastRef = useRef<HTMLInputElement>(null);
   const enrollErrorRef = useRef<HTMLDivElement>(null);
   const pendingEnrollFocusRef = useRef<TeamField | "form" | null>(null);
+
+  useEffect(() => {
+    if (importingId || !pendingRosterFocusRef.current || !rosterFeedback) {
+      return;
+    }
+
+    if (pendingRosterFocusRef.current === "input") {
+      rosterInputRefs.current[rosterFeedback.groupId]?.focus();
+    } else {
+      rosterResultRef.current?.focus();
+    }
+    pendingRosterFocusRef.current = null;
+  }, [importingId, rosterFeedback]);
 
   useEffect(() => {
     if (savingEdit || !pendingEditFocusRef.current) {
@@ -534,45 +574,89 @@ export function GroupsHome() {
     }
   };
 
-  const pickRoster = (group: StoredGroup) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept =
-      ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
-    input.onchange = () => {
-      const file = input.files?.[0];
+  const pickRoster = async (
+    group: StoredGroup,
+    file: File,
+    input: HTMLInputElement,
+  ) => {
+    const validationError = rosterFileError(file);
 
-      if (!file) {
-        return;
+    if (validationError) {
+      setOpenGroupId(group.id);
+      setRosterFeedback({
+        groupId: group.id,
+        fileName: file.name,
+        error: validationError,
+      });
+      pendingRosterFocusRef.current = "input";
+      toast.error(validationError);
+      input.value = "";
+      return;
+    }
+
+    setRosterFeedback({ groupId: group.id, fileName: file.name });
+    setImportingId(group.id);
+
+    try {
+      const result = await importRoster(group.id, file);
+      let refreshError: string | undefined;
+
+      if (result.created.length > 0) {
+        try {
+          const updatedGroup = await getGroup(group.id);
+          setGroups((current) =>
+            current.map((item) =>
+              item.id === updatedGroup.id ? updatedGroup : item,
+            ),
+          );
+        } catch {
+          refreshError =
+            "La importación terminó, pero no se pudo actualizar la lista. Recarga la página para ver los cambios.";
+        }
       }
 
-      setImportingId(group.id);
-      setImportResult(null);
-      void importRoster(group.id, file)
-        .then((result) => {
-          setImportResult({ ...result, groupId: group.id });
+      setOpenGroupId(group.id);
+      setRosterFeedback({
+        groupId: group.id,
+        fileName: file.name,
+        result,
+        refreshError,
+      });
+      pendingRosterFocusRef.current = "result";
 
-          if (result.created.length > 0) {
-            toast.success(
-              `Se inscribieron ${result.created.length} participante(s).`,
-            );
-            void listGroups()
-              .then(setGroups)
-              .catch(() => undefined);
-          } else {
-            toast.error("No se inscribió a nadie; revisa el detalle.");
-          }
-        })
-        .catch((error: unknown) => {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "No se pudo importar la planilla.",
-          );
-        })
-        .finally(() => setImportingId(null));
-    };
-    input.click();
+      if (result.created.length > 0 && result.skipped.length > 0) {
+        toast.warning(
+          `Se importaron ${result.created.length} y se omitieron ${result.skipped.length} fila(s).`,
+        );
+      } else if (result.created.length > 0) {
+        toast.success(
+          `Se importaron ${result.created.length} participante(s).`,
+        );
+      } else {
+        toast.warning(
+          `No se importaron participantes; se omitieron ${result.skipped.length} fila(s).`,
+        );
+      }
+      if (refreshError) {
+        toast.error(refreshError);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo importar la planilla.";
+      setOpenGroupId(group.id);
+      setRosterFeedback({
+        groupId: group.id,
+        fileName: file.name,
+        error: message,
+      });
+      pendingRosterFocusRef.current = "input";
+      toast.error(message);
+    } finally {
+      input.value = "";
+      setImportingId(null);
+    }
   };
 
   const getTemplate = (group: StoredGroup) => {
@@ -1085,19 +1169,6 @@ export function GroupsHome() {
                             <PlusIcon data-icon="inline-start" />
                             Inscribir participante
                           </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={importingId === group.id}
-                            className="w-full sm:w-auto"
-                            onClick={() => pickRoster(group)}
-                          >
-                            <UploadIcon data-icon="inline-start" />
-                            {importingId === group.id
-                              ? "Importando..."
-                              : "Importar planilla"}
-                          </Button>
                           <button
                             type="button"
                             onClick={() => getTemplate(group)}
@@ -1106,31 +1177,118 @@ export function GroupsHome() {
                             Descargar plantilla de Excel
                           </button>
                         </div>
-                        {importResult?.groupId === group.id && (
-                          <div className="flex flex-col gap-1 border-t pt-3 text-sm">
-                            <span className="font-medium">
-                              Se inscribieron {importResult.created.length}{" "}
-                              participante(s).
-                            </span>
-                            {importResult.skipped.length > 0 && (
+                        <Field
+                          aria-busy={importingId === group.id}
+                          data-disabled={importingId === group.id || undefined}
+                          data-invalid={
+                            Boolean(
+                              rosterFeedback?.groupId === group.id &&
+                              rosterFeedback.error,
+                            ) || undefined
+                          }
+                          className="sm:max-w-md"
+                        >
+                          <FieldLabel htmlFor={`roster-${group.id}`}>
+                            Importar planilla
+                          </FieldLabel>
+                          <Input
+                            ref={(node) => {
+                              rosterInputRefs.current[group.id] = node;
+                            }}
+                            id={`roster-${group.id}`}
+                            type="file"
+                            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                            disabled={importingId === group.id}
+                            aria-invalid={Boolean(
+                              rosterFeedback?.groupId === group.id &&
+                              rosterFeedback.error,
+                            )}
+                            aria-describedby={`roster-${group.id}-description${
+                              rosterFeedback?.groupId === group.id &&
+                              rosterFeedback.error
+                                ? ` roster-${group.id}-error`
+                                : ""
+                            }`}
+                            onChange={(event) => {
+                              const input = event.currentTarget;
+                              const file = input.files?.[0];
+                              if (file) {
+                                void pickRoster(group, file, input);
+                              }
+                            }}
+                          />
+                          <FieldDescription
+                            id={`roster-${group.id}-description`}
+                            className="break-words"
+                          >
+                            XLSX o CSV de hasta 2 MB.
+                            {rosterFeedback?.groupId === group.id && (
                               <>
-                                <span className="text-muted-foreground">
-                                  No se pudo con {importResult.skipped.length}{" "}
-                                  fila(s):
-                                </span>
-                                <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-                                  {importResult.skipped.map((item) => (
-                                    <li key={item.row}>
-                                      Fila {item.row}
-                                      {item.name ? ` (${item.name})` : ""}:{" "}
-                                      {item.reason}
-                                    </li>
-                                  ))}
-                                </ul>
+                                {" "}
+                                Archivo: {rosterFeedback.fileName}.
+                                {importingId === group.id && " Importando..."}
                               </>
                             )}
-                          </div>
-                        )}
+                          </FieldDescription>
+                          <FieldError id={`roster-${group.id}-error`}>
+                            {rosterFeedback?.groupId === group.id
+                              ? rosterFeedback.error
+                              : undefined}
+                          </FieldError>
+                        </Field>
+                        {rosterFeedback?.groupId === group.id &&
+                          rosterFeedback.result && (
+                            <>
+                              <Alert
+                                ref={rosterResultRef}
+                                role="status"
+                                aria-live="polite"
+                                tabIndex={-1}
+                              >
+                                <AlertTitle>
+                                  {rosterFeedback.result.created.length > 0
+                                    ? rosterFeedback.result.skipped.length > 0
+                                      ? "Importación parcial"
+                                      : "Importación completada"
+                                    : "No se importaron participantes"}
+                                </AlertTitle>
+                                <AlertDescription className="flex flex-col gap-2">
+                                  <p className="break-words">
+                                    {rosterFeedback.fileName}: se importaron{" "}
+                                    {rosterFeedback.result.created.length} y se
+                                    omitieron{" "}
+                                    {rosterFeedback.result.skipped.length}{" "}
+                                    fila(s).
+                                  </p>
+                                  {rosterFeedback.result.skipped.length > 0 && (
+                                    <ul className="flex list-disc flex-col gap-1 pl-4 text-xs">
+                                      {rosterFeedback.result.skipped.map(
+                                        (item) => (
+                                          <li
+                                            key={item.row}
+                                            className="break-words"
+                                          >
+                                            Fila {item.row}: {item.name}.{" "}
+                                            {item.reason}
+                                          </li>
+                                        ),
+                                      )}
+                                    </ul>
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                              {rosterFeedback.refreshError && (
+                                <Alert variant="destructive">
+                                  <AlertTitle>
+                                    La lista no se actualizó
+                                  </AlertTitle>
+                                  <AlertDescription>
+                                    {rosterFeedback.refreshError}
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                            </>
+                          )}
                       </div>
                     </CardContent>
                   </div>

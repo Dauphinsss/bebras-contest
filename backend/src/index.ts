@@ -19,6 +19,8 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
 const UPLOADS_DIR = resolve(__dirname, "..", "uploads", "letters");
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
+const ROSTER_ALLOWED_EXT = new Set([".xlsx", ".csv"]);
+const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
 const E2E_CLOCK_FILE = process.env.E2E_CLOCK_FILE;
 
 function documentUploadField(value: unknown) {
@@ -106,7 +108,14 @@ const uploadDocs = multer({
 
 const uploadRoster = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  limits: { fileSize: ROSTER_MAX_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!ROSTER_ALLOWED_EXT.has(extname(file.originalname).toLowerCase())) {
+      cb(new Error("INVALID_ROSTER_TYPE"));
+      return;
+    }
+    cb(null, true);
+  },
 }).single("file");
 
 function rosterUploadMiddleware(
@@ -116,6 +125,13 @@ function rosterUploadMiddleware(
 ) {
   uploadRoster(req, res, (err: unknown) => {
     if (err) {
+      if (err instanceof Error && err.message === "INVALID_ROSTER_TYPE") {
+        res
+          .status(400)
+          .json({ message: "La planilla debe ser un archivo XLSX o CSV." });
+        return;
+      }
+
       if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
         res
           .status(400)
