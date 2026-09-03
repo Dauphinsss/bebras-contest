@@ -129,6 +129,102 @@ test("uses the 17-18 range and S5-S6 grades for Kuntur", async () => {
   await api.dispose();
 });
 
+test("creates a contest without tasks and schedules every phase", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const now = Date.now();
+  const registrationStartsAt = new Date(now + 2 * 60000);
+  const registrationEndsAt = new Date(now + 4 * 60000);
+  const startsAt = new Date(now + 6 * 60000);
+  const endsAt = new Date(now + 70 * 60000);
+  const draft = {
+    title: `PW Phases ${now}`,
+    category: SEEDED_TASK.category,
+    durationMinutes: 60,
+    registrationStartsAt: registrationStartsAt.toISOString(),
+    registrationEndsAt: registrationEndsAt.toISOString(),
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    tasks: [] as Array<{ taskId: string }>,
+  };
+
+  const createResponse = await api.post(`${API}/api/contests`, {
+    headers,
+    data: draft,
+  });
+  expect(createResponse.status(), await createResponse.text()).toBe(201);
+  const contest = await createResponse.json();
+  expect(contest.tasks).toEqual([]);
+  expect(contest.state).toBe("borrador");
+
+  const emptyPublish = await api.post(
+    `${API}/api/contests/${contest.id}/publish`,
+    { headers },
+  );
+  expect(emptyPublish.status()).toBe(400);
+  expect((await emptyPublish.json()).message).toContain("al menos una tarea");
+
+  const updateResponse = await api.put(`${API}/api/contests/${contest.id}`, {
+    headers,
+    data: { ...draft, tasks: [{ taskId: SEEDED_TASK.taskId }] },
+  });
+  expect(updateResponse.ok(), await updateResponse.text()).toBe(true);
+
+  const publish = await api.post(`${API}/api/contests/${contest.id}/publish`, {
+    headers,
+  });
+  expect(publish.ok(), await publish.text()).toBe(true);
+
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(registrationStartsAt.getTime() + 1000).toISOString(),
+  );
+  const registration = await api
+    .get(`${API}/api/contests/${contest.id}`, { headers })
+    .then((response) => response.json());
+  expect(registration.state).toBe("inscripcion");
+
+  const available = await api
+    .get(`${API}/api/published-contests`, { headers })
+    .then((response) => response.json());
+  expect(available.map((item: { id: string }) => item.id)).toContain(
+    contest.id,
+  );
+
+  const group = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "PW Inscripción" },
+  });
+  expect(group.status(), await group.text()).toBe(201);
+
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(registrationEndsAt.getTime() + 1000).toISOString(),
+  );
+  const preparation = await api
+    .get(`${API}/api/contests/${contest.id}`, { headers })
+    .then((response) => response.json());
+  expect(preparation.state).toBe("preparacion");
+
+  const lateGroup = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "PW Fuera de fase" },
+  });
+  expect(lateGroup.status()).toBe(409);
+  expect((await lateGroup.json()).message).toContain("inscripción ya terminó");
+
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(startsAt.getTime() + 1000).toISOString(),
+  );
+  const running = await api
+    .get(`${API}/api/contests/${contest.id}`, { headers })
+    .then((response) => response.json());
+  expect(running.state).toBe("abierta");
+
+  await api.dispose();
+});
+
 test("allows deleting unused contests, groups, participants and tasks", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);

@@ -49,6 +49,8 @@ export type PublishedContest = {
   id: string;
   title: string;
   category: string;
+  registrationStartsAt: string | null;
+  registrationEndsAt: string | null;
   startsAt: string;
   endsAt: string;
 };

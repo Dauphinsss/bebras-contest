@@ -15,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { listTasks } from "@/lib/tasks-api";
+import { BEBRAS_CATEGORIES } from "@/lib/contest-schema";
 import {
-  buildAgeSummary,
   parseMultipleChoiceCorrectness,
   type OptionKey,
   type StoredTask,
@@ -329,9 +329,16 @@ export function TaskTester() {
                   {category}
                 </Badge>
               ))}
-              <Badge variant="outline">
-                {buildAgeSummary(selectedTask.difficulties)}
-              </Badge>
+              {BEBRAS_CATEGORIES.filter(
+                (category) =>
+                  (
+                    selectedTask.difficulties[category.ageRange] ?? ""
+                  ).trim() !== "",
+              ).map((category) => (
+                <Badge key={category.name} variant="outline">
+                  {category.name}
+                </Badge>
+              ))}
             </div>
 
             <div className="flex flex-col gap-3">

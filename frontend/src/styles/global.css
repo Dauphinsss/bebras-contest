@@ -207,14 +207,18 @@
     box-shadow: var(--shadow-hard);
   }
 
+  /* Gana a la regla de arriba, que por su :not() encadenado tiene más
+     especificidad y le colaba la sombra dura a los botones planos. */
   [data-slot="button"][data-variant="ghost"],
   [data-slot="button"][data-variant="link"] {
-    box-shadow: none;
+    box-shadow: none !important;
   }
 
   [data-slot="button"][data-variant="default"],
   [data-slot="button"][data-variant="secondary"],
-  [data-slot="button"][data-variant="destructive"] {
+  [data-slot="button"][data-variant="destructive"],
+  [data-slot="button"][data-variant="ghost"],
+  [data-slot="button"][data-variant="link"] {
     border-color: transparent !important;
   }
 
@@ -365,8 +369,7 @@
   }
 
   [data-slot="calendar"] .rdp-month_grid {
-    border-collapse: separate;
-    border-spacing: 0 0.25rem;
+    border-collapse: collapse;
     width: 100%;
   }
 
@@ -399,15 +402,17 @@
     justify-content: center;
     line-height: 1;
     transition:
-      background-color 120ms ease,
-      color 120ms ease,
-      border-color 120ms ease;
+      background-color 150ms ease-out,
+      color 150ms ease-out,
+      border-color 150ms ease-out;
     width: var(--calendar-cell-size);
   }
 
+  /* El hover se queda en la familia del primario: el azul del acento a plena
+     saturación daba un salto muy brusco junto a la selección roja. */
   [data-slot="calendar"] .rdp-day_button:hover {
-    background: var(--accent);
-    color: var(--accent-foreground);
+    background: color-mix(in srgb, var(--primary) 12%, var(--background));
+    color: var(--foreground);
   }
 
   [data-slot="calendar"] .rdp-selected .rdp-day_button {
@@ -416,9 +421,15 @@
     color: var(--primary-foreground);
   }
 
+  /* Los días de en medio forman una banda continua entre los dos extremos. */
   [data-slot="calendar"] .rdp-range_middle .rdp-day_button {
-    background: var(--accent);
-    color: var(--accent-foreground);
+    background: color-mix(in srgb, var(--primary) 14%, var(--background));
+    color: var(--foreground);
+    width: 100%;
+  }
+
+  [data-slot="calendar"] .rdp-range_middle .rdp-day_button:hover {
+    background: color-mix(in srgb, var(--primary) 22%, var(--background));
   }
 
   [data-slot="calendar"] .rdp-range_start .rdp-day_button,
@@ -427,11 +438,13 @@
     color: var(--primary-foreground);
   }
 
-  [data-slot="calendar"] .rdp-range_end .rdp-day_button,
+  [data-slot="calendar"] .rdp-range_start .rdp-day_button:hover,
+  [data-slot="calendar"] .rdp-range_end .rdp-day_button:hover,
   [data-slot="calendar"]
-    .rdp-selected:not(.rdp-range_start):not(.rdp-range_middle)
-    .rdp-day_button {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 28%, transparent);
+    .rdp-selected:not(.rdp-range_middle)
+    .rdp-day_button:hover {
+    background: color-mix(in srgb, var(--primary) 88%, #000);
+    color: var(--primary-foreground);
   }
 
   [data-slot="calendar"] .rdp-today:not(.rdp-selected) .rdp-day_button {
@@ -510,4 +523,113 @@
   display: none;
   width: 0;
   height: 0;
+}
+
+/* Un solo pill para todo el nav: lleva el nombre de transición, así que el
+   navegador lo mueve y lo estira hasta la sección nueva. */
+.nav-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(infinity * 1px);
+  background: var(--primary);
+  view-transition-name: nav-pill;
+  z-index: 0;
+}
+
+::view-transition-group(nav-pill) {
+  z-index: 1;
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Es un rectángulo de color plano: sin fundido cruzado se lee como un único
+   pill que viaja y se estira. */
+::view-transition-old(nav-pill),
+::view-transition-new(nav-pill) {
+  animation: none;
+  mix-blend-mode: normal;
+  height: 100%;
+}
+
+/* Cada rótulo lleva su propio nombre para quedar por encima del pill: sin esto
+   el pill viaja tapando las letras. No se mueven, así que sus grupos no animan
+   nada; el texto se queda quieto y solo el pill se desplaza por detrás. */
+[data-nav-label] {
+  view-transition-class: nav-label;
+  transition: color 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Solo el rótulo que va a quedar activo se captura oscuro: el pill todavía no
+   llegó y en blanco sería invisible. Al terminar, la transición de arriba lo
+   pasa a blanco. Los demás no se tocan: si se les cambia el color aquí, se ven
+   ennegrecer todos a la vez durante el cambio de página. */
+:root[data-nav-swapping] [data-nav-active] [data-nav-label] {
+  color: var(--foreground);
+}
+
+::view-transition-group(*.nav-label) {
+  z-index: 2;
+  animation: none;
+}
+
+::view-transition-old(*.nav-label),
+::view-transition-new(*.nav-label) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(nav-pill) {
+    animation-duration: 1ms;
+  }
+}
+
+@keyframes bebras-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bebras-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Mover una tarea entre las listas del desafío. La fila viaja de una lista a
+   la otra; el resto de la página (contadores, botones, puntajes) se funde en
+   vez de heredar el deslizamiento que Astro anima entre páginas, que hacía
+   parecer que se desplazaba todo. */
+:root[data-task-transition]::view-transition-old(root),
+:root[data-task-transition]::view-transition-old(app-content) {
+  animation: bebras-fade-out 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+:root[data-task-transition]::view-transition-new(root),
+:root[data-task-transition]::view-transition-new(app-content) {
+  animation: bebras-fade-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+:root[data-task-transition]::view-transition-group(root),
+:root[data-task-transition]::view-transition-group(app-content) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* La fila que viaja: más lenta que el fondo y con una curva que desacelera,
+   para que se lea el recorrido. */
+[data-task-row] {
+  view-transition-class: task-row;
+}
+
+::view-transition-group(*.task-row),
+::view-transition-old(*.task-row),
+::view-transition-new(*.task-row) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }

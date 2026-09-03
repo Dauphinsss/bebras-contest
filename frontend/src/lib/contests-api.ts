@@ -101,3 +101,37 @@ export type ContestResults = {
 export function getContestResults(contestId: string) {
   return request<ContestResults>(`/api/contests/${contestId}/results`);
 }
+
+export type ContestPreviewScore = {
+  totalScore: number;
+  correctCount: number;
+  answeredCount: number;
+  taskCount: number;
+  tasks: Array<{
+    taskId: string;
+    position: number;
+    title: string;
+    answered: boolean;
+    correct: boolean;
+    score: number;
+    explanation: string;
+  }>;
+};
+
+/** El desafío tal como lo recibe el estudiante, sin crear ningún intento. */
+export function getContestPreview(contestId: string) {
+  return request<unknown>(`/api/contests/${contestId}/preview`);
+}
+
+export function scoreContestPreview(
+  contestId: string,
+  answers: Record<string, unknown>,
+) {
+  return request<ContestPreviewScore>(
+    `/api/contests/${contestId}/preview/score`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    },
+  );
+}

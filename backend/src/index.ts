@@ -587,7 +587,23 @@ const TASK_CATEGORIES = [
   "Interacción, sistemas y sociedad",
 ];
 
-const TASK_AGE_RANGES = ["5–8", "8–10", "10–12", "12–14", "14–16", "17–18"];
+/**
+ * Categorías oficiales de Bebras con su rango de edad. Fuente única del
+ * backend: los rangos de las tareas, los nombres válidos de un desafío y las
+ * categorías de práctica salen todos de aquí.
+ */
+const BEBRAS_CATEGORIES = [
+  { name: "Guacamayo", ageRange: "5–8" },
+  { name: "Capibara", ageRange: "8–10" },
+  { name: "Titi", ageRange: "10–12" },
+  { name: "Jucumari", ageRange: "12–14" },
+  { name: "Yaguareté", ageRange: "14–16" },
+  { name: "Kuntur", ageRange: "17–18" },
+] as const;
+
+const TASK_AGE_RANGES: string[] = BEBRAS_CATEGORIES.map(
+  (category) => category.ageRange,
+);
 
 const TASK_ANSWER_TYPES = [
   "multiple_choice",
@@ -1004,33 +1020,94 @@ function parseTaskIds(value: unknown) {
 }
 
 const BEBRAS_SCORING = {
-  easy: { letter: "A", correct: 6, wrong: -2 },
-  medium: { letter: "B", correct: 9, wrong: -3 },
-  hard: { letter: "C", correct: 12, wrong: -4 },
+  easy: { correct: 6, wrong: -2 },
+  medium: { correct: 9, wrong: -3 },
+  hard: { correct: 12, wrong: -4 },
 } as const;
 
 type DifficultyKey = keyof typeof BEBRAS_SCORING;
 
-const CATEGORY_AGE_RANGE: Record<string, string> = {
-  Guacamayo: "5–8",
-  Capibara: "8–10",
-  Titi: "10–12",
-  Jucumari: "12–14",
-  "Yaguareté": "14–16",
-  Kuntur: "17–18",
-};
+const CATEGORY_AGE_RANGE: Record<string, string> = Object.fromEntries(
+  BEBRAS_CATEGORIES.map((category) => [category.name, category.ageRange]),
+);
 
 function isDifficultyKey(value: unknown): value is DifficultyKey {
   return value === "easy" || value === "medium" || value === "hard";
 }
 
-function scoresForDifficulty(difficulty: DifficultyKey) {
-  const scoring = BEBRAS_SCORING[difficulty];
+type ContestScoring = Record<DifficultyKey, { correct: number; wrong: number }>;
+
+const DIFFICULTY_KEYS: DifficultyKey[] = ["easy", "medium", "hard"];
+
+/** Puntajes estándar de Bebras, el punto de partida de todo desafío. */
+function defaultContestScoring(): ContestScoring {
+  return {
+    easy: {
+      correct: BEBRAS_SCORING.easy.correct,
+      wrong: BEBRAS_SCORING.easy.wrong,
+    },
+    medium: {
+      correct: BEBRAS_SCORING.medium.correct,
+      wrong: BEBRAS_SCORING.medium.wrong,
+    },
+    hard: {
+      correct: BEBRAS_SCORING.hard.correct,
+      wrong: BEBRAS_SCORING.hard.wrong,
+    },
+  };
+}
+
+/**
+ * Lee los puntajes editados a mano. Cada dificultad que falte o venga mal
+ * cae en el estándar, así que el resultado siempre está completo.
+ */
+function parseContestScoring(value: unknown): ContestScoring {
+  const scoring = defaultContestScoring();
+
+  if (!value || typeof value !== "object") {
+    return scoring;
+  }
+
+  const raw = value as Record<string, unknown>;
+
+  for (const key of DIFFICULTY_KEYS) {
+    const entry = raw[key];
+
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const { correct, wrong } = entry as Record<string, unknown>;
+    const correctScore = Number(correct);
+    const wrongScore = Number(wrong);
+
+    if (!Number.isInteger(correctScore) || correctScore <= 0) {
+      throw new Error(
+        "El puntaje de una respuesta correcta debe ser un entero mayor que cero.",
+      );
+    }
+
+    if (!Number.isInteger(wrongScore) || wrongScore > 0) {
+      throw new Error(
+        "El puntaje de una respuesta incorrecta debe ser un entero menor o igual que cero.",
+      );
+    }
+
+    scoring[key] = { correct: correctScore, wrong: wrongScore };
+  }
+
+  return scoring;
+}
+
+function scoresForDifficulty(
+  difficulty: DifficultyKey,
+  scoring: ContestScoring,
+) {
   return {
     difficulty,
-    minScore: scoring.wrong,
+    minScore: scoring[difficulty].wrong,
     noAnswerScore: 0,
-    maxScore: scoring.correct,
+    maxScore: scoring[difficulty].correct,
   };
 }
 
@@ -1049,7 +1126,11 @@ function parseContestTasks(body: Record<string, unknown>) {
   return [...new Set(ids)];
 }
 
-async function buildContestTaskWrites(taskIds: string[], category: string) {
+async function buildContestTaskWrites(
+  taskIds: string[],
+  category: string,
+  scoring: ContestScoring,
+) {
   const ageRange = CATEGORY_AGE_RANGE[category];
 
   if (!ageRange) {
@@ -1087,7 +1168,7 @@ async function buildContestTaskWrites(taskIds: string[], category: string) {
     return {
       taskDraftId: taskId,
       position: index + 1,
-      ...scoresForDifficulty(difficulty),
+      ...scoresForDifficulty(difficulty, scoring),
     };
   });
 }
@@ -1096,14 +1177,9 @@ function computeInitialScore(writes: Array<{ minScore: number }>) {
   return writes.reduce((total, write) => total - write.minScore, 0);
 }
 
-const CONTEST_CATEGORY_NAMES = [
-  "Guacamayo",
-  "Capibara",
-  "Titi",
-  "Jucumari",
-  "Yaguareté",
-  "Kuntur",
-];
+const CONTEST_CATEGORY_NAMES: string[] = BEBRAS_CATEGORIES.map(
+  (category) => category.name,
+);
 
 const SCHOOL_GRADES = [
   { value: "P1", label: "1.º de primaria", category: "Guacamayo" },
@@ -1152,6 +1228,8 @@ function parseGrade(value: unknown, contestCategory: string) {
 type ContestState =
   | "borrador"
   | "programada"
+  | "inscripcion"
+  | "preparacion"
   | "abierta"
   | "suspendida"
   | "cerrada"
@@ -1171,11 +1249,48 @@ function contestHasEnded(state: ContestState) {
   return ENDED_CONTEST_STATES.includes(state);
 }
 
+function contestRegistrationIsOpen(contest: {
+  registrationStartsAt?: Date | null;
+  registrationEndsAt?: Date | null;
+  publishedAt: Date | null;
+  startsAt: Date;
+  endsAt: Date;
+}) {
+  if (!contest.publishedAt) {
+    return false;
+  }
+
+  if (!contest.registrationStartsAt || !contest.registrationEndsAt) {
+    return !contestHasEnded(computeContestState(contest).state);
+  }
+
+  const now = currentDate();
+  return (
+    now >= contest.registrationStartsAt && now < contest.registrationEndsAt
+  );
+}
+
+function registrationWindowMessage(contest: {
+  registrationStartsAt?: Date | null;
+  registrationEndsAt?: Date | null;
+}) {
+  if (
+    contest.registrationStartsAt &&
+    currentDate() < contest.registrationStartsAt
+  ) {
+    return "La fase de inscripción todavía no comenzó.";
+  }
+
+  return "La fase de inscripción ya terminó.";
+}
+
 function computeContestState(contest: {
   publishedAt: Date | null;
   suspendedAt?: Date | null;
   consolidatedAt?: Date | null;
   resultsPublishedAt?: Date | null;
+  registrationStartsAt?: Date | null;
+  registrationEndsAt?: Date | null;
   startsAt: Date;
   endsAt: Date;
 }): { state: ContestState; isOpen: boolean } {
@@ -1183,6 +1298,22 @@ function computeContestState(contest: {
 
   if (!contest.publishedAt) {
     return { state: "borrador", isOpen: false };
+  }
+
+  if (
+    contest.registrationStartsAt &&
+    contest.registrationEndsAt &&
+    now < contest.startsAt
+  ) {
+    if (now < contest.registrationStartsAt) {
+      return { state: "programada", isOpen: false };
+    }
+
+    if (now < contest.registrationEndsAt) {
+      return { state: "inscripcion", isOpen: false };
+    }
+
+    return { state: "preparacion", isOpen: false };
   }
 
   if (now < contest.startsAt) {
@@ -1213,9 +1344,12 @@ function deserializeContest(contest: {
   title: string;
   category: string;
   durationMinutes: number;
+  registrationStartsAt: Date | null;
+  registrationEndsAt: Date | null;
   startsAt: Date;
   endsAt: Date;
   initialScore: number;
+  scoring?: string | null;
   questionDisplayMode: string;
   allowPairs: boolean;
   showFeedback: boolean;
@@ -1250,9 +1384,14 @@ function deserializeContest(contest: {
     title: contest.title,
     category: contest.category,
     durationMinutes: contest.durationMinutes,
+    registrationStartsAt: contest.registrationStartsAt?.toISOString() ?? null,
+    registrationEndsAt: contest.registrationEndsAt?.toISOString() ?? null,
     startsAt: contest.startsAt.toISOString(),
     endsAt: contest.endsAt.toISOString(),
     initialScore: contest.initialScore,
+    scoring: parseContestScoring(
+      parseJsonValue<Record<string, unknown>>(contest.scoring ?? "{}", {}),
+    ),
     questionDisplayMode: contest.questionDisplayMode,
     allowPairs: contest.allowPairs,
     showFeedback: contest.showFeedback,
@@ -1281,11 +1420,42 @@ function deserializeContest(contest: {
   };
 }
 
-function parseContestPayload(body: Record<string, unknown>) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Duración estándar de Bebras, que se ajusta junto al calendario. */
+const DEFAULT_DURATION_MINUTES = 45;
+
+function atHour(date: Date, hour: number) {
+  const value = new Date(date);
+  value.setHours(hour, 0, 0, 0);
+  return value;
+}
+
+/**
+ * Calendario provisional para un borrador recien creado. Al crear el desafio
+ * solo se piden sus datos basicos; el organizador ajusta estas fechas en la
+ * edicion antes de publicarlo.
+ */
+function provisionalSchedule(now: Date) {
+  return {
+    registrationStartsAt: atHour(new Date(now.getTime() + DAY_MS), 8),
+    registrationEndsAt: atHour(new Date(now.getTime() + 8 * DAY_MS), 18),
+    startsAt: atHour(new Date(now.getTime() + 10 * DAY_MS), 8),
+    endsAt: atHour(new Date(now.getTime() + 10 * DAY_MS), 18),
+  };
+}
+
+function parseContestPayload(
+  body: Record<string, unknown>,
+  { allowMissingSchedule = false } = {},
+) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const category =
     typeof body.category === "string" ? body.category.trim() : "";
-  const durationMinutes = Number(body.durationMinutes);
+  const durationMinutes =
+    allowMissingSchedule && !body.durationMinutes
+      ? DEFAULT_DURATION_MINUTES
+      : Number(body.durationMinutes);
   const tasks = parseContestTasks(body);
 
   if (!title) {
@@ -1304,28 +1474,65 @@ function parseContestPayload(body: Record<string, unknown>) {
     throw new Error("La duración debe ser un número mayor que cero.");
   }
 
-  const startsAt = parseDateInput(body.startsAt, "startsAt");
-  const endsAt = parseDateInput(body.endsAt, "endsAt");
-
-  if (endsAt <= startsAt) {
-    throw new Error("La fecha de fin debe ser posterior a la fecha de inicio.");
-  }
-
   const questionDisplayMode =
     body.questionDisplayMode === "all" ? "all" : "one_by_one";
 
-  return {
+  const basePayload = {
     title,
     category,
     durationMinutes,
-    startsAt,
-    endsAt,
+    scoring: parseContestScoring(body.scoring),
     questionDisplayMode,
     allowPairs: body.allowPairs === true,
     showFeedback: body.showFeedback === true,
     showSolutions: body.showSolutions === true,
     showTotalScore: body.showTotalScore === true,
     tasks,
+  };
+
+  if (allowMissingSchedule && !body.startsAt && !body.endsAt) {
+    return { ...basePayload, ...provisionalSchedule(currentDate()) };
+  }
+
+  const startsAt = parseDateInput(body.startsAt, "startsAt");
+  const endsAt = parseDateInput(body.endsAt, "endsAt");
+  const registrationStartsAt = body.registrationStartsAt
+    ? parseDateInput(body.registrationStartsAt, "registrationStartsAt")
+    : null;
+  const registrationEndsAt = body.registrationEndsAt
+    ? parseDateInput(body.registrationEndsAt, "registrationEndsAt")
+    : null;
+
+  if (Boolean(registrationStartsAt) !== Boolean(registrationEndsAt)) {
+    throw new Error(
+      "Debes definir tanto el inicio como el fin de la inscripción.",
+    );
+  }
+
+  if (
+    registrationStartsAt &&
+    registrationEndsAt &&
+    registrationEndsAt <= registrationStartsAt
+  ) {
+    throw new Error("El cierre de inscripción debe ser posterior a su inicio.");
+  }
+
+  if (registrationEndsAt && registrationEndsAt >= startsAt) {
+    throw new Error(
+      "La inscripción debe cerrar antes de que comience la rendición para dejar una fase de preparación.",
+    );
+  }
+
+  if (endsAt <= startsAt) {
+    throw new Error("La fecha de fin debe ser posterior a la fecha de inicio.");
+  }
+
+  return {
+    ...basePayload,
+    registrationStartsAt,
+    registrationEndsAt,
+    startsAt,
+    endsAt,
   };
 }
 
@@ -1941,6 +2148,8 @@ app.get("/api/public-contests", async (_req, res) => {
       title: true,
       category: true,
       durationMinutes: true,
+      registrationStartsAt: true,
+      registrationEndsAt: true,
       startsAt: true,
       endsAt: true,
       publishedAt: true,
@@ -1958,6 +2167,9 @@ app.get("/api/public-contests", async (_req, res) => {
         title: contest.title,
         category: contest.category,
         durationMinutes: contest.durationMinutes,
+        registrationStartsAt:
+          contest.registrationStartsAt?.toISOString() ?? null,
+        registrationEndsAt: contest.registrationEndsAt?.toISOString() ?? null,
         startsAt: contest.startsAt.toISOString(),
         endsAt: contest.endsAt.toISOString(),
         state,
@@ -1969,14 +2181,11 @@ app.get("/api/public-contests", async (_req, res) => {
 
 // ---- Práctica pública (sin login) ----
 
-const PRACTICE_CATEGORIES = [
-  { name: "Guacamayo", age: "5-8 años", ranges: ["5–8"] },
-  { name: "Capibara", age: "8-10 años", ranges: ["8–10"] },
-  { name: "Titi", age: "10-12 años", ranges: ["10–12"] },
-  { name: "Jucumari", age: "12-14 años", ranges: ["12–14"] },
-  { name: "Yaguareté", age: "14-16 años", ranges: ["14–16"] },
-  { name: "Kuntur", age: "17-18 años", ranges: ["17–18"] },
-] as const;
+const PRACTICE_CATEGORIES = BEBRAS_CATEGORIES.map((category) => ({
+  name: category.name,
+  age: `${category.ageRange.replace("–", "-")} años`,
+  ranges: [category.ageRange] as string[],
+}));
 
 function taskRanges(task: { difficulties: unknown }) {
   const diff = task.difficulties;
@@ -1993,7 +2202,7 @@ function taskMatchesCategory(
   category: (typeof PRACTICE_CATEGORIES)[number],
 ) {
   const ranges = taskRanges(task);
-  return ranges.some((range) => category.ranges.includes(range as never));
+  return ranges.some((range) => category.ranges.includes(range));
 }
 
 async function loadPracticeTasks() {
@@ -2268,7 +2477,9 @@ app.post("/api/contests", async (req, res) => {
   let payload;
 
   try {
-    payload = parseContestPayload(req.body as Record<string, unknown>);
+    payload = parseContestPayload(req.body as Record<string, unknown>, {
+      allowMissingSchedule: true,
+    });
   } catch (error) {
     res.status(400).json({
       message:
@@ -2280,7 +2491,11 @@ app.post("/api/contests", async (req, res) => {
   let taskWrites;
 
   try {
-    taskWrites = await buildContestTaskWrites(payload.tasks, payload.category);
+    taskWrites = await buildContestTaskWrites(
+      payload.tasks,
+      payload.category,
+      payload.scoring,
+    );
   } catch (error) {
     res.status(400).json({
       message: error instanceof Error ? error.message : "Tareas inválidas.",
@@ -2293,9 +2508,12 @@ app.post("/api/contests", async (req, res) => {
       title: payload.title,
       category: payload.category,
       durationMinutes: payload.durationMinutes,
+      registrationStartsAt: payload.registrationStartsAt,
+      registrationEndsAt: payload.registrationEndsAt,
       startsAt: payload.startsAt,
       endsAt: payload.endsAt,
       initialScore: computeInitialScore(taskWrites),
+      scoring: JSON.stringify(payload.scoring),
       questionDisplayMode: payload.questionDisplayMode,
       allowPairs: payload.allowPairs,
       showFeedback: payload.showFeedback,
@@ -2343,6 +2561,8 @@ app.put("/api/contests/:id", async (req, res) => {
       suspendedAt: true,
       consolidatedAt: true,
       resultsPublishedAt: true,
+      registrationStartsAt: true,
+      registrationEndsAt: true,
       startsAt: true,
       endsAt: true,
     },
@@ -2372,7 +2592,11 @@ app.put("/api/contests/:id", async (req, res) => {
   let taskWrites;
 
   try {
-    taskWrites = await buildContestTaskWrites(payload.tasks, payload.category);
+    taskWrites = await buildContestTaskWrites(
+      payload.tasks,
+      payload.category,
+      payload.scoring,
+    );
   } catch (error) {
     res.status(400).json({
       message: error instanceof Error ? error.message : "Tareas inválidas.",
@@ -2395,9 +2619,12 @@ app.put("/api/contests/:id", async (req, res) => {
         title: payload.title,
         category: payload.category,
         durationMinutes: payload.durationMinutes,
+        registrationStartsAt: payload.registrationStartsAt,
+        registrationEndsAt: payload.registrationEndsAt,
         startsAt: payload.startsAt,
         endsAt: payload.endsAt,
         initialScore: computeInitialScore(taskWrites),
+        scoring: JSON.stringify(payload.scoring),
         questionDisplayMode: payload.questionDisplayMode,
         allowPairs: payload.allowPairs,
         showFeedback: payload.showFeedback,
@@ -2421,6 +2648,111 @@ app.put("/api/contests/:id", async (req, res) => {
   });
 
   res.json(deserializeContest(contest));
+});
+
+const contestPreviewInclude = {
+  tasks: { orderBy: { position: "asc" as const }, include: { taskDraft: true } },
+};
+
+/**
+ * Vista previa de un desafío para el administrador: el mismo contenido que
+ * recibe el estudiante, con la misma forma. No crea intento ni equipo, así que
+ * probarlo no deja rastro en los datos del concurso.
+ */
+app.get("/api/contests/:id/preview", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    include: contestPreviewInclude,
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  const tasks = contest.tasks.map((contestTask) =>
+    renderSafeTask(contestTask, deserializeTask(contestTask.taskDraft) as PlayTask),
+  );
+
+  res.json({
+    contestTitle: contest.title,
+    durationMinutes: contest.durationMinutes,
+    questionDisplayMode: contest.questionDisplayMode,
+    state: "abierta",
+    status: "pending",
+    startedAt: null,
+    endsAt: null,
+    suspendedAt: null,
+    resultsPublished: false,
+    showFeedback: contest.showFeedback,
+    showSolutions: contest.showSolutions,
+    showTotalScore: contest.showTotalScore,
+    tasks,
+    answers: {},
+    result: null,
+  });
+});
+
+/**
+ * Corrige las respuestas de una vista previa con las mismas reglas que un
+ * intento real, pero sin guardar nada.
+ */
+app.post("/api/contests/:id/preview/score", async (req, res) => {
+  const contest = await prisma.contest.findUnique({
+    where: { id: req.params.id },
+    include: contestPreviewInclude,
+  });
+
+  if (!contest) {
+    res.status(404).json({ message: "Contest not found" });
+    return;
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const answers = (
+    body.answers && typeof body.answers === "object" ? body.answers : {}
+  ) as Record<string, unknown>;
+
+  let totalScore = contest.initialScore;
+  let correctCount = 0;
+  let answeredCount = 0;
+
+  const tasks = contest.tasks.map((contestTask) => {
+    const task = deserializeTask(contestTask.taskDraft) as PlayTask;
+    const payload = answers[contestTask.taskDraftId] ?? null;
+    const answered = answerHasResponse(task.answerType, payload);
+    const correct = answered ? answerIsCorrect(task, payload) : false;
+    let score = contestTask.noAnswerScore;
+
+    if (answered) {
+      score = correct ? contestTask.maxScore : contestTask.minScore;
+      answeredCount += 1;
+    }
+
+    if (correct) {
+      correctCount += 1;
+    }
+
+    totalScore += score;
+
+    return {
+      taskId: contestTask.taskDraftId,
+      position: contestTask.position,
+      title: task.title,
+      answered,
+      correct,
+      score,
+      explanation: task.explanation ?? "",
+    };
+  });
+
+  res.json({
+    totalScore,
+    correctCount,
+    answeredCount,
+    taskCount: contest.tasks.length,
+    tasks,
+  });
 });
 
 app.post("/api/contests/:id/publish", async (req, res) => {
@@ -2988,13 +3320,18 @@ app.get("/api/published-contests", requireAuth, async (_req, res) => {
       id: true,
       title: true,
       category: true,
+      publishedAt: true,
+      registrationStartsAt: true,
+      registrationEndsAt: true,
       startsAt: true,
       endsAt: true,
     },
   });
   res.json(
-    contests.map((contest) => ({
+    contests.filter(contestRegistrationIsOpen).map((contest) => ({
       ...contest,
+      registrationStartsAt: contest.registrationStartsAt?.toISOString() ?? null,
+      registrationEndsAt: contest.registrationEndsAt?.toISOString() ?? null,
       startsAt: contest.startsAt.toISOString(),
       endsAt: contest.endsAt.toISOString(),
     })),
@@ -3070,6 +3407,11 @@ app.post("/api/groups", async (req, res) => {
     res.status(400).json({
       message: "El desafío debe estar publicado para crear grupos.",
     });
+    return;
+  }
+
+  if (!contestRegistrationIsOpen(contest)) {
+    res.status(409).json({ message: registrationWindowMessage(contest) });
     return;
   }
 
@@ -3391,6 +3733,11 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
     return;
   }
 
+  if (!contestRegistrationIsOpen(group.contest)) {
+    res.status(409).json({ message: registrationWindowMessage(group.contest) });
+    return;
+  }
+
   if (contestHasEnded(computeContestState(group.contest).state)) {
     res
       .status(409)
@@ -3620,6 +3967,11 @@ app.post("/api/groups/:id/teams", async (req, res) => {
     return;
   }
 
+  if (!contestRegistrationIsOpen(group.contest)) {
+    res.status(409).json({ message: registrationWindowMessage(group.contest) });
+    return;
+  }
+
   if (contestHasEnded(computeContestState(group.contest).state)) {
     res
       .status(409)
@@ -3771,6 +4123,9 @@ app.get("/api/play/group/:code", async (req, res) => {
     contestCategory: group.contest.category,
     allowPairs: group.contest.allowPairs,
     durationMinutes: group.contest.durationMinutes,
+    registrationStartsAt:
+      group.contest.registrationStartsAt?.toISOString() ?? null,
+    registrationEndsAt: group.contest.registrationEndsAt?.toISOString() ?? null,
     grades: group.contest.category
       ? gradesForCategory(group.contest.category)
       : SCHOOL_GRADES,
@@ -3816,6 +4171,11 @@ app.post("/api/play/join", async (req, res) => {
 
   if (!group.contest.publishedAt) {
     res.status(409).json({ message: "El desafío aún no está disponible." });
+    return;
+  }
+
+  if (!contestRegistrationIsOpen(group.contest)) {
+    res.status(409).json({ message: registrationWindowMessage(group.contest) });
     return;
   }
 
@@ -3944,7 +4304,10 @@ app.post("/api/play/join", async (req, res) => {
     },
   });
 
-  if (!group.firstUsedAt) {
+  if (
+    !group.firstUsedAt &&
+    computeContestState(group.contest).state === "abierta"
+  ) {
     const firstUsedAt = currentDate();
     const expiresAt = new Date(
       firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000,
@@ -4625,6 +4988,22 @@ app.post("/api/play/session", async (req, res) => {
         "Ya hay una sesión abierta con tu nombre. Ciérrala o espera medio minuto e inténtalo otra vez.",
     });
     return;
+  }
+
+  if (
+    !group.firstUsedAt &&
+    computeContestState(group.contest).state === "abierta"
+  ) {
+    const firstUsedAt = currentDate();
+    await prisma.contestGroup.update({
+      where: { id: group.id },
+      data: {
+        firstUsedAt,
+        expiresAt: new Date(
+          firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000,
+        ),
+      },
+    });
   }
 
   const sessionToken = randomUUID();

@@ -9,14 +9,14 @@ datasource db {
 }
 
 model User {
-  id              Int      @id @default(autoincrement())
-  email           String   @unique
+  id              Int             @id @default(autoincrement())
+  email           String          @unique
   name            String?
   firstName       String?
   lastName        String?
-  passwordHash    String   @default("")
-  role            String   @default("admin")
-  status          String   @default("approved")
+  passwordHash    String          @default("")
+  role            String          @default("admin")
+  status          String          @default("approved")
   schoolCodUe     String?
   schoolName      String?
   institutionType String?
@@ -24,8 +24,8 @@ model User {
   letterFilename  String?
   idFrontFilename String?
   idBackFilename  String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   schools         TeacherSchool[]
 }
 
@@ -87,26 +87,29 @@ model TaskDraft {
 }
 
 model Contest {
-  id                  String         @id @default(cuid())
-  title               String
-  category            String
-  durationMinutes     Int
-  startsAt            DateTime
-  endsAt              DateTime
-  initialScore        Int
-  questionDisplayMode String         @default("one_by_one")
-  allowPairs          Boolean        @default(false)
-  showFeedback        Boolean        @default(false)
-  showSolutions       Boolean        @default(false)
-  showTotalScore      Boolean        @default(false)
-  publishedAt         DateTime?
-  suspendedAt         DateTime?
-  consolidatedAt      DateTime?
-  resultsPublishedAt  DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  tasks               ContestTask[]
-  groups              ContestGroup[]
+  id                   String         @id @default(cuid())
+  title                String
+  category             String
+  durationMinutes      Int
+  registrationStartsAt DateTime?
+  registrationEndsAt   DateTime?
+  startsAt             DateTime
+  endsAt               DateTime
+  initialScore         Int
+  scoring              String?
+  questionDisplayMode  String         @default("one_by_one")
+  allowPairs           Boolean        @default(false)
+  showFeedback         Boolean        @default(false)
+  showSolutions        Boolean        @default(false)
+  showTotalScore       Boolean        @default(false)
+  publishedAt          DateTime?
+  suspendedAt          DateTime?
+  consolidatedAt       DateTime?
+  resultsPublishedAt   DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  tasks                ContestTask[]
+  groups               ContestGroup[]
 }
 
 model ContestTask {

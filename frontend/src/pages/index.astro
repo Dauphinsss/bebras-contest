@@ -6,7 +6,7 @@ const title = "Desafío Bebras Bolivia";
 ---
 
 <Layout title={title}>
-  <div class="mx-auto w-full max-w-6xl px-6 py-14 sm:px-8">
+  <div class="mx-auto flex w-full max-w-4xl flex-col gap-10 px-6 py-14 sm:px-8">
     <header class="text-center">
       <img
         src="/castor.png"
@@ -17,18 +17,18 @@ const title = "Desafío Bebras Bolivia";
         Bienvenido al Desafío Bebras Bolivia
       </h1>
       <p
-        class="mx-auto mt-3 max-w-6xl text-base text-muted-foreground sm:text-lg"
+        class="mx-auto mt-3 max-w-2xl text-base text-muted-foreground sm:text-lg"
       >
         Pon a prueba tu lógica y pensamiento computacional con problemas
         divertidos y desafiantes.
       </p>
     </header>
 
-    <section class="mt-10">
+    <section>
       <LiveContests client:only="react" />
     </section>
 
-    <section class="mt-8 grid gap-4 sm:grid-cols-2">
+    <section class="grid gap-4 sm:grid-cols-2">
       <a
         href="/entrar"
         class="flex items-center justify-center gap-3 rounded-lg bg-primary px-6 py-6 text-center text-base font-semibold text-primary-foreground transition hover:opacity-90"
@@ -76,7 +76,7 @@ const title = "Desafío Bebras Bolivia";
       </a>
     </section>
 
-    <p class="mt-4 text-center text-sm text-muted-foreground">
+    <p class="-mt-6 text-center text-sm text-muted-foreground">
       ¿Solo quieres practicar?{" "}
       <a
         href="/practica"
@@ -86,57 +86,12 @@ const title = "Desafío Bebras Bolivia";
       </a>.
     </p>
 
-    <section class="mt-10 rounded-lg border bg-secondary/20 px-5 py-4">
+    <section class="rounded-lg border bg-secondary/20 px-5 py-4">
       <p class="text-sm leading-6 text-muted-foreground">
         <span class="font-medium text-foreground">Maestros:</span> aún pueden registrar
         a sus estudiantes hasta el último día del desafío. Una vez aprobado su registro,
         podrán crear las cuentas de sus estudiantes.
       </p>
-    </section>
-
-    <section class="mt-10 flex flex-col gap-4">
-      <p class="text-sm leading-6 text-muted-foreground">
-        El Desafío Bebras evalúa tu lógica y habilidades computacionales con
-        problemas divertidos. Durante el desafío oficial, los problemas vienen
-        en tres niveles de dificultad: A, B y C. Los de nivel A son más fáciles
-        que los de nivel B, y estos más fáciles que los de nivel C.
-      </p>
-      <p class="text-sm leading-6 text-muted-foreground">
-        La dificultad de cada problema determina cómo se puntúa, según estas
-        reglas:
-      </p>
-      <div class="overflow-x-auto rounded-lg border">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b text-left">
-              <th class="px-4 py-3 font-semibold">Dificultad</th>
-              <th class="px-4 py-3 font-semibold">Correcto</th>
-              <th class="px-4 py-3 font-semibold">Incorrecto</th>
-              <th class="px-4 py-3 font-semibold">Sin responder</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="border-b">
-              <td class="px-4 py-3">A</td>
-              <td class="px-4 py-3">+6 puntos</td>
-              <td class="px-4 py-3">-2 puntos</td>
-              <td class="px-4 py-3">0 puntos</td>
-            </tr>
-            <tr class="border-b">
-              <td class="px-4 py-3">B</td>
-              <td class="px-4 py-3">+9 puntos</td>
-              <td class="px-4 py-3">-3 puntos</td>
-              <td class="px-4 py-3">0 puntos</td>
-            </tr>
-            <tr>
-              <td class="px-4 py-3">C</td>
-              <td class="px-4 py-3">+12 puntos</td>
-              <td class="px-4 py-3">-4 puntos</td>
-              <td class="px-4 py-3">0 puntos</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </section>
   </div>
 </Layout>

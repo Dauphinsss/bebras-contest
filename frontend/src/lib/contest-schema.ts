@@ -5,18 +5,29 @@ import {
 } from "@/lib/task-schema";
 
 /**
- * Categorías oficiales de Bebras Bolivia. Fuente única de verdad: el CMS
- * (bebras-bolivia/cms/content/current/data/categories.json). Aquí se replican
- * para el MVP; a futuro se leerán del Content Store.
+ * Categorías oficiales de Bebras Bolivia con el rango de edad del que cada una
+ * toma la dificultad de las tareas. Fuente única: todo lo demás se deriva de
+ * aquí, y el tipo DifficultyKey obliga a que el rango exista en task-schema,
+ * así que las categorías de tareas y de desafíos no pueden separarse.
+ * (Origen del listado: el CMS, bebras-bolivia/cms/content/current/data/categories.json.)
  */
-export const CONTEST_CATEGORIES = [
-  { name: "Guacamayo", age: "5-8 años" },
-  { name: "Capibara", age: "8-10 años" },
-  { name: "Titi", age: "10-12 años" },
-  { name: "Jucumari", age: "12-14 años" },
-  { name: "Yaguareté", age: "14-16 años" },
-  { name: "Kuntur", age: "17-18 años" },
-] as const;
+export const BEBRAS_CATEGORIES = [
+  { name: "Guacamayo", ageRange: "5–8" },
+  { name: "Capibara", ageRange: "8–10" },
+  { name: "Titi", ageRange: "10–12" },
+  { name: "Jucumari", ageRange: "12–14" },
+  { name: "Yaguareté", ageRange: "14–16" },
+  { name: "Kuntur", ageRange: "17–18" },
+] as const satisfies ReadonlyArray<{ name: string; ageRange: DifficultyKey }>;
+
+function ageLabel(ageRange: string) {
+  return `${ageRange.replace("–", "-")} años`;
+}
+
+export const CONTEST_CATEGORIES = BEBRAS_CATEGORIES.map((category) => ({
+  name: category.name,
+  age: ageLabel(category.ageRange),
+}));
 
 export const SCHOOL_GRADES = [
   { value: "P1", label: "1.º de primaria", category: "Guacamayo" },
@@ -51,6 +62,8 @@ export function gradeLabel(value: string | null) {
 export type ContestState =
   | "borrador"
   | "programada"
+  | "inscripcion"
+  | "preparacion"
   | "abierta"
   | "suspendida"
   | "cerrada"
@@ -80,22 +93,59 @@ export type ContestTaskConfigInput = {
   taskId: string;
 };
 
+/** Puntajes estándar de Bebras: el punto de partida, editable por desafío. */
 export const BEBRAS_SCORING = {
-  easy: { letter: "A", label: "Fácil", correct: 6, wrong: -2 },
-  medium: { letter: "B", label: "Medio", correct: 9, wrong: -3 },
-  hard: { letter: "C", label: "Difícil", correct: 12, wrong: -4 },
+  easy: { label: "Fácil", correct: 6, wrong: -2 },
+  medium: { label: "Medio", correct: 9, wrong: -3 },
+  hard: { label: "Difícil", correct: 12, wrong: -4 },
 } as const;
+
+export const DIFFICULTY_KEYS = ["easy", "medium", "hard"] as const;
+
+export type ContestScoring = Record<
+  TaskDifficulty,
+  { correct: number; wrong: number }
+>;
+
+export function defaultContestScoring(): ContestScoring {
+  return {
+    easy: {
+      correct: BEBRAS_SCORING.easy.correct,
+      wrong: BEBRAS_SCORING.easy.wrong,
+    },
+    medium: {
+      correct: BEBRAS_SCORING.medium.correct,
+      wrong: BEBRAS_SCORING.medium.wrong,
+    },
+    hard: {
+      correct: BEBRAS_SCORING.hard.correct,
+      wrong: BEBRAS_SCORING.hard.wrong,
+    },
+  };
+}
+
+export function isStandardScoring(scoring: ContestScoring) {
+  return DIFFICULTY_KEYS.every(
+    (key) =>
+      scoring[key].correct === BEBRAS_SCORING[key].correct &&
+      scoring[key].wrong === BEBRAS_SCORING[key].wrong,
+  );
+}
 
 export type TaskDifficulty = keyof typeof BEBRAS_SCORING;
 
-export const CATEGORY_AGE_RANGE: Record<string, DifficultyKey> = {
-  Guacamayo: "5–8",
-  Capibara: "8–10",
-  Titi: "10–12",
-  Jucumari: "12–14",
-  "Yaguareté": "14–16",
-  Kuntur: "17–18",
-};
+/** Nombre de la categoría que cubre un rango de edad de las tareas. */
+export function categoryForAgeRange(ageRange: string) {
+  return (
+    BEBRAS_CATEGORIES.find((category) => category.ageRange === ageRange)
+      ?.name ?? null
+  );
+}
+
+export const CATEGORY_AGE_RANGE: Record<string, DifficultyKey> =
+  Object.fromEntries(
+    BEBRAS_CATEGORIES.map((category) => [category.name, category.ageRange]),
+  );
 
 export function isTaskDifficulty(value: unknown): value is TaskDifficulty {
   return value === "easy" || value === "medium" || value === "hard";
@@ -122,9 +172,12 @@ export type StoredContest = {
   title: string;
   category: string;
   durationMinutes: number;
+  registrationStartsAt: string | null;
+  registrationEndsAt: string | null;
   startsAt: string;
   endsAt: string;
   initialScore: number;
+  scoring: ContestScoring;
   questionDisplayMode: QuestionDisplayMode;
   allowPairs: boolean;
   showFeedback: boolean;
@@ -146,8 +199,11 @@ export type ContestDraftInput = {
   title: string;
   category: string;
   durationMinutes: number;
+  registrationStartsAt: string;
+  registrationEndsAt: string;
   startsAt: string;
   endsAt: string;
+  scoring: ContestScoring;
   questionDisplayMode: QuestionDisplayMode;
   allowPairs: boolean;
   showFeedback: boolean;
@@ -159,6 +215,8 @@ export type ContestDraftInput = {
 export const CONTEST_STATE_LABELS: Record<ContestState, string> = {
   borrador: "Borrador",
   programada: "Programado",
+  inscripcion: "Inscripción",
+  preparacion: "Preparación",
   abierta: "Abierto",
   suspendida: "Suspendido",
   cerrada: "Cerrado",
@@ -179,8 +237,22 @@ export function formatContestWindow(startsAt: string, endsAt: string) {
   })}`;
 }
 
+export function formatContestPhaseWindow(
+  registrationStartsAt: string | null,
+  registrationEndsAt: string | null,
+  startsAt: string,
+  endsAt: string,
+) {
+  const registration =
+    registrationStartsAt && registrationEndsAt
+      ? `Inscripción: ${formatContestWindow(registrationStartsAt, registrationEndsAt)}`
+      : "Inscripción: calendario anterior";
+
+  return `${registration} · Rendición: ${formatContestWindow(startsAt, endsAt)}`;
+}
+
 export function formatContestTaskSummary(task: ContestTaskSummary) {
-  return `${buildAgeSummary(task.difficulties)} · ${task.categories.join(", ") || "Sin categoría"}`;
+  return `${buildAgeSummary(task.difficulties)} · ${task.categories.join(", ") || "Sin área"}`;
 }
 
 export function toDatetimeLocalValue(value: string) {

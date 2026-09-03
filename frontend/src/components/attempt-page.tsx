@@ -48,6 +48,7 @@ import {
   type AttemptState,
   type PlayTask,
 } from "@/lib/play-api";
+import { getContestPreview, scoreContestPreview } from "@/lib/contests-api";
 import { cn } from "@/lib/utils";
 
 function formatRemaining(ms: number) {
@@ -63,7 +64,16 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function saveAnswerWithRetry(taskId: string, payload: unknown) {
+async function saveAnswerWithRetry(
+  taskId: string,
+  payload: unknown,
+  preview = false,
+) {
+  if (preview) {
+    // La vista previa no persiste nada: la respuesta vive solo en la pantalla.
+    return;
+  }
+
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= SAVE_RETRY_DELAYS.length; attempt += 1) {
@@ -83,8 +93,33 @@ async function saveAnswerWithRetry(taskId: string, payload: unknown) {
   throw lastError;
 }
 
-export function AttemptPage() {
-  const [sessionToken] = useState(() => readPlaySession());
+export function AttemptPage({
+  preview: previewMode = false,
+  contestId = null,
+}: {
+  /**
+   * Vista previa para el administrador: la misma pantalla que ve el estudiante,
+   * pero los datos salen del desafío y nada se guarda. El id llega por la query
+   * porque la página es estática.
+   */
+  preview?: boolean;
+  contestId?: string | null;
+} = {}) {
+  const [previewContestId] = useState(() => {
+    if (contestId) {
+      return contestId;
+    }
+
+    if (!previewMode || typeof window === "undefined") {
+      return null;
+    }
+
+    return new URLSearchParams(window.location.search).get("id");
+  });
+  const preview = Boolean(previewContestId);
+  const [sessionToken] = useState(() =>
+    previewContestId ? "preview" : readPlaySession(),
+  );
   const [sessionLost, setSessionLost] = useState(false);
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -106,7 +141,9 @@ export function AttemptPage() {
       return;
     }
     try {
-      const data = await getAttempt();
+      const data = previewContestId
+        ? ((await getContestPreview(previewContestId)) as AttemptState)
+        : await getAttempt();
       setAttempt(data);
       answersRef.current = data.answers ?? {};
       setAnswers(answersRef.current);
@@ -123,7 +160,7 @@ export function AttemptPage() {
     } finally {
       setLoading(false);
     }
-  }, [sessionToken]);
+  }, [sessionToken, previewContestId]);
 
   useEffect(() => {
     void load();
@@ -146,7 +183,7 @@ export function AttemptPage() {
     const previousSave = saveQueues.current[taskId] ?? Promise.resolve();
     const nextSave = previousSave
       .catch(() => undefined)
-      .then(() => saveAnswerWithRetry(taskId, payload));
+      .then(() => saveAnswerWithRetry(taskId, payload, preview));
 
     saveQueues.current[taskId] = nextSave;
     return nextSave;
@@ -179,6 +216,47 @@ export function AttemptPage() {
     );
   };
 
+  /** Corrige con las reglas reales del desafío y deja la pantalla final. */
+  const finishPreview = async () => {
+    if (!previewContestId) {
+      return;
+    }
+
+    const summary = await scoreContestPreview(
+      previewContestId,
+      answersRef.current,
+    );
+
+    setAttempt((current) =>
+      current
+        ? {
+            ...current,
+            status: "finished",
+            resultsPublished: true,
+            tasks: current.tasks.map((task) => {
+              const graded = summary.tasks.find(
+                (item) => item.taskId === task.taskId,
+              );
+
+              return {
+                ...task,
+                correct: graded?.correct ?? false,
+                explanation: current.showSolutions
+                  ? (graded?.explanation ?? "")
+                  : undefined,
+              };
+            }),
+            result: {
+              totalScore: summary.totalScore,
+              correctCount: summary.correctCount,
+              answeredCount: summary.answeredCount,
+              rankPosition: null,
+            },
+          }
+        : current,
+    );
+  };
+
   const finishAutomatically = useEffectEvent(async () => {
     setSubmitting(true);
     try {
@@ -187,8 +265,12 @@ export function AttemptPage() {
       } catch {
         // The server enforces the deadline, so finalization must still continue.
       }
-      await submitAttempt();
-      await load();
+      if (preview) {
+        await finishPreview();
+      } else {
+        await submitAttempt();
+        await load();
+      }
     } catch {
       submittedRef.current = false;
       toast.error(
@@ -224,7 +306,7 @@ export function AttemptPage() {
   }, [suspended, load]);
 
   useEffect(() => {
-    if (!sessionToken || sessionLost) {
+    if (!sessionToken || sessionLost || preview) {
       return;
     }
 
@@ -232,7 +314,7 @@ export function AttemptPage() {
       void sendPlayHeartbeat().catch(() => undefined);
     }, 10000);
     return () => clearInterval(id);
-  }, [sessionToken, sessionLost]);
+  }, [sessionToken, sessionLost, preview]);
 
   useEffect(
     () => () => {
@@ -244,8 +326,24 @@ export function AttemptPage() {
   const handleStart = async () => {
     setStarting(true);
     try {
-      await startAttempt();
-      await load();
+      if (preview) {
+        const startedAt = new Date();
+        setAttempt((current) =>
+          current
+            ? {
+                ...current,
+                status: "in_progress",
+                startedAt: startedAt.toISOString(),
+                endsAt: new Date(
+                  startedAt.getTime() + current.durationMinutes * 60_000,
+                ).toISOString(),
+              }
+            : current,
+        );
+      } else {
+        await startAttempt();
+        await load();
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "No se pudo empezar.",
@@ -264,6 +362,13 @@ export function AttemptPage() {
     setSubmitting(true);
     try {
       await flushSaves();
+
+      if (preview) {
+        await finishPreview();
+        toast.success("Vista previa entregada.");
+        return;
+      }
+
       await submitAttempt();
       await load();
       toast.success("Entregaste el desafío.");
@@ -276,6 +381,16 @@ export function AttemptPage() {
       setSubmitting(false);
     }
   };
+
+  const previewNotice = preview ? (
+    <Alert>
+      <AlertTitle>Vista previa del desafío</AlertTitle>
+      <AlertDescription>
+        Es la misma pantalla que verá el estudiante. Nada de lo que respondas
+        aquí se guarda, y el tiempo corre solo para que puedas probarlo.
+      </AlertDescription>
+    </Alert>
+  ) : null;
 
   if (loading) {
     return (
@@ -310,39 +425,43 @@ export function AttemptPage() {
 
   if (attempt.status === "pending") {
     return (
-      <Card className="mx-auto w-full max-w-lg">
-        <CardContent className="flex flex-col gap-4 pt-6 text-center">
-          <h1 className="text-2xl font-semibold">{attempt.contestTitle}</h1>
-          <p className="text-sm text-muted-foreground">
-            Tendrás {attempt.durationMinutes} minutos desde que empieces. El
-            tiempo no se detiene.
-          </p>
-          {attempt.state !== "abierta" ? (
-            <Alert>
-              <AlertTitle>
-                {suspended
-                  ? "El desafío está suspendido"
-                  : "El desafío aún no está abierto"}
-              </AlertTitle>
-              <AlertDescription>
-                {suspended
-                  ? "Tu maestro la pausó. Deja esta página abierta: se habilita sola cuando la reanuden."
-                  : "Espera a que tu maestro la abra para empezar."}
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Button onClick={handleStart} disabled={starting}>
-              {starting ? "Empezando..." : "Empezar el desafío"}
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
+        {previewNotice}
+        <Card className="w-full">
+          <CardContent className="flex flex-col gap-4 pt-6 text-center">
+            <h1 className="text-2xl font-semibold">{attempt.contestTitle}</h1>
+            <p className="text-sm text-muted-foreground">
+              Tendrás {attempt.durationMinutes} minutos desde que empieces. El
+              tiempo no se detiene.
+            </p>
+            {attempt.state !== "abierta" ? (
+              <Alert>
+                <AlertTitle>
+                  {suspended
+                    ? "El desafío está suspendido"
+                    : "El desafío aún no está abierto"}
+                </AlertTitle>
+                <AlertDescription>
+                  {suspended
+                    ? "Tu maestro la pausó. Deja esta página abierta: se habilita sola cuando la reanuden."
+                    : "Espera a que tu maestro la abra para empezar."}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Button onClick={handleStart} disabled={starting}>
+                {starting ? "Empezando..." : "Empezar el desafío"}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   if (attempt.status === "finished") {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+        {previewNotice}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
             <CheckCircle2Icon className="size-8 text-primary" />
@@ -402,6 +521,7 @@ export function AttemptPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      {previewNotice}
       <div className="sticky top-2 z-10 flex items-center justify-between gap-4 rounded-md border bg-background px-4 py-3 shadow-sm">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">

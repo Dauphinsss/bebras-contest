@@ -46,7 +46,7 @@ export { Prisma }
 export type User = Prisma.UserModel
 /**
  * Model TeacherSchool
- *
+ * 
  */
 export type TeacherSchool = Prisma.TeacherSchoolModel
 /**

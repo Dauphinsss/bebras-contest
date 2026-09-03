@@ -62,6 +62,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DragDropEditor } from "@/components/drag-drop-editor";
 import { TaskContentBuilder } from "@/components/task-content-builder";
 import { createTask, updateTask } from "@/lib/tasks-api";
+import { categoryForAgeRange } from "@/lib/contest-schema";
 import {
   ageRanges,
   buildAgeSummary,
@@ -303,7 +304,7 @@ function validateForm(state: FormState) {
   }
 
   if (state.categories.length === 0) {
-    errors.push("Debes seleccionar al menos una categoría.");
+    errors.push("Debes seleccionar al menos un área de contenido.");
   }
 
   const selectedRanges = ageRanges.filter(
@@ -909,9 +910,10 @@ export function TaskUploadForm({
             </Field>
 
             <FieldSet>
-              <FieldLegend variant="label">Categoría</FieldLegend>
+              <FieldLegend variant="label">Área de contenido</FieldLegend>
               <FieldDescription>
-                Selecciona una o varias categorías para la tarea.
+                Los dominios de la informática que trabaja la tarea. Elige uno o
+                varios.
               </FieldDescription>
               <div className="grid gap-3 md:grid-cols-2">
                 {categories.map((category) => {
@@ -943,7 +945,7 @@ export function TaskUploadForm({
               </div>
               {errors.length > 0 && form.categories.length === 0 && (
                 <FieldError>
-                  Debes seleccionar al menos una categoría.
+                  Debes seleccionar al menos un área de contenido.
                 </FieldError>
               )}
             </FieldSet>
@@ -996,6 +998,10 @@ export function TaskUploadForm({
                     htmlFor={`age-range-${range}`}
                   >
                     {range}
+                    <span className="hidden font-normal text-muted-foreground sm:inline">
+                      {" · "}
+                      {categoryForAgeRange(range)}
+                    </span>
                   </FieldLabel>
                 </div>
                 <Select
@@ -1392,7 +1398,7 @@ export function TaskUploadForm({
                       >
                         <Card className="h-full rounded-xl border bg-card shadow-sm">
                           <CardHeader className="border-b">
-                            <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center justify-between gap-2 sm:gap-4">
                               <Field orientation="horizontal">
                                 {form.multipleChoiceCorrectnessMode ===
                                 "single" ? (

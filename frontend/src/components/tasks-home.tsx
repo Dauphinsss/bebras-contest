@@ -135,7 +135,11 @@ export function TasksHome() {
                     <div className="flex min-w-0 flex-col gap-3">
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="secondary">{task.status}</Badge>
-                        <Badge variant="outline">{task.ageSummary}</Badge>
+                        {task.levels.map((level) => (
+                          <Badge key={level} variant="outline">
+                            {level}
+                          </Badge>
+                        ))}
                         {task.isPractice && (
                           <Badge className="gap-1">
                             <GraduationCapIcon className="size-3" />
@@ -143,14 +147,9 @@ export function TasksHome() {
                           </Badge>
                         )}
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <CardTitle className="text-xl sm:text-2xl">
-                          {task.title}
-                        </CardTitle>
-                        <CardDescription className="text-sm leading-6 sm:text-base">
-                          {task.question}
-                        </CardDescription>
-                      </div>
+                      <CardTitle className="text-xl sm:text-2xl">
+                        {task.title}
+                      </CardTitle>
                     </div>
                     <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                       <Button

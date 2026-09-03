@@ -43,6 +43,8 @@ type GroupInfo = {
   contestCategory: string;
   allowPairs: boolean;
   durationMinutes: number;
+  registrationStartsAt: string | null;
+  registrationEndsAt: string | null;
   grades: GroupGrade[];
   state: string;
 };
@@ -89,6 +91,12 @@ export function JoinForm() {
   const [twoLast, setTwoLast] = useState("");
   const [result, setResult] = useState<JoinResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const registrationAvailable = Boolean(
+    group &&
+    (group.state === "inscripcion" ||
+      (!group.registrationStartsAt &&
+        (group.state === "programada" || group.state === "abierta"))),
+  );
 
   const performLookup = async (rawCode: string, silent = false) => {
     const code = rawCode.trim().toUpperCase();
@@ -143,6 +151,11 @@ export function JoinForm() {
   };
 
   const registerAnother = () => {
+    if (!registrationAvailable) {
+      toast.error("La inscripción no está abierta en este momento.");
+      return;
+    }
+
     forgetPlaySession();
     setMode("individual");
     setGrade("");
@@ -351,13 +364,15 @@ export function JoinForm() {
               {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
-          <button
-            type="button"
-            onClick={registerAnother}
-            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-          >
-            Todavía no me registré
-          </button>
+          {registrationAvailable && (
+            <button
+              type="button"
+              onClick={registerAnother}
+              className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              Todavía no me registré
+            </button>
+          )}
         </CardContent>
       </Card>
     );
@@ -441,12 +456,13 @@ export function JoinForm() {
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
-            {group.state === "programada" && (
+            {(group.state === "programada" ||
+              group.state === "inscripcion") && (
               <Alert>
-                <AlertTitle>El desafío aún no inicia</AlertTitle>
+                <AlertTitle>Inscripción abierta</AlertTitle>
                 <AlertDescription>
-                  Puedes registrarte ahora; podrás rendir cuando tu maestro la
-                  abra.
+                  Puedes registrarte ahora. La rendición comenzará después de la
+                  fase de preparación.
                 </AlertDescription>
               </Alert>
             )}

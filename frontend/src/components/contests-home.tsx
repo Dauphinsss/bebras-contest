@@ -23,22 +23,12 @@ import {
 } from "@/lib/contests-api";
 import {
   CONTEST_STATE_LABELS,
-  formatContestTaskSummary,
   formatContestWindow,
   type StoredContest,
 } from "@/lib/contest-schema";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -223,212 +213,168 @@ export function ContestsHome() {
   };
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-2">
-              <div className="text-sm text-muted-foreground">
-                Centro de planificación de desafíos.
-              </div>
-              <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                  Desafíos
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-                  Configura las sesiones, revisa su ventana de ejecución y
-                  asigna el paquete de tareas.
-                </p>
-              </div>
-            </div>
+    <div className="flex w-full flex-col gap-8">
+      <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            Desafíos
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Programa las fases de cada desafío, elige sus tareas y sigue su
+            estado.
+          </p>
+        </div>
+        <Button asChild className="shrink-0">
+          <a href="/competencias/nueva">
+            <FilePlus2Icon data-icon="inline-start" />
+            Nuevo desafío
+          </a>
+        </Button>
+      </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button asChild>
-                <a href="/competencias/nueva">
-                  <FilePlus2Icon data-icon="inline-start" />
-                  Nuevo desafío
-                </a>
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Listado</CardTitle>
-          <CardDescription>
-            Aquí puedes revisar y editar los desafíos creados.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-6">
-          {contests.length === 0 ? (
-            <Alert>
-              <AlertTitle>No hay desafíos registrados</AlertTitle>
-              <AlertDescription>
-                Crea el primer desafío y asígnale tareas para arrancar el flujo.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            contests.map((contest) => (
-              <Card
-                key={contest.id}
-                variant="soft-gradient"
-                className="gap-0 py-0"
-              >
-                <CardHeader className="gap-4 py-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">
-                          {CONTEST_STATE_LABELS[contest.state]}
-                        </Badge>
-                        {contest.category && (
-                          <Badge variant="outline">{contest.category}</Badge>
-                        )}
-                        <Badge variant="outline">
-                          {contest.taskCount} tareas
-                        </Badge>
-                      </div>
-                      <div className="space-y-1">
-                        <CardTitle className="text-xl sm:text-2xl">
-                          {contest.title}
-                        </CardTitle>
-                        <CardDescription>
-                          {formatContestWindow(
-                            contest.startsAt,
-                            contest.endsAt,
-                          )}
-                        </CardDescription>
-                      </div>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span className="inline-flex items-center gap-2">
-                          <AlarmClockIcon className="size-4" />
-                          {contest.durationMinutes} minutos
-                        </span>
-                        <span className="inline-flex items-center gap-2">
-                          <CalendarRangeIcon className="size-4" />
-                          {contest.allowPairs
-                            ? "Permite parejas"
-                            : "Solo individual"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
-                      {contest.state !== "borrador" &&
-                        contest.state !== "programada" && (
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="outline"
-                            className="w-full justify-start"
-                          >
-                            <a
-                              href={`/competencias/resultados?id=${contest.id}`}
-                            >
-                              <BarChart3Icon data-icon="inline-start" />
-                              Resultados
-                            </a>
-                          </Button>
-                        )}
-                      {contest.state === "abierta" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          disabled={busyId === contest.id}
-                          className="w-full justify-start"
-                          onClick={() =>
-                            setConfirming({ action: "suspend", contest })
-                          }
-                        >
-                          <PauseIcon data-icon="inline-start" />
-                          Suspender
-                        </Button>
-                      )}
-                      {contest.state === "suspendida" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          disabled={busyId === contest.id}
-                          className="w-full justify-start"
-                          onClick={() =>
-                            setConfirming({ action: "resume", contest })
-                          }
-                        >
-                          <PlayIcon data-icon="inline-start" />
-                          Reanudar
-                        </Button>
-                      )}
-                      {contest.state === "cerrada" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          disabled={busyId === contest.id}
-                          className="w-full justify-start"
-                          onClick={() =>
-                            setConfirming({ action: "consolidate", contest })
-                          }
-                        >
-                          <CalculatorIcon data-icon="inline-start" />
-                          Consolidar
-                        </Button>
-                      )}
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                      >
-                        <a href={`/competencias/editar?id=${contest.id}`}>
-                          <FilePenLineIcon data-icon="inline-start" />
-                          Editar
-                        </a>
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        disabled={busyId === contest.id}
-                        className="w-full justify-start"
-                        onClick={() =>
-                          setConfirming({ action: "delete", contest })
-                        }
-                      >
-                        <Trash2Icon data-icon="inline-start" />
-                        Eliminar
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <Separator />
-                <CardFooter className="grid grid-cols-1 items-start gap-3 py-5 lg:grid-cols-2 lg:gap-x-8">
-                  {contest.tasks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground lg:col-span-2">
-                      Aún no tiene tareas asignadas.
-                    </p>
-                  ) : (
-                    contest.tasks.map((task) => (
-                      <div key={task.id} className="min-w-0 w-full">
-                        <div className="flex flex-wrap items-center gap-2 text-sm">
-                          <Badge variant="secondary">#{task.position}</Badge>
-                          <span className="min-w-0 break-words font-medium">
-                            {task.task.title}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {formatContestTaskSummary(task.task)}
-                        </p>
-                      </div>
-                    ))
+      {contests.length === 0 ? (
+        <Alert>
+          <AlertTitle>No hay desafíos registrados</AlertTitle>
+          <AlertDescription>
+            Crea el primer desafío y asígnale tareas para arrancar el flujo.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <ul className="divide-y border-y">
+          {contests.map((contest) => (
+            <li
+              key={contest.id}
+              className="flex min-w-0 flex-col gap-4 py-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold break-words">
+                    {contest.title}
+                  </h2>
+                  <Badge variant="secondary">
+                    {CONTEST_STATE_LABELS[contest.state]}
+                  </Badge>
+                  {contest.category && (
+                    <Badge variant="outline">{contest.category}</Badge>
                   )}
-                </CardFooter>
-              </Card>
-            ))
-          )}
-        </CardContent>
-      </Card>
+                </div>
+                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <CalendarRangeIcon className="size-4 shrink-0" />
+                    Inscripción:{" "}
+                    {contest.registrationStartsAt && contest.registrationEndsAt
+                      ? formatContestWindow(
+                          contest.registrationStartsAt,
+                          contest.registrationEndsAt,
+                        )
+                      : "sin definir"}
+                  </span>
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <PlayIcon className="size-4 shrink-0" />
+                    Rendición:{" "}
+                    {formatContestWindow(contest.startsAt, contest.endsAt)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <AlarmClockIcon className="size-4" />
+                    {contest.durationMinutes} min por equipo
+                  </span>
+                  <span>{contest.taskCount} tarea(s)</span>
+                  <span>
+                    {contest.allowPairs ? "Permite parejas" : "Solo individual"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
+                {[
+                  "abierta",
+                  "suspendida",
+                  "cerrada",
+                  "consolidada",
+                  "publicada",
+                ].includes(contest.state) && (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start"
+                  >
+                    <a href={`/competencias/resultados?id=${contest.id}`}>
+                      <BarChart3Icon data-icon="inline-start" />
+                      Resultados
+                    </a>
+                  </Button>
+                )}
+                {contest.state === "abierta" && (
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    disabled={busyId === contest.id}
+                    className="w-full justify-start"
+                    onClick={() =>
+                      setConfirming({ action: "suspend", contest })
+                    }
+                  >
+                    <PauseIcon data-icon="inline-start" />
+                    Suspender
+                  </Button>
+                )}
+                {contest.state === "suspendida" && (
+                  <Button
+                    size="sm"
+                    type="button"
+                    disabled={busyId === contest.id}
+                    className="w-full justify-start"
+                    onClick={() => setConfirming({ action: "resume", contest })}
+                  >
+                    <PlayIcon data-icon="inline-start" />
+                    Reanudar
+                  </Button>
+                )}
+                {contest.state === "cerrada" && (
+                  <Button
+                    size="sm"
+                    type="button"
+                    disabled={busyId === contest.id}
+                    className="w-full justify-start"
+                    onClick={() =>
+                      setConfirming({ action: "consolidate", contest })
+                    }
+                  >
+                    <CalculatorIcon data-icon="inline-start" />
+                    Consolidar
+                  </Button>
+                )}
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                >
+                  <a href={`/competencias/editar?id=${contest.id}`}>
+                    <FilePenLineIcon data-icon="inline-start" />
+                    Editar
+                  </a>
+                </Button>
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  disabled={busyId === contest.id}
+                  className="w-full justify-start"
+                  onClick={() => setConfirming({ action: "delete", contest })}
+                >
+                  <Trash2Icon data-icon="inline-start" />
+                  Eliminar
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <AlertDialog
         open={confirming !== null}

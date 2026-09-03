@@ -73,14 +73,18 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
     <div class="hidden shrink-0 items-center gap-2 lg:flex">
       <a
         href="/practica"
+        data-nav-active={isPractice ? "" : undefined}
         class:list={[
-          "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+          "relative rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
           isPractice
-            ? "bg-primary text-primary-foreground"
+            ? "text-primary-foreground"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         ]}
       >
-        Práctica
+        {isPractice && <span class="nav-pill" aria-hidden="true" />}
+        <span class="relative" data-nav-label data-nav-key="practica">
+          Práctica
+        </span>
       </a>
       <nav class="flex items-center gap-1">
         {
@@ -88,15 +92,23 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
             <a
               href={link.href}
               data-nav-role={link.role}
+              data-nav-active={link.active ? "" : undefined}
               aria-current={link.active ? "page" : undefined}
               class:list={[
-                "hidden rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "relative hidden rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
                 link.active
-                  ? "bg-primary text-primary-foreground"
+                  ? "text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               ]}
             >
-              {link.label}
+              {link.active && <span class="nav-pill" aria-hidden="true" />}
+              <span
+                class="relative"
+                data-nav-label
+                data-nav-key={link.href.replace(/\//g, "")}
+              >
+                {link.label}
+              </span>
             </a>
           ))
         }
@@ -130,7 +142,64 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
     });
   }
 
+  // Solo los dos rótulos que el pill roza —el que deja y el que ocupa— se
+  // capturan aparte para quedar por encima de él. Nombrarlos todos hacía que
+  // cada palabra pasara a su propia capa y perdiera el suavizado subpíxel:
+  // engordaban todas a la vez durante la transición, incluso las que no
+  // intervienen.
+  function bebrasLabelMatches(label, path) {
+    var anchor = label.closest("a");
+    var href = anchor ? anchor.getAttribute("href") : null;
+    return Boolean(href) && (path === href || path.indexOf(href + "/") === 0);
+  }
+
+  function bebrasNameLabels(paths) {
+    document.querySelectorAll("[data-nav-label]").forEach(function (label) {
+      var involved = paths.some(function (path) {
+        return path && bebrasLabelMatches(label, path);
+      });
+      label.style.viewTransitionName = involved
+        ? "nav-label-" + label.getAttribute("data-nav-key")
+        : "";
+    });
+  }
+
+  // Mientras corre la transición, los rótulos se capturan oscuros: el pill va
+  // en camino y uno blanco quedaría invisible sobre el fondo. Al quitar la
+  // marca, el rótulo activo pasa a blanco con su propia transición de color,
+  // ya con el pill debajo.
+  var bebrasNavSwapTimer = 0;
+  var bebrasPreviousPath = window.location.pathname;
+
+  function bebrasNavSwapStart() {
+    window.clearTimeout(bebrasNavSwapTimer);
+    document.documentElement.setAttribute("data-nav-swapping", "");
+    bebrasNavSwapTimer = window.setTimeout(function () {
+      document.documentElement.removeAttribute("data-nav-swapping");
+      bebrasNameLabels([]);
+      // 90ms de espera más los 180ms de la transición de color hacen que el
+      // rótulo termine de aclararse justo cuando el pill se asienta (~310ms).
+      // La curva casi no mueve el color al principio, así que mientras el pill
+      // todavía viaja el texto sigue oscuro y legible.
+    }, 90);
+  }
+
+  document.addEventListener("astro:before-preparation", function (event) {
+    bebrasPreviousPath = window.location.pathname;
+    var target =
+      event && event.to ? new URL(event.to, window.location.href) : null;
+    bebrasNameLabels([bebrasPreviousPath, target ? target.pathname : null]);
+  });
+
   bebrasRevealNav();
+  // En after-swap todavía se está dentro de la transición de vista: revelar y
+  // nombrar aquí deja el pill y los dos rótulos listos en la foto nueva, que es
+  // lo que el navegador necesita para deslizarlo. En page-load ya sería tarde.
+  document.addEventListener("astro:after-swap", function () {
+    bebrasRevealNav();
+    bebrasNameLabels([bebrasPreviousPath, window.location.pathname]);
+    bebrasNavSwapStart();
+  });
   document.addEventListener("astro:page-load", bebrasRevealNav);
 </script>
 

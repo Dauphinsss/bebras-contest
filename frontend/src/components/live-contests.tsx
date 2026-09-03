@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CalendarClockIcon, CircleCheckIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarClockIcon,
+  CircleCheckIcon,
+  ClockIcon,
+  UsersIcon,
+} from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { API_BASE_URL } from "@/lib/api-client";
+import { getToken, getUser, isApproved } from "@/lib/auth";
 import type { ContestState } from "@/lib/contest-schema";
 
 type PublicContest = {
@@ -12,10 +19,36 @@ type PublicContest = {
   title: string;
   category: string;
   durationMinutes: number;
+  registrationStartsAt: string | null;
+  registrationEndsAt: string | null;
   startsAt: string;
   endsAt: string;
   state: ContestState;
   isOpen: boolean;
+};
+
+/** Fases que el visitante puede accionar o esperar; el resto no se muestra. */
+const VISIBLE_STATES = [
+  "abierta",
+  "inscripcion",
+  "preparacion",
+  "programada",
+] as const;
+
+type VisibleState = (typeof VISIBLE_STATES)[number];
+
+const STATE_ORDER: Record<VisibleState, number> = {
+  abierta: 0,
+  inscripcion: 1,
+  preparacion: 2,
+  programada: 3,
+};
+
+const STATE_LABEL: Record<VisibleState, string> = {
+  abierta: "Disponible ahora",
+  inscripcion: "Inscripción abierta",
+  preparacion: "En preparación",
+  programada: "Próximamente",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-BO", {
@@ -34,26 +67,68 @@ function formatDateTime(value: string) {
   return `${dateFormatter.format(date)} a las ${timeFormatter.format(date)}`;
 }
 
-function countdown(target: string) {
-  const diff = new Date(target).getTime() - Date.now();
+function formatCountdown(target: string, now: number) {
+  const diff = new Date(target).getTime() - now;
+
   if (diff <= 0) {
     return null;
   }
-  const days = Math.floor(diff / 86400000);
-  const hours = Math.floor((diff % 86400000) / 3600000);
-  const minutes = Math.floor((diff % 3600000) / 60000);
+
+  const totalMinutes = Math.floor(diff / 60_000);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
   if (days > 0) {
-    return `Faltan ${days} ${days === 1 ? "día" : "días"}`;
+    return hours > 0
+      ? `Faltan ${days} ${days === 1 ? "día" : "días"} y ${hours} h`
+      : `Faltan ${days} ${days === 1 ? "día" : "días"}`;
   }
+
   if (hours > 0) {
-    return `Faltan ${hours} ${hours === 1 ? "hora" : "horas"}`;
+    return minutes > 0
+      ? `Faltan ${hours} h ${minutes} min`
+      : `Faltan ${hours} ${hours === 1 ? "hora" : "horas"}`;
   }
-  return `Faltan ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+
+  if (minutes > 0) {
+    return `Faltan ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+  }
+
+  return "Falta menos de un minuto";
+}
+
+/** Hacia qué momento cuenta cada fase. */
+function countdownTarget(contest: PublicContest) {
+  if (contest.state === "abierta") {
+    return { date: contest.endsAt, label: "para que cierre" };
+  }
+
+  if (contest.state === "inscripcion") {
+    return {
+      date: contest.registrationEndsAt ?? contest.startsAt,
+      label: "para que cierre la inscripción",
+    };
+  }
+
+  if (contest.state === "preparacion") {
+    return { date: contest.startsAt, label: "para la rendición" };
+  }
+
+  return {
+    date: contest.registrationStartsAt ?? contest.startsAt,
+    label: "para la inscripción",
+  };
 }
 
 export function LiveContests() {
   const [contests, setContests] = useState<PublicContest[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [groupsByContest, setGroupsByContest] = useState<Record<
+    string,
+    number
+  > | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let active = true;
@@ -81,62 +156,212 @@ export function LiveContests() {
     };
   }, []);
 
-  if (failed || contests === null) {
-    return null;
-  }
+  // Cuántos grupos tiene ya inscritos quien mira, si es un maestro con sesión.
+  // La portada es pública: si la llamada falla, simplemente no se muestra.
+  useEffect(() => {
+    const user = getUser();
+    const token = getToken();
 
-  const open = contests.filter((contest) => contest.state === "abierta");
-  const upcoming = contests.filter((contest) => contest.state === "programada");
-  const next = upcoming[0] ?? null;
+    if (
+      !token ||
+      !user ||
+      !isApproved(user) ||
+      !["maestro", "admin"].includes(user.role)
+    ) {
+      return;
+    }
 
-  if (open.length === 0 && !next) {
+    let active = true;
+
+    fetch(`${API_BASE_URL}/api/groups`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+      .then((response) =>
+        response.ok
+          ? (response.json() as Promise<Array<{ contestId: string }>>)
+          : Promise.reject(new Error("sin acceso")),
+      )
+      .then((groups) => {
+        if (!active) {
+          return;
+        }
+
+        const counts: Record<string, number> = {};
+
+        for (const group of groups) {
+          counts[group.contestId] = (counts[group.contestId] ?? 0) + 1;
+        }
+
+        setGroupsByContest(counts);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const visible = useMemo(() => {
+    if (!contests) {
+      return [];
+    }
+
+    return contests
+      .filter((contest): contest is PublicContest & { state: VisibleState } =>
+        (VISIBLE_STATES as readonly string[]).includes(contest.state),
+      )
+      .sort((left, right) => {
+        const byState =
+          STATE_ORDER[left.state as VisibleState] -
+          STATE_ORDER[right.state as VisibleState];
+
+        if (byState !== 0) {
+          return byState;
+        }
+
+        return (
+          new Date(countdownTarget(left).date).getTime() -
+          new Date(countdownTarget(right).date).getTime()
+        );
+      });
+  }, [contests]);
+
+  if (failed || contests === null || visible.length === 0) {
     return null;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {open.map((contest) => (
-        <div
-          key={contest.id}
-          className="rounded-lg border border-primary/40 bg-primary/5 px-5 py-5"
-        >
-          <div className="flex items-center gap-2 text-primary">
-            <CircleCheckIcon className="size-4" />
-            <span className="text-xs font-semibold uppercase tracking-wide">
-              Disponible ahora
-            </span>
-          </div>
-          <h3 className="mt-2 text-lg font-semibold">{contest.title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {contest.category ? `${contest.category} · ` : ""}Tienes{" "}
-            {contest.durationMinutes} minutos para rendir una vez que empieces.
-          </p>
-          <Button asChild className="mt-4">
-            <a href="/entrar">Entrar al desafío</a>
-          </Button>
-        </div>
-      ))}
+      {visible.map((contest) => {
+        const state = contest.state as VisibleState;
+        const target = countdownTarget(contest);
+        const remaining = formatCountdown(target.date, now);
+        const groupCount = groupsByContest
+          ? (groupsByContest[contest.id] ?? 0)
+          : null;
 
-      {open.length === 0 && next && (
-        <div className="rounded-lg border px-5 py-5">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <CalendarClockIcon className="size-4" />
-            <span className="text-xs font-semibold uppercase tracking-wide">
-              Próximo desafío
-            </span>
-            {countdown(next.startsAt) && (
-              <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-                {countdown(next.startsAt)}
+        return (
+          <article
+            key={contest.id}
+            className={
+              state === "abierta"
+                ? "rounded-lg border border-primary/40 bg-primary/5 px-5 py-5"
+                : "rounded-lg border px-5 py-5"
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              {state === "abierta" ? (
+                <CircleCheckIcon className="size-4 text-primary" />
+              ) : (
+                <CalendarClockIcon className="size-4 text-muted-foreground" />
+              )}
+              <span
+                className={
+                  state === "abierta"
+                    ? "text-xs font-semibold tracking-wide text-primary uppercase"
+                    : "text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                }
+              >
+                {STATE_LABEL[state]}
               </span>
+              {contest.category && (
+                <Badge variant="outline">{contest.category}</Badge>
+              )}
+              {remaining && (
+                <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                  {remaining} {target.label}
+                </span>
+              )}
+            </div>
+
+            <h3 className="mt-2 text-lg font-semibold">{contest.title}</h3>
+
+            <div className="mt-1 flex flex-col gap-1 text-sm text-muted-foreground">
+              {state === "abierta" && (
+                <span>
+                  Cierra el {formatDateTime(contest.endsAt)} · Tienes{" "}
+                  {contest.durationMinutes} minutos desde que empiezas
+                </span>
+              )}
+              {state === "inscripcion" && (
+                <>
+                  <span>
+                    La inscripción cierra el{" "}
+                    {formatDateTime(
+                      contest.registrationEndsAt ?? contest.startsAt,
+                    )}
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <ClockIcon className="size-4 shrink-0" />
+                    La rendición es el {formatDateTime(contest.startsAt)}
+                  </span>
+                </>
+              )}
+              {state === "preparacion" && (
+                <span>
+                  La inscripción ya cerró · La rendición empieza el{" "}
+                  {formatDateTime(contest.startsAt)}
+                </span>
+              )}
+              {state === "programada" && (
+                <span>
+                  La inscripción abre el{" "}
+                  {formatDateTime(
+                    contest.registrationStartsAt ?? contest.startsAt,
+                  )}
+                </span>
+              )}
+              {groupCount !== null && state !== "abierta" && (
+                <span className="inline-flex items-center gap-2">
+                  <UsersIcon className="size-4 shrink-0" />
+                  {groupCount > 0
+                    ? `Ya tienes ${groupCount} grupo(s) inscrito(s).`
+                    : "Todavía no inscribes ningún grupo."}
+                </span>
+              )}
+            </div>
+
+            {state === "abierta" && (
+              <Button asChild className="mt-4">
+                <a href="/entrar">Entrar al desafío</a>
+              </Button>
             )}
-          </div>
-          <h3 className="mt-2 text-lg font-semibold">{next.title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {next.category ? `${next.category} · ` : ""}Comienza el{" "}
-            {formatDateTime(next.startsAt)}
-          </p>
-        </div>
-      )}
+
+            {state === "inscripcion" && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {groupCount === null ? (
+                  <>
+                    <Button asChild>
+                      <a href="/registro">Inscribir a mis estudiantes</a>
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      ¿Ya tienes tu código?{" "}
+                      <a
+                        href="/entrar"
+                        className="underline underline-offset-4 hover:text-foreground"
+                      >
+                        entra al desafío
+                      </a>
+                      .
+                    </span>
+                  </>
+                ) : (
+                  <Button asChild>
+                    <a href="/grupos">
+                      {groupCount > 0 ? "Ver mis grupos" : "Inscribir un grupo"}
+                    </a>
+                  </Button>
+                )}
+              </div>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 }

@@ -38,7 +38,7 @@ test("keeps contest and task card actions responsive and compact", async ({
 
   const contestCard = page
     .getByText(listedContest.title, { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    .locator("xpath=ancestor::li[1]");
   const contestActions = [
     contestCard.getByRole("link", { name: "Resultados" }),
     contestCard.getByRole("button", { name: "Suspender" }),
@@ -60,13 +60,6 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(mobileContestActions[3]!.y).toBeGreaterThan(
     mobileContestActions[2]!.y,
   );
-  const contestTasks = contestCard.locator('[data-slot="card-footer"] > div');
-  await expect(contestTasks).toHaveCount(3);
-  const mobileContestTasks = await Promise.all(
-    [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
-  );
-  expect(mobileContestTasks[1]!.y).toBeGreaterThan(mobileContestTasks[0]!.y);
-  expect(mobileContestTasks[2]!.y).toBeGreaterThan(mobileContestTasks[1]!.y);
 
   await page.setViewportSize({ width: 1280, height: 800 });
   const desktopContestActions = await Promise.all(
@@ -87,13 +80,6 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[3]!.x).toBeGreaterThan(
     desktopContestActions[2]!.x,
   );
-  const desktopContestTasks = await Promise.all(
-    [0, 1, 2].map((index) => contestTasks.nth(index).boundingBox()),
-  );
-  expect(desktopContestTasks[0]!.width).toBe(desktopContestTasks[1]!.width);
-  expect(desktopContestTasks[0]!.y).toBe(desktopContestTasks[1]!.y);
-  expect(desktopContestTasks[1]!.x).toBeGreaterThan(desktopContestTasks[0]!.x);
-  expect(desktopContestTasks[2]!.y).toBeGreaterThan(desktopContestTasks[0]!.y);
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/tareas");
