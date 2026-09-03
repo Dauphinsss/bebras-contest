@@ -1,4 +1,5 @@
 import { expect, request, test } from "@playwright/test";
+import ExcelJS from "exceljs";
 
 import { ADMIN, API, createContest, loginAdmin } from "./support/helpers";
 
@@ -771,10 +772,11 @@ test("validates the roster upload transport contract", async () => {
       },
     },
   });
-  expect(allSkipped.status()).toBe(200);
+  expect(allSkipped.status()).toBe(422);
   expect(await allSkipped.json()).toEqual({
-    created: [],
-    skipped: [
+    message: "No se importó ningún participante. Corrige las filas indicadas.",
+    code: "ROSTER_VALIDATION_FAILED",
+    details: [
       {
         row: 2,
         name: "Sin",
@@ -786,7 +788,337 @@ test("validates the roster upload transport contract", async () => {
   await api.dispose();
 });
 
-test("announces roster validation, partial results and refresh failures", async ({
+test("validates complete rosters before writing any participant", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers, { allowPairs: true });
+  const sourceGroup = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: contest.id, name: "Grupo con participante previo" },
+    })
+    .then((response) => response.json());
+  const targetGroup = await api
+    .post(`${API}/api/groups`, {
+      headers,
+      data: { contestId: contest.id, name: "Grupo importación atómica" },
+    })
+    .then((response) => response.json());
+  const existing = await api.post(`${API}/api/groups/${sourceGroup.id}/teams`, {
+    headers,
+    data: {
+      participationMode: "individual",
+      grade: contest.picked.grade,
+      memberOneFirstName: "Ana",
+      memberOneLastName: "Pérez",
+    },
+  });
+  expect(existing.status(), await existing.text()).toBe(201);
+
+  const invalidCsv = [
+    "Nombres,Apellidos,Curso,Modalidad,Nombres del compañero,Apellidos del compañero,Nota",
+    `Alice,Rojas,${contest.picked.grade}, INDIVIDUAL ,,`,
+    ",,,,,",
+    `Sin,,${contest.picked.grade},individual,,`,
+    "Mal,Curso,S6,individual,,",
+    `Sin,Modalidad,${contest.picked.grade},,,`,
+    `Modo,Desconocido,${contest.picked.grade},equipo,,`,
+    `Individual,ConCompañero,${contest.picked.grade},individual,Luis,Soto`,
+    `Pareja,Incompleta,${contest.picked.grade},pareja,Luis,`,
+    `Alice,Rojas,${contest.picked.grade},individual,,`,
+    `ana,perez,${contest.picked.grade},individual,,`,
+    `Compañero,Duplicado,${contest.picked.grade},pareja,ana,perez`,
+    ",,,,,,Tiene una nota",
+  ].join("\n");
+  const rejected = await api.post(
+    `${API}/api/groups/${targetGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "participantes-invalidos.csv",
+          mimeType: "text/csv",
+          buffer: Buffer.from(invalidCsv, "utf8"),
+        },
+      },
+    },
+  );
+  expect(rejected.status(), await rejected.text()).toBe(422);
+  const rejection = await rejected.json();
+  expect(rejection.code).toBe("ROSTER_VALIDATION_FAILED");
+  expect(rejection.details.map((issue: { row: number }) => issue.row)).toEqual([
+    4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 13,
+  ]);
+  expect(rejection.details[2].reason).toContain("Falta la modalidad");
+  expect(rejection.details[4].reason).toContain("no puede incluir datos");
+  expect(rejection.details[5].reason).toContain("Faltan los datos");
+  expect(rejection.details[6].reason).toContain("Ya está inscrito");
+  expect(rejection.details[7].reason).toContain("Ya está inscrito");
+  expect(rejection.details[8]).toMatchObject({
+    name: "ana perez",
+    reason: "Ya está inscrito en este desafío.",
+  });
+  expect(
+    rejection.details.slice(9).map((issue: { reason: string }) => issue.reason),
+  ).toEqual(
+    expect.arrayContaining([
+      "Faltan nombres o apellidos.",
+      "Falta la modalidad. Usa individual o pareja.",
+    ]),
+  );
+
+  const groupsAfterRejection = await api
+    .get(`${API}/api/groups`, { headers })
+    .then((response) => response.json());
+  expect(
+    groupsAfterRejection.find(
+      (group: { id: string }) => group.id === targetGroup.id,
+    ).teams,
+  ).toHaveLength(0);
+
+  const validCsv = [
+    "Modalidad,Curso,Apellidos,Nombres,Apellidos del compañero,Nombres del compañero",
+    ` individual ,${contest.picked.grade},Flores,Lucía,,`,
+    ` PAREJA ,${contest.picked.grade},Mamani,Luis,Rojas,Marta`,
+  ].join("\n");
+  const accepted = await api.post(
+    `${API}/api/groups/${targetGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "participantes-validos.csv",
+          mimeType: "text/csv",
+          buffer: Buffer.from(validCsv, "utf8"),
+        },
+      },
+    },
+  );
+  expect(accepted.status(), await accepted.text()).toBe(201);
+  const result = await accepted.json();
+  expect(result.created).toHaveLength(2);
+  expect(result.created.map((team: { name: string }) => team.name)).toEqual([
+    "Lucía Flores",
+    "Luis Mamani",
+  ]);
+  expect(result.skipped).toEqual([]);
+
+  await api.dispose();
+});
+
+test("discovers one importable XLSX sheet and keeps template examples inert", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers, { allowPairs: true });
+  const createGroup = async (name: string) =>
+    api
+      .post(`${API}/api/groups`, {
+        headers,
+        data: { contestId: contest.id, name },
+      })
+      .then((response) => response.json());
+  const customGroup = await createGroup("Grupo Excel propio");
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.addWorksheet("Notas").addRow(["Documento auxiliar"]);
+  const participants = workbook.addWorksheet("Mi listado", { properties: {} });
+  participants.addRow([
+    "Curso",
+    "Modalidad",
+    "Apellidos",
+    "Nombres",
+    "Apellidos del compañero",
+    "Nombres del compañero",
+  ]);
+  participants.addRow([
+    contest.picked.grade,
+    "individual",
+    "Rojas",
+    "Marta",
+    "",
+    "",
+  ]);
+  const customBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const customImport = await api.post(
+    `${API}/api/groups/${customGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "listado-propio.xlsx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          buffer: customBuffer,
+        },
+      },
+    },
+  );
+  expect(customImport.status(), await customImport.text()).toBe(201);
+  expect((await customImport.json()).created[0].name).toBe("Marta Rojas");
+
+  const noSheetGroup = await createGroup("Grupo sin hoja");
+  const noSheetWorkbook = new ExcelJS.Workbook();
+  noSheetWorkbook.addWorksheet("Notas").addRow(["Nombres", "Apellidos"]);
+  const noSheet = await api.post(
+    `${API}/api/groups/${noSheetGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "sin-hoja.xlsx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          buffer: Buffer.from(await noSheetWorkbook.xlsx.writeBuffer()),
+        },
+      },
+    },
+  );
+  expect(noSheet.status()).toBe(400);
+  expect((await noSheet.json()).code).toBe("ROSTER_SHEET_NOT_FOUND");
+
+  const multipleSheetsGroup = await createGroup("Grupo con dos hojas");
+  const multipleSheetsWorkbook = new ExcelJS.Workbook();
+  for (const name of ["Primera", "Segunda"]) {
+    multipleSheetsWorkbook
+      .addWorksheet(name)
+      .addRow(["Nombres", "Apellidos", "Curso", "Modalidad"]);
+  }
+  const multipleSheets = await api.post(
+    `${API}/api/groups/${multipleSheetsGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "dos-hojas.xlsx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          buffer: Buffer.from(await multipleSheetsWorkbook.xlsx.writeBuffer()),
+        },
+      },
+    },
+  );
+  expect(multipleSheets.status()).toBe(400);
+  expect((await multipleSheets.json()).code).toBe("ROSTER_MULTIPLE_SHEETS");
+
+  const duplicateHeadersGroup = await createGroup(
+    "Grupo con encabezados repetidos",
+  );
+  const duplicateHeadersWorkbook = new ExcelJS.Workbook();
+  duplicateHeadersWorkbook
+    .addWorksheet("Participantes")
+    .addRow(["Nombres", "Nombres", "Apellidos", "Curso", "Modalidad"]);
+  const duplicateHeaders = await api.post(
+    `${API}/api/groups/${duplicateHeadersGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "encabezados-repetidos.xlsx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          buffer: Buffer.from(
+            await duplicateHeadersWorkbook.xlsx.writeBuffer(),
+          ),
+        },
+      },
+    },
+  );
+  expect(duplicateHeaders.status()).toBe(400);
+  expect((await duplicateHeaders.json()).code).toBe("ROSTER_DUPLICATE_HEADERS");
+
+  const templateGroup = await createGroup("Grupo plantilla segura");
+  const templateResponse = await api.get(
+    `${API}/api/groups/${templateGroup.id}/roster-template`,
+    { headers },
+  );
+  expect(templateResponse.ok(), await templateResponse.text()).toBe(true);
+  const templateBuffer = await templateResponse.body();
+  const templateWorkbook = new ExcelJS.Workbook();
+  await templateWorkbook.xlsx.load(templateBuffer);
+  expect(templateWorkbook.worksheets.map((sheet) => sheet.name)).toEqual([
+    "Participantes",
+    "Ejemplo",
+    "Instrucciones",
+  ]);
+  expect(
+    templateWorkbook.getWorksheet("Participantes")?.getRow(2).values,
+  ).toEqual([]);
+  expect(templateWorkbook.getWorksheet("Ejemplo")?.getCell("A1").value).toBe(
+    "EJEMPLO - ESTA HOJA NO SE IMPORTA",
+  );
+  expect(templateWorkbook.getWorksheet("Ejemplo")?.getRow(3).values).toContain(
+    "Modalidad",
+  );
+
+  const templateImport = await api.post(
+    `${API}/api/groups/${templateGroup.id}/roster`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: "plantilla.xlsx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          buffer: templateBuffer,
+        },
+      },
+    },
+  );
+  expect(templateImport.status()).toBe(400);
+  expect((await templateImport.json()).code).toBe("ROSTER_EMPTY");
+
+  await api.dispose();
+});
+
+test("allows only one roster import at a time per contest", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers);
+  const groups = await Promise.all(
+    ["Grupo concurrente A", "Grupo concurrente B"].map((name) =>
+      api
+        .post(`${API}/api/groups`, {
+          headers,
+          data: { contestId: contest.id, name },
+        })
+        .then((response) => response.json()),
+    ),
+  );
+  const roster = (prefix: string) =>
+    [
+      "Nombres,Apellidos,Curso,Modalidad",
+      ...Array.from(
+        { length: 50 },
+        (_, index) =>
+          `${prefix}${index},Apellido${prefix},${contest.picked.grade},individual`,
+      ),
+    ].join("\n");
+  const responses = await Promise.all(
+    groups.map((group, index) =>
+      api.post(`${API}/api/groups/${group.id}/roster`, {
+        headers,
+        multipart: {
+          file: {
+            name: `participantes-${index}.csv`,
+            mimeType: "text/csv",
+            buffer: Buffer.from(roster(index === 0 ? "Uno" : "Dos"), "utf8"),
+          },
+        },
+      }),
+    ),
+  );
+  expect(responses.map((response) => response.status()).sort()).toEqual([
+    201, 409,
+  ]);
+  const conflict = responses.find((response) => response.status() === 409);
+  expect(await conflict?.json()).toMatchObject({
+    code: "ROSTER_IMPORT_IN_PROGRESS",
+  });
+
+  await api.dispose();
+});
+
+test("announces roster validation, atomic results and refresh failures", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
@@ -807,6 +1139,11 @@ test("announces roster validation, partial results and refresh failures", async 
   });
   expect(groupResponse.ok(), await groupResponse.text()).toBe(true);
   const group = (await groupResponse.json()) as { id: string };
+  const siblingResponse = await api.post(`${API}/api/groups`, {
+    headers,
+    data: { contestId: contest.id, name: "Grupo importación paralelo" },
+  });
+  expect(siblingResponse.ok(), await siblingResponse.text()).toBe(true);
   const uploadEndpoint = `${API}/api/groups/${group.id}/roster`;
   let uploadCount = 0;
   let releaseUpload: (() => void) | undefined;
@@ -851,6 +1188,9 @@ test("announces roster validation, partial results and refresh failures", async 
   await page.goto("/grupos");
   const groupCard = page
     .getByText("Grupo importación accesible", { exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const siblingCard = page
+    .getByText("Grupo importación paralelo", { exact: true })
     .locator('xpath=ancestor::*[@data-slot="card"][1]');
   await groupCard.getByRole("button", { name: /0 equipo/ }).click();
   const input = groupCard.getByLabel("Importar planilla");
@@ -933,9 +1273,9 @@ test("announces roster validation, partial results and refresh failures", async 
     `Marta,Rojas,${contest.picked.grade},individual`,
     `Sin,,${contest.picked.grade},individual`,
   ].join("\n");
-  const partialFileName = `participantes-${"muy".repeat(30)}.csv`;
+  const invalidFileName = `participantes-${"muy".repeat(30)}.csv`;
   await input.setInputFiles({
-    name: partialFileName,
+    name: invalidFileName,
     mimeType: "text/csv",
     buffer: Buffer.from(csv, "utf8"),
   });
@@ -946,38 +1286,39 @@ test("announces roster validation, partial results and refresh failures", async 
   await expect(
     groupCard.getByRole("button", { name: /0 equipo/ }),
   ).toHaveAttribute("aria-expanded", "false");
+  await siblingCard.getByRole("button", { name: /0 equipo/ }).click();
+  const siblingInput = siblingCard.getByLabel("Importar planilla");
+  await expect(siblingInput).toBeDisabled();
+  await expect(siblingCard).toContainText(
+    "Solo se procesa una planilla a la vez en este panel.",
+  );
   releaseUpload?.();
 
-  const result = groupCard.getByRole("status");
-  await expect(result).toBeFocused();
+  const validation = groupCard.getByRole("alert");
+  await expect(validation).toBeFocused();
   await expect(
     groupCard.getByRole("button", { name: /0 equipo/ }),
   ).toHaveAttribute("aria-expanded", "true");
-  await expect(result).toContainText("Importación parcial");
-  await expect(result).toContainText(
-    `${partialFileName}: se importaron 1 y se omitieron 1 fila(s).`,
+  await expect(validation).toContainText(
+    "No se importó ningún participante. Corrige las filas indicadas.",
   );
-  await expect(result).toContainText(
+  await expect(validation).toContainText(
     "Fila 3: Sin. Faltan nombres o apellidos.",
   );
-  const refreshMessage =
-    "La importación terminó, pero no se pudo actualizar la lista. Recarga la página para ver los cambios.";
-  await expect(groupCard.getByRole("alert")).toContainText(refreshMessage);
   await expect(
-    page
-      .locator("[data-sonner-toast]")
-      .filter({ hasText: "Se importaron 1 y se omitieron 1 fila(s)." }),
+    page.locator("[data-sonner-toast]").filter({
+      hasText:
+        "No se importó ningún participante. Corrige las filas indicadas.",
+    }),
   ).toBeVisible();
-  await expect(
-    page.locator("[data-sonner-toast]").filter({ hasText: refreshMessage }),
-  ).toBeVisible();
+  await expect(groupCard.getByRole("status")).toHaveCount(0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
   expect(uploadCount).toBe(3);
-  expect(refreshCount).toBe(1);
+  expect(refreshCount).toBe(0);
 
   await input.setInputFiles({
     name: "participantes-total.csv",
@@ -993,28 +1334,48 @@ test("announces roster validation, partial results and refresh failures", async 
   await expect(groupCard.getByRole("status")).toContainText(
     "Importación completada",
   );
+  const refreshMessage =
+    "La importación terminó, pero no se pudo actualizar la lista. Recarga la página para ver los cambios.";
+  await expect(groupCard.getByRole("alert")).toContainText(refreshMessage);
   await expect(
-    groupCard.getByText("Lucía Flores", { exact: true }),
+    page.locator("[data-sonner-toast]").filter({ hasText: refreshMessage }),
   ).toBeVisible();
-  await expect(groupCard.getByRole("alert")).toHaveCount(0);
   expect(uploadCount).toBe(4);
-  expect(refreshCount).toBe(2);
+  expect(refreshCount).toBe(1);
 
   await input.setInputFiles({
-    name: "participantes-total.csv",
+    name: "participantes-segundo.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
       [
         "Nombres,Apellidos,Curso,Modalidad",
-        `Solo,,${contest.picked.grade},individual`,
+        `Carlos,Soto,${contest.picked.grade},individual`,
       ].join("\n"),
       "utf8",
     ),
   });
   await expect(groupCard.getByRole("status")).toContainText(
-    "No se importaron participantes",
+    "Importación completada",
   );
+  await expect(
+    groupCard.getByText("Lucía Flores", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    groupCard.getByText("Carlos Soto", { exact: true }),
+  ).toBeVisible();
   await expect(groupCard.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page
+      .locator("[data-sonner-toast]")
+      .filter({
+        hasText: "Se importaron 1 participante(s).",
+      })
+      .last(),
+  ).toBeVisible();
+  await expect(input).toHaveAttribute(
+    "aria-describedby",
+    `roster-${group.id}-description`,
+  );
   await expect(input).toHaveValue("");
   expect(uploadCount).toBe(5);
   expect(refreshCount).toBe(2);
