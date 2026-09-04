@@ -87,9 +87,11 @@ export function enrollTeam(groupId: string, data: EnrollTeamInput) {
   });
 }
 
+export type RosterIssue = { row: number; name: string; reason: string };
+
 export type RosterImportResult = {
   created: Array<{ row: number; name: string; personalCode: string }>;
-  skipped: Array<{ row: number; name: string; reason: string }>;
+  skipped: RosterIssue[];
 };
 
 export async function downloadRosterTemplate(groupId: string, name: string) {
@@ -114,23 +116,11 @@ export async function importRoster(groupId: string, file: File) {
   const form = new FormData();
   form.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/groups/${groupId}/roster`, {
+  return request<RosterImportResult>(`/api/groups/${groupId}/roster`, {
     method: "POST",
-    headers: authHeaders(),
     body: form,
+    fallbackMessage: "No se pudo importar la planilla.",
   });
-
-  const data = (await response.json().catch(() => ({}))) as
-    | RosterImportResult
-    | { message?: string };
-
-  if (!response.ok) {
-    throw new Error(
-      ("message" in data && data.message) || "No se pudo importar la planilla.",
-    );
-  }
-
-  return data as RosterImportResult;
 }
 
 export type TeamUpdateInput = {

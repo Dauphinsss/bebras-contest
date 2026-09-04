@@ -179,6 +179,7 @@ export function PlayTaskFields({
 
       {task.answerType === "short_text" && (
         <Input
+          aria-label="Tu respuesta"
           placeholder="Escribe tu respuesta"
           disabled={disabled}
           value={String(response.text ?? "")}
@@ -188,6 +189,7 @@ export function PlayTaskFields({
 
       {task.answerType === "range" && (
         <Input
+          aria-label="Tu respuesta numérica"
           type="number"
           placeholder="Escribe un número"
           disabled={disabled}

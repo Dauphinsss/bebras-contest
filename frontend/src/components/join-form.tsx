@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CheckCircle2Icon, LoaderCircleIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,7 +13,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldContent,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -57,6 +62,16 @@ type JoinResult = {
 
 type Step = "code" | "identify" | "register" | "confirm" | "done";
 
+type JoinErrors = {
+  code?: string;
+  grade?: string;
+  oneFirst?: string;
+  oneLast?: string;
+  twoFirst?: string;
+  twoLast?: string;
+  form?: string;
+};
+
 function fmt(value: string) {
   return value
     .trim()
@@ -97,13 +112,32 @@ export function JoinForm() {
       (!group.registrationStartsAt &&
         (group.state === "programada" || group.state === "abierta"))),
   );
+  const [errors, setErrors] = useState<JoinErrors>({});
+  const accessCodeRef = useRef<HTMLInputElement>(null);
+  const gradeRef = useRef<HTMLButtonElement>(null);
+  const oneFirstRef = useRef<HTMLInputElement>(null);
+  const oneLastRef = useRef<HTMLInputElement>(null);
+  const twoFirstRef = useRef<HTMLInputElement>(null);
+  const twoLastRef = useRef<HTMLInputElement>(null);
+  const formErrorRef = useRef<HTMLDivElement>(null);
+
+  const clearErrors = (...fields: (keyof JoinErrors)[]) => {
+    setErrors((current) => {
+      const next = { ...current, form: undefined };
+      fields.forEach((field) => {
+        next[field] = undefined;
+      });
+      return next;
+    });
+  };
 
   const performLookup = async (rawCode: string, silent = false) => {
     const code = rawCode.trim().toUpperCase();
 
     if (!code) {
       if (!silent) {
-        toast.error("Escribe el código que te dio tu maestro.");
+        setErrors({ code: "Escribe el código que te dio tu maestro." });
+        accessCodeRef.current?.focus();
       }
       return;
     }
@@ -118,14 +152,17 @@ export function JoinForm() {
 
       if (!response.ok) {
         if (!silent) {
-          toast.error(
-            ("message" in data && data.message) ||
+          setErrors({
+            code:
+              ("message" in data && data.message) ||
               "No se pudo validar el código.",
-          );
+          });
+          accessCodeRef.current?.focus();
         }
         return;
       }
 
+      setErrors({});
       setGroup(data as GroupInfo);
       setMode("individual");
       setGrade("");
@@ -163,6 +200,7 @@ export function JoinForm() {
     setOneLast("");
     setTwoFirst("");
     setTwoLast("");
+    setErrors({});
     setStep("register");
   };
 
@@ -179,6 +217,12 @@ export function JoinForm() {
     }
   }, []);
 
+  useEffect(() => {
+    if (errors.form) {
+      formErrorRef.current?.focus();
+    }
+  }, [errors.form, step]);
+
   const lookupCode = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void performLookup(accessCode);
@@ -187,40 +231,69 @@ export function JoinForm() {
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!grade) {
-      toast.error("Elige tu curso.");
-      return;
-    }
-
-    if (!oneFirst.trim() || !oneLast.trim()) {
-      toast.error("Tus nombres y apellidos son obligatorios.");
-      return;
-    }
-
-    if (mode === "pareja" && (!twoFirst.trim() || !twoLast.trim())) {
-      toast.error("Faltan los nombres y apellidos del segundo integrante.");
-      return;
-    }
+    const nextErrors: JoinErrors = {
+      grade: grade ? undefined : "Elige tu curso.",
+      oneFirst: oneFirst.trim() ? undefined : "Ingresa tus nombres.",
+      oneLast: oneLast.trim() ? undefined : "Ingresa tus apellidos.",
+      twoFirst:
+        mode === "pareja" && !twoFirst.trim()
+          ? "Ingresa los nombres del segundo integrante."
+          : undefined,
+      twoLast:
+        mode === "pareja" && !twoLast.trim()
+          ? "Ingresa los apellidos del segundo integrante."
+          : undefined,
+    };
 
     if (
+      !nextErrors.twoFirst &&
+      !nextErrors.twoLast &&
       mode === "pareja" &&
       nameKey(oneFirst, oneLast) === nameKey(twoFirst, twoLast)
     ) {
-      toast.error("Los dos integrantes no pueden ser la misma persona.");
+      nextErrors.twoFirst = "Debe ser una persona diferente.";
+    }
+
+    const firstInvalid = (
+      ["grade", "oneFirst", "oneLast", "twoFirst", "twoLast"] as const
+    ).find((field) => nextErrors[field]);
+
+    if (firstInvalid) {
+      setErrors(nextErrors);
+      const refs = {
+        grade: gradeRef,
+        oneFirst: oneFirstRef,
+        oneLast: oneLastRef,
+        twoFirst: twoFirstRef,
+        twoLast: twoLastRef,
+      };
+      refs[firstInvalid].current?.focus();
       return;
     }
 
+    setErrors({});
     setStep("confirm");
   };
 
   const enterWithName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!oneFirst.trim() || !oneLast.trim()) {
-      toast.error("Escribe tu nombre y tu apellido.");
+    const nextErrors: JoinErrors = {
+      oneFirst: oneFirst.trim() ? undefined : "Ingresa tus nombres.",
+      oneLast: oneLast.trim() ? undefined : "Ingresa tus apellidos.",
+    };
+
+    if (nextErrors.oneFirst || nextErrors.oneLast) {
+      setErrors(nextErrors);
+      if (nextErrors.oneFirst) {
+        oneFirstRef.current?.focus();
+      } else {
+        oneLastRef.current?.focus();
+      }
       return;
     }
 
+    setErrors({});
     setLoading(true);
 
     try {
@@ -232,9 +305,13 @@ export function JoinForm() {
       storePlaySession(session.sessionToken);
       window.location.href = "/rendir";
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo entrar.",
-      );
+      if (error instanceof TypeError) {
+        toast.error("No se pudo conectar con el servidor.");
+      } else {
+        setErrors({
+          form: error instanceof Error ? error.message : "No se pudo entrar.",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -263,9 +340,9 @@ export function JoinForm() {
         | { message?: string };
 
       if (!response.ok) {
-        toast.error(
-          ("message" in data && data.message) || "No se pudo registrar.",
-        );
+        setErrors({
+          form: ("message" in data && data.message) || "No se pudo registrar.",
+        });
         setStep("register");
         return;
       }
@@ -332,26 +409,57 @@ export function JoinForm() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <form className="flex flex-col gap-4" onSubmit={enterWithName}>
-            <Field>
+            {errors.form && (
+              <Alert ref={formErrorRef} variant="destructive" tabIndex={-1}>
+                <AlertDescription>{errors.form}</AlertDescription>
+              </Alert>
+            )}
+            <Field data-invalid={Boolean(errors.oneFirst) || undefined}>
               <FieldLabel htmlFor="student-first-name">Nombres</FieldLabel>
               <FieldContent>
                 <Input
+                  ref={oneFirstRef}
                   id="student-first-name"
                   autoComplete="given-name"
                   value={oneFirst}
-                  onChange={(event) => setOneFirst(event.target.value)}
+                  onChange={(event) => {
+                    setOneFirst(event.target.value);
+                    if (errors.oneFirst || errors.form) {
+                      clearErrors("oneFirst");
+                    }
+                  }}
+                  aria-invalid={Boolean(errors.oneFirst)}
+                  aria-describedby={
+                    errors.oneFirst ? "student-first-name-error" : undefined
+                  }
                 />
+                <FieldError id="student-first-name-error">
+                  {errors.oneFirst}
+                </FieldError>
               </FieldContent>
             </Field>
-            <Field>
+            <Field data-invalid={Boolean(errors.oneLast) || undefined}>
               <FieldLabel htmlFor="student-last-name">Apellidos</FieldLabel>
               <FieldContent>
                 <Input
+                  ref={oneLastRef}
                   id="student-last-name"
                   autoComplete="family-name"
                   value={oneLast}
-                  onChange={(event) => setOneLast(event.target.value)}
+                  onChange={(event) => {
+                    setOneLast(event.target.value);
+                    if (errors.oneLast || errors.form) {
+                      clearErrors("oneLast");
+                    }
+                  }}
+                  aria-invalid={Boolean(errors.oneLast)}
+                  aria-describedby={
+                    errors.oneLast ? "student-last-name-error" : undefined
+                  }
                 />
+                <FieldError id="student-last-name-error">
+                  {errors.oneLast}
+                </FieldError>
               </FieldContent>
             </Field>
             <Button type="submit" className="w-full" disabled={loading}>
@@ -456,6 +564,11 @@ export function JoinForm() {
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={goToConfirm}>
+            {errors.form && (
+              <Alert ref={formErrorRef} variant="destructive" tabIndex={-1}>
+                <AlertDescription>{errors.form}</AlertDescription>
+              </Alert>
+            )}
             {(group.state === "programada" ||
               group.state === "inscripcion") && (
               <Alert>
@@ -466,11 +579,25 @@ export function JoinForm() {
                 </AlertDescription>
               </Alert>
             )}
-            <Field>
+            <Field data-invalid={Boolean(errors.grade) || undefined}>
               <FieldLabel htmlFor="grade">¿En qué curso estás?</FieldLabel>
               <FieldContent>
-                <Select value={grade} onValueChange={setGrade}>
-                  <SelectTrigger id="grade" className="w-full">
+                <Select
+                  value={grade}
+                  onValueChange={(value) => {
+                    setGrade(value);
+                    if (errors.grade || errors.form) {
+                      clearErrors("grade");
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    ref={gradeRef}
+                    id="grade"
+                    className="w-full"
+                    aria-invalid={Boolean(errors.grade)}
+                    aria-describedby={errors.grade ? "grade-error" : undefined}
+                  >
                     <SelectValue placeholder="Elige tu curso" />
                   </SelectTrigger>
                   <SelectContent>
@@ -481,28 +608,53 @@ export function JoinForm() {
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldError id="grade-error">{errors.grade}</FieldError>
               </FieldContent>
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
+              <Field data-invalid={Boolean(errors.oneFirst) || undefined}>
                 <FieldLabel htmlFor="one-first">Nombres</FieldLabel>
                 <FieldContent>
                   <Input
+                    ref={oneFirstRef}
                     id="one-first"
                     value={oneFirst}
-                    onChange={(event) => setOneFirst(event.target.value)}
+                    onChange={(event) => {
+                      setOneFirst(event.target.value);
+                      if (errors.oneFirst || errors.form) {
+                        clearErrors("oneFirst");
+                      }
+                    }}
+                    aria-invalid={Boolean(errors.oneFirst)}
+                    aria-describedby={
+                      errors.oneFirst ? "one-first-error" : undefined
+                    }
                   />
+                  <FieldError id="one-first-error">
+                    {errors.oneFirst}
+                  </FieldError>
                 </FieldContent>
               </Field>
-              <Field>
+              <Field data-invalid={Boolean(errors.oneLast) || undefined}>
                 <FieldLabel htmlFor="one-last">Apellidos</FieldLabel>
                 <FieldContent>
                   <Input
+                    ref={oneLastRef}
                     id="one-last"
                     value={oneLast}
-                    onChange={(event) => setOneLast(event.target.value)}
+                    onChange={(event) => {
+                      setOneLast(event.target.value);
+                      if (errors.oneLast || errors.form) {
+                        clearErrors("oneLast");
+                      }
+                    }}
+                    aria-invalid={Boolean(errors.oneLast)}
+                    aria-describedby={
+                      errors.oneLast ? "one-last-error" : undefined
+                    }
                   />
+                  <FieldError id="one-last-error">{errors.oneLast}</FieldError>
                 </FieldContent>
               </Field>
             </div>
@@ -515,14 +667,22 @@ export function JoinForm() {
                     <Button
                       type="button"
                       variant={mode === "individual" ? "default" : "outline"}
-                      onClick={() => setMode("individual")}
+                      onClick={() => {
+                        setMode("individual");
+                        clearErrors("twoFirst", "twoLast");
+                      }}
                     >
                       Individual
                     </Button>
                     <Button
                       type="button"
                       variant={mode === "pareja" ? "default" : "outline"}
-                      onClick={() => setMode("pareja")}
+                      onClick={() => {
+                        setMode("pareja");
+                        if (errors.form) {
+                          clearErrors();
+                        }
+                      }}
                     >
                       Pareja
                     </Button>
@@ -533,28 +693,54 @@ export function JoinForm() {
 
             {mode === "pareja" && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
+                <Field data-invalid={Boolean(errors.twoFirst) || undefined}>
                   <FieldLabel htmlFor="two-first">
                     Nombres del 2.º integrante
                   </FieldLabel>
                   <FieldContent>
                     <Input
+                      ref={twoFirstRef}
                       id="two-first"
                       value={twoFirst}
-                      onChange={(event) => setTwoFirst(event.target.value)}
+                      onChange={(event) => {
+                        setTwoFirst(event.target.value);
+                        if (errors.twoFirst || errors.form) {
+                          clearErrors("twoFirst");
+                        }
+                      }}
+                      aria-invalid={Boolean(errors.twoFirst)}
+                      aria-describedby={
+                        errors.twoFirst ? "two-first-error" : undefined
+                      }
                     />
+                    <FieldError id="two-first-error">
+                      {errors.twoFirst}
+                    </FieldError>
                   </FieldContent>
                 </Field>
-                <Field>
+                <Field data-invalid={Boolean(errors.twoLast) || undefined}>
                   <FieldLabel htmlFor="two-last">
                     Apellidos del 2.º integrante
                   </FieldLabel>
                   <FieldContent>
                     <Input
+                      ref={twoLastRef}
                       id="two-last"
                       value={twoLast}
-                      onChange={(event) => setTwoLast(event.target.value)}
+                      onChange={(event) => {
+                        setTwoLast(event.target.value);
+                        if (errors.twoLast || errors.form) {
+                          clearErrors("twoLast");
+                        }
+                      }}
+                      aria-invalid={Boolean(errors.twoLast)}
+                      aria-describedby={
+                        errors.twoLast ? "two-last-error" : undefined
+                      }
                     />
+                    <FieldError id="two-last-error">
+                      {errors.twoLast}
+                    </FieldError>
                   </FieldContent>
                 </Field>
               </div>
@@ -564,7 +750,10 @@ export function JoinForm() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setStep("code")}
+                onClick={() => {
+                  setErrors({});
+                  setStep("code");
+                }}
               >
                 Volver
               </Button>
@@ -586,19 +775,26 @@ export function JoinForm() {
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={lookupCode}>
-          <Field>
+          <Field data-invalid={Boolean(errors.code) || undefined}>
             <FieldLabel htmlFor="access-code">Código de grupo</FieldLabel>
             <FieldContent>
               <Input
+                ref={accessCodeRef}
                 id="access-code"
                 value={accessCode}
-                onChange={(event) =>
-                  setAccessCode(event.target.value.toUpperCase())
-                }
+                onChange={(event) => {
+                  setAccessCode(event.target.value.toUpperCase());
+                  if (errors.code) {
+                    clearErrors("code");
+                  }
+                }}
                 placeholder="Ej. K7M2P9"
                 className="font-mono tracking-widest uppercase"
                 autoComplete="off"
+                aria-invalid={Boolean(errors.code)}
+                aria-describedby={errors.code ? "access-code-error" : undefined}
               />
+              <FieldError id="access-code-error">{errors.code}</FieldError>
             </FieldContent>
           </Field>
           <Button type="submit" className="w-full" disabled={loading}>

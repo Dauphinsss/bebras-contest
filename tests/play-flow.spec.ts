@@ -31,15 +31,35 @@ test("student starts, answers and submits without seeing the score", async ({
   await page.addInitScript((token) => {
     window.localStorage.setItem("bebras_play_session", token);
   }, sessionToken);
+  await page.goto("/");
   await page.goto("/rendir");
 
+  const siteHeader = page.locator('[data-site-chrome="header"]');
+  const siteFooter = page.locator('[data-site-chrome="footer"]');
   const startButton = page.getByRole("button", { name: /Empezar/i });
   await expect(startButton).toBeVisible();
+  await expect(siteHeader).toBeVisible();
+  await expect(siteFooter).toBeVisible();
   await startButton.click();
+  await expect(siteHeader).toBeHidden();
+  await expect(siteFooter).toBeHidden();
 
   await expect(page.getByText("Tarea 1", { exact: true })).toBeVisible({
     timeout: 15000,
   });
+  await expect(siteHeader).toBeHidden();
+  await expect(siteFooter).toBeHidden();
+  await expect(page.getByText(/\d{2}:\d{2}/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Entregar" })).toBeVisible();
+
+  const exitDialogPromise = page.waitForEvent("dialog");
+  await page.close({ runBeforeUnload: true });
+  const exitDialog = await exitDialogPromise;
+  expect(exitDialog.type()).toBe("beforeunload");
+  await exitDialog.dismiss();
+  expect(page.isClosed()).toBe(false);
+  await expect(page).toHaveURL(/\/rendir$/);
+  await expect(page.getByText("Tarea 1", { exact: true })).toBeVisible();
 
   const firstOption = page.locator("button[aria-pressed]").first();
   if (await firstOption.count()) {
@@ -57,6 +77,56 @@ test("student starts, answers and submits without seeing the score", async ({
 
   await expect(page.getByText(/Puntaje:/i)).toBeHidden();
   await expect(page.getByText(/se publicarán/i)).toBeVisible();
+  await expect(siteHeader).toBeVisible();
+  await expect(siteFooter).toBeVisible();
+});
+
+test("keeps site chrome hidden while an active attempt loads on mobile", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers);
+  const { sessionToken } = await joinContestSession(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+  );
+  const started = await api.post(`${API}/api/play/start`, {
+    headers: playHeaders(sessionToken),
+    data: {},
+  });
+  expect(started.ok(), await started.text()).toBe(true);
+  await api.dispose();
+
+  let releaseAttempt: (() => void) | undefined;
+  const attemptReleased = new Promise<void>((resolve) => {
+    releaseAttempt = resolve;
+  });
+  await page.route(`${API}/api/play/attempt`, async (route) => {
+    await attemptReleased;
+    await route.continue();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript((token) => {
+    window.localStorage.setItem("bebras_play_session", token);
+  }, sessionToken);
+  await page.goto("/rendir");
+
+  const siteHeader = page.locator('[data-site-chrome="header"]');
+  const siteFooter = page.locator('[data-site-chrome="footer"]');
+  await expect(siteHeader).toBeHidden();
+  await expect(siteFooter).toBeHidden();
+
+  releaseAttempt?.();
+  await expect(page.getByText("Tarea 1", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(siteHeader).toBeHidden();
+  await expect(siteFooter).toBeHidden();
+  await expect(page.getByText(/\d{2}:\d{2}/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Entregar" })).toBeVisible();
 });
 
 test("serializes answer saves for the same task", async ({ page }) => {
@@ -272,6 +342,8 @@ test("pauses the student view while the contest is suspended", async ({
 
   const notice = page.getByText("El desafío está suspendido");
   await expect(notice).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[data-site-chrome="header"]')).toBeHidden();
+  await expect(page.locator('[data-site-chrome="footer"]')).toBeHidden();
   await expect(page.getByRole("button", { name: "Entregar" })).toBeDisabled();
 
   const resumed = await api.post(`${API}/api/contests/${contest.id}/resume`, {

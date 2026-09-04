@@ -2,13 +2,14 @@
 interface Props {
   heading?: string;
   backHref?: string;
+  hidden?: boolean;
 }
 
 import { UserMenu } from "./user-menu";
 import { MobileNavigation } from "./mobile-navigation";
 import { SITE_NAV_ITEMS } from "../lib/site-navigation";
 
-const { heading, backHref } = Astro.props;
+const { heading, backHref, hidden = false } = Astro.props;
 const pathname = Astro.url.pathname;
 const isPractice = pathname.startsWith("/practica");
 const hasContextualPracticeBack =
@@ -23,6 +24,8 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
 ---
 
 <header
+  data-site-chrome="header"
+  hidden={hidden}
   class="border-b bg-background"
   transition:name="app-header"
   transition:animate="none"

@@ -6,14 +6,43 @@ export const API_BASE_URL =
 
 export type ApiRequestOptions = RequestInit & {
   auth?: boolean;
+  fallbackMessage?: string;
 };
 
-async function readErrorMessage(response: Response, fallback: string) {
+type ApiErrorBody = {
+  message?: string;
+  code?: string;
+  field?: string;
+  fields?: string[];
+  details?: unknown;
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly field?: string,
+    readonly fields?: string[],
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function readError(response: Response, fallback: string) {
   try {
-    const body = (await response.json()) as { message?: string };
-    return body.message || fallback;
+    const body = (await response.json()) as ApiErrorBody;
+    return {
+      message: body.message || fallback,
+      code: body.code,
+      field: body.field,
+      fields: body.fields,
+      details: body.details,
+    };
   } catch {
-    return fallback;
+    return { message: fallback };
   }
 }
 
@@ -21,7 +50,7 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
-  const { auth = true, headers, ...init } = options;
+  const { auth = true, fallbackMessage, headers, ...init } = options;
   const requestHeaders = new Headers(auth ? authHeaders() : undefined);
 
   new Headers(headers).forEach((value, key) => {
@@ -39,15 +68,25 @@ export async function apiRequest<T>(
 
   if (auth && response.status === 401) {
     handleUnauthorized();
-    throw new Error("Sesión expirada. Inicia sesión de nuevo.");
+    throw new ApiError(
+      "Sesión expirada. Inicia sesión de nuevo.",
+      response.status,
+      "UNAUTHORIZED",
+    );
   }
 
   if (!response.ok) {
-    throw new Error(
-      await readErrorMessage(
-        response,
-        `Request failed with status ${response.status}`,
-      ),
+    const error = await readError(
+      response,
+      fallbackMessage ?? `Request failed with status ${response.status}`,
+    );
+    throw new ApiError(
+      error.message,
+      response.status,
+      error.code,
+      error.field,
+      error.fields,
+      error.details,
     );
   }
 

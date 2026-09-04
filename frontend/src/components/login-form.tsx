@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,7 +14,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldContent,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { API_BASE_URL } from "@/lib/api-client";
 
@@ -22,15 +28,39 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    form?: string;
+  }>({});
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!email.trim() || !password) {
-      toast.error("Ingresa tu correo y contraseña.");
+    const emailInvalid =
+      Boolean(email.trim()) && Boolean(emailRef.current?.validity.typeMismatch);
+    const nextErrors = {
+      email: !email.trim()
+        ? "Ingresa tu correo."
+        : emailInvalid
+          ? "Ingresa un correo válido."
+          : undefined,
+      password: password ? undefined : "Ingresa tu contraseña.",
+    };
+
+    if (nextErrors.email || nextErrors.password) {
+      setErrors(nextErrors);
+      if (nextErrors.email) {
+        emailRef.current?.focus();
+      } else {
+        passwordRef.current?.focus();
+      }
       return;
     }
 
+    setErrors({});
     setSubmitting(true);
 
     try {
@@ -47,7 +77,10 @@ export function LoginForm() {
       };
 
       if (!response.ok || !data.token || !data.user) {
-        toast.error(data.message ?? "No se pudo iniciar sesión.");
+        setErrors({
+          form: data.message ?? "No se pudo iniciar sesión.",
+        });
+        emailRef.current?.focus();
         return;
       }
 
@@ -74,29 +107,67 @@ export function LoginForm() {
         <CardDescription>Acceso para maestros y organizadores.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <Field>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={handleSubmit}
+          noValidate
+        >
+          {errors.form && (
+            <Alert variant="destructive">
+              <AlertDescription>{errors.form}</AlertDescription>
+            </Alert>
+          )}
+          <Field data-invalid={Boolean(errors.email) || undefined}>
             <FieldLabel htmlFor="login-email">Correo</FieldLabel>
             <FieldContent>
               <Input
+                ref={emailRef}
                 id="login-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (errors.email || errors.form) {
+                    setErrors((current) => ({
+                      ...current,
+                      email: undefined,
+                      form: undefined,
+                    }));
+                  }
+                }}
                 placeholder="tu@correo.com"
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={
+                  errors.email ? "login-email-error" : undefined
+                }
               />
+              <FieldError id="login-email-error">{errors.email}</FieldError>
             </FieldContent>
           </Field>
-          <Field>
+          <Field data-invalid={Boolean(errors.password) || undefined}>
             <FieldLabel htmlFor="login-password">Contraseña</FieldLabel>
             <FieldContent>
               <div className="relative">
                 <Input
+                  ref={passwordRef}
                   id="login-password"
                   type={showPassword ? "text" : "password"}
                   className="pr-10"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (errors.password || errors.form) {
+                      setErrors((current) => ({
+                        ...current,
+                        password: undefined,
+                        form: undefined,
+                      }));
+                    }
+                  }}
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={
+                    errors.password ? "login-password-error" : undefined
+                  }
                 />
                 <button
                   type="button"
@@ -113,6 +184,9 @@ export function LoginForm() {
                   )}
                 </button>
               </div>
+              <FieldError id="login-password-error">
+                {errors.password}
+              </FieldError>
             </FieldContent>
           </Field>
           <Button type="submit" className="w-full" disabled={submitting}>

@@ -443,6 +443,7 @@ export function TaskTester() {
                 "short_text" && (
                 <div className="flex max-w-lg flex-col gap-3">
                   <Input
+                    aria-label="Tu respuesta"
                     placeholder="Escribe tu respuesta"
                     value={shortAnswer}
                     onChange={(event) => setShortAnswer(event.target.value)}
@@ -453,6 +454,7 @@ export function TaskTester() {
               {(selectedTask.answerType ?? "multiple_choice") === "range" && (
                 <div className="flex max-w-lg flex-col gap-4">
                   <Input
+                    aria-label="Tu respuesta numérica"
                     placeholder="Escribe un valor numérico"
                     type="number"
                     value={rangeValue}

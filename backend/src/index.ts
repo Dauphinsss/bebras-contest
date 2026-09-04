@@ -19,7 +19,16 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
 const UPLOADS_DIR = resolve(__dirname, "..", "uploads", "letters");
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
+const ROSTER_ALLOWED_EXT = new Set([".xlsx", ".csv"]);
+const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
+const activeRosterContests = new Set<string>();
 const E2E_CLOCK_FILE = process.env.E2E_CLOCK_FILE;
+
+function documentUploadField(value: unknown) {
+  return value === "letter" || value === "idFront" || value === "idBack"
+    ? value
+    : undefined;
+}
 
 function currentDate() {
   if (E2E_CLOCK_FILE) {
@@ -89,7 +98,9 @@ const uploadDocs = multer({
   limits: { fileSize: DOC_MAX_BYTES, files: 3 },
   fileFilter: (_req, file, cb) => {
     if (!DOC_ALLOWED_EXT.has(extname(file.originalname).toLowerCase())) {
-      cb(new Error("INVALID_DOC_TYPE"));
+      cb(
+        Object.assign(new Error("INVALID_DOC_TYPE"), { field: file.fieldname }),
+      );
       return;
     }
     cb(null, true);
@@ -98,7 +109,14 @@ const uploadDocs = multer({
 
 const uploadRoster = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  limits: { fileSize: ROSTER_MAX_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!ROSTER_ALLOWED_EXT.has(extname(file.originalname).toLowerCase())) {
+      cb(new Error("INVALID_ROSTER_TYPE"));
+      return;
+    }
+    cb(null, true);
+  },
 }).single("file");
 
 function rosterUploadMiddleware(
@@ -108,6 +126,13 @@ function rosterUploadMiddleware(
 ) {
   uploadRoster(req, res, (err: unknown) => {
     if (err) {
+      if (err instanceof Error && err.message === "INVALID_ROSTER_TYPE") {
+        res
+          .status(400)
+          .json({ message: "La planilla debe ser un archivo XLSX o CSV." });
+        return;
+      }
+
       if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
         res
           .status(400)
@@ -173,45 +198,61 @@ function registerUploadMiddleware(
   handler(req, res, (err: unknown) => {
     if (err) {
       void cleanupFiles(...uploadedFiles(req)).then(() => {
+        const field = documentUploadField(
+          err instanceof multer.MulterError
+            ? err.field
+            : err instanceof Error && "field" in err
+              ? err.field
+              : undefined,
+        );
         if (
           err instanceof multer.MulterError &&
           err.code === "LIMIT_FILE_SIZE"
         ) {
-          res
-            .status(400)
-            .json({ message: "El archivo no debe superar los 5 MB." });
+          res.status(400).json({
+            message: "El archivo no debe superar los 5 MB.",
+            field,
+          });
           return;
         }
         if (err instanceof Error && err.message === "INVALID_DOC_TYPE") {
           res.status(400).json({
             message:
               "El documento debe ser un archivo PDF o una imagen (JPG, JPEG o PNG).",
+            field,
           });
           return;
         }
-        res.status(400).json({ message: "No se pudo subir el documento." });
+        res.status(400).json({
+          message: "No se pudo subir el documento.",
+          field,
+        });
       });
       return;
     }
 
     const files = uploadedFiles(req);
-    void Promise.all(files.map(hasValidDocumentSignature))
-      .then(async (validFiles) => {
-        if (validFiles.every(Boolean)) {
+    void Promise.allSettled(files.map(hasValidDocumentSignature)).then(
+      async (checks) => {
+        const invalidIndex = checks.findIndex(
+          (check) => check.status === "rejected" || !check.value,
+        );
+        if (invalidIndex === -1) {
           next();
           return;
         }
 
         await cleanupFiles(...files);
+        const check = checks[invalidIndex];
         res.status(400).json({
           message:
-            "El contenido del documento no coincide con un PDF, JPG, JPEG o PNG válido.",
+            check.status === "rejected"
+              ? "No se pudo validar el documento."
+              : "El contenido del documento no coincide con un PDF, JPG, JPEG o PNG válido.",
+          field: documentUploadField(files[invalidIndex]?.fieldname),
         });
-      })
-      .catch(async () => {
-        await cleanupFiles(...files);
-        res.status(400).json({ message: "No se pudo validar el documento." });
-      });
+      },
+    );
   });
 }
 
@@ -1934,7 +1975,10 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
 
   if (existing) {
     await cleanupFiles(...allFiles);
-    res.status(409).json({ message: "Ya existe una cuenta con ese correo." });
+    res.status(409).json({
+      message: "Ya existe una cuenta con ese correo.",
+      field: "email",
+    });
     return;
   }
 
@@ -3381,7 +3425,11 @@ app.post("/api/groups", async (req, res) => {
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
 
   if (!name) {
-    res.status(400).json({ message: "El nombre del grupo es obligatorio." });
+    res.status(400).json({
+      message: "El nombre del grupo es obligatorio.",
+      code: "GROUP_NAME_REQUIRED",
+      field: "name",
+    });
     return;
   }
 
@@ -3392,6 +3440,8 @@ app.post("/api/groups", async (req, res) => {
     res.status(400).json({
       message:
         error instanceof Error ? error.message : "Fecha de sesión inválida.",
+      code: "GROUP_SCHEDULE_INVALID",
+      field: "scheduledAt",
     });
     return;
   }
@@ -3399,13 +3449,19 @@ app.post("/api/groups", async (req, res) => {
   const contest = await prisma.contest.findUnique({ where: { id: contestId } });
 
   if (!contest) {
-    res.status(400).json({ message: "El desafío no existe." });
+    res.status(400).json({
+      message: "El desafío no existe.",
+      code: "GROUP_CONTEST_NOT_FOUND",
+      field: "contestId",
+    });
     return;
   }
 
   if (!contest.publishedAt) {
     res.status(400).json({
       message: "El desafío debe estar publicado para crear grupos.",
+      code: "GROUP_CONTEST_UNPUBLISHED",
+      field: "contestId",
     });
     return;
   }
@@ -3418,6 +3474,8 @@ app.post("/api/groups", async (req, res) => {
   if (contestHasEnded(computeContestState(contest).state)) {
     res.status(409).json({
       message: "El desafío ya cerró; no es posible crear grupos.",
+      code: "GROUP_CONTEST_CLOSED",
+      field: "contestId",
     });
     return;
   }
@@ -3428,6 +3486,8 @@ app.post("/api/groups", async (req, res) => {
   ) {
     res.status(400).json({
       message: "La sesión debe estar dentro del horario del desafío.",
+      code: "GROUP_SCHEDULE_OUTSIDE_CONTEST",
+      field: "scheduledAt",
     });
     return;
   }
@@ -3547,7 +3607,10 @@ app.put("/api/teams/:id", async (req, res) => {
     !team ||
     (req.user?.role === "maestro" && team.group.createdById !== req.user.id)
   ) {
-    res.status(404).json({ message: "Participante no encontrado." });
+    res.status(404).json({
+      message: "Participante no encontrado.",
+      code: "TEAM_NOT_FOUND",
+    });
     return;
   }
 
@@ -3565,20 +3628,32 @@ app.put("/api/teams/:id", async (req, res) => {
   } catch (error) {
     res.status(400).json({
       message: error instanceof Error ? error.message : "Curso inválido.",
+      code: "TEAM_GRADE_INVALID",
+      field: "grade",
     });
     return;
   }
 
   if (!oneFirst || !oneLast) {
-    res
-      .status(400)
-      .json({ message: "Los nombres y apellidos son obligatorios." });
+    res.status(400).json({
+      message: "Los nombres y apellidos son obligatorios.",
+      code: "TEAM_MEMBER_ONE_REQUIRED",
+      fields: [
+        ...(!oneFirst ? ["memberOneFirstName"] : []),
+        ...(!oneLast ? ["memberOneLastName"] : []),
+      ],
+    });
     return;
   }
 
   if (isPareja && (!twoFirst || !twoLast)) {
     res.status(400).json({
       message: "Faltan los nombres y apellidos del segundo integrante.",
+      code: "TEAM_MEMBER_TWO_REQUIRED",
+      fields: [
+        ...(!twoFirst ? ["memberTwoFirstName"] : []),
+        ...(!twoLast ? ["memberTwoLastName"] : []),
+      ],
     });
     return;
   }
@@ -3587,9 +3662,11 @@ app.put("/api/teams/:id", async (req, res) => {
   const keyTwo = isPareja ? nameKey(twoFirst, twoLast) : "";
 
   if (isPareja && keyOne === keyTwo) {
-    res
-      .status(400)
-      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    res.status(400).json({
+      message: "Los dos integrantes no pueden ser la misma persona.",
+      code: "TEAM_MEMBERS_IDENTICAL",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
+    });
     return;
   }
 
@@ -3614,6 +3691,8 @@ app.put("/api/teams/:id", async (req, res) => {
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
       message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberOneFirstName", "memberOneLastName"],
     });
     return;
   }
@@ -3621,6 +3700,8 @@ app.put("/api/teams/:id", async (req, res) => {
   if (isPareja && takenKeys.has(keyTwo)) {
     res.status(409).json({
       message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
     });
     return;
   }
@@ -3664,7 +3745,18 @@ app.get("/api/groups/:id/roster-template", async (req, res) => {
   }));
   sheet.getRow(1).font = { bold: true };
 
-  sheet.addRow([
+  const example = workbook.addWorksheet("Ejemplo");
+  example.columns = ROSTER_COLUMNS.map((header) => ({
+    key: header,
+    width: header.length + 14,
+  }));
+  example.mergeCells(1, 1, 1, ROSTER_COLUMNS.length);
+  example.getCell(1, 1).value = "EJEMPLO - ESTA HOJA NO SE IMPORTA";
+  example.getCell(1, 1).font = { bold: true };
+  example.addRow([]);
+  example.addRow(ROSTER_COLUMNS);
+  example.getRow(3).font = { bold: true };
+  example.addRow([
     "Ana",
     "Quispe",
     grades[0]?.value ?? "P3",
@@ -3674,7 +3766,7 @@ app.get("/api/groups/:id/roster-template", async (req, res) => {
   ]);
 
   if (group.contest.allowPairs) {
-    sheet.addRow([
+    example.addRow([
       "Luis",
       "Mamani",
       grades[0]?.value ?? "P3",
@@ -3704,7 +3796,15 @@ app.get("/api/groups/:id/roster-template", async (req, res) => {
       .map((grade) => `${grade.value} (${grade.label})`)
       .join(", ")}.`,
   ]);
-  notes.addRow(["No cambies los títulos de las columnas ni el orden."]);
+  notes.addRow([
+    "La modalidad es obligatoria. Usa solamente individual o pareja.",
+  ]);
+  notes.addRow([
+    "Conserva los títulos en la primera fila. Puedes cambiar el orden de las columnas.",
+  ]);
+  notes.addRow([
+    "La importación es todo o nada: si una fila tiene errores, no se guarda ninguna.",
+  ]);
 
   const buffer = await workbook.xlsx.writeBuffer();
 
@@ -3750,207 +3850,307 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
     return;
   }
 
-  const workbook = new ExcelJS.Workbook();
+  if (activeRosterContests.has(group.contestId)) {
+    res.status(409).json({
+      message:
+        "Ya se está importando una planilla para este desafío. Intenta de nuevo cuando termine.",
+      code: "ROSTER_IMPORT_IN_PROGRESS",
+    });
+    return;
+  }
+
+  activeRosterContests.add(group.contestId);
 
   try {
-    if (req.file.originalname.toLowerCase().endsWith(".csv")) {
-      await workbook.csv.read(Readable.from(req.file.buffer.toString("utf8")));
-    } else {
-      await workbook.xlsx.load(
-        req.file.buffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
-      );
-    }
-  } catch {
-    res.status(400).json({
-      message: "No pudimos leer la planilla. Usa la plantilla del desafío.",
-    });
-    return;
-  }
-
-  const sheet = workbook.worksheets[0];
-
-  if (!sheet) {
-    res.status(400).json({ message: "La planilla está vacía." });
-    return;
-  }
-
-  const headerRow = sheet.getRow(1);
-  const columnByHeader = new Map<string, number>();
-  headerRow.eachCell((cell, column) => {
-    columnByHeader.set(normalizeHeader(cell.value), column);
-  });
-
-  const columnOf = (header: string) =>
-    columnByHeader.get(normalizeHeader(header)) ?? 0;
-  const firstNameColumn = columnOf("Nombres");
-  const lastNameColumn = columnOf("Apellidos");
-
-  if (!firstNameColumn || !lastNameColumn || !columnOf("Curso")) {
-    res.status(400).json({
-      message:
-        "La planilla necesita las columnas Nombres, Apellidos y Curso. Descarga la plantilla.",
-    });
-    return;
-  }
-
-  const existingTeams = await prisma.team.findMany({
-    where: { group: { contestId: group.contestId } },
-    select: {
-      memberOneFirstName: true,
-      memberOneLastName: true,
-      memberTwoFirstName: true,
-      memberTwoLastName: true,
-    },
-  });
-
-  const takenKeys = new Set<string>();
-  for (const existing of existingTeams) {
-    takenKeys.add(
-      nameKey(existing.memberOneFirstName, existing.memberOneLastName),
-    );
-    if (existing.memberTwoFirstName && existing.memberTwoLastName) {
-      takenKeys.add(
-        nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
-      );
-    }
-  }
-
-  const cellText = (row: ExcelJS.Row, column: number) => {
-    if (!column) {
-      return "";
-    }
-
-    const value = row.getCell(column).value;
-
-    if (value === null || value === undefined) {
-      return "";
-    }
-
-    if (typeof value === "object" && "richText" in value) {
-      return value.richText
-        .map((part) => part.text)
-        .join("")
-        .trim();
-    }
-
-    if (typeof value === "object" && "text" in value) {
-      return String(value.text).trim();
-    }
-
-    return String(value).trim();
-  };
-
-  const created: Array<{ row: number; name: string; personalCode: string }> =
-    [];
-  const skipped: Array<{ row: number; name: string; reason: string }> = [];
-
-  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
-    const row = sheet.getRow(rowNumber);
-    const oneFirst = cellText(row, firstNameColumn);
-    const oneLast = cellText(row, lastNameColumn);
-    const twoFirst = cellText(row, columnOf("Nombres del compañero"));
-    const twoLast = cellText(row, columnOf("Apellidos del compañero"));
-    const rawMode = normalizeHeader(cellText(row, columnOf("Modalidad")));
-    const label = `${oneFirst} ${oneLast}`.trim();
-
-    if (!oneFirst && !oneLast && !twoFirst && !twoLast) {
-      continue;
-    }
-
-    if (!oneFirst || !oneLast) {
-      skipped.push({
-        row: rowNumber,
-        name: label || "(sin nombre)",
-        reason: "Faltan nombres o apellidos.",
-      });
-      continue;
-    }
-
-    const isPair = rawMode === "pareja" || Boolean(twoFirst || twoLast);
-
-    if (isPair && !group.contest.allowPairs) {
-      skipped.push({
-        row: rowNumber,
-        name: label,
-        reason: "Este desafío no permite parejas.",
-      });
-      continue;
-    }
-
-    if (isPair && (!twoFirst || !twoLast)) {
-      skipped.push({
-        row: rowNumber,
-        name: label,
-        reason: "Faltan los datos del compañero.",
-      });
-      continue;
-    }
-
-    let grade: string;
+    const workbook = new ExcelJS.Workbook();
 
     try {
-      grade = gradeFromCell(
-        cellText(row, columnOf("Curso")),
-        group.contest.category,
-      );
-    } catch (error) {
-      skipped.push({
-        row: rowNumber,
-        name: label,
-        reason: error instanceof Error ? error.message : "Curso inválido.",
+      if (req.file.originalname.toLowerCase().endsWith(".csv")) {
+        await workbook.csv.read(
+          Readable.from(req.file.buffer.toString("utf8")),
+        );
+      } else {
+        await workbook.xlsx.load(
+          req.file.buffer as unknown as Parameters<
+            typeof workbook.xlsx.load
+          >[0],
+        );
+      }
+    } catch {
+      res.status(400).json({
+        message: "No pudimos leer la planilla. Usa la plantilla del desafío.",
       });
-      continue;
+      return;
     }
 
-    const keyOne = nameKey(oneFirst, oneLast);
-    const keyTwo = isPair ? nameKey(twoFirst, twoLast) : "";
-
-    if (isPair && keyOne === keyTwo) {
-      skipped.push({
-        row: rowNumber,
-        name: label,
-        reason: "Los dos integrantes son la misma persona.",
-      });
-      continue;
+    if (workbook.worksheets.length === 0) {
+      res.status(400).json({ message: "La planilla está vacía." });
+      return;
     }
 
-    if (takenKeys.has(keyOne) || (keyTwo && takenKeys.has(keyTwo))) {
-      skipped.push({
-        row: rowNumber,
-        name: label,
-        reason: "Ya está inscrito en este desafío.",
+    const requiredHeaders = ROSTER_COLUMNS.slice(0, 4).map(normalizeHeader);
+    const candidates: Array<{
+      sheet: ExcelJS.Worksheet;
+      columns: Map<string, number>;
+      duplicateHeaders: string[];
+    }> = [];
+
+    for (const worksheet of workbook.worksheets) {
+      const columns = new Map<string, number>();
+      const duplicateHeaders = new Set<string>();
+      worksheet.getRow(1).eachCell((cell, column) => {
+        const header = normalizeHeader(cell.value);
+        if (header && columns.has(header)) {
+          duplicateHeaders.add(header);
+        }
+        columns.set(header, column);
       });
-      continue;
+      if (requiredHeaders.every((header) => columns.has(header))) {
+        candidates.push({
+          sheet: worksheet,
+          columns,
+          duplicateHeaders: [...duplicateHeaders],
+        });
+      }
     }
 
-    const personalCode = await generateUniquePersonalCode();
-    await prisma.team.create({
-      data: {
-        groupId: group.id,
-        participationMode: isPair ? "pareja" : "individual",
-        grade,
-        memberOneFirstName: formatName(oneFirst),
-        memberOneLastName: formatName(oneLast),
-        memberTwoFirstName: isPair ? formatName(twoFirst) : null,
-        memberTwoLastName: isPair ? formatName(twoLast) : null,
-        personalCode,
-        attempt: { create: { status: "pending" } },
+    if (candidates.length === 0) {
+      res.status(400).json({
+        message:
+          "La planilla necesita una hoja con Nombres, Apellidos, Curso y Modalidad en la primera fila.",
+        code: "ROSTER_SHEET_NOT_FOUND",
+      });
+      return;
+    }
+    if (candidates.length > 1) {
+      res.status(400).json({
+        message:
+          "La planilla tiene más de una hoja importable. Deja los datos en una sola hoja.",
+        code: "ROSTER_MULTIPLE_SHEETS",
+      });
+      return;
+    }
+
+    const { sheet, columns, duplicateHeaders } = candidates[0];
+    const rosterHeaders = new Set(ROSTER_COLUMNS.map(normalizeHeader));
+    if (duplicateHeaders.some((header) => rosterHeaders.has(header))) {
+      res.status(400).json({
+        message:
+          "La hoja importable tiene encabezados repetidos. Deja una sola columna por dato.",
+        code: "ROSTER_DUPLICATE_HEADERS",
+      });
+      return;
+    }
+
+    const columnOf = (header: string) =>
+      columns.get(normalizeHeader(header)) ?? 0;
+    const valueText = (value: ExcelJS.CellValue) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      if (typeof value === "object" && "richText" in value) {
+        return value.richText
+          .map((part) => part.text)
+          .join("")
+          .trim();
+      }
+      if (typeof value === "object" && "text" in value) {
+        return String(value.text).trim();
+      }
+      return String(value).trim();
+    };
+    const cellText = (row: ExcelJS.Row, column: number) =>
+      column ? valueText(row.getCell(column).value) : "";
+
+    const existingTeams = await prisma.team.findMany({
+      where: { group: { contestId: group.contestId } },
+      select: {
+        memberOneFirstName: true,
+        memberOneLastName: true,
+        memberTwoFirstName: true,
+        memberTwoLastName: true,
       },
     });
-
-    takenKeys.add(keyOne);
-    if (keyTwo) {
-      takenKeys.add(keyTwo);
+    const takenKeys = new Set<string>();
+    for (const existing of existingTeams) {
+      takenKeys.add(
+        nameKey(existing.memberOneFirstName, existing.memberOneLastName),
+      );
+      if (existing.memberTwoFirstName && existing.memberTwoLastName) {
+        takenKeys.add(
+          nameKey(existing.memberTwoFirstName, existing.memberTwoLastName),
+        );
+      }
     }
 
-    created.push({
-      row: rowNumber,
-      name: `${formatName(oneFirst)} ${formatName(oneLast)}`,
-      personalCode,
-    });
-  }
+    type RosterDraft = {
+      row: number;
+      participationMode: "individual" | "pareja";
+      grade: string;
+      oneFirst: string;
+      oneLast: string;
+      twoFirst: string | null;
+      twoLast: string | null;
+    };
+    const drafts: RosterDraft[] = [];
+    const issues: Array<{ row: number; name: string; reason: string }> = [];
 
-  res.status(created.length > 0 ? 201 : 200).json({ created, skipped });
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+      const row = sheet.getRow(rowNumber);
+      const oneFirst = cellText(row, columnOf("Nombres"));
+      const oneLast = cellText(row, columnOf("Apellidos"));
+      const gradeText = cellText(row, columnOf("Curso"));
+      const modeText = cellText(row, columnOf("Modalidad"));
+      const twoFirst = cellText(row, columnOf("Nombres del compañero"));
+      const twoLast = cellText(row, columnOf("Apellidos del compañero"));
+      const label = `${oneFirst} ${oneLast}`.trim() || "(sin nombre)";
+      let hasAnyValue = false;
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        if (valueText(cell.value)) {
+          hasAnyValue = true;
+        }
+      });
+
+      if (!hasAnyValue) {
+        continue;
+      }
+
+      const rowIssues: Array<{
+        row: number;
+        name: string;
+        reason: string;
+      }> = [];
+      const addIssue = (reason: string, name = label) => {
+        rowIssues.push({ row: rowNumber, name, reason });
+      };
+      if (!oneFirst || !oneLast) {
+        addIssue("Faltan nombres o apellidos.");
+      }
+
+      const normalizedMode = normalizeHeader(modeText);
+      const hasValidMode =
+        normalizedMode === "individual" || normalizedMode === "pareja";
+      const isPair = normalizedMode === "pareja";
+      if (!hasValidMode) {
+        addIssue(
+          modeText
+            ? `Modalidad "${modeText}" no reconocida. Usa individual o pareja.`
+            : "Falta la modalidad. Usa individual o pareja.",
+        );
+      } else {
+        if (!isPair && (twoFirst || twoLast)) {
+          addIssue(
+            "La modalidad individual no puede incluir datos de un compañero.",
+          );
+        }
+        if (isPair && !group.contest.allowPairs) {
+          addIssue("Este desafío no permite parejas.");
+        }
+        if (isPair && (!twoFirst || !twoLast)) {
+          addIssue("Faltan los datos del compañero.");
+        }
+      }
+
+      let grade: string | null = null;
+      try {
+        grade = gradeFromCell(gradeText, group.contest.category);
+      } catch (error) {
+        addIssue(error instanceof Error ? error.message : "Curso inválido.");
+      }
+
+      const keyOne = oneFirst && oneLast ? nameKey(oneFirst, oneLast) : "";
+      const keyTwo =
+        isPair && twoFirst && twoLast ? nameKey(twoFirst, twoLast) : "";
+      if (keyOne && keyTwo && keyOne === keyTwo) {
+        addIssue("Los dos integrantes son la misma persona.");
+      }
+      if (keyOne && takenKeys.has(keyOne)) {
+        addIssue("Ya está inscrito en este desafío.");
+      }
+      if (keyTwo && takenKeys.has(keyTwo)) {
+        addIssue(
+          "Ya está inscrito en este desafío.",
+          `${twoFirst} ${twoLast}`.trim(),
+        );
+      }
+
+      if (rowIssues.length > 0 || !hasValidMode || !grade || !keyOne) {
+        issues.push(...rowIssues);
+        continue;
+      }
+
+      takenKeys.add(keyOne);
+      if (keyTwo) {
+        takenKeys.add(keyTwo);
+      }
+      drafts.push({
+        row: rowNumber,
+        participationMode: isPair ? "pareja" : "individual",
+        grade,
+        oneFirst: formatName(oneFirst),
+        oneLast: formatName(oneLast),
+        twoFirst: isPair ? formatName(twoFirst) : null,
+        twoLast: isPair ? formatName(twoLast) : null,
+      });
+    }
+
+    if (issues.length > 0) {
+      res.status(422).json({
+        message:
+          "No se importó ningún participante. Corrige las filas indicadas.",
+        code: "ROSTER_VALIDATION_FAILED",
+        details: issues,
+      });
+      return;
+    }
+    if (drafts.length === 0) {
+      res.status(400).json({
+        message: "La planilla no contiene participantes para importar.",
+        code: "ROSTER_EMPTY",
+      });
+      return;
+    }
+
+    const reservedCodes = new Set<string>();
+    const prepared: Array<RosterDraft & { personalCode: string }> = [];
+    for (const draft of drafts) {
+      let personalCode = await generateUniquePersonalCode();
+      while (reservedCodes.has(personalCode)) {
+        personalCode = await generateUniquePersonalCode();
+      }
+      reservedCodes.add(personalCode);
+      prepared.push({ ...draft, personalCode });
+    }
+
+    await prisma.$transaction(
+      prepared.map((draft) =>
+        prisma.team.create({
+          data: {
+            groupId: group.id,
+            participationMode: draft.participationMode,
+            grade: draft.grade,
+            memberOneFirstName: draft.oneFirst,
+            memberOneLastName: draft.oneLast,
+            memberTwoFirstName: draft.twoFirst,
+            memberTwoLastName: draft.twoLast,
+            personalCode: draft.personalCode,
+            attempt: { create: { status: "pending" } },
+          },
+        }),
+      ),
+    );
+
+    res.status(201).json({
+      created: prepared.map((draft) => ({
+        row: draft.row,
+        name: `${draft.oneFirst} ${draft.oneLast}`,
+        personalCode: draft.personalCode,
+      })),
+      skipped: [],
+    });
+  } finally {
+    activeRosterContests.delete(group.contestId);
+  }
 });
 
 app.post("/api/groups/:id/teams", async (req, res) => {
@@ -3963,7 +4163,10 @@ app.post("/api/groups/:id/teams", async (req, res) => {
     !group ||
     (req.user?.role === "maestro" && group.createdById !== req.user.id)
   ) {
-    res.status(404).json({ message: "Grupo no encontrado." });
+    res.status(404).json({
+      message: "Grupo no encontrado.",
+      code: "TEAM_GROUP_NOT_FOUND",
+    });
     return;
   }
 
@@ -3973,9 +4176,10 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   }
 
   if (contestHasEnded(computeContestState(group.contest).state)) {
-    res
-      .status(409)
-      .json({ message: "El desafío ya cerró; no es posible inscribir." });
+    res.status(409).json({
+      message: "El desafío ya cerró; no es posible inscribir.",
+      code: "TEAM_CONTEST_CLOSED",
+    });
     return;
   }
 
@@ -3989,20 +4193,33 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   const twoLast = readField(req.body?.memberTwoLastName);
 
   if (!oneFirst || !oneLast) {
-    res
-      .status(400)
-      .json({ message: "Los nombres y apellidos son obligatorios." });
+    res.status(400).json({
+      message: "Los nombres y apellidos son obligatorios.",
+      code: "TEAM_MEMBER_ONE_REQUIRED",
+      fields: [
+        ...(!oneFirst ? ["memberOneFirstName"] : []),
+        ...(!oneLast ? ["memberOneLastName"] : []),
+      ],
+    });
     return;
   }
 
   if (mode === "pareja" && !group.contest.allowPairs) {
-    res.status(400).json({ message: "Este desafío no permite parejas." });
+    res.status(400).json({
+      message: "Este desafío no permite parejas.",
+      code: "TEAM_PAIRS_NOT_ALLOWED",
+    });
     return;
   }
 
   if (mode === "pareja" && (!twoFirst || !twoLast)) {
     res.status(400).json({
       message: "Faltan los nombres y apellidos del segundo integrante.",
+      code: "TEAM_MEMBER_TWO_REQUIRED",
+      fields: [
+        ...(!twoFirst ? ["memberTwoFirstName"] : []),
+        ...(!twoLast ? ["memberTwoLastName"] : []),
+      ],
     });
     return;
   }
@@ -4014,6 +4231,8 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   } catch (error) {
     res.status(400).json({
       message: error instanceof Error ? error.message : "Curso inválido.",
+      code: "TEAM_GRADE_INVALID",
+      field: "grade",
     });
     return;
   }
@@ -4022,9 +4241,11 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   const keyTwo = mode === "pareja" ? nameKey(twoFirst, twoLast) : "";
 
   if (mode === "pareja" && keyOne === keyTwo) {
-    res
-      .status(400)
-      .json({ message: "Los dos integrantes no pueden ser la misma persona." });
+    res.status(400).json({
+      message: "Los dos integrantes no pueden ser la misma persona.",
+      code: "TEAM_MEMBERS_IDENTICAL",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
+    });
     return;
   }
 
@@ -4053,6 +4274,8 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   if (takenKeys.has(keyOne)) {
     res.status(409).json({
       message: `${formatName(oneFirst)} ${formatName(oneLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberOneFirstName", "memberOneLastName"],
     });
     return;
   }
@@ -4060,6 +4283,8 @@ app.post("/api/groups/:id/teams", async (req, res) => {
   if (mode === "pareja" && takenKeys.has(keyTwo)) {
     res.status(409).json({
       message: `${formatName(twoFirst)} ${formatName(twoLast)} ya está registrado en este desafío.`,
+      code: "TEAM_MEMBER_DUPLICATE",
+      fields: ["memberTwoFirstName", "memberTwoLastName"],
     });
     return;
   }
@@ -5181,11 +5406,11 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
   const tasks = contest.tasks.map((contestTask) => {
     const task = deserializeTask(contestTask.taskDraft) as PlayTask;
     const safe: ReturnType<typeof renderSafeTask> & {
-      correct?: boolean;
+      correct?: boolean | null;
       explanation?: unknown;
     } = renderSafeTask(contestTask, task);
     if (showResults) {
-      safe.correct = correctnessByTask[task.id] ?? false;
+      safe.correct = correctnessByTask[task.id] ?? null;
     }
     if (showResults && contest.showSolutions) {
       safe.explanation = task.explanation;

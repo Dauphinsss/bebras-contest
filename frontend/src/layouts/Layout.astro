@@ -12,6 +12,8 @@ interface Props {
   backHref?: string;
   requireAuth?: boolean;
   allowMaestro?: boolean;
+  enableClientRouting?: boolean;
+  deferChrome?: boolean;
 }
 
 const {
@@ -20,6 +22,8 @@ const {
   backHref,
   requireAuth = false,
   allowMaestro = false,
+  enableClientRouting = true,
+  deferChrome = false,
 } = Astro.props;
 ---
 
@@ -30,12 +34,12 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/png" href="/castor.png" />
     <title>{title}</title>
-    <ClientRouter />
+    {enableClientRouting && <ClientRouter />}
     {requireAuth && <AuthGuard allowMaestro={allowMaestro} />}
   </head>
   <body>
     <div class="flex min-h-screen flex-col">
-      <SiteHeader heading={heading} backHref={backHref} />
+      <SiteHeader heading={heading} backHref={backHref} hidden={deferChrome} />
       <div
         class="flex-1"
         data-page-content
@@ -44,7 +48,7 @@ const {
       >
         <slot />
       </div>
-      <SiteFooter />
+      <SiteFooter hidden={deferChrome} />
     </div>
     <AppToaster client:load transition:persist="app-toaster" />
   </body>

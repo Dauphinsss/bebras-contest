@@ -1633,6 +1633,21 @@ test("labels tester controls for each answer type", async ({ page }) => {
       page.getByRole("button", { name: "Probar respuesta" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Reiniciar" })).toBeVisible();
+
+    if (testCase.answerType === "short_text") {
+      await expect(
+        page.getByRole("textbox", { name: "Tu respuesta", exact: true }),
+      ).toBeVisible();
+    }
+
+    if (testCase.answerType === "range") {
+      await expect(
+        page.getByRole("spinbutton", {
+          name: "Tu respuesta numérica",
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
   }
 
   await api.dispose();

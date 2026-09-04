@@ -12,6 +12,7 @@ import {
   CheckCircle2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CircleIcon,
   ClockIcon,
   LoaderCircleIcon,
   SendIcon,
@@ -172,12 +173,41 @@ export function AttemptPage({
   }, []);
 
   const suspended = attempt?.state === "suspendida";
+  const attemptActive = starting || attempt?.status === "in_progress";
+  const chromeHidden = loading || attemptActive;
   const suspendedAtMs = attempt?.suspendedAt
     ? new Date(attempt.suspendedAt).getTime()
     : 0;
   const endsAtMs = attempt?.endsAt ? new Date(attempt.endsAt).getTime() : 0;
   const remaining =
     endsAtMs - (suspended && suspendedAtMs ? suspendedAtMs : now);
+
+  useEffect(() => {
+    const chrome = document.querySelectorAll<HTMLElement>("[data-site-chrome]");
+    chrome.forEach((element) => {
+      element.hidden = chromeHidden;
+    });
+
+    return () => {
+      chrome.forEach((element) => {
+        element.hidden = false;
+      });
+    };
+  }, [chromeHidden]);
+
+  useEffect(() => {
+    if (!attemptActive) {
+      return;
+    }
+
+    const confirmExit = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", confirmExit);
+    return () => window.removeEventListener("beforeunload", confirmExit);
+  }, [attemptActive]);
 
   const queueSave = (taskId: string, payload: unknown) => {
     const previousSave = saveQueues.current[taskId] ?? Promise.resolve();
@@ -497,18 +527,35 @@ export function AttemptPage({
           attempt.tasks.map((task) => (
             <Card key={task.taskId}>
               <CardContent className="flex flex-col gap-2 pt-6">
-                <div className="flex items-center gap-2">
-                  {task.correct ? (
-                    <CheckCircle2Icon className="size-5 shrink-0 text-primary" />
-                  ) : (
-                    <XCircleIcon className="size-5 shrink-0 text-destructive" />
-                  )}
+                <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold">
                     {task.position}. {task.title}
                   </h2>
+                  <Badge
+                    variant={
+                      task.correct === true
+                        ? "default"
+                        : task.correct === false
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {task.correct === true ? (
+                      <CheckCircle2Icon data-icon="inline-start" />
+                    ) : task.correct === false ? (
+                      <XCircleIcon data-icon="inline-start" />
+                    ) : (
+                      <CircleIcon data-icon="inline-start" />
+                    )}
+                    {task.correct === true
+                      ? "Correcta"
+                      : task.correct === false
+                        ? "Incorrecta"
+                        : "Sin responder"}
+                  </Badge>
                 </div>
                 {attempt.showSolutions && task.explanation && (
-                  <p className="pl-7 text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {task.explanation}
                   </p>
                 )}

@@ -23,6 +23,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   listTasks,
   mapTaskToHomeItem,
@@ -33,6 +44,8 @@ import {
 
 export function TasksHome() {
   const [tasks, setTasks] = useState<HomeTaskItem[]>([]);
+  const [taskToDelete, setTaskToDelete] = useState<HomeTaskItem | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -72,6 +85,32 @@ export function TasksHome() {
       });
   };
 
+  const confirmDelete = async () => {
+    if (!taskToDelete || deletingTaskId) {
+      return;
+    }
+
+    setDeletingTaskId(taskToDelete.id);
+    try {
+      await removeTask(taskToDelete.id);
+      setTasks((current) =>
+        current.filter((task) => task.id !== taskToDelete.id),
+      );
+      setTaskToDelete(null);
+      toast.success("La tarea se eliminó correctamente.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar la tarea.",
+      );
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
+  const deletingSelectedTask = deletingTaskId === taskToDelete?.id;
+
   return (
     <div className="flex w-full flex-col gap-6">
       <Card>
@@ -107,11 +146,8 @@ export function TasksHome() {
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Tareas</CardTitle>
-          <CardDescription>
-            Estas son las tareas registradas actualmente.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-6">
+        <CardContent className="flex flex-col gap-4">
           {tasks.length === 0 ? (
             <Alert>
               <AlertCircleIcon />
@@ -125,11 +161,13 @@ export function TasksHome() {
               <Card
                 key={task.id}
                 variant="soft-gradient"
-                className="cursor-pointer gap-0 py-0 transition hover:border-primary/40"
-                onDoubleClick={() => {
-                  window.location.href = `/tareas/editar?id=${task.id}`;
-                }}
+                className="relative isolate gap-0 py-0 transition hover:border-primary/40 focus-within:border-primary/40"
               >
+                <a
+                  href={`/tareas/editar?id=${task.id}`}
+                  aria-label={`Abrir edición de ${task.title}`}
+                  className="absolute inset-0 z-0 rounded-[inherit] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                />
                 <CardHeader className="gap-4 py-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex min-w-0 flex-col gap-3">
@@ -151,16 +189,13 @@ export function TasksHome() {
                         {task.title}
                       </CardTitle>
                     </div>
-                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
+                    <div className="relative z-10 grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                       <Button
                         size="sm"
                         type="button"
                         variant={task.isPractice ? "default" : "outline"}
                         className="w-full justify-start"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          togglePractice(task);
-                        }}
+                        onClick={() => togglePractice(task)}
                       >
                         <GraduationCapIcon data-icon="inline-start" />
                         {task.isPractice ? "En práctica" : "Práctica"}
@@ -192,23 +227,7 @@ export function TasksHome() {
                         type="button"
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void removeTask(task.id)
-                            .then(() => {
-                              setTasks((current) =>
-                                current.filter(
-                                  (currentTask) => currentTask.id !== task.id,
-                                ),
-                              );
-                              toast.success(
-                                "La tarea se eliminó correctamente.",
-                              );
-                            })
-                            .catch(() => {
-                              toast.error("No se pudo eliminar la tarea.");
-                            });
-                        }}
+                        onClick={() => setTaskToDelete(task)}
                       >
                         <Trash2Icon data-icon="inline-start" />
                         Eliminar
@@ -229,6 +248,42 @@ export function TasksHome() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={taskToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingSelectedTask) {
+            setTaskToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta tarea?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {taskToDelete
+                ? `Se eliminará "${taskToDelete.title}". Esta acción no se puede deshacer.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSelectedTask}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deletingSelectedTask}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDelete();
+              }}
+            >
+              {deletingSelectedTask && <Spinner data-icon="inline-start" />}
+              {deletingSelectedTask ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

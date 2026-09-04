@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MenuIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,6 @@ export function MobileNavigation({ pathname }: MobileNavigationProps) {
   const links = SITE_NAV_ITEMS.filter((item) =>
     canAccessSiteNav(item.role, user?.role, user?.status),
   );
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   return (
     <Collapsible
@@ -59,7 +55,11 @@ export function MobileNavigation({ pathname }: MobileNavigationProps) {
                 variant={active ? "default" : "ghost"}
                 className="w-full justify-start"
               >
-                <a href={link.href} aria-current={active ? "page" : undefined}>
+                <a
+                  href={link.href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
                   {link.label}
                 </a>
               </Button>

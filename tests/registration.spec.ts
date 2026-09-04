@@ -31,7 +31,12 @@ test("rejects documents whose content does not match the extension", async () =>
   });
 
   expect(response.status()).toBe(400);
-  expect((await response.json()).message).toContain("contenido del documento");
+  expect(await response.json()).toEqual(
+    expect.objectContaining({
+      message: expect.stringContaining("contenido del documento"),
+      field: "letter",
+    }),
+  );
   await api.dispose();
 });
 
@@ -96,10 +101,16 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
   const assertRejectedWithoutUploads = async (
     multipart: Record<string, string | typeof VALID_PDF>,
     expectedMessage: string,
+    expectedField?: string,
   ) => {
     const response = await api.post(`${API}/api/auth/register`, { multipart });
     expect(response.status()).toBe(400);
-    expect((await response.json()).message).toContain(expectedMessage);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(expectedMessage),
+        ...(expectedField ? { field: expectedField } : {}),
+      }),
+    );
     expect(uploadedDocuments()).toEqual(previousUploads);
   };
 
@@ -114,6 +125,7 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
         },
       },
       "PDF o una imagen",
+      "letter",
     );
     await assertRejectedWithoutUploads(
       {
@@ -125,6 +137,7 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
         },
       },
       "5 MB",
+      "letter",
     );
     await assertRejectedWithoutUploads(
       {
@@ -145,6 +158,7 @@ test("rejects incomplete, unsupported and oversized document uploads cleanly", a
         },
       },
       "PDF o una imagen",
+      "idFront",
     );
   } finally {
     removeNewUploads(previousUploads);
@@ -340,51 +354,46 @@ test("sorts teachers by status and confirms rejecting or suspending", async ({
   }, session);
   await page.goto("/maestros");
 
-  const section = (title: string) =>
-    page
-      .getByText(title, { exact: false })
-      .first()
-      .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const filterBy = (name: RegExp) => page.getByRole("button", { name });
 
-  const pending = section("Solicitudes pendientes");
-  await expect(pending.getByText(approvedEmail)).toBeVisible({
+  await expect(page.getByText(approvedEmail)).toBeVisible({
     timeout: 15000,
   });
 
-  const cardFor = (email: string) =>
-    page
-      .getByText(email, { exact: true })
-      .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const rowFor = (email: string) =>
+    page.locator("article").filter({ hasText: email });
 
-  await cardFor(approvedEmail).getByRole("button", { name: "Aprobar" }).click();
-  await expect(section("Aprobados").getByText(approvedEmail)).toBeVisible();
+  await rowFor(approvedEmail).getByRole("button", { name: "Aprobar" }).click();
+  await filterBy(/^Aprobados/).click();
+  await expect(page.getByText(approvedEmail)).toBeVisible();
 
-  await cardFor(approvedEmail)
+  await rowFor(approvedEmail)
     .getByRole("button", { name: "Suspender" })
     .click();
   const suspendDialog = page.getByRole("alertdialog");
   await expect(suspendDialog).toContainText("¿Suspender a este maestro?");
   await suspendDialog.getByRole("button", { name: "Suspender" }).click();
-  await expect(section("Suspendidos").getByText(approvedEmail)).toBeVisible();
+  await filterBy(/^Suspendidos/).click();
+  await expect(page.getByText(approvedEmail)).toBeVisible();
 
-  await cardFor(rejectedEmail)
-    .getByRole("button", { name: "Rechazar" })
+  await filterBy(/^Pendientes/).click();
+  await rowFor(rejectedEmail)
+    .getByRole("button", { name: /^Rechazar a/ })
     .click();
   const rejectDialog = page.getByRole("alertdialog");
   await expect(rejectDialog).toContainText("¿Rechazar a este maestro?");
   await rejectDialog.getByRole("button", { name: "Cancelar" }).click();
-  await expect(
-    section("Solicitudes pendientes").getByText(rejectedEmail),
-  ).toBeVisible();
+  await expect(page.getByText(rejectedEmail)).toBeVisible();
 
-  await cardFor(rejectedEmail)
-    .getByRole("button", { name: "Rechazar" })
+  await rowFor(rejectedEmail)
+    .getByRole("button", { name: /^Rechazar a/ })
     .click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "Rechazar" })
     .click();
-  await expect(section("Rechazados").getByText(rejectedEmail)).toBeVisible();
+  await filterBy(/^Rechazados/).click();
+  await expect(page.getByText(rejectedEmail)).toBeVisible();
 
   const suspendedApi = await request.newContext();
   const suspendedLogin = await suspendedApi

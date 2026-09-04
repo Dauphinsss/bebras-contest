@@ -29,7 +29,7 @@ export type PlayTask = {
   >[];
   dragDropTargets: StoredTaskDragDropTarget[];
   explanation?: string;
-  correct?: boolean;
+  correct?: boolean | null;
 };
 
 export type AttemptResult = {

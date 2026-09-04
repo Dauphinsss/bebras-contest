@@ -1,8 +1,15 @@
 ---
+interface Props {
+  hidden?: boolean;
+}
+
+const { hidden = false } = Astro.props;
 const year = new Date().getFullYear();
 ---
 
 <footer
+  data-site-chrome="footer"
+  hidden={hidden}
   class="border-t bg-background"
   transition:name="app-footer"
   transition:animate="none"

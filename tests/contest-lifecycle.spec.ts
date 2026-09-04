@@ -571,7 +571,7 @@ test("gives the paused time back when the contest resumes", async () => {
   await api.dispose();
 });
 
-test("enrolls a whole roster from a spreadsheet", async () => {
+test("enrolls a complete roster atomically from a spreadsheet", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const contest = await createContest(api, headers, { allowPairs: true });
@@ -610,24 +610,52 @@ test("enrolls a whole roster from a spreadsheet", async () => {
       },
     },
   });
-  expect(imported.status(), await imported.text()).toBe(201);
+  expect(imported.status(), await imported.text()).toBe(422);
   const result = await imported.json();
 
-  expect(result.created).toHaveLength(2);
-  expect(result.created[0].name).toBe("Ana Quispe");
-  expect(result.created[0].personalCode).toBeTruthy();
-
-  const reasons = result.skipped.map((item: { reason: string }) => item.reason);
-  expect(result.skipped).toHaveLength(3);
-  expect(reasons[0]).toContain("Faltan nombres");
-  expect(reasons[1]).toContain("categoría");
-  expect(reasons[2]).toContain("Ya está inscrito");
+  expect(result.code).toBe("ROSTER_VALIDATION_FAILED");
+  expect(result.details).toHaveLength(3);
+  expect(result.details.map((item: { row: number }) => item.row)).toEqual([
+    5, 6, 7,
+  ]);
 
   const teams = await api
     .get(`${API}/api/groups`, { headers })
     .then((r) => r.json());
   const stored = teams.find((item: { id: string }) => item.id === group.id);
-  expect(stored.teams).toHaveLength(2);
+  expect(stored.teams).toHaveLength(0);
+
+  const validCsv = [
+    [
+      "Nombres",
+      "Apellidos",
+      "Curso",
+      "Modalidad",
+      "Nombres del compañero",
+      "Apellidos del compañero",
+    ],
+    ["Ana", "Quispe", contest.picked.grade, "individual", "", ""],
+    ["Luis", "Mamani", contest.picked.grade, "pareja", "Marta", "Rojas"],
+  ]
+    .map((row) => row.join(","))
+    .join("\n");
+  const validImport = await api.post(`${API}/api/groups/${group.id}/roster`, {
+    headers,
+    multipart: {
+      file: {
+        name: "participantes-validos.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(validCsv, "utf8"),
+      },
+    },
+  });
+  expect(validImport.status(), await validImport.text()).toBe(201);
+  const validResult = await validImport.json();
+  expect(validResult.created).toHaveLength(2);
+  expect(validResult.created[0].name).toBe("Ana Quispe");
+  expect(validResult.created[0].personalCode).toBeTruthy();
+  expect(validResult.created[1].name).toBe("Luis Mamani");
+  expect(validResult.skipped).toEqual([]);
 
   const otherContest = await createContest(api, headers, { allowPairs: true });
   const templateGroup = await api
@@ -655,10 +683,9 @@ test("enrolls a whole roster from a spreadsheet", async () => {
       },
     },
   );
-  expect(roundTrip.status(), await roundTrip.text()).toBe(201);
+  expect(roundTrip.status(), await roundTrip.text()).toBe(400);
   const roundTripResult = await roundTrip.json();
-  expect(roundTripResult.created.length).toBeGreaterThan(0);
-  expect(roundTripResult.skipped).toHaveLength(0);
+  expect(roundTripResult.code).toBe("ROSTER_EMPTY");
 
   const wrong = await api.post(`${API}/api/groups/${group.id}/roster`, {
     headers,
@@ -671,7 +698,7 @@ test("enrolls a whole roster from a spreadsheet", async () => {
     },
   });
   expect(wrong.status()).toBe(400);
-  expect((await wrong.json()).message).toContain("columnas");
+  expect((await wrong.json()).code).toBe("ROSTER_SHEET_NOT_FOUND");
 
   await api.dispose();
 });
