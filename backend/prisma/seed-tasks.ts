@@ -22,7 +22,8 @@ type TaskItem = {
   shortAnswer?: string;
   rangeAnswers?: unknown[];
   dragDropBackground?: unknown;
-  dragDropItems?: unknown[];
+  dragDropItems?: unknown;
+  dragDropTargets?: unknown[];
   explanation?: string;
   status?: string;
   isPractice?: boolean;
@@ -55,7 +56,17 @@ async function main() {
         shortAnswer: task.shortAnswer ?? "",
         rangeAnswers: JSON.stringify(task.rangeAnswers ?? []),
         dragDropBackground: JSON.stringify(task.dragDropBackground ?? null),
-        dragDropItems: JSON.stringify(task.dragDropItems ?? []),
+        dragDropItems: JSON.stringify(
+          task.dragDropTargets
+            ? {
+                version: 2,
+                items: Array.isArray(task.dragDropItems)
+                  ? task.dragDropItems
+                  : [],
+                targets: task.dragDropTargets,
+              }
+            : (task.dragDropItems ?? []),
+        ),
         explanation: task.explanation ?? "",
         status: task.status ?? "Borrador",
         isPractice: task.isPractice ?? true,
