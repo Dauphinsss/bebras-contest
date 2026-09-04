@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowLeftIcon,
   CheckCircle2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -519,6 +520,14 @@ export function AttemptPage({
                   ? "Tu maestro te compartirá los resultados."
                   : "Los resultados se publicarán unos días después del desafío."}
               </p>
+            )}
+            {preview && (
+              <Button asChild variant="outline" className="mt-2">
+                <a href={`/competencias/editar?id=${previewContestId}`}>
+                  <ArrowLeftIcon data-icon="inline-start" />
+                  Volver a la edición
+                </a>
+              </Button>
             )}
           </CardContent>
         </Card>

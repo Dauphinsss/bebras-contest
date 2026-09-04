@@ -89,21 +89,21 @@ function formatCountdown(target: string | null, now: number) {
 
   if (days > 0) {
     return hours > 0
-      ? `Faltan ${days} ${days === 1 ? "día" : "días"} y ${hours} h`
-      : `Faltan ${days} ${days === 1 ? "día" : "días"}`;
+      ? `${days} ${days === 1 ? "día" : "días"} y ${hours} h`
+      : `${days} ${days === 1 ? "día" : "días"}`;
   }
 
   if (hours > 0) {
     return minutes > 0
-      ? `Faltan ${hours} h ${minutes} min`
-      : `Faltan ${hours} ${hours === 1 ? "hora" : "horas"}`;
+      ? `${hours} h ${minutes} min`
+      : `${hours} ${hours === 1 ? "hora" : "horas"}`;
   }
 
   if (minutes > 0) {
-    return `Faltan ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+    return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
   }
 
-  return "Falta menos de un minuto";
+  return "menos de un minuto";
 }
 
 /** Hacia qué momento cuenta cada fase. */
@@ -282,7 +282,7 @@ export function LiveContests() {
               )}
               {remaining && (
                 <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-                  {remaining} {target.label}
+                  Faltan {remaining} {target.label}
                 </span>
               )}
             </div>
@@ -304,16 +304,20 @@ export function LiveContests() {
                       contest.registrationEndsAt ?? contest.startsAt,
                     )}
                   </span>
-                  <span className="inline-flex items-center gap-2">
-                    <ClockIcon className="size-4 shrink-0" />
-                    La rendición es el {formatDateTime(contest.startsAt)}
-                  </span>
+                  {contest.startsAt && (
+                    <span className="inline-flex items-center gap-2">
+                      <ClockIcon className="size-4 shrink-0" />
+                      La rendición empieza en{" "}
+                      {formatCountdown(contest.startsAt, now) ?? "un momento"}
+                    </span>
+                  )}
                 </>
               )}
               {state === "preparacion" && (
                 <span>
-                  La inscripción ya cerró · La rendición empieza el{" "}
-                  {formatDateTime(contest.startsAt)}
+                  {contest.startsAt
+                    ? `La inscripción ya cerró · Faltan ${formatCountdown(contest.startsAt, now) ?? "minutos"} para la rendición`
+                    : "La inscripción ya cerró."}
                 </span>
               )}
               {state === "programada" && (

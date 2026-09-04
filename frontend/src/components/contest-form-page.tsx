@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -707,6 +708,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [publishAttempted, setPublishAttempted] = useState(false);
   const [contestState, setContestState] = useState<ContestState>("borrador");
+  const [autoSaveState, setAutoSaveState] = useState<
+    "idle" | "saving" | "saved" | "failed"
+  >("idle");
+  // Última versión que el servidor ya tiene, para no reenviar lo mismo ni
+  // guardar en bucle con la respuesta del propio guardado.
+  const savedSnapshotRef = useRef<string | null>(null);
   const locked = ![
     "borrador",
     "programada",
@@ -730,8 +737,12 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         setTasks(loadedTasks);
 
         if (loadedContest) {
-          setForm(createStateFromContest(loadedContest));
+          const loadedForm = createStateFromContest(loadedContest);
+          setForm(loadedForm);
           setContestState(loadedContest.state);
+          savedSnapshotRef.current = JSON.stringify(
+            toContestPayload(loadedForm),
+          );
         }
       })
       .catch((error: unknown) => {
@@ -927,15 +938,15 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     submitAttempted &&
     !isCreation &&
     (!Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0);
-  const hasDateError =
+  // Dejar la rendición vacía es válido incluso al publicar; solo se marca si
+  // lo que ya está escrito no cuadra.
+  const hasDateError = Boolean(
     submitAttempted &&
     !isCreation &&
-    ((publishAttempted && (!form.startsAt || !form.endsAt)) ||
-      Boolean(
-        form.startsAt &&
-        form.endsAt &&
-        new Date(form.endsAt) <= new Date(form.startsAt),
-      ));
+    form.startsAt &&
+    form.endsAt &&
+    new Date(form.endsAt) <= new Date(form.startsAt),
+  );
   const hasRegistrationError = Boolean(
     submitAttempted &&
     !isCreation &&
@@ -949,6 +960,51 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         form.startsAt &&
         new Date(form.registrationEndsAt) >= new Date(form.startsAt))),
   );
+
+  // Guarda solo cuando lo escrito es coherente y difiere de lo guardado. Va al
+  // servidor y no a localStorage: el borrador ya vive en la base, así que una
+  // copia local solo abriría la puerta a dos versiones distintas del mismo
+  // desafío. El botón Guardar sigue ahí para forzarlo.
+  useEffect(() => {
+    if (isCreation || locked || !resolvedContestId || loading) {
+      return;
+    }
+
+    const payload = toContestPayload(form);
+    const snapshot = JSON.stringify(payload);
+
+    if (snapshot === savedSnapshotRef.current) {
+      return;
+    }
+
+    if (validationErrors.length > 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setAutoSaveState("saving");
+
+      void updateContest(resolvedContestId, payload)
+        .then((saved) => {
+          savedSnapshotRef.current = snapshot;
+          setContestState(saved.state);
+          setAutoSaveState("saved");
+        })
+        .catch(() => {
+          // Sin ruido: el aviso vive en la barra y el botón sigue disponible.
+          setAutoSaveState("failed");
+        });
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    form,
+    isCreation,
+    loading,
+    locked,
+    resolvedContestId,
+    validationErrors.length,
+  ]);
 
   const handlePublish = async () => {
     if (locked) {
@@ -976,9 +1032,13 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         toContestPayload(form),
       );
       const publishedContest = await publishContest(savedContest.id);
+      const publishedForm = createStateFromContest(publishedContest);
 
-      setForm(createStateFromContest(publishedContest));
+      setForm(publishedForm);
       setContestState(publishedContest.state);
+      savedSnapshotRef.current = JSON.stringify(
+        toContestPayload(publishedForm),
+      );
       toast.success("El desafío quedó publicado.");
     } catch (error) {
       toast.error(
@@ -1083,12 +1143,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         : await createContest(payload);
 
       if (!resolvedContestId) {
-        window.location.href = `/competencias/editar?id=${savedContest.id}`;
+        // Al listado, señalando el nuevo: de ahí se decide si se edita ahora.
+        window.location.href = `/competencias?creado=${savedContest.id}`;
         return;
       }
 
-      setForm(createStateFromContest(savedContest));
+      const savedForm = createStateFromContest(savedContest);
+      setForm(savedForm);
       setContestState(savedContest.state);
+      savedSnapshotRef.current = JSON.stringify(toContestPayload(savedForm));
+      setAutoSaveState("saved");
       toast.success("El desafío se guardó correctamente.");
     } catch (error) {
       toast.error(
@@ -1690,8 +1754,14 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       <div className="flex flex-col gap-4 border-t pt-5 md:flex-row md:items-center md:justify-between">
         {!isCreation && (
           <div className="text-sm text-muted-foreground">
-            {form.tasks.length} tarea(s) seleccionada(s). Guarda para dejar
-            persistido el orden actual.
+            {form.tasks.length} tarea(s) seleccionada(s).{" "}
+            {autoSaveState === "saving"
+              ? "Guardando cambios..."
+              : autoSaveState === "saved"
+                ? "Cambios guardados."
+                : autoSaveState === "failed"
+                  ? "No se pudieron guardar los últimos cambios; usa Guardar desafío."
+                  : "Los cambios se guardan solos."}
           </div>
         )}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap md:ml-auto">

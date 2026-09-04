@@ -15,7 +15,6 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { DateTimeField, parseDateTimeLocal } from "@/components/datetime-field";
 import { ApiError } from "@/lib/api-client";
 import { gradeLabel, gradesForCategory } from "@/lib/contest-schema";
 
@@ -43,6 +42,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -65,13 +65,6 @@ function teamName(team: GroupTeam) {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Field,
   FieldContent,
@@ -173,6 +166,38 @@ function participantNameKey(firstName: string, lastName: string) {
   return `${normalize(firstName)} ${normalize(lastName)}`;
 }
 
+/**
+ * Copia al portapapeles con plan B: la API moderna solo existe en contextos
+ * seguros, así que al abrir la app por la IP de la red no está disponible y sin
+ * esto el aviso de "copiado" nunca llegaba a mostrarse.
+ */
+async function copyToClipboard(value: string) {
+  try {
+    if (window.isSecureContext && navigator.clipboard) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Cae al plan B.
+  }
+
+  try {
+    const area = document.createElement("textarea");
+    area.value = value;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "0";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(area);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 export function GroupsHome() {
   const [groups, setGroups] = useState<StoredGroup[]>([]);
   const [publishedContests, setPublishedContests] = useState<
@@ -180,15 +205,14 @@ export function GroupsHome() {
   >([]);
   const [contestId, setContestId] = useState("");
   const [name, setName] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
   const [createErrors, setCreateErrors] = useState<{
     contestId?: string;
     name?: string;
-    scheduledAt?: string;
     form?: string;
   }>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{
     groupId: string;
@@ -227,11 +251,8 @@ export function GroupsHome() {
   >(null);
   const contestRef = useRef<HTMLButtonElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const scheduledAtRef = useRef<HTMLButtonElement>(null);
   const createErrorRef = useRef<HTMLDivElement>(null);
-  const pendingCreateFocusRef = useRef<
-    "contestId" | "name" | "scheduledAt" | null
-  >(null);
+  const pendingCreateFocusRef = useRef<"contestId" | "name" | null>(null);
   const editGradeRef = useRef<HTMLButtonElement>(null);
   const editOneFirstRef = useRef<HTMLInputElement>(null);
   const editOneLastRef = useRef<HTMLInputElement>(null);
@@ -326,8 +347,6 @@ export function GroupsHome() {
       contestRef.current?.focus();
     } else if (pendingCreateFocusRef.current === "name") {
       nameRef.current?.focus();
-    } else {
-      scheduledAtRef.current?.focus();
     }
     pendingCreateFocusRef.current = null;
   }, [creating]);
@@ -347,43 +366,20 @@ export function GroupsHome() {
     pendingEnrollFocusRef.current = null;
   }, [savingEnroll]);
 
-  const selectedContest = publishedContests.find(
-    (contest) => contest.id === contestId,
-  );
-  const contestStartsAt = selectedContest?.startsAt
-    ? new Date(selectedContest.startsAt)
-    : null;
-  const contestEndsAt = selectedContest?.endsAt
-    ? new Date(selectedContest.endsAt)
-    : null;
-
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    const parsedScheduledAt = parseDateTimeLocal(scheduledAt);
-    const scheduledAtOutsideContest =
-      parsedScheduledAt &&
-      contestStartsAt &&
-      contestEndsAt &&
-      (parsedScheduledAt < contestStartsAt ||
-        parsedScheduledAt > contestEndsAt);
 
     const nextErrors = {
       contestId: contestId ? undefined : "Elige un desafío publicado.",
       name: name.trim() ? undefined : "Ingresa el nombre del grupo.",
-      scheduledAt: scheduledAtOutsideContest
-        ? "La sesión debe estar dentro del horario del desafío."
-        : undefined,
     };
 
-    if (nextErrors.contestId || nextErrors.name || nextErrors.scheduledAt) {
+    if (nextErrors.contestId || nextErrors.name) {
       setCreateErrors(nextErrors);
       if (nextErrors.contestId) {
         contestRef.current?.focus();
       } else if (nextErrors.name) {
         nameRef.current?.focus();
-      } else {
-        scheduledAtRef.current?.focus();
       }
       return;
     }
@@ -395,12 +391,12 @@ export function GroupsHome() {
       const group = await createGroup({
         contestId,
         name: name.trim(),
-        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        scheduledAt: null,
       });
       setGroups((current) => [group, ...current]);
       setName("");
-      setScheduledAt("");
       setCreateErrors({});
+      setCreateOpen(false);
       toast.success(`Grupo creado. Código: ${group.accessCode}`);
     } catch (error) {
       const message =
@@ -412,9 +408,6 @@ export function GroupsHome() {
       } else if (error instanceof ApiError && error.field === "name") {
         setCreateErrors({ name: message });
         pendingCreateFocusRef.current = "name";
-      } else if (error instanceof ApiError && error.field === "scheduledAt") {
-        setCreateErrors({ scheduledAt: message });
-        pendingCreateFocusRef.current = "scheduledAt";
       } else {
         setCreateErrors({ form: message });
       }
@@ -424,22 +417,23 @@ export function GroupsHome() {
   };
 
   const copyCode = async (code: string) => {
-    try {
-      await navigator.clipboard.writeText(code);
-      toast.success("Código copiado.");
-    } catch {
-      toast.error("No se pudo copiar el código.");
+    if (await copyToClipboard(code)) {
+      toast.success(`Código copiado: ${code}`);
+      return;
     }
+
+    toast.error("No se pudo copiar el código.");
   };
 
   const copyLink = async (code: string) => {
     const url = `${window.location.origin}/entrar?code=${code}`;
-    try {
-      await navigator.clipboard.writeText(url);
+
+    if (await copyToClipboard(url)) {
       toast.success("Enlace copiado. Compártelo con tus estudiantes.");
-    } catch {
-      toast.error("No se pudo copiar el enlace.");
+      return;
     }
+
+    toast.error("No se pudo copiar el enlace.");
   };
 
   const handleDelete = (group: StoredGroup) => {
@@ -841,188 +835,159 @@ export function GroupsHome() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Crear grupo</CardTitle>
-          <CardDescription>
-            Genera un código de acceso para que tus estudiantes entren a una
-            desafío publicado.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
-          {publishedContests.length === 0 ? (
-            <Alert>
-              <AlertTitle>No hay desafíos disponibles</AlertTitle>
-              <AlertDescription>
-                Solo se pueden crear grupos para desafíos publicados cuya
-                ventana todavía no terminó. Si las que tienes ya cerraron,
-                publica una nueva con fechas futuras.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={handleCreate}
-              aria-busy={creating}
-              noValidate
-            >
-              {createErrors.form && (
-                <Alert ref={createErrorRef} variant="destructive" tabIndex={-1}>
-                  <AlertDescription>{createErrors.form}</AlertDescription>
-                </Alert>
-              )}
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field
-                  data-invalid={Boolean(createErrors.contestId) || undefined}
-                >
-                  <FieldLabel htmlFor="group-contest">Desafío</FieldLabel>
-                  <FieldContent>
-                    <Select
-                      value={contestId}
-                      disabled={creating}
-                      onValueChange={(value) => {
-                        setContestId(value);
-                        setScheduledAt("");
-                        if (createErrors.contestId || createErrors.form) {
-                          setCreateErrors((current) => ({
-                            ...current,
-                            contestId: undefined,
-                            form: undefined,
-                          }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger
-                        ref={contestRef}
-                        id="group-contest"
-                        className="w-full"
-                        aria-invalid={Boolean(createErrors.contestId)}
-                        aria-describedby={
-                          createErrors.contestId
-                            ? "group-contest-error"
-                            : undefined
-                        }
-                      >
-                        <SelectValue placeholder="Elige un desafío" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {publishedContests.map((contest) => (
-                            <SelectItem key={contest.id} value={contest.id}>
-                              {contest.title}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <FieldError id="group-contest-error">
-                      {createErrors.contestId}
-                    </FieldError>
-                  </FieldContent>
-                </Field>
-                <Field data-invalid={Boolean(createErrors.name) || undefined}>
-                  <FieldLabel htmlFor="group-name">Nombre del grupo</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      ref={nameRef}
-                      id="group-name"
-                      value={name}
-                      disabled={creating}
-                      onChange={(event) => {
-                        setName(event.target.value);
-                        if (createErrors.name || createErrors.form) {
-                          setCreateErrors((current) => ({
-                            ...current,
-                            name: undefined,
-                            form: undefined,
-                          }));
-                        }
-                      }}
-                      placeholder="Ej. 6° A — Colegio San José"
-                      aria-invalid={Boolean(createErrors.name)}
-                      aria-describedby={
-                        createErrors.name ? "group-name-error" : undefined
-                      }
-                    />
-                    <FieldError id="group-name-error">
-                      {createErrors.name}
-                    </FieldError>
-                  </FieldContent>
-                </Field>
-              </div>
-              <Field
-                data-invalid={Boolean(createErrors.scheduledAt) || undefined}
+    <div className="flex w-full flex-col gap-8">
+      <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            Grupos
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Cada grupo tiene un código con el que tus estudiantes entran al
+            desafío.
+          </p>
+        </div>
+        {/* Son dos campos: un modal molesta menos que una página entera y deja
+            la lista a la vista al volver. */}
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild>
+            <Button className="shrink-0">
+              <PlusIcon data-icon="inline-start" />
+              Nuevo grupo
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Crear grupo</DialogTitle>
+              <DialogDescription>
+                Genera un código de acceso para que tus estudiantes entren a un
+                desafío publicado.
+              </DialogDescription>
+            </DialogHeader>
+            {publishedContests.length === 0 ? (
+              <Alert>
+                <AlertTitle>No hay desafíos disponibles</AlertTitle>
+                <AlertDescription>
+                  Solo se pueden crear grupos para desafíos publicados cuya
+                  ventana todavía no terminó. Si las que tienes ya cerraron,
+                  publica una nueva con fechas futuras.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <form
+                className="flex flex-col gap-4 pt-2"
+                onSubmit={handleCreate}
+                aria-busy={creating}
+                noValidate
               >
-                <FieldLabel htmlFor="group-scheduled">
-                  Fecha y hora de la sesión (opcional)
-                </FieldLabel>
-                <FieldContent>
-                  <DateTimeField
-                    id="group-scheduled"
-                    label="Fecha y hora de la sesión"
-                    fallbackHour={9}
-                    value={scheduledAt}
-                    onChange={(value) => {
-                      setScheduledAt(value);
-                      if (createErrors.scheduledAt || createErrors.form) {
-                        setCreateErrors((current) => ({
-                          ...current,
-                          scheduledAt: undefined,
-                          form: undefined,
-                        }));
-                      }
-                    }}
-                    minDate={contestStartsAt}
-                    maxDate={contestEndsAt}
-                    disabled={!selectedContest || creating}
-                    invalid={Boolean(createErrors.scheduledAt)}
-                    describedBy={
-                      createErrors.scheduledAt
-                        ? "group-scheduled-description group-scheduled-error"
-                        : "group-scheduled-description"
-                    }
-                    dateRef={scheduledAtRef}
-                    allowClear
-                  />
-                  <FieldDescription id="group-scheduled-description">
-                    {selectedContest ? (
-                      <>Debe estar dentro del horario del desafío.</>
-                    ) : (
-                      <>
-                        Elige primero un desafío para fijar la sesión dentro de
-                        su horario.
-                      </>
-                    )}
-                  </FieldDescription>
-                  <FieldError id="group-scheduled-error">
-                    {createErrors.scheduledAt}
-                  </FieldError>
-                </FieldContent>
-              </Field>
-              <div className="flex sm:justify-end">
-                <Button
-                  type="submit"
-                  disabled={creating}
-                  className="w-full sm:w-auto"
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  {creating ? "Creando..." : "Crear grupo"}
-                </Button>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
+                {createErrors.form && (
+                  <Alert
+                    ref={createErrorRef}
+                    variant="destructive"
+                    tabIndex={-1}
+                  >
+                    <AlertDescription>{createErrors.form}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="grid gap-4">
+                  <Field
+                    data-invalid={Boolean(createErrors.contestId) || undefined}
+                  >
+                    <FieldLabel htmlFor="group-contest">Desafío</FieldLabel>
+                    <FieldContent>
+                      <Select
+                        value={contestId}
+                        disabled={creating}
+                        onValueChange={(value) => {
+                          setContestId(value);
+                          if (createErrors.contestId || createErrors.form) {
+                            setCreateErrors((current) => ({
+                              ...current,
+                              contestId: undefined,
+                              form: undefined,
+                            }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger
+                          ref={contestRef}
+                          id="group-contest"
+                          className="w-full"
+                          aria-invalid={Boolean(createErrors.contestId)}
+                          aria-describedby={
+                            createErrors.contestId
+                              ? "group-contest-error"
+                              : undefined
+                          }
+                        >
+                          <SelectValue placeholder="Elige un desafío" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {publishedContests.map((contest) => (
+                              <SelectItem key={contest.id} value={contest.id}>
+                                {contest.title}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FieldError id="group-contest-error">
+                        {createErrors.contestId}
+                      </FieldError>
+                    </FieldContent>
+                  </Field>
+                  <Field data-invalid={Boolean(createErrors.name) || undefined}>
+                    <FieldLabel htmlFor="group-name">
+                      Nombre del grupo
+                    </FieldLabel>
+                    <FieldContent>
+                      <Input
+                        ref={nameRef}
+                        id="group-name"
+                        value={name}
+                        disabled={creating}
+                        onChange={(event) => {
+                          setName(event.target.value);
+                          if (createErrors.name || createErrors.form) {
+                            setCreateErrors((current) => ({
+                              ...current,
+                              name: undefined,
+                              form: undefined,
+                            }));
+                          }
+                        }}
+                        placeholder="Ej. 6° A — Colegio San José"
+                        aria-invalid={Boolean(createErrors.name)}
+                        aria-describedby={
+                          createErrors.name ? "group-name-error" : undefined
+                        }
+                      />
+                      <FieldError id="group-name-error">
+                        {createErrors.name}
+                      </FieldError>
+                    </FieldContent>
+                  </Field>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={creating}>
+                    <PlusIcon data-icon="inline-start" />
+                    {creating ? "Creando..." : "Crear grupo"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Grupos</CardTitle>
-          <CardDescription>
-            Reparte el código a tus estudiantes para que entren a la desafío.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-6">
+      <section className="flex min-w-0 flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-1 border-b pb-3">
+          <h2 className="font-heading text-base font-semibold">Tus grupos</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Reparte el código a tus estudiantes para que entren al desafío.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4">
           {groups.length === 0 ? (
             <Alert>
               <AlertTitle>No hay grupos creados</AlertTitle>
@@ -1031,332 +996,333 @@ export function GroupsHome() {
               </AlertDescription>
             </Alert>
           ) : (
-            groups.map((group) => (
-              <Card
-                key={group.id}
-                variant="soft-gradient"
-                className="gap-0 py-0"
-              >
-                <CardHeader className="gap-3 py-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge
-                          variant="secondary"
-                          className="max-w-full truncate"
-                        >
-                          {group.contestTitle}
-                        </Badge>
-                        {group.contestCategory && (
-                          <Badge variant="outline">
-                            {group.contestCategory}
-                          </Badge>
-                        )}
-                        <button
-                          type="button"
-                          aria-expanded={openGroupId === group.id}
-                          onClick={() =>
-                            setOpenGroupId(
-                              openGroupId === group.id ? null : group.id,
-                            )
-                          }
-                          className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground"
-                        >
-                          <UsersIcon className="size-4" />
-                          {group.teamCount} equipo(s)
-                          <ChevronDownIcon
-                            className={cn(
-                              "size-4 transition-transform duration-300",
-                              openGroupId === group.id && "rotate-180",
-                            )}
-                          />
-                        </button>
-                      </div>
-                      <CardTitle className="break-words text-lg">
-                        {group.name}
-                      </CardTitle>
-                      {group.scheduledAt && (
-                        <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
-                          <CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
-                          <span>
-                            Sesión: {formatSession(group.scheduledAt)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
-                      <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 lg:col-span-2">
-                        <span className="font-mono text-lg font-semibold tracking-widest">
-                          {group.accessCode}
-                        </span>
-                        <Button
-                          size="icon-sm"
-                          type="button"
-                          variant="outline"
-                          aria-label="Copiar código"
-                          onClick={() => copyCode(group.accessCode)}
-                        >
-                          <CopyIcon />
-                        </Button>
-                      </div>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => copyLink(group.accessCode)}
-                      >
-                        <LinkIcon data-icon="inline-start" />
-                        Copiar enlace
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => setConfirming({ type: "group", group })}
-                      >
-                        <Trash2Icon data-icon="inline-start" />
-                        Eliminar
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <div
-                  className={cn(
-                    "grid transition-[grid-template-rows] duration-300 ease-out",
-                    openGroupId === group.id
-                      ? "grid-rows-[1fr]"
-                      : "grid-rows-[0fr]",
-                  )}
-                >
-                  <div className="overflow-hidden">
-                    <CardContent className="pb-4 pt-0">
-                      {group.teams.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          Aún no hay equipos registrados en este grupo.
-                        </p>
-                      ) : (
-                        <ul className="flex flex-col gap-2">
-                          {group.teams.map((team) => (
-                            <li
-                              key={team.id}
-                              className="flex flex-col items-stretch gap-2 rounded-md border bg-background px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                            >
-                              <span className="min-w-0 break-words font-medium sm:truncate">
-                                {teamName(team)}
-                              </span>
-                              <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
-                                {team.grade && (
-                                  <Badge variant="secondary">
-                                    {gradeLabel(team.grade)}
-                                  </Badge>
-                                )}
-                                <Badge variant="outline">
-                                  {team.participationMode === "pareja"
-                                    ? "Pareja"
-                                    : "Individual"}
-                                </Badge>
-                                <Button
-                                  size="icon-sm"
-                                  type="button"
-                                  variant="outline"
-                                  aria-label="Editar participante"
-                                  onClick={() => openEdit(group.id, team)}
-                                >
-                                  <PencilIcon />
-                                </Button>
-                                <Button
-                                  size="icon-sm"
-                                  type="button"
-                                  variant="outline"
-                                  aria-label="Eliminar participante"
-                                  onClick={() =>
-                                    setConfirming({
-                                      type: "team",
-                                      groupId: group.id,
-                                      team,
-                                    })
-                                  }
-                                >
-                                  <Trash2Icon />
-                                </Button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <div className="mt-4 flex flex-col gap-3 pb-1.5 pl-0.5">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-full sm:w-auto"
-                            onClick={() => openEnroll(group)}
+            <ul className="divide-y border-y">
+              {groups.map((group) => (
+                <li key={group.id} className="flex flex-col gap-3 py-4">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant="secondary"
+                            className="max-w-full truncate"
                           >
-                            <PlusIcon data-icon="inline-start" />
-                            Inscribir participante
-                          </Button>
+                            {group.contestTitle}
+                          </Badge>
+                          {group.contestCategory && (
+                            <Badge variant="outline">
+                              {group.contestCategory}
+                            </Badge>
+                          )}
                           <button
                             type="button"
-                            onClick={() => getTemplate(group)}
-                            className="self-start text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground sm:self-center"
+                            aria-expanded={openGroupId === group.id}
+                            onClick={() =>
+                              setOpenGroupId(
+                                openGroupId === group.id ? null : group.id,
+                              )
+                            }
+                            className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground"
                           >
-                            Descargar plantilla de Excel
+                            <UsersIcon className="size-4" />
+                            {group.teamCount} equipo(s)
+                            <ChevronDownIcon
+                              className={cn(
+                                "size-4 transition-transform duration-300",
+                                openGroupId === group.id && "rotate-180",
+                              )}
+                            />
                           </button>
                         </div>
-                        <Field
-                          aria-busy={importingId === group.id}
-                          data-disabled={importingId !== null || undefined}
-                          data-invalid={
-                            Boolean(
-                              rosterFeedback?.groupId === group.id &&
-                              rosterFeedback.error,
-                            ) || undefined
-                          }
-                          className="sm:max-w-md"
-                        >
-                          <FieldLabel htmlFor={`roster-${group.id}`}>
-                            Importar planilla
-                          </FieldLabel>
-                          <Input
-                            ref={(node) => {
-                              rosterInputRefs.current[group.id] = node;
-                            }}
-                            id={`roster-${group.id}`}
-                            type="file"
-                            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                            disabled={importingId !== null}
-                            aria-invalid={Boolean(
-                              rosterFeedback?.groupId === group.id &&
-                              rosterFeedback.error,
-                            )}
-                            aria-describedby={`roster-${group.id}-description${
-                              rosterFeedback?.groupId === group.id &&
-                              rosterFeedback.error
-                                ? ` roster-${group.id}-error`
-                                : ""
-                            }`}
-                            onChange={(event) => {
-                              const input = event.currentTarget;
-                              const file = input.files?.[0];
-                              if (file) {
-                                void pickRoster(group, file, input);
-                              }
-                            }}
-                          />
-                          <FieldDescription
-                            id={`roster-${group.id}-description`}
-                            className="break-words"
+                        <h3 className="break-words text-lg font-semibold">
+                          {group.name}
+                        </h3>
+                        {group.scheduledAt && (
+                          <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                            <CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
+                            <span>
+                              Sesión: {formatSession(group.scheduledAt)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
+                        <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 lg:col-span-2">
+                          <span className="font-mono text-lg font-semibold tracking-widest">
+                            {group.accessCode}
+                          </span>
+                          <Button
+                            size="icon-sm"
+                            type="button"
+                            variant="outline"
+                            aria-label="Copiar código"
+                            onClick={() => copyCode(group.accessCode)}
                           >
-                            XLSX o CSV de hasta 2 MB. Solo se procesa una
-                            planilla a la vez en este panel.
-                            {rosterFeedback?.groupId === group.id && (
-                              <>
-                                {" "}
-                                Archivo: {rosterFeedback.fileName}.
-                                {importingId === group.id && " Importando..."}
-                              </>
-                            )}
-                          </FieldDescription>
+                            <CopyIcon />
+                          </Button>
+                        </div>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => copyLink(group.accessCode)}
+                        >
+                          <LinkIcon data-icon="inline-start" />
+                          Copiar enlace
+                        </Button>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() =>
+                            setConfirming({ type: "group", group })
+                          }
+                        >
+                          <Trash2Icon data-icon="inline-start" />
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={cn(
+                      "grid transition-[grid-template-rows] duration-300 ease-out",
+                      openGroupId === group.id
+                        ? "grid-rows-[1fr]"
+                        : "grid-rows-[0fr]",
+                    )}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="pb-1">
+                        {group.teams.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            Aún no hay equipos registrados en este grupo.
+                          </p>
+                        ) : (
+                          <ul className="flex flex-col gap-2">
+                            {group.teams.map((team) => (
+                              <li
+                                key={team.id}
+                                className="flex flex-col items-stretch gap-2 rounded-md border bg-background px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                              >
+                                <span className="min-w-0 break-words font-medium sm:truncate">
+                                  {teamName(team)}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
+                                  {team.grade && (
+                                    <Badge variant="secondary">
+                                      {gradeLabel(team.grade)}
+                                    </Badge>
+                                  )}
+                                  <Badge variant="outline">
+                                    {team.participationMode === "pareja"
+                                      ? "Pareja"
+                                      : "Individual"}
+                                  </Badge>
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    aria-label="Editar participante"
+                                    onClick={() => openEdit(group.id, team)}
+                                  >
+                                    <PencilIcon />
+                                  </Button>
+                                  <Button
+                                    size="icon-sm"
+                                    type="button"
+                                    variant="outline"
+                                    aria-label="Eliminar participante"
+                                    onClick={() =>
+                                      setConfirming({
+                                        type: "team",
+                                        groupId: group.id,
+                                        team,
+                                      })
+                                    }
+                                  >
+                                    <Trash2Icon />
+                                  </Button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="mt-4 flex flex-col gap-3 pb-1.5 pl-0.5">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="w-full sm:w-auto"
+                              onClick={() => openEnroll(group)}
+                            >
+                              <PlusIcon data-icon="inline-start" />
+                              Inscribir participante
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => getTemplate(group)}
+                              className="self-start text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground sm:self-center"
+                            >
+                              Descargar plantilla de Excel
+                            </button>
+                          </div>
+                          <Field
+                            aria-busy={importingId === group.id}
+                            data-disabled={importingId !== null || undefined}
+                            data-invalid={
+                              Boolean(
+                                rosterFeedback?.groupId === group.id &&
+                                rosterFeedback.error,
+                              ) || undefined
+                            }
+                            className="sm:max-w-md"
+                          >
+                            <FieldLabel htmlFor={`roster-${group.id}`}>
+                              Importar planilla
+                            </FieldLabel>
+                            <Input
+                              ref={(node) => {
+                                rosterInputRefs.current[group.id] = node;
+                              }}
+                              id={`roster-${group.id}`}
+                              type="file"
+                              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                              disabled={importingId !== null}
+                              aria-invalid={Boolean(
+                                rosterFeedback?.groupId === group.id &&
+                                rosterFeedback.error,
+                              )}
+                              aria-describedby={`roster-${group.id}-description${
+                                rosterFeedback?.groupId === group.id &&
+                                rosterFeedback.error
+                                  ? ` roster-${group.id}-error`
+                                  : ""
+                              }`}
+                              onChange={(event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
+                                if (file) {
+                                  void pickRoster(group, file, input);
+                                }
+                              }}
+                            />
+                            <FieldDescription
+                              id={`roster-${group.id}-description`}
+                              className="break-words"
+                            >
+                              XLSX o CSV de hasta 2 MB. Solo se procesa una
+                              planilla a la vez en este panel.
+                              {rosterFeedback?.groupId === group.id && (
+                                <>
+                                  {" "}
+                                  Archivo: {rosterFeedback.fileName}.
+                                  {importingId === group.id && " Importando..."}
+                                </>
+                              )}
+                            </FieldDescription>
+                            {rosterFeedback?.groupId === group.id &&
+                              rosterFeedback.error &&
+                              !rosterFeedback.issues?.length && (
+                                <FieldError id={`roster-${group.id}-error`}>
+                                  {rosterFeedback.error}
+                                </FieldError>
+                              )}
+                          </Field>
                           {rosterFeedback?.groupId === group.id &&
                             rosterFeedback.error &&
-                            !rosterFeedback.issues?.length && (
-                              <FieldError id={`roster-${group.id}-error`}>
-                                {rosterFeedback.error}
-                              </FieldError>
-                            )}
-                        </Field>
-                        {rosterFeedback?.groupId === group.id &&
-                          rosterFeedback.error &&
-                          Boolean(rosterFeedback.issues?.length) && (
-                            <Alert
-                              ref={rosterErrorRef}
-                              id={`roster-${group.id}-error`}
-                              variant="destructive"
-                              tabIndex={-1}
-                            >
-                              <AlertTitle>{rosterFeedback.error}</AlertTitle>
-                              <AlertDescription>
-                                <ul className="flex list-disc flex-col gap-1 pl-4 text-xs">
-                                  {rosterFeedback.issues?.map(
-                                    (issue, index) => (
-                                      <li
-                                        key={`${issue.row}-${index}`}
-                                        className="break-words"
-                                      >
-                                        Fila {issue.row}: {issue.name}.{" "}
-                                        {issue.reason}
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        {rosterFeedback?.groupId === group.id &&
-                          rosterFeedback.result && (
-                            <>
+                            Boolean(rosterFeedback.issues?.length) && (
                               <Alert
-                                ref={rosterResultRef}
-                                role="status"
-                                aria-live="polite"
+                                ref={rosterErrorRef}
+                                id={`roster-${group.id}-error`}
+                                variant="destructive"
                                 tabIndex={-1}
                               >
-                                <AlertTitle>
-                                  {rosterFeedback.result.created.length > 0
-                                    ? rosterFeedback.result.skipped.length > 0
-                                      ? "Importación parcial"
-                                      : "Importación completada"
-                                    : "No se importaron participantes"}
-                                </AlertTitle>
-                                <AlertDescription className="flex flex-col gap-2">
-                                  <p className="break-words">
-                                    {rosterFeedback.fileName}: se importaron{" "}
-                                    {rosterFeedback.result.created.length} y se
-                                    omitieron{" "}
-                                    {rosterFeedback.result.skipped.length}{" "}
-                                    fila(s).
-                                  </p>
-                                  {rosterFeedback.result.skipped.length > 0 && (
-                                    <ul className="flex list-disc flex-col gap-1 pl-4 text-xs">
-                                      {rosterFeedback.result.skipped.map(
-                                        (item) => (
-                                          <li
-                                            key={item.row}
-                                            className="break-words"
-                                          >
-                                            Fila {item.row}: {item.name}.{" "}
-                                            {item.reason}
-                                          </li>
-                                        ),
-                                      )}
-                                    </ul>
-                                  )}
+                                <AlertTitle>{rosterFeedback.error}</AlertTitle>
+                                <AlertDescription>
+                                  <ul className="flex list-disc flex-col gap-1 pl-4 text-xs">
+                                    {rosterFeedback.issues?.map(
+                                      (issue, index) => (
+                                        <li
+                                          key={`${issue.row}-${index}`}
+                                          className="break-words"
+                                        >
+                                          Fila {issue.row}: {issue.name}.{" "}
+                                          {issue.reason}
+                                        </li>
+                                      ),
+                                    )}
+                                  </ul>
                                 </AlertDescription>
                               </Alert>
-                              {rosterFeedback.refreshError && (
-                                <Alert variant="destructive">
+                            )}
+                          {rosterFeedback?.groupId === group.id &&
+                            rosterFeedback.result && (
+                              <>
+                                <Alert
+                                  ref={rosterResultRef}
+                                  role="status"
+                                  aria-live="polite"
+                                  tabIndex={-1}
+                                >
                                   <AlertTitle>
-                                    La lista no se actualizó
+                                    {rosterFeedback.result.created.length > 0
+                                      ? rosterFeedback.result.skipped.length > 0
+                                        ? "Importación parcial"
+                                        : "Importación completada"
+                                      : "No se importaron participantes"}
                                   </AlertTitle>
-                                  <AlertDescription>
-                                    {rosterFeedback.refreshError}
+                                  <AlertDescription className="flex flex-col gap-2">
+                                    <p className="break-words">
+                                      {rosterFeedback.fileName}: se importaron{" "}
+                                      {rosterFeedback.result.created.length} y
+                                      se omitieron{" "}
+                                      {rosterFeedback.result.skipped.length}{" "}
+                                      fila(s).
+                                    </p>
+                                    {rosterFeedback.result.skipped.length >
+                                      0 && (
+                                      <ul className="flex list-disc flex-col gap-1 pl-4 text-xs">
+                                        {rosterFeedback.result.skipped.map(
+                                          (item) => (
+                                            <li
+                                              key={item.row}
+                                              className="break-words"
+                                            >
+                                              Fila {item.row}: {item.name}.{" "}
+                                              {item.reason}
+                                            </li>
+                                          ),
+                                        )}
+                                      </ul>
+                                    )}
                                   </AlertDescription>
                                 </Alert>
-                              )}
-                            </>
-                          )}
+                                {rosterFeedback.refreshError && (
+                                  <Alert variant="destructive">
+                                    <AlertTitle>
+                                      La lista no se actualizó
+                                    </AlertTitle>
+                                    <AlertDescription>
+                                      {rosterFeedback.refreshError}
+                                    </AlertDescription>
+                                  </Alert>
+                                )}
+                              </>
+                            )}
+                        </div>
                       </div>
-                    </CardContent>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))
+                </li>
+              ))}
+            </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <Dialog
         open={editing !== null}
