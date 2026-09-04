@@ -129,8 +129,8 @@ function createStateFromContest(
     registrationEndsAt: contest.registrationEndsAt
       ? toDatetimeLocalValue(contest.registrationEndsAt)
       : "",
-    startsAt: toDatetimeLocalValue(contest.startsAt),
-    endsAt: toDatetimeLocalValue(contest.endsAt),
+    startsAt: contest.startsAt ? toDatetimeLocalValue(contest.startsAt) : "",
+    endsAt: contest.endsAt ? toDatetimeLocalValue(contest.endsAt) : "",
     scoring: contest.scoring ?? defaultContestScoring(),
     questionDisplayMode: contest.questionDisplayMode,
     allowPairs: contest.allowPairs,
@@ -154,8 +154,8 @@ function toContestPayload(form: FormState): ContestDraftInput {
     registrationEndsAt: form.registrationEndsAt
       ? fromDatetimeLocalValue(form.registrationEndsAt)
       : "",
-    startsAt: fromDatetimeLocalValue(form.startsAt),
-    endsAt: fromDatetimeLocalValue(form.endsAt),
+    startsAt: form.startsAt ? fromDatetimeLocalValue(form.startsAt) : "",
+    endsAt: form.endsAt ? fromDatetimeLocalValue(form.endsAt) : "",
   };
 }
 
@@ -810,19 +810,24 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       errors.push("La duración debe ser mayor que cero.");
     }
 
-    if (!form.startsAt || !form.endsAt) {
-      errors.push("Debes definir fecha de inicio y fin.");
-    } else if (new Date(form.endsAt) <= new Date(form.startsAt)) {
+    // El calendario puede quedar a medias mientras es borrador: solo lo que ya
+    // está escrito tiene que ser coherente. Publicar sí lo exige completo.
+    if (
+      form.startsAt &&
+      form.endsAt &&
+      new Date(form.endsAt) <= new Date(form.startsAt)
+    ) {
       errors.push("La fecha de fin debe ser posterior a la de inicio.");
     }
 
-    if (!form.registrationStartsAt || !form.registrationEndsAt) {
-      errors.push("Debes definir el inicio y el cierre de la inscripción.");
-    } else if (
+    if (
+      form.registrationStartsAt &&
+      form.registrationEndsAt &&
       new Date(form.registrationEndsAt) <= new Date(form.registrationStartsAt)
     ) {
       errors.push("El cierre de inscripción debe ser posterior a su inicio.");
     } else if (
+      form.registrationEndsAt &&
       form.startsAt &&
       new Date(form.registrationEndsAt) >= new Date(form.startsAt)
     ) {
@@ -861,13 +866,30 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     return errors;
   }, [form, isCreation, selectedTasks]);
 
-  const publishValidationErrors = useMemo(
-    () =>
-      form.tasks.length === 0
-        ? [...validationErrors, "Agrega al menos una tarea antes de publicar."]
-        : validationErrors,
-    [form.tasks.length, validationErrors],
-  );
+  const publishValidationErrors = useMemo(() => {
+    const errors = [...validationErrors];
+
+    if (!form.startsAt || !form.endsAt) {
+      errors.push("Define la ventana de rendición antes de publicar.");
+    }
+
+    if (!form.registrationStartsAt || !form.registrationEndsAt) {
+      errors.push("Define la ventana de inscripción antes de publicar.");
+    }
+
+    if (form.tasks.length === 0) {
+      errors.push("Agrega al menos una tarea antes de publicar.");
+    }
+
+    return errors;
+  }, [
+    form.registrationEndsAt,
+    form.registrationStartsAt,
+    form.startsAt,
+    form.endsAt,
+    form.tasks.length,
+    validationErrors,
+  ]);
 
   const scoreSummary = useMemo(() => {
     const counts = { easy: 0, medium: 0, hard: 0 };
@@ -908,17 +930,23 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const hasDateError =
     submitAttempted &&
     !isCreation &&
-    (!form.startsAt ||
-      !form.endsAt ||
-      new Date(form.endsAt) <= new Date(form.startsAt));
+    ((publishAttempted && (!form.startsAt || !form.endsAt)) ||
+      Boolean(
+        form.startsAt &&
+        form.endsAt &&
+        new Date(form.endsAt) <= new Date(form.startsAt),
+      ));
   const hasRegistrationError = Boolean(
     submitAttempted &&
     !isCreation &&
-    (!form.registrationStartsAt ||
-      !form.registrationEndsAt ||
-      new Date(form.registrationEndsAt) <=
-        new Date(form.registrationStartsAt) ||
-      (form.startsAt &&
+    ((publishAttempted &&
+      (!form.registrationStartsAt || !form.registrationEndsAt)) ||
+      (form.registrationStartsAt &&
+        form.registrationEndsAt &&
+        new Date(form.registrationEndsAt) <=
+          new Date(form.registrationStartsAt)) ||
+      (form.registrationEndsAt &&
+        form.startsAt &&
         new Date(form.registrationEndsAt) >= new Date(form.startsAt))),
   );
 

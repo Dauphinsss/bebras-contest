@@ -51,8 +51,8 @@ export type PublishedContest = {
   category: string;
   registrationStartsAt: string | null;
   registrationEndsAt: string | null;
-  startsAt: string;
-  endsAt: string;
+  startsAt: string | null;
+  endsAt: string | null;
 };
 
 export function listPublishedContests() {

@@ -21,8 +21,8 @@ type PublicContest = {
   durationMinutes: number;
   registrationStartsAt: string | null;
   registrationEndsAt: string | null;
-  startsAt: string;
-  endsAt: string;
+  startsAt: string | null;
+  endsAt: string | null;
   state: ContestState;
   isOpen: boolean;
 };
@@ -62,12 +62,20 @@ const timeFormatter = new Intl.DateTimeFormat("es-BO", {
   minute: "2-digit",
 });
 
-function formatDateTime(value: string) {
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "una fecha por definir";
+  }
+
   const date = new Date(value);
   return `${dateFormatter.format(date)} a las ${timeFormatter.format(date)}`;
 }
 
-function formatCountdown(target: string, now: number) {
+function formatCountdown(target: string | null, now: number) {
+  if (!target) {
+    return null;
+  }
+
   const diff = new Date(target).getTime() - now;
 
   if (diff <= 0) {
@@ -225,8 +233,8 @@ export function LiveContests() {
         }
 
         return (
-          new Date(countdownTarget(left).date).getTime() -
-          new Date(countdownTarget(right).date).getTime()
+          new Date(countdownTarget(left).date ?? 0).getTime() -
+          new Date(countdownTarget(right).date ?? 0).getTime()
         );
       });
   }, [contests]);
@@ -336,8 +344,11 @@ export function LiveContests() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 {groupCount === null ? (
                   <>
+                    {/* Al login, que ya ofrece crear la cuenta: mandar a un
+                        visitante sin sesión directo al formulario de registro
+                        deja fuera al maestro que ya tiene cuenta. */}
                     <Button asChild>
-                      <a href="/registro">Inscribir a mis estudiantes</a>
+                      <a href="/login">Inscribir a mis estudiantes</a>
                     </Button>
                     <span className="text-sm text-muted-foreground">
                       ¿Ya tienes tu código?{" "}

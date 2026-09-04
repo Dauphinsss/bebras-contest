@@ -93,8 +93,8 @@ model Contest {
   durationMinutes      Int
   registrationStartsAt DateTime?
   registrationEndsAt   DateTime?
-  startsAt             DateTime
-  endsAt               DateTime
+  startsAt             DateTime?
+  endsAt               DateTime?
   initialScore         Int
   scoring              String?
   questionDisplayMode  String         @default("one_by_one")

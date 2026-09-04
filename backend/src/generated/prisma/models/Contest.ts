@@ -286,8 +286,8 @@ export type ContestGroupByOutputType = {
   durationMinutes: number
   registrationStartsAt: Date | null
   registrationEndsAt: Date | null
-  startsAt: Date
-  endsAt: Date
+  startsAt: Date | null
+  endsAt: Date | null
   initialScore: number
   scoring: string | null
   questionDisplayMode: string
@@ -333,8 +333,8 @@ export type ContestWhereInput = {
   durationMinutes?: Prisma.IntFilter<"Contest"> | number
   registrationStartsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
   registrationEndsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
-  startsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
-  endsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
+  startsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
+  endsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
   initialScore?: Prisma.IntFilter<"Contest"> | number
   scoring?: Prisma.StringNullableFilter<"Contest"> | string | null
   questionDisplayMode?: Prisma.StringFilter<"Contest"> | string
@@ -359,8 +359,8 @@ export type ContestOrderByWithRelationInput = {
   durationMinutes?: Prisma.SortOrder
   registrationStartsAt?: Prisma.SortOrderInput | Prisma.SortOrder
   registrationEndsAt?: Prisma.SortOrderInput | Prisma.SortOrder
-  startsAt?: Prisma.SortOrder
-  endsAt?: Prisma.SortOrder
+  startsAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  endsAt?: Prisma.SortOrderInput | Prisma.SortOrder
   initialScore?: Prisma.SortOrder
   scoring?: Prisma.SortOrderInput | Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
@@ -388,8 +388,8 @@ export type ContestWhereUniqueInput = Prisma.AtLeast<{
   durationMinutes?: Prisma.IntFilter<"Contest"> | number
   registrationStartsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
   registrationEndsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
-  startsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
-  endsAt?: Prisma.DateTimeFilter<"Contest"> | Date | string
+  startsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
+  endsAt?: Prisma.DateTimeNullableFilter<"Contest"> | Date | string | null
   initialScore?: Prisma.IntFilter<"Contest"> | number
   scoring?: Prisma.StringNullableFilter<"Contest"> | string | null
   questionDisplayMode?: Prisma.StringFilter<"Contest"> | string
@@ -414,8 +414,8 @@ export type ContestOrderByWithAggregationInput = {
   durationMinutes?: Prisma.SortOrder
   registrationStartsAt?: Prisma.SortOrderInput | Prisma.SortOrder
   registrationEndsAt?: Prisma.SortOrderInput | Prisma.SortOrder
-  startsAt?: Prisma.SortOrder
-  endsAt?: Prisma.SortOrder
+  startsAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  endsAt?: Prisma.SortOrderInput | Prisma.SortOrder
   initialScore?: Prisma.SortOrder
   scoring?: Prisma.SortOrderInput | Prisma.SortOrder
   questionDisplayMode?: Prisma.SortOrder
@@ -446,8 +446,8 @@ export type ContestScalarWhereWithAggregatesInput = {
   durationMinutes?: Prisma.IntWithAggregatesFilter<"Contest"> | number
   registrationStartsAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
   registrationEndsAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
-  startsAt?: Prisma.DateTimeWithAggregatesFilter<"Contest"> | Date | string
-  endsAt?: Prisma.DateTimeWithAggregatesFilter<"Contest"> | Date | string
+  startsAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
+  endsAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Contest"> | Date | string | null
   initialScore?: Prisma.IntWithAggregatesFilter<"Contest"> | number
   scoring?: Prisma.StringNullableWithAggregatesFilter<"Contest"> | string | null
   questionDisplayMode?: Prisma.StringWithAggregatesFilter<"Contest"> | string
@@ -470,8 +470,8 @@ export type ContestCreateInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -496,8 +496,8 @@ export type ContestUncheckedCreateInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -522,8 +522,8 @@ export type ContestUpdateInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -548,8 +548,8 @@ export type ContestUncheckedUpdateInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -574,8 +574,8 @@ export type ContestCreateManyInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -598,8 +598,8 @@ export type ContestUpdateManyMutationInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -622,8 +622,8 @@ export type ContestUncheckedUpdateManyInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -765,8 +765,8 @@ export type ContestCreateWithoutTasksInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -790,8 +790,8 @@ export type ContestUncheckedCreateWithoutTasksInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -831,8 +831,8 @@ export type ContestUpdateWithoutTasksInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -856,8 +856,8 @@ export type ContestUncheckedUpdateWithoutTasksInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -881,8 +881,8 @@ export type ContestCreateWithoutGroupsInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -906,8 +906,8 @@ export type ContestUncheckedCreateWithoutGroupsInput = {
   durationMinutes: number
   registrationStartsAt?: Date | string | null
   registrationEndsAt?: Date | string | null
-  startsAt: Date | string
-  endsAt: Date | string
+  startsAt?: Date | string | null
+  endsAt?: Date | string | null
   initialScore: number
   scoring?: string | null
   questionDisplayMode?: string
@@ -947,8 +947,8 @@ export type ContestUpdateWithoutGroupsInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -972,8 +972,8 @@ export type ContestUncheckedUpdateWithoutGroupsInput = {
   durationMinutes?: Prisma.IntFieldUpdateOperationsInput | number
   registrationStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   registrationEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  startsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  endsAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   initialScore?: Prisma.IntFieldUpdateOperationsInput | number
   scoring?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   questionDisplayMode?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1151,8 +1151,8 @@ export type $ContestPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     durationMinutes: number
     registrationStartsAt: Date | null
     registrationEndsAt: Date | null
-    startsAt: Date
-    endsAt: Date
+    startsAt: Date | null
+    endsAt: Date | null
     initialScore: number
     scoring: string | null
     questionDisplayMode: string

@@ -174,8 +174,9 @@ export type StoredContest = {
   durationMinutes: number;
   registrationStartsAt: string | null;
   registrationEndsAt: string | null;
-  startsAt: string;
-  endsAt: string;
+  /** El calendario se define cuando el organizador quiere; sin él no se publica. */
+  startsAt: string | null;
+  endsAt: string | null;
   initialScore: number;
   scoring: ContestScoring;
   questionDisplayMode: QuestionDisplayMode;
@@ -224,7 +225,14 @@ export const CONTEST_STATE_LABELS: Record<ContestState, string> = {
   publicada: "Resultados publicados",
 };
 
-export function formatContestWindow(startsAt: string, endsAt: string) {
+export function formatContestWindow(
+  startsAt: string | null,
+  endsAt: string | null,
+) {
+  if (!startsAt || !endsAt) {
+    return "sin definir";
+  }
+
   const start = new Date(startsAt);
   const end = new Date(endsAt);
 
@@ -240,8 +248,8 @@ export function formatContestWindow(startsAt: string, endsAt: string) {
 export function formatContestPhaseWindow(
   registrationStartsAt: string | null,
   registrationEndsAt: string | null,
-  startsAt: string,
-  endsAt: string,
+  startsAt: string | null,
+  endsAt: string | null,
 ) {
   const registration =
     registrationStartsAt && registrationEndsAt

@@ -350,10 +350,10 @@ export function GroupsHome() {
   const selectedContest = publishedContests.find(
     (contest) => contest.id === contestId,
   );
-  const contestStartsAt = selectedContest
+  const contestStartsAt = selectedContest?.startsAt
     ? new Date(selectedContest.startsAt)
     : null;
-  const contestEndsAt = selectedContest
+  const contestEndsAt = selectedContest?.endsAt
     ? new Date(selectedContest.endsAt)
     : null;
 
@@ -363,9 +363,10 @@ export function GroupsHome() {
     const parsedScheduledAt = parseDateTimeLocal(scheduledAt);
     const scheduledAtOutsideContest =
       parsedScheduledAt &&
-      selectedContest &&
-      (parsedScheduledAt < new Date(selectedContest.startsAt) ||
-        parsedScheduledAt > new Date(selectedContest.endsAt));
+      contestStartsAt &&
+      contestEndsAt &&
+      (parsedScheduledAt < contestStartsAt ||
+        parsedScheduledAt > contestEndsAt);
 
     const nextErrors = {
       contestId: contestId ? undefined : "Elige un desafío publicado.",

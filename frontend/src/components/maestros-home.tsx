@@ -507,7 +507,7 @@ export function MaestrosHome() {
                           <div className="flex flex-wrap items-center gap-2">
                             {school.hasLetter && (
                               <Button
-                                size="xs"
+                                size="sm"
                                 type="button"
                                 variant="outline"
                                 onClick={() => openSchoolLetter(school.id)}
@@ -518,7 +518,7 @@ export function MaestrosHome() {
                             )}
                             {school.status !== "approved" && (
                               <Button
-                                size="xs"
+                                size="sm"
                                 type="button"
                                 disabled={busyId === maestro.id}
                                 onClick={() =>
@@ -531,7 +531,7 @@ export function MaestrosHome() {
                             )}
                             {school.status !== "rejected" && (
                               <Button
-                                size="icon-xs"
+                                size="icon-sm"
                                 type="button"
                                 variant="ghost"
                                 title={`Rechazar ${school.schoolName}`}

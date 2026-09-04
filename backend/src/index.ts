@@ -1294,8 +1294,8 @@ function contestRegistrationIsOpen(contest: {
   registrationStartsAt?: Date | null;
   registrationEndsAt?: Date | null;
   publishedAt: Date | null;
-  startsAt: Date;
-  endsAt: Date;
+  startsAt: Date | null;
+  endsAt: Date | null;
 }) {
   if (!contest.publishedAt) {
     return false;
@@ -1332,12 +1332,14 @@ function computeContestState(contest: {
   resultsPublishedAt?: Date | null;
   registrationStartsAt?: Date | null;
   registrationEndsAt?: Date | null;
-  startsAt: Date;
-  endsAt: Date;
+  startsAt: Date | null;
+  endsAt: Date | null;
 }): { state: ContestState; isOpen: boolean } {
   const now = currentDate();
 
-  if (!contest.publishedAt) {
+  // Sin publicar, o sin ventana de rendición, sigue siendo un borrador: no se
+  // puede publicar un desafío sin fechas, así que el segundo caso es una red.
+  if (!contest.publishedAt || !contest.startsAt || !contest.endsAt) {
     return { state: "borrador", isOpen: false };
   }
 
@@ -1387,8 +1389,8 @@ function deserializeContest(contest: {
   durationMinutes: number;
   registrationStartsAt: Date | null;
   registrationEndsAt: Date | null;
-  startsAt: Date;
-  endsAt: Date;
+  startsAt: Date | null;
+  endsAt: Date | null;
   initialScore: number;
   scoring?: string | null;
   questionDisplayMode: string;
@@ -1427,8 +1429,8 @@ function deserializeContest(contest: {
     durationMinutes: contest.durationMinutes,
     registrationStartsAt: contest.registrationStartsAt?.toISOString() ?? null,
     registrationEndsAt: contest.registrationEndsAt?.toISOString() ?? null,
-    startsAt: contest.startsAt.toISOString(),
-    endsAt: contest.endsAt.toISOString(),
+    startsAt: contest.startsAt?.toISOString() ?? null,
+    endsAt: contest.endsAt?.toISOString() ?? null,
     initialScore: contest.initialScore,
     scoring: parseContestScoring(
       parseJsonValue<Record<string, unknown>>(contest.scoring ?? "{}", {}),
@@ -1461,42 +1463,16 @@ function deserializeContest(contest: {
   };
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /** Duración estándar de Bebras, que se ajusta junto al calendario. */
 const DEFAULT_DURATION_MINUTES = 45;
 
-function atHour(date: Date, hour: number) {
-  const value = new Date(date);
-  value.setHours(hour, 0, 0, 0);
-  return value;
-}
-
-/**
- * Calendario provisional para un borrador recien creado. Al crear el desafio
- * solo se piden sus datos basicos; el organizador ajusta estas fechas en la
- * edicion antes de publicarlo.
- */
-function provisionalSchedule(now: Date) {
-  return {
-    registrationStartsAt: atHour(new Date(now.getTime() + DAY_MS), 8),
-    registrationEndsAt: atHour(new Date(now.getTime() + 8 * DAY_MS), 18),
-    startsAt: atHour(new Date(now.getTime() + 10 * DAY_MS), 8),
-    endsAt: atHour(new Date(now.getTime() + 10 * DAY_MS), 18),
-  };
-}
-
-function parseContestPayload(
-  body: Record<string, unknown>,
-  { allowMissingSchedule = false } = {},
-) {
+function parseContestPayload(body: Record<string, unknown>) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const category =
     typeof body.category === "string" ? body.category.trim() : "";
-  const durationMinutes =
-    allowMissingSchedule && !body.durationMinutes
-      ? DEFAULT_DURATION_MINUTES
-      : Number(body.durationMinutes);
+  const durationMinutes = body.durationMinutes
+    ? Number(body.durationMinutes)
+    : DEFAULT_DURATION_MINUTES;
   const tasks = parseContestTasks(body);
 
   if (!title) {
@@ -1531,18 +1507,24 @@ function parseContestPayload(
     tasks,
   };
 
-  if (allowMissingSchedule && !body.startsAt && !body.endsAt) {
-    return { ...basePayload, ...provisionalSchedule(currentDate()) };
-  }
-
-  const startsAt = parseDateInput(body.startsAt, "startsAt");
-  const endsAt = parseDateInput(body.endsAt, "endsAt");
+  // El calendario se define cuando el organizador quiere: un borrador puede
+  // guardarse sin fechas y solo se exigen completas al publicar.
+  const startsAt = body.startsAt
+    ? parseDateInput(body.startsAt, "startsAt")
+    : null;
+  const endsAt = body.endsAt ? parseDateInput(body.endsAt, "endsAt") : null;
   const registrationStartsAt = body.registrationStartsAt
     ? parseDateInput(body.registrationStartsAt, "registrationStartsAt")
     : null;
   const registrationEndsAt = body.registrationEndsAt
     ? parseDateInput(body.registrationEndsAt, "registrationEndsAt")
     : null;
+
+  if (Boolean(startsAt) !== Boolean(endsAt)) {
+    throw new Error(
+      "La ventana de rendición necesita su inicio y su fin, o ninguno de los dos.",
+    );
+  }
 
   if (Boolean(registrationStartsAt) !== Boolean(registrationEndsAt)) {
     throw new Error(
@@ -1558,13 +1540,13 @@ function parseContestPayload(
     throw new Error("El cierre de inscripción debe ser posterior a su inicio.");
   }
 
-  if (registrationEndsAt && registrationEndsAt >= startsAt) {
+  if (registrationEndsAt && startsAt && registrationEndsAt >= startsAt) {
     throw new Error(
       "La inscripción debe cerrar antes de que comience la rendición para dejar una fase de preparación.",
     );
   }
 
-  if (endsAt <= startsAt) {
+  if (startsAt && endsAt && endsAt <= startsAt) {
     throw new Error("La fecha de fin debe ser posterior a la fecha de inicio.");
   }
 
@@ -2214,8 +2196,8 @@ app.get("/api/public-contests", async (_req, res) => {
         registrationStartsAt:
           contest.registrationStartsAt?.toISOString() ?? null,
         registrationEndsAt: contest.registrationEndsAt?.toISOString() ?? null,
-        startsAt: contest.startsAt.toISOString(),
-        endsAt: contest.endsAt.toISOString(),
+        startsAt: contest.startsAt?.toISOString() ?? null,
+        endsAt: contest.endsAt?.toISOString() ?? null,
         state,
         isOpen,
       };
@@ -2521,9 +2503,7 @@ app.post("/api/contests", async (req, res) => {
   let payload;
 
   try {
-    payload = parseContestPayload(req.body as Record<string, unknown>, {
-      allowMissingSchedule: true,
-    });
+    payload = parseContestPayload(req.body as Record<string, unknown>);
   } catch (error) {
     res.status(400).json({
       message:
@@ -2695,7 +2675,10 @@ app.put("/api/contests/:id", async (req, res) => {
 });
 
 const contestPreviewInclude = {
-  tasks: { orderBy: { position: "asc" as const }, include: { taskDraft: true } },
+  tasks: {
+    orderBy: { position: "asc" as const },
+    include: { taskDraft: true },
+  },
 };
 
 /**
@@ -2715,7 +2698,10 @@ app.get("/api/contests/:id/preview", async (req, res) => {
   }
 
   const tasks = contest.tasks.map((contestTask) =>
-    renderSafeTask(contestTask, deserializeTask(contestTask.taskDraft) as PlayTask),
+    renderSafeTask(
+      contestTask,
+      deserializeTask(contestTask.taskDraft) as PlayTask,
+    ),
   );
 
   res.json({
@@ -2829,7 +2815,11 @@ app.post("/api/contests/:id/publish", async (req, res) => {
     readinessErrors.push("El desafío necesita nombre.");
   }
 
-  if (contest.endsAt <= contest.startsAt) {
+  if (!contest.startsAt || !contest.endsAt) {
+    readinessErrors.push(
+      "El desafío necesita su ventana de rendición antes de publicarse.",
+    );
+  } else if (contest.endsAt <= contest.startsAt) {
     readinessErrors.push("La ventana de ejecución no es válida.");
   }
 
@@ -2838,7 +2828,9 @@ app.post("/api/contests/:id/publish", async (req, res) => {
   }
 
   const windowMinutes =
-    (contest.endsAt.getTime() - contest.startsAt.getTime()) / 60000;
+    contest.startsAt && contest.endsAt
+      ? (contest.endsAt.getTime() - contest.startsAt.getTime()) / 60000
+      : Number.POSITIVE_INFINITY;
 
   if (windowMinutes < contest.durationMinutes) {
     readinessErrors.push(
@@ -3376,8 +3368,8 @@ app.get("/api/published-contests", requireAuth, async (_req, res) => {
       ...contest,
       registrationStartsAt: contest.registrationStartsAt?.toISOString() ?? null,
       registrationEndsAt: contest.registrationEndsAt?.toISOString() ?? null,
-      startsAt: contest.startsAt.toISOString(),
-      endsAt: contest.endsAt.toISOString(),
+      startsAt: contest.startsAt?.toISOString() ?? null,
+      endsAt: contest.endsAt?.toISOString() ?? null,
     })),
   );
 });
@@ -3482,6 +3474,8 @@ app.post("/api/groups", async (req, res) => {
 
   if (
     scheduledAt &&
+    contest.startsAt &&
+    contest.endsAt &&
     (scheduledAt < contest.startsAt || scheduledAt > contest.endsAt)
   ) {
     res.status(400).json({
@@ -5323,7 +5317,10 @@ app.post("/api/play/start", async (req, res) => {
 
   if (team.attempt.status === "pending") {
     const now = currentDate();
-    const remainingMinutes = (contest.endsAt.getTime() - now.getTime()) / 60000;
+    // Publicado implica ventana definida; si faltara, no queda tiempo válido.
+    const remainingMinutes = contest.endsAt
+      ? (contest.endsAt.getTime() - now.getTime()) / 60000
+      : 0;
 
     if (remainingMinutes < contest.durationMinutes) {
       res.status(409).json({
