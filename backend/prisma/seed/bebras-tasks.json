@@ -647,7 +647,7 @@
       },
       {
         "id": "b07-desc-img",
-        "type": "text",
+        "type": "image",
         "content": "",
         "image": {
           "id": "img-b07-desc",
@@ -1815,7 +1815,7 @@
       },
       {
         "id": "b10-desc-img",
-        "type": "text",
+        "type": "image",
         "content": "",
         "image": {
           "id": "img-b10-laptop",
@@ -2038,7 +2038,7 @@
       },
       {
         "id": "b12-desc-img",
-        "type": "text",
+        "type": "image",
         "content": "",
         "image": {
           "id": "img-b12-desc",
@@ -2159,7 +2159,7 @@
       },
       {
         "id": "b21-desc-img",
-        "type": "text",
+        "type": "image",
         "content": "",
         "image": {
           "id": "img-b21-desc",
