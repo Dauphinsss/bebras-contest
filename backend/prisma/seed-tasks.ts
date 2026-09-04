@@ -82,10 +82,11 @@ async function main() {
     }
 
     console.log(`\n¡Listo! ${tasks.length} tareas Bebras cargadas con éxito.`);
-    return;
   }
 
-  // Fallback: semillas básicas
+  // Semillas basicas: fixtures que las pruebas e2e esperan por id. Se cargan
+  // siempre, haya o no banco JSON; sus ids no chocan con los de las tareas
+  // oficiales.
   const fallbackTasks = [
     {
       id: "seed-bebras-easy",
