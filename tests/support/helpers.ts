@@ -55,26 +55,31 @@ export async function createContest(
 ) {
   const picked = SEEDED_TASK;
 
-  const contest = await api
-    .post(`${API}/api/contests`, {
-      headers,
-      data: {
-        title: "PW Eval " + Date.now(),
-        category: picked.category,
-        durationMinutes: 60,
-        startsAt: new Date(Date.now() - 3600000).toISOString(),
-        endsAt: new Date(Date.now() + 7200000).toISOString(),
-        allowPairs: false,
-        showFeedback: true,
-        showSolutions: true,
-        showTotalScore: true,
-        tasks: [{ taskId: picked.taskId }],
-        ...overrides,
-      },
-    })
-    .then((r) => r.json());
+  const created = await api.post(`${API}/api/contests`, {
+    headers,
+    data: {
+      title: "PW Eval " + Date.now(),
+      category: picked.category,
+      durationMinutes: 60,
+      startsAt: new Date(Date.now() - 3600000).toISOString(),
+      endsAt: new Date(Date.now() + 7200000).toISOString(),
+      allowPairs: false,
+      showFeedback: true,
+      showSolutions: true,
+      showTotalScore: true,
+      tasks: [{ taskId: picked.taskId }],
+      ...overrides,
+    },
+  });
+  expect(created.ok(), await created.text()).toBe(true);
+  const contest = await created.json();
 
-  await api.post(`${API}/api/contests/${contest.id}/publish`, { headers });
+  const published = await api.post(
+    `${API}/api/contests/${contest.id}/publish`,
+    { headers },
+  );
+  expect(published.ok(), await published.text()).toBe(true);
+
   return { ...contest, picked };
 }
 
