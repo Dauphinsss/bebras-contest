@@ -1290,6 +1290,14 @@ function contestHasEnded(state: ContestState) {
   return ENDED_CONTEST_STATES.includes(state);
 }
 
+function groupAccessHasExpired(group: {
+  expiresAt: Date | null;
+  contest: { endsAt: Date | null };
+}) {
+  const effectiveExpiry = group.contest.endsAt ?? group.expiresAt;
+  return Boolean(effectiveExpiry && effectiveExpiry < currentDate());
+}
+
 function contestRegistrationIsOpen(contest: {
   registrationStartsAt?: Date | null;
   registrationEndsAt?: Date | null;
@@ -2723,6 +2731,7 @@ app.get("/api/contests/:id/preview", async (req, res) => {
     durationMinutes: contest.durationMinutes,
     questionDisplayMode: contest.questionDisplayMode,
     contestStartsAt: contest.startsAt?.toISOString() ?? null,
+    contestEndsAt: contest.endsAt?.toISOString() ?? null,
     state: "abierta",
     status: "pending",
     startedAt: null,
@@ -4345,7 +4354,7 @@ app.get("/api/play/group/:code", async (req, res) => {
     return;
   }
 
-  if (group.expiresAt && group.expiresAt < currentDate()) {
+  if (groupAccessHasExpired(group)) {
     res.status(410).json({ message: "El código ya expiró." });
     return;
   }
@@ -4409,7 +4418,7 @@ app.post("/api/play/join", async (req, res) => {
     return;
   }
 
-  if (group.expiresAt && group.expiresAt < currentDate()) {
+  if (groupAccessHasExpired(group)) {
     res.status(410).json({ message: "El código ya expiró." });
     return;
   }
@@ -4554,9 +4563,9 @@ app.post("/api/play/join", async (req, res) => {
     computeContestState(group.contest).state === "abierta"
   ) {
     const firstUsedAt = currentDate();
-    const expiresAt = new Date(
-      firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000,
-    );
+    const expiresAt =
+      group.contest.endsAt ??
+      new Date(firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000);
     await prisma.contestGroup.update({
       where: { id: group.id },
       data: { firstUsedAt, expiresAt },
@@ -5192,7 +5201,7 @@ app.post("/api/play/session", async (req, res) => {
     return;
   }
 
-  if (group.expiresAt && group.expiresAt < currentDate()) {
+  if (groupAccessHasExpired(group)) {
     res.status(410).json({ message: "El código ya expiró." });
     return;
   }
@@ -5244,9 +5253,9 @@ app.post("/api/play/session", async (req, res) => {
       where: { id: group.id },
       data: {
         firstUsedAt,
-        expiresAt: new Date(
-          firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000,
-        ),
+        expiresAt:
+          group.contest.endsAt ??
+          new Date(firstUsedAt.getTime() + GROUP_CODE_LIFETIME_MINUTES * 60000),
       },
     });
   }
@@ -5352,17 +5361,20 @@ app.post("/api/play/start", async (req, res) => {
       return;
     }
 
-    const remainingMinutes = (contest.endsAt.getTime() - now.getTime()) / 60000;
+    const endsAt = new Date(
+      Math.min(
+        now.getTime() + contest.durationMinutes * 60000,
+        contest.endsAt.getTime(),
+      ),
+    );
 
-    if (remainingMinutes < contest.durationMinutes) {
+    if (endsAt <= now) {
       res.status(409).json({
-        message:
-          "Ya no queda tiempo suficiente para rendir el desafío completo. Habla con tu maestro.",
+        message: "El desafío ya cerró.",
       });
       return;
     }
 
-    const endsAt = new Date(now.getTime() + contest.durationMinutes * 60000);
     await prisma.attempt.update({
       where: { id: team.attempt.id },
       data: { status: "in_progress", startedAt: now, endsAt },
@@ -5457,6 +5469,7 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
     durationMinutes: contest.durationMinutes,
     questionDisplayMode: contest.questionDisplayMode,
     contestStartsAt: contest.startsAt?.toISOString() ?? null,
+    contestEndsAt: contest.endsAt?.toISOString() ?? null,
     state: contestState,
     status: attempt.status,
     startedAt: attempt.startedAt?.toISOString() ?? null,

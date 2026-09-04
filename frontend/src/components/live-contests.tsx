@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarClockIcon,
   CircleCheckIcon,
@@ -82,7 +82,8 @@ function formatCountdown(target: string | null, now: number) {
     return null;
   }
 
-  const totalMinutes = Math.floor(diff / 60_000);
+  const totalSeconds = Math.ceil(diff / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
   const days = Math.floor(totalMinutes / (24 * 60));
   const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
   const minutes = totalMinutes % 60;
@@ -103,7 +104,7 @@ function formatCountdown(target: string | null, now: number) {
     return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
   }
 
-  return "menos de un minuto";
+  return `${totalSeconds} ${totalSeconds === 1 ? "segundo" : "segundos"}`;
 }
 
 /** Hacia qué momento cuenta cada fase. */
@@ -138,10 +139,8 @@ export function LiveContests() {
   > | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  useEffect(() => {
-    let active = true;
-
-    fetch(`${API_BASE_URL}/api/public-contests`)
+  const refreshContests = useCallback(() => {
+    return fetch(`${API_BASE_URL}/api/public-contests`)
       .then((response) => {
         if (!response.ok) {
           throw new Error("no disponible");
@@ -149,20 +148,54 @@ export function LiveContests() {
         return response.json() as Promise<PublicContest[]>;
       })
       .then((data) => {
-        if (active) {
-          setContests(data);
-        }
+        setContests(data);
+        setFailed(false);
       })
       .catch(() => {
-        if (active) {
-          setFailed(true);
-        }
+        setFailed(true);
       });
+  }, []);
+
+  useEffect(() => {
+    void refreshContests();
+
+    // Respaldo para cambios manuales de horario o estado desde el panel.
+    const refreshTimer = window.setInterval(() => {
+      void refreshContests();
+    }, 30_000);
 
     return () => {
-      active = false;
+      window.clearInterval(refreshTimer);
     };
-  }, []);
+  }, [refreshContests]);
+
+  useEffect(() => {
+    if (!contests) {
+      return;
+    }
+
+    const currentTime = Date.now();
+    const nextTransition = contests
+      .map((contest) => countdownTarget(contest).date)
+      .filter((date): date is string => Boolean(date))
+      .map((date) => new Date(date).getTime())
+      .filter((timestamp) => timestamp > currentTime)
+      .sort((left, right) => left - right)[0];
+
+    if (!nextTransition) {
+      return;
+    }
+
+    // El pequeño margen evita consultar antes que el reloj del servidor cambie.
+    const transitionTimer = window.setTimeout(
+      () => {
+        void refreshContests();
+      },
+      Math.min(nextTransition - currentTime + 250, 2_147_000_000),
+    );
+
+    return () => window.clearTimeout(transitionTimer);
+  }, [contests, refreshContests]);
 
   // Cuántos grupos tiene ya inscritos quien mira, si es un maestro con sesión.
   // La portada es pública: si la llamada falla, simplemente no se muestra.
@@ -210,7 +243,7 @@ export function LiveContests() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -292,8 +325,9 @@ export function LiveContests() {
             <div className="mt-1 flex flex-col gap-1 text-sm text-muted-foreground">
               {state === "abierta" && (
                 <span>
-                  Cierra el {formatDateTime(contest.endsAt)} · Tienes{" "}
-                  {contest.durationMinutes} minutos desde que empiezas
+                  Cierra el {formatDateTime(contest.endsAt)} · Tienes hasta{" "}
+                  {contest.durationMinutes} minutos; si entras tarde, tendrás el
+                  tiempo restante
                 </span>
               )}
               {state === "inscripcion" && (

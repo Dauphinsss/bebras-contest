@@ -43,6 +43,8 @@ export type AttemptState = {
   contestTitle: string;
   durationMinutes: number;
   questionDisplayMode: "one_by_one" | "all";
+  contestStartsAt: string | null;
+  contestEndsAt: string | null;
   state: string;
   status: "pending" | "in_progress" | "finished";
   startedAt: string | null;

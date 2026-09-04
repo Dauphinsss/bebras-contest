@@ -60,6 +60,19 @@ function formatRemaining(ms: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function formatStartCountdown(ms: number) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const clock = [hours, minutes, seconds]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
+
+  return days > 0 ? `${days} ${days === 1 ? "día" : "días"} ${clock}` : clock;
+}
+
 const SAVE_RETRY_DELAYS = [250, 750] as const;
 
 function wait(ms: number) {
@@ -174,14 +187,34 @@ export function AttemptPage({
   }, []);
 
   const suspended = attempt?.state === "suspendida";
+  const waitingForStart =
+    attempt?.status === "pending" &&
+    ["programada", "inscripcion", "preparacion"].includes(attempt.state);
   const attemptActive = starting || attempt?.status === "in_progress";
   const chromeHidden = loading || attemptActive;
+  const contestStartsAtMs = attempt?.contestStartsAt
+    ? new Date(attempt.contestStartsAt).getTime()
+    : 0;
+  const contestEndsAtMs = attempt?.contestEndsAt
+    ? new Date(attempt.contestEndsAt).getTime()
+    : 0;
+  const startsIn = contestStartsAtMs - now;
+  const scheduledStartReached =
+    waitingForStart && contestStartsAtMs > 0 && startsIn <= 0;
   const suspendedAtMs = attempt?.suspendedAt
     ? new Date(attempt.suspendedAt).getTime()
     : 0;
   const endsAtMs = attempt?.endsAt ? new Date(attempt.endsAt).getTime() : 0;
   const remaining =
     endsAtMs - (suspended && suspendedAtMs ? suspendedAtMs : now);
+  const availableStartTime = contestEndsAtMs - now;
+  const startsWithReducedTime = Boolean(
+    !preview &&
+    attempt?.status === "pending" &&
+    attempt.state === "abierta" &&
+    contestEndsAtMs > 0 &&
+    availableStartTime < attempt.durationMinutes * 60000,
+  );
 
   useEffect(() => {
     const chrome = document.querySelectorAll<HTMLElement>("[data-site-chrome]");
@@ -197,7 +230,9 @@ export function AttemptPage({
   }, [chromeHidden]);
 
   useEffect(() => {
-    if (!attemptActive) {
+    // Probar no es rendir: al administrador no se le retiene con la
+    // confirmacion del navegador.
+    if (!attemptActive || preview) {
       return;
     }
 
@@ -208,7 +243,7 @@ export function AttemptPage({
 
     window.addEventListener("beforeunload", confirmExit);
     return () => window.removeEventListener("beforeunload", confirmExit);
-  }, [attemptActive]);
+  }, [attemptActive, preview]);
 
   const queueSave = (taskId: string, payload: unknown) => {
     const previousSave = saveQueues.current[taskId] ?? Promise.resolve();
@@ -328,13 +363,24 @@ export function AttemptPage({
   }, [remaining, attempt?.status, endsAtMs, suspended]);
 
   useEffect(() => {
-    if (!suspended) {
+    if ((!waitingForStart && !suspended) || preview || sessionLost) {
       return;
     }
 
-    const id = setInterval(() => void load(), 5000);
+    if (scheduledStartReached) {
+      void load();
+    }
+
+    const id = window.setInterval(() => void load(), 5000);
     return () => clearInterval(id);
-  }, [suspended, load]);
+  }, [
+    waitingForStart,
+    suspended,
+    preview,
+    sessionLost,
+    scheduledStartReached,
+    load,
+  ]);
 
   useEffect(() => {
     if (!sessionToken || sessionLost || preview) {
@@ -413,12 +459,23 @@ export function AttemptPage({
     }
   };
 
+  // La cabecera del sitio se oculta durante el intento para que la prueba se
+  // vea igual que la del estudiante, asi que la salida vive aqui: este aviso
+  // acompana a todas las pantallas de la vista previa.
   const previewNotice = preview ? (
     <Alert>
       <AlertTitle>Vista previa del desafío</AlertTitle>
-      <AlertDescription>
-        Es la misma pantalla que verá el estudiante. Nada de lo que respondas
-        aquí se guarda, y el tiempo corre solo para que puedas probarlo.
+      <AlertDescription className="flex flex-col items-start gap-3">
+        <span>
+          Es la misma pantalla que verá el estudiante. Nada de lo que respondas
+          aquí se guarda, y el tiempo corre solo para que puedas probarlo.
+        </span>
+        <Button asChild variant="outline" size="sm">
+          <a href={`/competencias/editar?id=${previewContestId}`}>
+            <ArrowLeftIcon data-icon="inline-start" />
+            Salir de la prueba
+          </a>
+        </Button>
       </AlertDescription>
     </Alert>
   ) : null;
@@ -461,21 +518,54 @@ export function AttemptPage({
         <Card className="w-full">
           <CardContent className="flex flex-col gap-4 pt-6 text-center">
             <h1 className="text-2xl font-semibold">{attempt.contestTitle}</h1>
-            <p className="text-sm text-muted-foreground">
-              Tendrás {attempt.durationMinutes} minutos desde que empieces. El
-              tiempo no se detiene.
-            </p>
+            {startsWithReducedTime ? (
+              <Alert>
+                <ClockIcon />
+                <AlertTitle>Entraste después de la hora de inicio</AlertTitle>
+                <AlertDescription>
+                  Si empiezas ahora tendrás{" "}
+                  {formatStartCountdown(availableStartTime)} hasta que cierre el
+                  desafío. El tiempo no se detiene.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Tendrás {attempt.durationMinutes} minutos desde que empieces. El
+                tiempo no se detiene.
+              </p>
+            )}
             {attempt.state !== "abierta" ? (
               <Alert>
+                {!suspended && contestStartsAtMs > 0 && <ClockIcon />}
                 <AlertTitle>
                   {suspended
                     ? "El desafío está suspendido"
-                    : "El desafío aún no está abierto"}
+                    : contestStartsAtMs > 0
+                      ? scheduledStartReached
+                        ? "El desafío está por comenzar"
+                        : "El desafío comienza en"
+                      : "El horario aún no está definido"}
                 </AlertTitle>
-                <AlertDescription>
-                  {suspended
-                    ? "Tu maestro la pausó. Deja esta página abierta: se habilita sola cuando la reanuden."
-                    : "Espera a que tu maestro la abra para empezar."}
+                <AlertDescription className="flex flex-col gap-2">
+                  {suspended ? (
+                    "Tu maestro la pausó. Deja esta página abierta: se habilita sola cuando la reanuden."
+                  ) : contestStartsAtMs > 0 ? (
+                    <>
+                      <span
+                        role="timer"
+                        className="font-mono text-2xl font-semibold tabular-nums text-foreground"
+                      >
+                        {formatStartCountdown(startsIn)}
+                      </span>
+                      <span>
+                        {scheduledStartReached
+                          ? "Estamos habilitando el desafío."
+                          : "Esta pantalla se actualizará automáticamente."}
+                      </span>
+                    </>
+                  ) : (
+                    "Tu maestro definirá la hora. Esta pantalla se actualizará automáticamente."
+                  )}
                 </AlertDescription>
               </Alert>
             ) : (
@@ -520,14 +610,6 @@ export function AttemptPage({
                   ? "Tu maestro te compartirá los resultados."
                   : "Los resultados se publicarán unos días después del desafío."}
               </p>
-            )}
-            {preview && (
-              <Button asChild variant="outline" className="mt-2">
-                <a href={`/competencias/editar?id=${previewContestId}`}>
-                  <ArrowLeftIcon data-icon="inline-start" />
-                  Volver a la edición
-                </a>
-              </Button>
             )}
           </CardContent>
         </Card>

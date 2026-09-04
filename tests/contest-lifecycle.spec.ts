@@ -383,19 +383,23 @@ test("enforces contest windows for publication and late starts", async () => {
     startsAt: new Date(Date.now() - 10 * 60000).toISOString(),
     endsAt: new Date(Date.now() + 4 * 60000).toISOString(),
   });
-  const rejectedCode = await joinContest(
+  const shortenedCode = await joinContest(
     api,
     headers,
     insufficientRemaining.id,
     insufficientRemaining.picked.grade,
     "Sin tiempo",
   );
-  const rejectedStart = await api.post(`${API}/api/play/start`, {
-    data: { personalCode: rejectedCode },
+  const shortenedStart = await api.post(`${API}/api/play/start`, {
+    data: { personalCode: shortenedCode },
   });
-  expect(rejectedStart.status()).toBe(409);
-  expect((await rejectedStart.json()).message).toContain(
-    "no queda tiempo suficiente",
+  expect(shortenedStart.ok(), await shortenedStart.text()).toBe(true);
+  const shortenedAttempt = await api
+    .get(`${API}/api/play/attempt/${shortenedCode}`)
+    .then((response) => response.json());
+  expect(shortenedAttempt.status).toBe("in_progress");
+  expect(new Date(shortenedAttempt.endsAt).getTime()).toBe(
+    new Date(insufficientRemaining.endsAt).getTime(),
   );
 
   const shortWindowResponse = await api.post(`${API}/api/contests`, {
