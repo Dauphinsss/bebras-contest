@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   AlarmClockIcon,
   BarChart3Icon,
@@ -16,19 +16,42 @@ import { toast } from "sonner";
 
 import {
   consolidateContest,
+  createContest,
   listContests,
   removeContest,
   resumeContest,
   suspendContest,
 } from "@/lib/contests-api";
 import {
+  CONTEST_CATEGORIES,
   CONTEST_STATE_LABELS,
+  defaultContestScoring,
   formatContestWindow,
+  type ContestDraftInput,
   type StoredContest,
 } from "@/lib/contest-schema";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +62,37 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/** Un desafío nace solo con nombre y categoría; el resto se define al editarlo. */
+function emptyContestDraft(): ContestDraftInput {
+  return {
+    title: "",
+    category: "",
+    durationMinutes: 45,
+    registrationStartsAt: "",
+    registrationEndsAt: "",
+    startsAt: "",
+    endsAt: "",
+    scoring: defaultContestScoring(),
+    questionDisplayMode: "one_by_one",
+    allowPairs: false,
+    showFeedback: false,
+    showSolutions: false,
+    showTotalScore: false,
+    tasks: [],
+  };
+}
+
+function defaultContestTitle(category: string) {
+  const year = new Date().getFullYear();
+  return category
+    ? `Desafío Bebras ${year} - ${category}`
+    : `Desafío Bebras ${year}`;
+}
+
+function isGeneratedTitle(title: string, category: string) {
+  return !title.trim() || title === defaultContestTitle(category);
+}
 
 type ConfirmAction = "suspend" | "resume" | "consolidate" | "delete";
 
@@ -85,6 +139,15 @@ export function ContestsHome() {
   const [contests, setContests] = useState<StoredContest[]>([]);
   const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Desafío recién creado: se marca un momento para saber cuál es y decidir
+  // si se edita ahora, en vez de caer de golpe en su edición.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [highlighted, setHighlighted] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState(() => defaultContestTitle(""));
+  const [newCategory, setNewCategory] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const replaceContest = (updated: StoredContest) => {
     setContests((current) =>
@@ -172,6 +235,84 @@ export function ContestsHome() {
     };
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const created = params.get("creado");
+
+    if (!created) {
+      return;
+    }
+
+    setCreatedId(created);
+    // Fuera de la URL: recargar no debería volver a resaltarlo.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  useEffect(() => {
+    if (!createdId || contests.length === 0) {
+      return;
+    }
+
+    const row = document.getElementById(`contest-${createdId}`);
+
+    if (!row) {
+      setCreatedId(null);
+      return;
+    }
+
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    // Un fotograma para que el realce entre con transición, no de golpe.
+    const enter = window.requestAnimationFrame(() => setHighlighted(true));
+    const leave = window.setTimeout(() => setHighlighted(false), 2600);
+    const clear = window.setTimeout(() => setCreatedId(null), 4000);
+
+    return () => {
+      window.cancelAnimationFrame(enter);
+      window.clearTimeout(leave);
+      window.clearTimeout(clear);
+    };
+  }, [createdId, contests.length]);
+
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!newTitle.trim()) {
+      setCreateError("El nombre del desafío es obligatorio.");
+      return;
+    }
+
+    if (!newCategory) {
+      setCreateError("Elige la categoría del desafío.");
+      return;
+    }
+
+    setCreating(true);
+    setCreateError(null);
+
+    try {
+      const created = await createContest({
+        ...emptyContestDraft(),
+        title: newTitle.trim(),
+        category: newCategory,
+      });
+
+      // Entra arriba de la lista y se resalta: de ahí se decide si se edita.
+      setContests((current) => [created, ...current]);
+      setCreatedId(created.id);
+      setCreateOpen(false);
+      setNewTitle(defaultContestTitle(""));
+      setNewCategory("");
+      toast.success("Desafío creado. Ya puedes programarlo.");
+    } catch (error) {
+      setCreateError(
+        error instanceof Error ? error.message : "No se pudo crear el desafío.",
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleDelete = (contest: StoredContest) => {
     setBusyId(contest.id);
     void removeContest(contest.id)
@@ -224,12 +365,99 @@ export function ContestsHome() {
             estado.
           </p>
         </div>
-        <Button asChild className="shrink-0">
-          <a href="/competencias/nueva">
-            <FilePlus2Icon data-icon="inline-start" />
-            Nuevo desafío
-          </a>
-        </Button>
+        {/* Son dos campos: el modal deja la lista a la vista y el desafío nuevo
+            aparece arriba en cuanto se crea. */}
+        <Dialog
+          open={createOpen}
+          onOpenChange={(open) => {
+            setCreateOpen(open);
+            if (!open) {
+              setCreateError(null);
+            }
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button className="shrink-0">
+              <FilePlus2Icon data-icon="inline-start" />
+              Nuevo desafío
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nuevo desafío</DialogTitle>
+              <DialogDescription>
+                Con esto se crea el borrador. El calendario, la duración y las
+                tareas se definen al editarlo.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              className="flex flex-col gap-4 pt-2"
+              onSubmit={handleCreate}
+              aria-busy={creating}
+              noValidate
+            >
+              {createError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{createError}</AlertDescription>
+                </Alert>
+              )}
+              <Field>
+                <FieldLabel htmlFor="new-contest-title">
+                  Nombre <span className="text-destructive">*</span>
+                </FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="new-contest-title"
+                    value={newTitle}
+                    disabled={creating}
+                    placeholder={defaultContestTitle("")}
+                    onChange={(event) => {
+                      setNewTitle(event.target.value);
+                      setCreateError(null);
+                    }}
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="new-contest-category">
+                  Categoría <span className="text-destructive">*</span>
+                </FieldLabel>
+                <FieldContent>
+                  <Select
+                    value={newCategory || undefined}
+                    disabled={creating}
+                    onValueChange={(value) => {
+                      setNewCategory(value);
+                      setCreateError(null);
+                      setNewTitle((current) =>
+                        isGeneratedTitle(current, newCategory)
+                          ? defaultContestTitle(value)
+                          : current,
+                      );
+                    }}
+                  >
+                    <SelectTrigger id="new-contest-category" className="w-full">
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTEST_CATEGORIES.map((category) => (
+                        <SelectItem key={category.name} value={category.name}>
+                          {category.name} ({category.age})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldContent>
+              </Field>
+              <DialogFooter>
+                <Button type="submit" disabled={creating}>
+                  <FilePlus2Icon data-icon="inline-start" />
+                  {creating ? "Creando..." : "Crear desafío"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {contests.length === 0 ? (
@@ -244,7 +472,13 @@ export function ContestsHome() {
           {contests.map((contest) => (
             <li
               key={contest.id}
-              className="flex min-w-0 flex-col gap-4 py-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8"
+              id={`contest-${contest.id}`}
+              className={cn(
+                "flex min-w-0 flex-col gap-4 px-3 py-5 transition-colors duration-700 lg:flex-row lg:items-start lg:justify-between lg:gap-8",
+                createdId === contest.id && highlighted
+                  ? "bg-primary/10"
+                  : "bg-transparent",
+              )}
             >
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -257,6 +491,7 @@ export function ContestsHome() {
                   {contest.category && (
                     <Badge variant="outline">{contest.category}</Badge>
                   )}
+                  {createdId === contest.id && <Badge>Recién creado</Badge>}
                 </div>
                 <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                   <span className="inline-flex flex-wrap items-center gap-2">

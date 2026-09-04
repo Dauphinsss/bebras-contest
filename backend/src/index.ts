@@ -1337,10 +1337,24 @@ function computeContestState(contest: {
 }): { state: ContestState; isOpen: boolean } {
   const now = currentDate();
 
-  // Sin publicar, o sin ventana de rendición, sigue siendo un borrador: no se
-  // puede publicar un desafío sin fechas, así que el segundo caso es una red.
-  if (!contest.publishedAt || !contest.startsAt || !contest.endsAt) {
+  if (!contest.publishedAt) {
     return { state: "borrador", isOpen: false };
+  }
+
+  // Para publicar basta la ventana de inscripción; la de rendición puede
+  // fijarse después, y hasta entonces el desafío no pasa de la preparación.
+  if (!contest.startsAt || !contest.endsAt) {
+    if (contest.registrationStartsAt && contest.registrationEndsAt) {
+      if (now < contest.registrationStartsAt) {
+        return { state: "programada", isOpen: false };
+      }
+
+      if (now < contest.registrationEndsAt) {
+        return { state: "inscripcion", isOpen: false };
+      }
+    }
+
+    return { state: "preparacion", isOpen: false };
   }
 
   if (
@@ -2708,6 +2722,7 @@ app.get("/api/contests/:id/preview", async (req, res) => {
     contestTitle: contest.title,
     durationMinutes: contest.durationMinutes,
     questionDisplayMode: contest.questionDisplayMode,
+    contestStartsAt: contest.startsAt?.toISOString() ?? null,
     state: "abierta",
     status: "pending",
     startedAt: null,
@@ -2815,11 +2830,19 @@ app.post("/api/contests/:id/publish", async (req, res) => {
     readinessErrors.push("El desafío necesita nombre.");
   }
 
-  if (!contest.startsAt || !contest.endsAt) {
+  if (!contest.registrationStartsAt || !contest.registrationEndsAt) {
     readinessErrors.push(
-      "El desafío necesita su ventana de rendición antes de publicarse.",
+      "El desafío necesita su ventana de inscripción antes de publicarse.",
     );
-  } else if (contest.endsAt <= contest.startsAt) {
+  }
+
+  // La ventana de rendición puede quedar para después; si ya está, tiene que
+  // ser coherente.
+  if (
+    contest.startsAt &&
+    contest.endsAt &&
+    contest.endsAt <= contest.startsAt
+  ) {
     readinessErrors.push("La ventana de ejecución no es válida.");
   }
 
@@ -3350,7 +3373,10 @@ app.get("/api/users/:id/documents/:doc", async (req, res) => {
 
 app.get("/api/published-contests", requireAuth, async (_req, res) => {
   const contests = await prisma.contest.findMany({
-    where: { publishedAt: { not: null }, endsAt: { gte: currentDate() } },
+    where: {
+      publishedAt: { not: null },
+      OR: [{ endsAt: null }, { endsAt: { gte: currentDate() } }],
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -5317,10 +5343,16 @@ app.post("/api/play/start", async (req, res) => {
 
   if (team.attempt.status === "pending") {
     const now = currentDate();
-    // Publicado implica ventana definida; si faltara, no queda tiempo válido.
-    const remainingMinutes = contest.endsAt
-      ? (contest.endsAt.getTime() - now.getTime()) / 60000
-      : 0;
+
+    if (!contest.endsAt) {
+      res.status(409).json({
+        message:
+          "La fecha del desafío todavía no está definida. Tu maestro la anunciará.",
+      });
+      return;
+    }
+
+    const remainingMinutes = (contest.endsAt.getTime() - now.getTime()) / 60000;
 
     if (remainingMinutes < contest.durationMinutes) {
       res.status(409).json({
@@ -5424,6 +5456,7 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
     contestTitle: contest.title,
     durationMinutes: contest.durationMinutes,
     questionDisplayMode: contest.questionDisplayMode,
+    contestStartsAt: contest.startsAt?.toISOString() ?? null,
     state: contestState,
     status: attempt.status,
     startedAt: attempt.startedAt?.toISOString() ?? null,

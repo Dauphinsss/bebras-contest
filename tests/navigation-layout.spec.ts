@@ -33,14 +33,18 @@ test("keeps the new contest form within a mobile viewport", async ({
     window.localStorage.setItem("bebras_user", JSON.stringify(user));
   }, session);
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto("/competencias/nueva");
+  await page.goto("/competencias");
 
+  // Crear un desafío es un modal con dos campos: ni calendario ni tareas.
+  await page.getByRole("button", { name: "Nuevo desafío" }).click();
+  const createDialog = page.getByRole("dialog");
+  await expect(createDialog).toBeVisible();
+  await expect(createDialog.getByText("Nombre")).toBeVisible();
+  await expect(createDialog.getByText("Categoría")).toBeVisible();
+  await expect(createDialog.getByText("Ventana de inscripción")).toHaveCount(0);
   await expect(
-    page.getByText("Datos generales", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("Ventana de inscripción")).toHaveCount(0);
-  await expect(page.getByText("Duración por equipo (minutos)")).toHaveCount(0);
-  await expect(page.getByText("Disponibles")).toHaveCount(0);
+    createDialog.getByText("Duración por equipo (minutos)"),
+  ).toHaveCount(0);
   expect(
     await page.evaluate(
       () =>
@@ -48,6 +52,8 @@ test("keeps the new contest form within a mobile viewport", async ({
         document.documentElement.clientWidth,
     ),
   ).toBe(false);
+  await page.keyboard.press("Escape");
+  await expect(createDialog).toBeHidden();
 
   const mainBeforeMenu = await page.locator("main").boundingBox();
   await page.getByRole("button", { name: "Abrir menú" }).click();
@@ -88,7 +94,7 @@ test("keeps the new contest form within a mobile viewport", async ({
       window as Window & { __bebrasClientNavigation?: boolean }
     ).__bebrasClientNavigation = true;
   });
-  await page.getByRole("link", { name: "Volver: Crear desafío" }).click();
+  await page.getByRole("link", { name: "Desafíos" }).first().click();
   await expect(page).toHaveURL(/\/competencias\/?$/);
   expect(
     await page.evaluate(
@@ -105,7 +111,6 @@ test("keeps the new contest form within a mobile viewport", async ({
 
   await api.dispose();
 });
-
 
 test("keeps the contest calendar within a mobile viewport", async ({
   page,
