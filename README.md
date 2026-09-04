@@ -40,8 +40,9 @@ La base local (`backend/dev.db`) **no se versiona**. Se reconstruye con
 
 | Comando                    | Qué hace                                                                                                                          |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run db:setup`         | Genera el cliente Prisma, sincroniza el esquema y carga colegios y administradores.                                               |
+| `bun run db:setup`         | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores. |
 | `bun run db:seed`          | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
+| `bun run db:tasks`         | Carga el banco de tareas Bebras desde `backend/prisma/seed/bebras-tasks.json`.                                                    |
 | `bun run db:schools:fetch` | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
 | `bun run db:admins`        | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
 | `bun run db:clear-teams`   | Borra equipos e intentos para volver a probar el flujo.                                                                           |

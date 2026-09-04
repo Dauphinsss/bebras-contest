@@ -9,10 +9,11 @@
     "db:generate": "bun run --cwd backend prisma:generate",
     "db:push": "bun run --cwd backend prisma:push",
     "db:seed": "bun run --cwd backend db:seed",
+    "db:tasks": "bun run --cwd backend db:tasks",
     "db:admins": "bun run --cwd backend db:admins",
     "db:schools:fetch": "bun run --cwd backend db:schools:fetch",
     "db:clear-teams": "bun run --cwd backend db:clear-teams",
-    "db:setup": "bun run db:generate && bun run db:push && bun run db:seed && bun run db:admins",
+    "db:setup": "bun run db:generate && bun run db:push && bun run db:seed && bun run db:tasks && bun run db:admins",
     "test:e2e": "bun ./tests/run-e2e.ts",
     "test:e2e:list": "bun x playwright test --list"
   },

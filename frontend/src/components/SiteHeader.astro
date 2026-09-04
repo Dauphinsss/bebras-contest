@@ -151,14 +151,14 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
   // engordaban todas a la vez durante la transición, incluso las que no
   // intervienen.
   function bebrasLabelMatches(label, path) {
-    var anchor = label.closest("a");
-    var href = anchor ? anchor.getAttribute("href") : null;
+    const anchor = label.closest("a");
+    const href = anchor ? anchor.getAttribute("href") : null;
     return Boolean(href) && (path === href || path.indexOf(href + "/") === 0);
   }
 
   function bebrasNameLabels(paths) {
     document.querySelectorAll("[data-nav-label]").forEach(function (label) {
-      var involved = paths.some(function (path) {
+      const involved = paths.some(function (path) {
         return path && bebrasLabelMatches(label, path);
       });
       label.style.viewTransitionName = involved
@@ -171,8 +171,8 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
   // en camino y uno blanco quedaría invisible sobre el fondo. Al quitar la
   // marca, el rótulo activo pasa a blanco con su propia transición de color,
   // ya con el pill debajo.
-  var bebrasNavSwapTimer = 0;
-  var bebrasPreviousPath = window.location.pathname;
+  let bebrasNavSwapTimer = 0;
+  let bebrasPreviousPath = window.location.pathname;
 
   function bebrasNavSwapStart() {
     window.clearTimeout(bebrasNavSwapTimer);
@@ -189,7 +189,7 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
 
   document.addEventListener("astro:before-preparation", function (event) {
     bebrasPreviousPath = window.location.pathname;
-    var target =
+    const target =
       event && event.to ? new URL(event.to, window.location.href) : null;
     bebrasNameLabels([bebrasPreviousPath, target ? target.pathname : null]);
   });
