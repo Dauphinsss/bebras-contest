@@ -504,12 +504,14 @@ function WindowField({
               />
             </div>
           </div>
+          {/* Segunda fila de la rejilla: el calculo cae bajo las horas, que son
+              las que lo mueven, y no bajo el selector de dia. */}
+          <FieldDescription className="lg:col-start-2">
+            {windowLength
+              ? `Durará ${windowLength}.`
+              : "Elige los días y las horas para ver cuánto durará."}
+          </FieldDescription>
         </div>
-        <FieldDescription>
-          {windowLength
-            ? `Durará ${windowLength}.`
-            : "Elige los días y las horas para ver cuánto durará."}
-        </FieldDescription>
       </FieldContent>
     </Field>
   );
@@ -708,9 +710,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [publishAttempted, setPublishAttempted] = useState(false);
   const [contestState, setContestState] = useState<ContestState>("borrador");
-  const [autoSaveState, setAutoSaveState] = useState<
-    "idle" | "saving" | "saved" | "failed"
-  >("idle");
   // Última versión que el servidor ya tiene, para no reenviar lo mismo ni
   // guardar en bucle con la respuesta del propio guardado.
   const savedSnapshotRef = useRef<string | null>(null);
@@ -940,26 +939,43 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     (!Number.isFinite(form.durationMinutes) || form.durationMinutes <= 0);
   // Dejar la rendición vacía es válido incluso al publicar; solo se marca si
   // lo que ya está escrito no cuadra.
+  // Las incoherencias del calendario se avisan apenas aparecen, sin esperar a
+  // submitAttempted: el desafio se guarda solo, asi que nadie pulsa Guardar y
+  // el aviso quedaria invisible justo mientras el autoguardado esta detenido.
   const hasDateError = Boolean(
-    submitAttempted &&
     !isCreation &&
     form.startsAt &&
     form.endsAt &&
     new Date(form.endsAt) <= new Date(form.startsAt),
   );
-  const hasRegistrationError = Boolean(
-    submitAttempted &&
+  const registrationOrderError = Boolean(
     !isCreation &&
-    ((publishAttempted &&
-      (!form.registrationStartsAt || !form.registrationEndsAt)) ||
-      (form.registrationStartsAt &&
-        form.registrationEndsAt &&
-        new Date(form.registrationEndsAt) <=
-          new Date(form.registrationStartsAt)) ||
-      (form.registrationEndsAt &&
-        form.startsAt &&
-        new Date(form.registrationEndsAt) >= new Date(form.startsAt))),
+    form.registrationStartsAt &&
+    form.registrationEndsAt &&
+    new Date(form.registrationEndsAt) <= new Date(form.registrationStartsAt),
   );
+  const registrationOverlapError = Boolean(
+    !isCreation &&
+    !registrationOrderError &&
+    form.registrationEndsAt &&
+    form.startsAt &&
+    new Date(form.registrationEndsAt) >= new Date(form.startsAt),
+  );
+  const registrationMissingError = Boolean(
+    submitAttempted &&
+    publishAttempted &&
+    !isCreation &&
+    (!form.registrationStartsAt || !form.registrationEndsAt),
+  );
+  const hasRegistrationError =
+    registrationOrderError ||
+    registrationOverlapError ||
+    registrationMissingError;
+  const registrationErrorMessage = registrationOrderError
+    ? "El cierre de inscripción debe ser posterior a su inicio."
+    : registrationOverlapError
+      ? "La inscripción debe cerrar antes de que comience la rendición, para dejar la fase de preparación."
+      : "La inscripción debe tener inicio y fin.";
 
   // Guarda solo cuando lo escrito es coherente y difiere de lo guardado. Va al
   // servidor y no a localStorage: el borrador ya vive en la base, así que una
@@ -982,17 +998,23 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     }
 
     const timer = window.setTimeout(() => {
-      setAutoSaveState("saving");
+      const toastId = `contest-auto-save-${resolvedContestId}`;
+      toast.loading("Guardando cambios...", { id: toastId });
 
       void updateContest(resolvedContestId, payload)
         .then((saved) => {
           savedSnapshotRef.current = snapshot;
           setContestState(saved.state);
-          setAutoSaveState("saved");
+          toast.success("Cambios guardados.", {
+            id: toastId,
+            duration: 1800,
+          });
         })
         .catch(() => {
-          // Sin ruido: el aviso vive en la barra y el botón sigue disponible.
-          setAutoSaveState("failed");
+          toast.error(
+            "No se pudieron guardar los últimos cambios. Usa Guardar desafío.",
+            { id: toastId },
+          );
         });
     }, 1200);
 
@@ -1152,7 +1174,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       setForm(savedForm);
       setContestState(savedContest.state);
       savedSnapshotRef.current = JSON.stringify(toContestPayload(savedForm));
-      setAutoSaveState("saved");
       toast.success("El desafío se guardó correctamente.");
     } catch (error) {
       toast.error(
@@ -1295,14 +1316,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 }
               />
               {hasRegistrationError && (
-                <FieldError
-                  errors={[
-                    {
-                      message:
-                        "La inscripción debe tener inicio y fin, y cerrar antes de la rendición.",
-                    },
-                  ]}
-                />
+                <FieldError errors={[{ message: registrationErrorMessage }]} />
               )}
             </FieldGroup>
           </FormSection>
@@ -1330,6 +1344,16 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   }))
                 }
               />
+              {hasDateError && (
+                <FieldError
+                  errors={[
+                    {
+                      message:
+                        "La fecha de fin debe ser posterior a la de inicio.",
+                    },
+                  ]}
+                />
+              )}
               <FieldGroup className="grid gap-4 md:grid-cols-2">
                 <Field data-invalid={hasDurationError || undefined}>
                   <LabelWithHint
@@ -1412,16 +1436,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                   Permitir parejas
                 </LabelWithHint>
               </Field>
-              {hasDateError && (
-                <FieldError
-                  errors={[
-                    {
-                      message:
-                        "La fecha de fin debe ser posterior a la de inicio.",
-                    },
-                  ]}
-                />
-              )}
             </FieldGroup>
           </FormSection>
 
@@ -1755,13 +1769,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
         {!isCreation && (
           <div className="text-sm text-muted-foreground">
             {form.tasks.length} tarea(s) seleccionada(s).{" "}
-            {autoSaveState === "saving"
-              ? "Guardando cambios..."
-              : autoSaveState === "saved"
-                ? "Cambios guardados."
-                : autoSaveState === "failed"
-                  ? "No se pudieron guardar los últimos cambios; usa Guardar desafío."
-                  : "Los cambios se guardan solos."}
+            {validationErrors.length > 0
+              ? "El autoguardado está en pausa hasta corregir lo marcado en rojo."
+              : "Los cambios se guardan solos."}
           </div>
         )}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap md:ml-auto">

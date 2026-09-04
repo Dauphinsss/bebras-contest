@@ -195,12 +195,15 @@ export function DateTimeField({
             const nextValue = event.target.value;
             setTimeDraft(nextValue);
 
+            // Al teclear, el input de hora pasa por valores vacios antes de
+            // completarse. Propagarlos borraria tambien el dia, asi que solo
+            // sube al formulario una hora completa; para vaciar el campo esta
+            // el boton Quitar.
             if (nextValue) {
               onChange(withTime(value, nextValue));
-            } else {
-              onChange("");
             }
           }}
+          onBlur={() => setTimeDraft(toTimeValue(value))}
         />
       </div>
       {allowClear && date && (
