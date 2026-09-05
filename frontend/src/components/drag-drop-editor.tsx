@@ -9,6 +9,7 @@ import {
 import { ImagePlusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ImageUploadButton } from "@/components/image-upload-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
@@ -190,9 +191,7 @@ export function DragDropEditor({
         <Field>
           <FieldContent className="gap-4">
             {!backgroundUrl && (
-              <Input
-                accept="image/*"
-                type="file"
+              <ImageUploadButton
                 onChange={(event) => {
                   onUploadBackground(event.target.files);
                   event.target.value = "";
@@ -476,9 +475,7 @@ export function DragDropEditor({
                     </FieldLabel>
                     <FieldContent className="gap-4">
                       {!item.image && (
-                        <Input
-                          accept="image/*"
-                          type="file"
+                        <ImageUploadButton
                           onChange={(event) => {
                             onReplaceItemImage(item.id, event.target.files);
                             event.target.value = "";

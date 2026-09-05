@@ -1,19 +1,37 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { LoaderCircleIcon, PlusIcon, XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ArrowRightIcon,
+  LoaderCircleIcon,
+  PlusIcon,
+  XIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
-import { API_BASE_URL } from "@/lib/api-client";
+import { API_BASE_URL, apiRequest } from "@/lib/api-client";
 import { authHeaders, getUser, setUser } from "@/lib/auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import {
+  Field,
+  FieldContent,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { DocumentUpload } from "@/components/document-upload";
 import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
-
-const DOC_MAX_BYTES = 5 * 1024 * 1024;
 
 type ProfileDocuments = {
   institutionType: "school" | "homeschool";
@@ -72,56 +90,6 @@ const SCHOOL_STATUS_LABEL: Record<string, string> = {
   rejected: "Rechazado",
 };
 
-function DocumentUpload({
-  id,
-  label,
-  busy,
-  onPick,
-}: {
-  id: string;
-  label: string;
-  busy: boolean;
-  onPick: (file: File) => void;
-}) {
-  const input = useRef<HTMLInputElement>(null);
-
-  return (
-    <>
-      <input
-        ref={input}
-        id={id}
-        type="file"
-        className="hidden"
-        accept=".pdf,image/jpeg,image/png"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = "";
-
-          if (!file) {
-            return;
-          }
-
-          if (file.size > DOC_MAX_BYTES) {
-            toast.error("El documento debe pesar 5 MB o menos.");
-            return;
-          }
-
-          onPick(file);
-        }}
-      />
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={busy}
-        onClick={() => input.current?.click()}
-      >
-        {label}
-      </Button>
-    </>
-  );
-}
-
 export function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,7 +100,10 @@ export function ProfilePage() {
     name: "",
     institutionType: "school",
   });
-  const [newSchoolLetter, setNewSchoolLetter] = useState<File | null>(null);
+  const [verificationSchool, setVerificationSchool] =
+    useState<TeacherSchool | null>(null);
+  const hasNewSchool =
+    newSchool.institutionType === "school" && Boolean(newSchool.name.trim());
 
   const load = async () => {
     try {
@@ -196,7 +167,7 @@ export function ProfilePage() {
   const uploadOwnDocument = (field: string, file: File) => {
     const form = new FormData();
     form.append(field, file);
-    void send(
+    return send(
       "/api/auth/me/documents",
       form,
       "Documento guardado. El administrador lo revisará.",
@@ -206,21 +177,17 @@ export function ProfilePage() {
   const uploadSchoolLetter = (school: TeacherSchool, file: File) => {
     const form = new FormData();
     form.append("letter", file);
-    void send(
+    return send(
       `/api/auth/me/schools/${school.id}/letter`,
       form,
       `Carta de ${school.schoolName} guardada.`,
     );
   };
 
-  const addSchool = () => {
-    if (!newSchool.name.trim()) {
+  const addSchool = async () => {
+    if (busy) return;
+    if (!hasNewSchool) {
       toast.error("Elige el colegio que quieres administrar.");
-      return;
-    }
-
-    if (newSchoolLetter && newSchoolLetter.size > DOC_MAX_BYTES) {
-      toast.error("La carta debe pesar 5 MB o menos.");
       return;
     }
 
@@ -229,23 +196,25 @@ export function ProfilePage() {
     if (newSchool.codUe) {
       form.append("schoolCodUe", newSchool.codUe);
     }
-    if (newSchoolLetter) {
-      form.append("letter", newSchoolLetter);
-    }
-
-    void send(
-      "/api/auth/me/schools",
-      form,
-      "Colegio enviado. El administrador lo revisará.",
-    ).then((ok) => {
-      if (!ok) {
-        return;
-      }
-
-      setAddingSchool(false);
+    setBusy(true);
+    try {
+      const school = await apiRequest<TeacherSchool>("/api/auth/me/schools", {
+        method: "POST",
+        body: form,
+        fallbackMessage: "No se pudo agregar el colegio.",
+      });
+      setVerificationSchool(school);
       setNewSchool({ codUe: null, name: "", institutionType: "school" });
-      setNewSchoolLetter(null);
-    });
+      await load();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo agregar el colegio.",
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const cancelSchool = async (school: TeacherSchool) => {
@@ -336,6 +305,44 @@ export function ProfilePage() {
         </div>
       </header>
 
+      {profile.role === "maestro" && (
+        <section id="mis-grupos" className="flex scroll-mt-6 flex-col gap-2">
+          <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Mis grupos
+          </h2>
+          {profile.status === "approved" ? (
+            // Los grupos viven en su propia página; aquí solo queda la entrada.
+            <div className="flex flex-col border-t border-border">
+              <div className={row}>
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-sm font-medium">
+                    Grupos y participantes
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Crea grupos, inscribe estudiantes y reparte sus códigos.
+                  </span>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <a href="/grupos">
+                    Ir a mis grupos
+                    <ArrowRightIcon data-icon="inline-end" />
+                  </a>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Alert>
+              <AlertTitle>Mis grupos</AlertTitle>
+              <AlertDescription>
+                {profile.status === "pending"
+                  ? "Cuando se apruebe tu cuenta, aquí podrás crear grupos, inscribir estudiantes y consultar sus códigos de acceso."
+                  : "La gestión de grupos estará disponible cuando tu cuenta vuelva a estar aprobada."}
+              </AlertDescription>
+            </Alert>
+          )}
+        </section>
+      )}
+
       <section className="flex flex-col gap-2">
         <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           {isSchool ? "Mis colegios" : "Mi verificación"}
@@ -367,6 +374,8 @@ export function ProfilePage() {
                   <DocumentUpload
                     id="own-letter"
                     label="Subir carta"
+                    description={`Carta de autorización de ${profile.schoolName ?? "tu colegio"}. ¿Quieres enviarla para revisión?`}
+                    confirmLabel="Sí, enviar carta"
                     busy={busy}
                     onPick={(file) => uploadOwnDocument("letter", file)}
                   />
@@ -389,6 +398,7 @@ export function ProfilePage() {
                   <DocumentUpload
                     id={`own-${side}`}
                     label="Subir"
+                    description={`Cédula de identidad: ${side === "idFront" ? "anverso" : "reverso"}. ¿Quieres enviarla para revisión?`}
                     busy={busy}
                     onPick={(file) => uploadOwnDocument(side, file)}
                   />
@@ -422,6 +432,8 @@ export function ProfilePage() {
                     <DocumentUpload
                       id={`school-${school.id}`}
                       label="Subir carta"
+                      description={`Carta de autorización de ${school.schoolName}. ¿Quieres enviarla para revisión?`}
+                      confirmLabel="Sí, enviar carta"
                       busy={busy}
                       onPick={(file) => uploadSchoolLetter(school, file)}
                     />
@@ -456,70 +468,115 @@ export function ProfilePage() {
           )}
         </div>
 
-        {addingSchool ? (
-          <div className="flex flex-col gap-3 pt-4">
-            <Field>
-              <FieldLabel htmlFor="new-school">Otro colegio</FieldLabel>
-              <FieldContent>
-                <SchoolPicker value={newSchool} onChange={setNewSchool} />
-              </FieldContent>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="new-school-letter">
-                Carta de su director (puedes subirla después)
-              </FieldLabel>
-              <FieldContent>
-                <Input
-                  id="new-school-letter"
-                  type="file"
-                  accept=".pdf,image/jpeg,image/png"
-                  onChange={(event) =>
-                    setNewSchoolLetter(event.target.files?.[0] ?? null)
-                  }
-                />
-              </FieldContent>
-            </Field>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={busy}
-                onClick={addSchool}
-              >
-                {busy ? "Enviando..." : "Pedir este colegio"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  setAddingSchool(false);
-                  setNewSchoolLetter(null);
-                  setNewSchool({
-                    codUe: null,
-                    name: "",
-                    institutionType: "school",
-                  });
-                }}
-              >
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        ) : (
+        <Dialog
+          open={addingSchool}
+          onOpenChange={(open) => {
+            if (busy) return;
+            setAddingSchool(open);
+            if (!open) {
+              setVerificationSchool(null);
+              setNewSchool({
+                codUe: null,
+                name: "",
+                institutionType: "school",
+              });
+            }
+          }}
+        >
           <div className="pt-4">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setAddingSchool(true)}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Administrar otro colegio
-            </Button>
+            <DialogTrigger asChild>
+              <Button type="button" size="sm" variant="outline" disabled={busy}>
+                <PlusIcon data-icon="inline-start" />
+                Administrar otro colegio
+              </Button>
+            </DialogTrigger>
           </div>
-        )}
+          <DialogContent
+            className="flex max-h-[90dvh] flex-col sm:max-w-xl"
+            showCloseButton={!busy}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {verificationSchool
+                  ? "Verifica tu vínculo con el colegio"
+                  : "Agregar otro colegio"}
+              </DialogTitle>
+              <DialogDescription>
+                {verificationSchool
+                  ? "Para verificar tu vínculo con este colegio, sube la carta de autorización del director, firmada y sellada. Un administrador la revisará."
+                  : "Busca y selecciona el colegio donde enseñas."}
+              </DialogDescription>
+            </DialogHeader>
+            {verificationSchool ? (
+              <div
+                key="verification"
+                className="flex min-h-0 flex-col gap-4 overflow-y-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-2 motion-safe:duration-200"
+              >
+                <p className="font-medium">{verificationSchool.schoolName}</p>
+                <DocumentUpload
+                  id={`verify-school-${verificationSchool.id}`}
+                  label="Subir carta de autorización"
+                  busy={busy}
+                  description={`Carta de ${verificationSchool.schoolName}. ¿Quieres enviarla para revisión?`}
+                  confirmLabel="Sí, enviar carta"
+                  onPick={async (file) => {
+                    const ok = await uploadSchoolLetter(
+                      verificationSchool,
+                      file,
+                    );
+                    if (ok) {
+                      setAddingSchool(false);
+                      setVerificationSchool(null);
+                    }
+                    return ok;
+                  }}
+                />
+                <a
+                  href={`/carta-modelo?colegio=${encodeURIComponent(verificationSchool.schoolName)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm underline underline-offset-4"
+                >
+                  ¿No tienes la carta? Completar el modelo
+                </a>
+                <p className="text-sm text-muted-foreground">
+                  También puedes subirla después desde tu perfil. El colegio
+                  quedará pendiente de verificación.
+                </p>
+              </div>
+            ) : (
+              <FieldGroup className="min-h-0 gap-4 overflow-y-auto">
+                <Field>
+                  <FieldLabel htmlFor="school-search">Otro colegio</FieldLabel>
+                  <FieldContent>
+                    <SchoolPicker
+                      allowHomeschool={false}
+                      value={newSchool}
+                      onChange={setNewSchool}
+                    />
+                  </FieldContent>
+                </Field>
+              </FieldGroup>
+            )}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={busy}>
+                  {verificationSchool ? "Lo haré después" : "Cancelar"}
+                </Button>
+              </DialogClose>
+              {!verificationSchool && hasNewSchool && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy}
+                  onClick={addSchool}
+                >
+                  {busy ? "Agregando..." : "Agregar colegio"}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </section>
     </div>
   );

@@ -19,18 +19,23 @@ export type SchoolValue = {
   institutionType: "school" | "homeschool";
 };
 
+const transitionClass =
+  "flex flex-col gap-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-2 motion-safe:duration-200";
+
 export function SchoolPicker({
   value,
   onChange,
   inputRef,
   invalid,
   describedBy,
+  allowHomeschool = true,
 }: {
   value: SchoolValue;
   onChange: (next: SchoolValue) => void;
   inputRef?: Ref<HTMLInputElement>;
   invalid?: boolean;
   describedBy?: string;
+  allowHomeschool?: boolean;
 }) {
   const [manual, setManual] = useState(
     value.institutionType === "school" && !value.codUe && Boolean(value.name),
@@ -81,7 +86,7 @@ export function SchoolPicker({
 
   if (manual) {
     return (
-      <div className="flex flex-col gap-2">
+      <div key="manual" className={transitionClass}>
         <Input
           ref={inputRef}
           id="school-search"
@@ -117,7 +122,7 @@ export function SchoolPicker({
 
   if (value.institutionType === "homeschool") {
     return (
-      <div className="flex flex-col gap-2">
+      <div key="homeschool" className={transitionClass}>
         <div className="flex items-center gap-2 rounded-md border bg-secondary/30 px-3 py-2 text-sm">
           <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
           <span className="font-medium">Educación en casa</span>
@@ -139,7 +144,7 @@ export function SchoolPicker({
 
   if (value.codUe) {
     return (
-      <div className="flex flex-col gap-2">
+      <div key="selected" className={transitionClass}>
         <div className="flex items-center gap-2 rounded-md border bg-secondary/30 px-3 py-2 text-sm">
           <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
           <span className="font-medium">{value.name}</span>
@@ -160,7 +165,7 @@ export function SchoolPicker({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div key="search" className={transitionClass}>
       <div className="relative">
         <SearchIcon className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
         <Input
@@ -253,25 +258,28 @@ export function SchoolPicker({
             <SquarePenIcon className="size-4" />
             Mi colegio no está en la lista
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setManual(false);
-              onChange({
-                codUe: null,
-                name: "Educación en casa",
-                institutionType: "homeschool",
-              });
-            }}
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground"
-          >
-            <HouseIcon className="size-4" />
-            Enseño en casa
-          </button>
+          {allowHomeschool && (
+            <button
+              type="button"
+              onClick={() => {
+                setManual(false);
+                onChange({
+                  codUe: null,
+                  name: "Educación en casa",
+                  institutionType: "homeschool",
+                });
+              }}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground"
+            >
+              <HouseIcon className="size-4" />
+              Enseño en casa
+            </button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Con un colegio te pediremos la carta del director; si enseñas en casa,
-          tu carnet de identidad.
+          {allowHomeschool
+            ? "Con un colegio te pediremos la carta del director; si enseñas en casa, tu carnet de identidad."
+            : "Después de elegir el colegio podrás adjuntar la carta de su director."}
         </p>
       </div>
     </div>

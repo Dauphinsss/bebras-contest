@@ -9,20 +9,15 @@ import {
   type ReactNode,
 } from "react";
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   CalendarIcon,
   Clock8Icon,
   LoaderCircleIcon,
   PlayIcon,
-  PlusIcon,
   RotateCcwIcon,
   SaveIcon,
-  XIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import type { DateRange } from "react-day-picker";
 
@@ -39,7 +34,6 @@ import {
   defaultContestScoring,
   isStandardScoring,
   taskDifficultyForCategory,
-  type ContestTaskConfigInput,
   fromDatetimeLocalValue,
   toDatetimeLocalValue,
   type ContestState,
@@ -61,7 +55,8 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { FieldHint, LabelWithHint } from "@/components/field-hint";
+import { LabelWithHint } from "@/components/field-hint";
+import { FormSection } from "@/components/form-section";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -82,10 +77,6 @@ type ContestFormPageProps = {
 };
 
 type FormState = ContestDraftInput;
-
-function createDefaultTaskConfig(taskId: string): ContestTaskConfigInput {
-  return { taskId };
-}
 
 function defaultContestTitle(category: string) {
   const year = new Date().getFullYear();
@@ -145,8 +136,11 @@ function createStateFromContest(
   };
 }
 
-function toContestPayload(form: FormState): ContestDraftInput {
-  return {
+function toContestPayload(
+  form: FormState,
+  { keepTasks = false }: { keepTasks?: boolean } = {},
+): ContestDraftInput {
+  const payload = {
     ...form,
     title: form.title.trim(),
     registrationStartsAt: form.registrationStartsAt
@@ -158,6 +152,13 @@ function toContestPayload(form: FormState): ContestDraftInput {
     startsAt: form.startsAt ? fromDatetimeLocalValue(form.startsAt) : "",
     endsAt: form.endsAt ? fromDatetimeLocalValue(form.endsAt) : "",
   };
+
+  if (keepTasks) {
+    // Sin la clave, el backend deja intactas las preguntas que ya tiene.
+    delete (payload as Partial<ContestDraftInput>).tasks;
+  }
+
+  return payload;
 }
 
 function parseDateTimeLocal(value: string) {
@@ -536,40 +537,6 @@ const RESULT_TOGGLES = [
   },
 ] as const;
 
-function FormSection({
-  title,
-  description,
-  hint,
-  action,
-  children,
-}: {
-  title: string;
-  description?: ReactNode;
-  hint?: ReactNode;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex min-w-0 flex-col gap-5">
-      <div className="flex min-w-0 flex-wrap items-end justify-between gap-3 border-b pb-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex items-center gap-1.5">
-            <h2 className="font-heading text-base font-semibold">{title}</h2>
-            {hint && <FieldHint>{hint}</FieldHint>}
-          </div>
-          {description && (
-            <p className="text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
-          )}
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 /** Puntaje editable de una dificultad. Solo emite enteros válidos. */
 function ScoreInput({
   id,
@@ -622,78 +589,7 @@ function ScoreInput({
   );
 }
 
-function SubHeading({
-  children,
-  count,
-}: {
-  children: ReactNode;
-  count: number;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <h3 className="text-sm font-medium">{children}</h3>
-      <Badge variant="outline">{count}</Badge>
-    </div>
-  );
-}
-
-/**
- * Aplica un cambio de las listas de tareas dentro de una transición de vista,
- * para que el navegador interpole el salto de cada fila. Marca el documento
- * mientras dura: el CSS apaga con eso la animación de la página, así solo
- * viajan las filas y no se desplaza todo.
- */
-function withTaskTransition(apply: () => void) {
-  const startViewTransition = (
-    document as Document & {
-      startViewTransition?: (callback: () => void) => {
-        finished: Promise<void>;
-      };
-    }
-  ).startViewTransition;
-
-  if (
-    !startViewTransition ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    apply();
-    return;
-  }
-
-  const root = document.documentElement;
-  root.dataset.taskTransition = "";
-
-  const transition = startViewTransition.call(document, () => flushSync(apply));
-
-  void transition.finished.finally(() => {
-    delete root.dataset.taskTransition;
-  });
-}
-
 /** Dificultad de la tarea en la categoría del desafío, que es la que puntúa. */
-function DifficultyBadge({
-  task,
-  category,
-}: {
-  task: StoredTask;
-  category: string;
-}) {
-  const difficulty = taskDifficultyForCategory(task.difficulties, category);
-
-  return (
-    <Badge variant={difficulty ? "outline" : "destructive"}>
-      {difficulty ? BEBRAS_SCORING[difficulty].label : "Sin dificultad"}
-    </Badge>
-  );
-}
-
-function EmptyHint({ children }: { children: ReactNode }) {
-  return (
-    <p className="rounded-sm border border-dashed px-4 py-6 text-sm text-muted-foreground">
-      {children}
-    </p>
-  );
-}
 
 export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
   const resolvedContestId =
@@ -740,7 +636,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
           setForm(loadedForm);
           setContestState(loadedContest.state);
           savedSnapshotRef.current = JSON.stringify(
-            toContestPayload(loadedForm),
+            toContestPayload(loadedForm, { keepTasks: true }),
           );
         }
       })
@@ -776,29 +672,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       .map((taskConfig) => tasksById.get(taskConfig.taskId))
       .filter((task): task is StoredTask => task !== undefined);
   }, [form.tasks, tasks]);
-
-  // Una tarea sin dificultad para el rango de edad de la categoría no tendría
-  // puntaje, así que no se ofrece: el desafío solo lista las de su categoría.
-  const categoryTasks = useMemo(
-    () =>
-      form.category
-        ? tasks.filter(
-            (task) =>
-              taskDifficultyForCategory(task.difficulties, form.category) !==
-              null,
-          )
-        : [],
-    [form.category, tasks],
-  );
-
-  const availableTasks = useMemo(
-    () =>
-      categoryTasks.filter(
-        (task) =>
-          !form.tasks.some((taskConfig) => taskConfig.taskId === task.id),
-      ),
-    [categoryTasks, form.tasks],
-  );
 
   const validationErrors = useMemo(() => {
     const errors: string[] = [];
@@ -986,7 +859,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       return;
     }
 
-    const payload = toContestPayload(form);
+    const payload = toContestPayload(form, { keepTasks: true });
     const snapshot = JSON.stringify(payload);
 
     if (snapshot === savedSnapshotRef.current) {
@@ -1051,7 +924,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     try {
       const savedContest = await updateContest(
         resolvedContestId,
-        toContestPayload(form),
+        toContestPayload(form, { keepTasks: true }),
       );
       const publishedContest = await publishContest(savedContest.id);
       const publishedForm = createStateFromContest(publishedContest);
@@ -1059,7 +932,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       setForm(publishedForm);
       setContestState(publishedContest.state);
       savedSnapshotRef.current = JSON.stringify(
-        toContestPayload(publishedForm),
+        toContestPayload(publishedForm, { keepTasks: true }),
       );
       toast.success("El desafío quedó publicado.");
     } catch (error) {
@@ -1091,55 +964,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     }));
   };
 
-  const toggleTask = (taskId: string) => {
-    if (locked) {
-      return;
-    }
-
-    withTaskTransition(() =>
-      setForm((current) => ({
-        ...current,
-        tasks: current.tasks.some((task) => task.taskId === taskId)
-          ? current.tasks.filter((task) => task.taskId !== taskId)
-          : [...current.tasks, createDefaultTaskConfig(taskId)],
-      })),
-    );
-  };
-
-  const moveTask = (taskId: string, direction: "up" | "down") => {
-    if (locked) {
-      return;
-    }
-
-    const applyMove = () =>
-      setForm((current) => {
-        const index = current.tasks.findIndex((task) => task.taskId === taskId);
-
-        if (index === -1) {
-          return current;
-        }
-
-        const targetIndex = direction === "up" ? index - 1 : index + 1;
-
-        if (targetIndex < 0 || targetIndex >= current.tasks.length) {
-          return current;
-        }
-
-        const nextTasks = [...current.tasks];
-        [nextTasks[index], nextTasks[targetIndex]] = [
-          nextTasks[targetIndex],
-          nextTasks[index],
-        ];
-
-        return {
-          ...current,
-          tasks: nextTasks,
-        };
-      });
-
-    withTaskTransition(applyMove);
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -1158,7 +982,10 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
     setSaving(true);
 
     try {
-      const payload = toContestPayload(form);
+      // Al crear sí van (vacías); al editar se conservan las de su pantalla.
+      const payload = toContestPayload(form, {
+        keepTasks: Boolean(resolvedContestId),
+      });
 
       const savedContest = resolvedContestId
         ? await updateContest(resolvedContestId, payload)
@@ -1173,7 +1000,9 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
       const savedForm = createStateFromContest(savedContest);
       setForm(savedForm);
       setContestState(savedContest.state);
-      savedSnapshotRef.current = JSON.stringify(toContestPayload(savedForm));
+      savedSnapshotRef.current = JSON.stringify(
+        toContestPayload(savedForm, { keepTasks: true }),
+      );
       toast.success("El desafío se guardó correctamente.");
     } catch (error) {
       toast.error(
@@ -1437,170 +1266,6 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
                 </LabelWithHint>
               </Field>
             </FieldGroup>
-          </FormSection>
-
-          <FormSection
-            title="Tareas"
-            description="Elige las tareas del desafío y déjalas en el orden en que se rendirán."
-          >
-            <div className="grid min-w-0 gap-8 *:min-w-0 xl:grid-cols-2">
-              <div className="flex min-w-0 flex-col gap-3">
-                <SubHeading count={availableTasks.length}>
-                  Disponibles
-                </SubHeading>
-                {tasks.length === 0 ? (
-                  <EmptyHint>
-                    No hay tareas registradas. Crea tareas primero para poder
-                    armar un desafío.
-                  </EmptyHint>
-                ) : !form.category ? (
-                  <EmptyHint>
-                    Elige la categoría del desafío para ver las tareas que le
-                    corresponden.
-                  </EmptyHint>
-                ) : categoryTasks.length === 0 ? (
-                  <EmptyHint>
-                    Ninguna tarea registrada tiene dificultad para{" "}
-                    {form.category}.
-                  </EmptyHint>
-                ) : availableTasks.length === 0 ? (
-                  <EmptyHint>
-                    Ya elegiste todas las tareas de {form.category}.
-                  </EmptyHint>
-                ) : (
-                  <ul className="divide-y rounded-sm border">
-                    {availableTasks.map((task) => (
-                      <li
-                        key={task.id}
-                        data-task-row
-                        style={{
-                          viewTransitionName: `contest-task-${task.id}`,
-                        }}
-                        className="flex min-w-0 flex-col gap-3 bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <span className="break-words font-medium">
-                              {task.title}
-                            </span>
-                            <DifficultyBadge
-                              task={task}
-                              category={form.category}
-                            />
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {task.categories.join(", ") || "Sin área"}
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="outline"
-                          disabled={locked}
-                          className="self-end sm:self-auto"
-                          title={`Agregar ${task.title}`}
-                          aria-label={`Agregar ${task.title}`}
-                          onClick={() => toggleTask(task.id)}
-                        >
-                          <PlusIcon />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Solo aparecen las tareas de {form.category || "la categoría"}.
-                  Si no encuentras una pregunta, quizá esté en otra categoría:{" "}
-                  <a
-                    href="/tareas"
-                    className="underline underline-offset-4 hover:text-foreground"
-                  >
-                    ver todas las tareas
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div className="flex min-w-0 flex-col gap-3">
-                <SubHeading count={selectedTasks.length}>
-                  En el desafío
-                </SubHeading>
-                {selectedTasks.length === 0 ? (
-                  <EmptyHint>
-                    Puedes guardar el desafío vacío y elegir sus tareas más
-                    adelante. Para publicarlo necesitarás al menos una.
-                  </EmptyHint>
-                ) : (
-                  <ul className="divide-y rounded-sm border">
-                    {selectedTasks.map((task, index) => (
-                      <li
-                        key={task.id}
-                        data-task-row
-                        style={{
-                          viewTransitionName: `contest-task-${task.id}`,
-                        }}
-                        className="flex min-w-0 flex-col gap-3 bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                      >
-                        <div className="flex min-w-0 items-start gap-3">
-                          <Badge variant="secondary" className="mt-0.5">
-                            {index + 1}
-                          </Badge>
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <span className="break-words font-medium">
-                                {task.title}
-                              </span>
-                              <DifficultyBadge
-                                task={task}
-                                category={form.category}
-                              />
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {task.categories.join(", ") || "Sin área"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 self-end sm:self-auto">
-                          <Button
-                            size="icon-sm"
-                            type="button"
-                            variant="outline"
-                            aria-label="Subir tarea"
-                            disabled={locked || index === 0}
-                            onClick={() => moveTask(task.id, "up")}
-                          >
-                            <ArrowUpIcon />
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            type="button"
-                            variant="outline"
-                            aria-label="Bajar tarea"
-                            disabled={
-                              locked || index === selectedTasks.length - 1
-                            }
-                            onClick={() => moveTask(task.id, "down")}
-                          >
-                            <ArrowDownIcon />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="outline"
-                            disabled={locked}
-                            title={`Quitar ${task.title}`}
-                            aria-label={`Quitar ${task.title}`}
-                            onClick={() => toggleTask(task.id)}
-                          >
-                            <XIcon />
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
           </FormSection>
 
           <FormSection

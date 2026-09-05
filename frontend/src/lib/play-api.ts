@@ -140,14 +140,20 @@ export type PlaySession = {
   memberTwoLastName: string | null;
 };
 
-export function openPlaySession(
-  accessCode: string,
-  firstName: string,
-  lastName: string,
-) {
+/** Una practica no se inscribe: el codigo mas un nombre abren la sesion. */
+export function enterPractice(accessCode: string, name: string) {
+  return request<PlaySession>(
+    `/api/play/practice/${encodeURIComponent(accessCode)}/enter`,
+    { method: "POST", body: JSON.stringify({ name }) },
+  );
+}
+
+/** El codigo personal se entrega al inscribirse y es lo unico que abre la
+ *  sesion: el codigo del grupo solo sirve para inscribirse. */
+export function openPlaySession(personalCode: string) {
   return request<PlaySession>("/api/play/session", {
     method: "POST",
-    body: JSON.stringify({ accessCode, firstName, lastName }),
+    body: JSON.stringify({ personalCode }),
   });
 }
 

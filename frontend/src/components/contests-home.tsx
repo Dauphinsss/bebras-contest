@@ -8,6 +8,7 @@ import {
   CalendarRangeIcon,
   FilePlus2Icon,
   FilePenLineIcon,
+  ListChecksIcon,
   PauseIcon,
   PlayIcon,
   Trash2Icon,
@@ -589,9 +590,20 @@ export function ContestsHome() {
                   variant="outline"
                   className="w-full justify-start"
                 >
+                  <a href={`/competencias/preguntas?id=${contest.id}`}>
+                    <ListChecksIcon data-icon="inline-start" />
+                    Preguntas
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                >
                   <a href={`/competencias/editar?id=${contest.id}`}>
                     <FilePenLineIcon data-icon="inline-start" />
-                    Editar
+                    Ajustes
                   </a>
                 </Button>
                 <Button

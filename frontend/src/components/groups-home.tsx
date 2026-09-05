@@ -5,6 +5,7 @@ import {
   CalendarClockIcon,
   ChevronDownIcon,
   CopyIcon,
+  DownloadIcon,
   LinkIcon,
   LoaderCircleIcon,
   PencilIcon,
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api-client";
+import { getUser } from "@/lib/auth";
 import { gradeLabel, gradesForCategory } from "@/lib/contest-schema";
 
 import {
@@ -199,6 +201,7 @@ async function copyToClipboard(value: string) {
 }
 
 export function GroupsHome() {
+  const [isMaestro] = useState(() => getUser()?.role === "maestro");
   const [groups, setGroups] = useState<StoredGroup[]>([]);
   const [publishedContests, setPublishedContests] = useState<
     PublishedContest[]
@@ -211,6 +214,8 @@ export function GroupsHome() {
     form?: string;
   }>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [creating, setCreating] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
@@ -316,7 +321,8 @@ export function GroupsHome() {
         setPublishedContests(loadedContests);
       })
       .catch((error: unknown) => {
-        toast.error(
+        if (!active) return;
+        setLoadError(
           error instanceof Error
             ? error.message
             : "No se pudieron cargar los datos.",
@@ -331,7 +337,7 @@ export function GroupsHome() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
   useEffect(() => {
     if (createErrors.form) {
@@ -834,12 +840,69 @@ export function GroupsHome() {
     );
   }
 
+  if (loadError) {
+    return (
+      <Alert>
+        <AlertTitle>No se pudieron cargar tus grupos</AlertTitle>
+        <AlertDescription>
+          {loadError}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setLoadError(null);
+              setLoading(true);
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Reintentar
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="flex w-full flex-col gap-8">
+      {isMaestro && (
+        <dl
+          className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+          aria-label="Resumen de participación"
+        >
+          {[
+            { label: "Grupos", value: groups.length },
+            {
+              label: "Estudiantes inscritos",
+              value: groups.reduce(
+                (count, group) =>
+                  count +
+                  group.teams.reduce(
+                    (total, team) =>
+                      total + (team.participationMode === "pareja" ? 2 : 1),
+                    0,
+                  ),
+                0,
+              ),
+            },
+            {
+              label: "Desafíos con grupos",
+              value: new Set(groups.map((group) => group.contestId)).size,
+            },
+          ].map(({ label, value }) => (
+            <div
+              key={label}
+              className="flex flex-col gap-2 rounded-lg border p-4"
+            >
+              <dt className="text-sm text-muted-foreground">{label}</dt>
+              <dd className="text-3xl font-semibold tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h1 className="font-heading text-3xl font-semibold tracking-tight">
-            Grupos
+            {isMaestro ? "Mis grupos" : "Grupos"}
           </h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
             Cada grupo tiene un código con el que tus estudiantes entran al
@@ -867,9 +930,9 @@ export function GroupsHome() {
               <Alert>
                 <AlertTitle>No hay desafíos disponibles</AlertTitle>
                 <AlertDescription>
-                  Solo se pueden crear grupos para desafíos publicados cuya
-                  ventana todavía no terminó. Si las que tienes ya cerraron,
-                  publica una nueva con fechas futuras.
+                  {isMaestro
+                    ? "Podrás crear un grupo cuando el organizador publique un desafío con inscripciones abiertas."
+                    : "Solo se pueden crear grupos para desafíos publicados cuya ventana todavía no terminó. Si las que tienes ya cerraron, publica una nueva con fechas futuras."}
                 </AlertDescription>
               </Alert>
             ) : (
@@ -981,12 +1044,14 @@ export function GroupsHome() {
       </div>
 
       <section className="flex min-w-0 flex-col gap-5">
-        <div className="flex min-w-0 flex-col gap-1 border-b pb-3">
-          <h2 className="font-heading text-base font-semibold">Tus grupos</h2>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Reparte el código a tus estudiantes para que entren al desafío.
-          </p>
-        </div>
+        {!isMaestro && (
+          <div className="flex min-w-0 flex-col gap-1 border-b pb-3">
+            <h2 className="font-heading text-base font-semibold">Tus grupos</h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Reparte el código a tus estudiantes para que entren al desafío.
+            </p>
+          </div>
+        )}
         <div className="flex flex-col gap-4">
           {groups.length === 0 ? (
             <Alert>
@@ -1065,6 +1130,26 @@ export function GroupsHome() {
                           size="sm"
                           type="button"
                           variant="outline"
+                          className="w-full justify-start lg:col-span-2"
+                          onClick={() => openEnroll(group)}
+                        >
+                          <PlusIcon data-icon="inline-start" />
+                          Inscribir participante
+                        </Button>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start lg:col-span-2"
+                          onClick={() => getTemplate(group)}
+                        >
+                          <DownloadIcon data-icon="inline-start" />
+                          Descargar plantilla
+                        </Button>
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="outline"
                           className="w-full justify-start"
                           onClick={() => copyLink(group.accessCode)}
                         >
@@ -1107,20 +1192,36 @@ export function GroupsHome() {
                                 key={team.id}
                                 className="flex flex-col items-stretch gap-2 rounded-md border bg-background px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                               >
-                                <span className="min-w-0 break-words font-medium sm:truncate">
-                                  {teamName(team)}
-                                </span>
+                                <div className="flex min-w-0 flex-col gap-0.5">
+                                  <span className="min-w-0 break-words font-medium sm:truncate">
+                                    {teamName(team)}
+                                  </span>
+                                  {/* El codigo personal es lo unico con lo que
+                                      el estudiante puede rendir, asi que el
+                                      maestro tiene que poder repartirlo. */}
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-mono text-xs tracking-widest text-muted-foreground">
+                                      {team.personalCode}
+                                    </span>
+                                    <Button
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="ghost"
+                                      aria-label={`Copiar el código de ${teamName(team)}`}
+                                      onClick={() =>
+                                        copyCode(team.personalCode)
+                                      }
+                                    >
+                                      <CopyIcon />
+                                    </Button>
+                                  </div>
+                                </div>
                                 <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
                                   {team.grade && (
                                     <Badge variant="secondary">
                                       {gradeLabel(team.grade)}
                                     </Badge>
                                   )}
-                                  <Badge variant="outline">
-                                    {team.participationMode === "pareja"
-                                      ? "Pareja"
-                                      : "Individual"}
-                                  </Badge>
                                   <Button
                                     size="icon-sm"
                                     type="button"
@@ -1151,25 +1252,6 @@ export function GroupsHome() {
                           </ul>
                         )}
                         <div className="mt-4 flex flex-col gap-3 pb-1.5 pl-0.5">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="w-full sm:w-auto"
-                              onClick={() => openEnroll(group)}
-                            >
-                              <PlusIcon data-icon="inline-start" />
-                              Inscribir participante
-                            </Button>
-                            <button
-                              type="button"
-                              onClick={() => getTemplate(group)}
-                              className="self-start text-sm text-muted-foreground underline underline-offset-4 transition hover:text-foreground sm:self-center"
-                            >
-                              Descargar plantilla de Excel
-                            </button>
-                          </div>
                           <Field
                             aria-busy={importingId === group.id}
                             data-disabled={importingId !== null || undefined}
@@ -1214,7 +1296,8 @@ export function GroupsHome() {
                               id={`roster-${group.id}-description`}
                               className="break-words"
                             >
-                              XLSX o CSV de hasta 2 MB. Solo se procesa una
+                              XLSX o CSV de hasta 2 MB, con el formato de
+                              «Descargar plantilla». Solo se procesa una
                               planilla a la vez en este panel.
                               {rosterFeedback?.groupId === group.id && (
                                 <>

@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
 import { cn } from "@/lib/utils";
+import { formatPersonName } from "@/lib/person-name";
 import { API_BASE_URL } from "@/lib/api-client";
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
@@ -227,8 +228,8 @@ export function RegisterForm() {
 
     try {
       const form = new FormData();
-      form.append("firstName", firstName.trim());
-      form.append("lastName", lastName.trim());
+      form.append("firstName", formatPersonName(firstName));
+      form.append("lastName", formatPersonName(lastName));
       form.append("email", email.trim());
       form.append("password", password);
       form.append("schoolName", school.name.trim());
@@ -335,11 +336,15 @@ export function RegisterForm() {
           <dl className="flex flex-col gap-2 rounded-md border bg-background px-4 py-3 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Nombres</dt>
-              <dd className="text-right font-medium">{firstName.trim()}</dd>
+              <dd className="text-right font-medium">
+                {formatPersonName(firstName)}
+              </dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Apellidos</dt>
-              <dd className="text-right font-medium">{lastName.trim()}</dd>
+              <dd className="text-right font-medium">
+                {formatPersonName(lastName)}
+              </dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Correo</dt>

@@ -1,6 +1,8 @@
 "use client";
 
 import { type ContentBlock } from "@/lib/task-schema";
+import { renderInlineText } from "@/lib/rich-text";
+import { renderRichTextDocument } from "@/lib/rich-text-document";
 
 type TaskContentRendererProps = {
   blocks: ContentBlock[];
@@ -36,9 +38,14 @@ export function TaskContentRenderer({
         }
 
         return (
-          <p key={block.id} className="whitespace-pre-wrap leading-7">
-            {block.content}
-          </p>
+          <div
+            key={block.id}
+            className="whitespace-pre-wrap leading-7 [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.9em]"
+          >
+            {block.richText
+              ? renderRichTextDocument(block.richText)
+              : renderInlineText(block.content)}
+          </div>
         );
       })}
     </div>

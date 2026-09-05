@@ -4,10 +4,18 @@ interface Props {
 }
 
 const { allowMaestro = false } = Astro.props;
+const protectedPath = Astro.url.pathname;
 ---
 
-<script is:inline define:vars={{ allowMaestro }}>
+<script is:inline define:vars={{ allowMaestro, protectedPath }}>
   function bebrasAuthGuard() {
+    // Las transiciones conservan los listeners de páginas anteriores.
+    // Este guard solo corresponde a la página protegida que lo creó.
+    if (
+      window.location.pathname.replace(/\/+$/, "") !==
+      protectedPath.replace(/\/+$/, "")
+    )
+      return;
     const raw = localStorage.getItem("bebras_user");
     const user = raw ? JSON.parse(raw) : null;
     if (!localStorage.getItem("bebras_token") || !user) {
@@ -27,5 +35,5 @@ const { allowMaestro = false } = Astro.props;
   }
 
   bebrasAuthGuard();
-  document.addEventListener("astro:page-load", bebrasAuthGuard);
+  document.addEventListener("astro:page-load", bebrasAuthGuard, { once: true });
 </script>

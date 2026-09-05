@@ -368,11 +368,7 @@ test("keeps a single open session per student", async () => {
   );
 
   const secondDevice = await api.post(`${API}/api/play/session`, {
-    data: {
-      accessCode: student.accessCode,
-      firstName: student.firstName,
-      lastName: student.lastName,
-    },
+    data: { personalCode: student.personalCode },
   });
   expect(secondDevice.status()).toBe(409);
   expect((await secondDevice.json()).message).toContain("sesión abierta");
@@ -391,11 +387,7 @@ test("keeps a single open session per student", async () => {
   writeFileSync(E2E_CLOCK_FILE, new Date(Date.now() + 60000).toISOString());
 
   const takeover = await api.post(`${API}/api/play/session`, {
-    data: {
-      accessCode: student.accessCode,
-      firstName: student.firstName,
-      lastName: student.lastName,
-    },
+    data: { personalCode: student.personalCode },
   });
   expect(takeover.ok(), await takeover.text()).toBe(true);
   const takeoverToken = (await takeover.json()).sessionToken as string;
@@ -417,18 +409,16 @@ test("keeps a single open session per student", async () => {
   });
 
   const afterClose = await api.post(`${API}/api/play/session`, {
-    data: {
-      accessCode: student.accessCode,
-      firstName: student.firstName,
-      lastName: student.lastName,
-    },
+    data: { personalCode: student.personalCode },
   });
   expect(afterClose.ok(), await afterClose.text()).toBe(true);
 
   await api.dispose();
 });
 
-test("enters with the group code and the student name", async ({ page }) => {
+test("enters with the personal code handed out at enrolment", async ({
+  page,
+}) => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const contest = await createContest(api, headers);
@@ -449,6 +439,7 @@ test("enters with the group code and the student name", async ({ page }) => {
     },
   });
   expect(registered.ok(), await registered.text()).toBe(true);
+  const personalCode = (await registered.json()).personalCode as string;
   await api.dispose();
 
   await page.goto("/entrar");
@@ -463,32 +454,27 @@ test("enters with the group code and the student name", async ({ page }) => {
     { timeout: 30000 },
   );
 
-  const codeInput = page.getByLabel("Código de grupo");
-  await codeInput.fill(group.accessCode.toLowerCase());
-  await expect(codeInput).toHaveValue(group.accessCode);
+  const codeInput = page.getByLabel("Tu código");
+  await codeInput.fill(personalCode.toLowerCase());
+  await expect(codeInput).toHaveValue(personalCode);
   await page.getByRole("button", { name: "Continuar" }).click();
-
-  await expect(page.getByText("¿Quién eres?")).toBeVisible();
-  await page.getByLabel("Nombres").fill("ana");
-  await page.getByLabel("Apellidos").fill("QUISPE");
-  await page.getByRole("button", { name: "Entrar" }).click();
 
   await expect(page).toHaveURL(/\/rendir$/);
   await expect(page.getByRole("button", { name: /Empezar/i })).toBeVisible({
     timeout: 15000,
   });
 
-  const strangerName = await page.evaluate(async (accessCode) => {
-    const response = await fetch("http://localhost:3100/api/play/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accessCode,
-        firstName: "Otro",
-        lastName: "Nombre",
-      }),
-    });
-    return response.status;
-  }, group.accessCode);
-  expect(strangerName).toBe(404);
+  const openSession = (body: Record<string, string>) =>
+    page.evaluate(async (data) => {
+      const response = await fetch("http://localhost:3100/api/play/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return response.status;
+    }, body);
+
+  // El codigo del grupo solo inscribe: no abre la prueba de nadie.
+  expect(await openSession({ personalCode: group.accessCode })).toBe(409);
+  expect(await openSession({ personalCode: "ZZZZZZZZ" })).toBe(404);
 });

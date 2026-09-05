@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { CheckCircle2Icon, LoaderCircleIcon } from "lucide-react";
+import { CheckCircle2Icon, CopyIcon, LoaderCircleIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -31,6 +31,7 @@ import { API_BASE_URL } from "@/lib/api-client";
 import {
   forgetPlaySession,
   getAttempt,
+  enterPractice,
   openPlaySession,
   readPlaySession,
   storePlaySession,
@@ -45,6 +46,7 @@ type GroupGrade = {
 type GroupInfo = {
   groupName: string;
   contestTitle: string;
+  isPractice: boolean;
   contestCategory: string;
   allowPairs: boolean;
   durationMinutes: number;
@@ -60,7 +62,7 @@ type JoinResult = {
   contestTitle: string;
 };
 
-type Step = "code" | "identify" | "register" | "confirm" | "done";
+type Step = "code" | "practice" | "register" | "confirm" | "done";
 
 type JoinErrors = {
   code?: string;
@@ -71,6 +73,17 @@ type JoinErrors = {
   twoLast?: string;
   form?: string;
 };
+
+function canRegister(group: GroupInfo) {
+  return (
+    group.state === "inscripcion" ||
+    (!group.registrationStartsAt &&
+      (group.state === "programada" || group.state === "abierta"))
+  );
+}
+
+const GROUP_CODE_LENGTH = 6;
+const PERSONAL_CODE_LENGTH = 8;
 
 function fmt(value: string) {
   return value
@@ -105,15 +118,11 @@ export function JoinForm() {
   const [twoFirst, setTwoFirst] = useState("");
   const [twoLast, setTwoLast] = useState("");
   const [result, setResult] = useState<JoinResult | null>(null);
+  const [practiceName, setPracticeName] = useState("");
   const [loading, setLoading] = useState(false);
-  const registrationAvailable = Boolean(
-    group &&
-    (group.state === "inscripcion" ||
-      (!group.registrationStartsAt &&
-        (group.state === "programada" || group.state === "abierta"))),
-  );
   const [errors, setErrors] = useState<JoinErrors>({});
   const accessCodeRef = useRef<HTMLInputElement>(null);
+  const practiceNameRef = useRef<HTMLInputElement>(null);
   const gradeRef = useRef<HTMLButtonElement>(null);
   const oneFirstRef = useRef<HTMLInputElement>(null);
   const oneLastRef = useRef<HTMLInputElement>(null);
@@ -131,7 +140,32 @@ export function JoinForm() {
     });
   };
 
+  const copyPersonalCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success("Código copiado.");
+    } catch {
+      toast.error("No se pudo copiar. Anótalo tal cual aparece.");
+    }
+  };
+
   const performLookup = async (rawCode: string, silent = false) => {
+    /** Abre la sesion con el codigo personal. Devuelve el mensaje de error en
+     *  vez de lanzarlo, para poder reintentar como codigo de grupo. */
+    const enterWithPersonalCode = async (code: string) => {
+      try {
+        const session = await openPlaySession(code);
+        storePlaySession(session.sessionToken);
+        window.location.href = "/rendir";
+        return null;
+      } catch (error) {
+        if (error instanceof TypeError) {
+          throw error;
+        }
+        return error instanceof Error ? error.message : "No se pudo entrar.";
+      }
+    };
+
     const code = rawCode.trim().toUpperCase();
 
     if (!code) {
@@ -145,6 +179,24 @@ export function JoinForm() {
     setLoading(true);
 
     try {
+      // El personal tiene 8 caracteres y el de grupo 6, pero se prueban ambos
+      // por si el estudiante se equivoca de campo.
+      if (code.length !== GROUP_CODE_LENGTH) {
+        const failure = await enterWithPersonalCode(code);
+
+        if (!failure) {
+          return;
+        }
+
+        if (code.length === PERSONAL_CODE_LENGTH) {
+          if (!silent) {
+            setErrors({ code: failure });
+            accessCodeRef.current?.focus();
+          }
+          return;
+        }
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/play/group/${code}`);
       const data = (await response.json().catch(() => ({}))) as
         | GroupInfo
@@ -162,8 +214,27 @@ export function JoinForm() {
         return;
       }
 
+      const info = data as GroupInfo;
+
+      if (info.isPractice) {
+        setErrors({});
+        setGroup(info);
+        setStep("practice");
+        return;
+      }
+
+      if (!canRegister(info)) {
+        if (!silent) {
+          setErrors({
+            code: "La inscripción de este grupo no está abierta. Si ya te inscribiste, entra con tu código personal.",
+          });
+          accessCodeRef.current?.focus();
+        }
+        return;
+      }
+
       setErrors({});
-      setGroup(data as GroupInfo);
+      setGroup(info);
       setMode("individual");
       setGrade("");
 
@@ -177,7 +248,8 @@ export function JoinForm() {
         }
       }
 
-      setStep("identify");
+      // El codigo del grupo solo sirve para inscribirse.
+      setStep("register");
     } catch {
       if (!silent) {
         toast.error("No se pudo conectar con el servidor.");
@@ -185,23 +257,6 @@ export function JoinForm() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const registerAnother = () => {
-    if (!registrationAvailable) {
-      toast.error("La inscripción no está abierta en este momento.");
-      return;
-    }
-
-    forgetPlaySession();
-    setMode("individual");
-    setGrade("");
-    setOneFirst("");
-    setOneLast("");
-    setTwoFirst("");
-    setTwoLast("");
-    setErrors({});
-    setStep("register");
   };
 
   // Si llega ?code=XXXX en el enlace, prellena y valida automáticamente.
@@ -275,21 +330,12 @@ export function JoinForm() {
     setStep("confirm");
   };
 
-  const enterWithName = async (event: FormEvent<HTMLFormElement>) => {
+  const startPractice = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const nextErrors: JoinErrors = {
-      oneFirst: oneFirst.trim() ? undefined : "Ingresa tus nombres.",
-      oneLast: oneLast.trim() ? undefined : "Ingresa tus apellidos.",
-    };
-
-    if (nextErrors.oneFirst || nextErrors.oneLast) {
-      setErrors(nextErrors);
-      if (nextErrors.oneFirst) {
-        oneFirstRef.current?.focus();
-      } else {
-        oneLastRef.current?.focus();
-      }
+    if (!practiceName.trim()) {
+      setErrors({ oneFirst: "Escribe tu nombre." });
+      practiceNameRef.current?.focus();
       return;
     }
 
@@ -297,10 +343,9 @@ export function JoinForm() {
     setLoading(true);
 
     try {
-      const session = await openPlaySession(
+      const session = await enterPractice(
         accessCode.trim().toUpperCase(),
-        fmt(oneFirst),
-        fmt(oneLast),
+        practiceName,
       );
       storePlaySession(session.sessionToken);
       window.location.href = "/rendir";
@@ -350,11 +395,7 @@ export function JoinForm() {
       const joinResult = data as JoinResult;
 
       try {
-        const session = await openPlaySession(
-          accessCode.trim().toUpperCase(),
-          fmt(oneFirst),
-          fmt(oneLast),
-        );
+        const session = await openPlaySession(joinResult.personalCode);
         storePlaySession(session.sessionToken);
       } catch {
         forgetPlaySession();
@@ -382,9 +423,28 @@ export function JoinForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 rounded-md border bg-background px-4 py-3">
+            <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Tu código personal
+            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-2xl font-semibold tracking-widest">
+                {result.personalCode}
+              </span>
+              <Button
+                size="icon-sm"
+                type="button"
+                variant="outline"
+                aria-label="Copiar mi código"
+                onClick={() => copyPersonalCode(result.personalCode)}
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
-            Si vuelves a entrar, usa el código de tu maestro y tu nombre. No
-            necesitas guardar ningún código.
+            Guárdalo: es solo tuyo y es lo que necesitas para entrar al desafío.
+            Si se te pierde, pídeselo a tu maestro.
           </p>
           <Button asChild className="w-full">
             <a href="/rendir">Ir al desafío</a>
@@ -397,68 +457,45 @@ export function JoinForm() {
     );
   }
 
-  if (step === "identify" && group) {
+  if (step === "practice" && group) {
     return (
       <Card className="mx-auto w-full max-w-md">
         <CardHeader>
-          <CardTitle>¿Quién eres?</CardTitle>
+          <CardTitle>{group.contestTitle}</CardTitle>
           <CardDescription>
-            {group.contestTitle} ({group.groupName}). Escribe tu nombre tal como
-            te registraste.
+            Práctica de {group.durationMinutes} minutos. Escribe tu nombre y
+            empieza.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <form className="flex flex-col gap-4" onSubmit={enterWithName}>
+        <CardContent>
+          <form className="flex flex-col gap-4" onSubmit={startPractice}>
             {errors.form && (
               <Alert ref={formErrorRef} variant="destructive" tabIndex={-1}>
                 <AlertDescription>{errors.form}</AlertDescription>
               </Alert>
             )}
             <Field data-invalid={Boolean(errors.oneFirst) || undefined}>
-              <FieldLabel htmlFor="student-first-name">Nombres</FieldLabel>
+              <FieldLabel htmlFor="practice-name">¿Cómo te llamas?</FieldLabel>
               <FieldContent>
                 <Input
-                  ref={oneFirstRef}
-                  id="student-first-name"
-                  autoComplete="given-name"
-                  value={oneFirst}
+                  ref={practiceNameRef}
+                  id="practice-name"
+                  autoComplete="name"
+                  autoFocus
+                  value={practiceName}
                   onChange={(event) => {
-                    setOneFirst(event.target.value);
+                    setPracticeName(event.target.value);
                     if (errors.oneFirst || errors.form) {
                       clearErrors("oneFirst");
                     }
                   }}
                   aria-invalid={Boolean(errors.oneFirst)}
                   aria-describedby={
-                    errors.oneFirst ? "student-first-name-error" : undefined
+                    errors.oneFirst ? "practice-name-error" : undefined
                   }
                 />
-                <FieldError id="student-first-name-error">
+                <FieldError id="practice-name-error">
                   {errors.oneFirst}
-                </FieldError>
-              </FieldContent>
-            </Field>
-            <Field data-invalid={Boolean(errors.oneLast) || undefined}>
-              <FieldLabel htmlFor="student-last-name">Apellidos</FieldLabel>
-              <FieldContent>
-                <Input
-                  ref={oneLastRef}
-                  id="student-last-name"
-                  autoComplete="family-name"
-                  value={oneLast}
-                  onChange={(event) => {
-                    setOneLast(event.target.value);
-                    if (errors.oneLast || errors.form) {
-                      clearErrors("oneLast");
-                    }
-                  }}
-                  aria-invalid={Boolean(errors.oneLast)}
-                  aria-describedby={
-                    errors.oneLast ? "student-last-name-error" : undefined
-                  }
-                />
-                <FieldError id="student-last-name-error">
-                  {errors.oneLast}
                 </FieldError>
               </FieldContent>
             </Field>
@@ -469,18 +506,9 @@ export function JoinForm() {
                   className="animate-spin"
                 />
               ) : null}
-              {loading ? "Entrando..." : "Entrar"}
+              {loading ? "Entrando..." : "Empezar"}
             </Button>
           </form>
-          {registrationAvailable && (
-            <button
-              type="button"
-              onClick={registerAnother}
-              className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            >
-              Todavía no me registré
-            </button>
-          )}
         </CardContent>
       </Card>
     );
@@ -770,13 +798,14 @@ export function JoinForm() {
       <CardHeader>
         <CardTitle>Entrar al desafío</CardTitle>
         <CardDescription>
-          Escribe el código que te dio tu maestro.
+          Si ya te inscribiste, escribe tu código personal. Si todavía no,
+          escribe el código del grupo que te dio tu maestro.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={lookupCode}>
           <Field data-invalid={Boolean(errors.code) || undefined}>
-            <FieldLabel htmlFor="access-code">Código de grupo</FieldLabel>
+            <FieldLabel htmlFor="access-code">Tu código</FieldLabel>
             <FieldContent>
               <Input
                 ref={accessCodeRef}
@@ -788,7 +817,7 @@ export function JoinForm() {
                     clearErrors("code");
                   }
                 }}
-                placeholder="Ej. K7M2P9"
+                placeholder="Ej. K7M2P9 o R4TQ8XVZ"
                 className="font-mono tracking-widest uppercase"
                 autoComplete="off"
                 aria-invalid={Boolean(errors.code)}

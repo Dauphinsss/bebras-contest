@@ -92,7 +92,7 @@ export function LoginForm() {
           ? "/perfil"
           : data.user.role === "admin"
             ? "/competencias"
-            : "/grupos";
+            : "/perfil";
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {

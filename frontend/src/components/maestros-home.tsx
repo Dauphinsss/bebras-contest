@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
   FileTextIcon,
@@ -70,6 +70,9 @@ type SortValue = (typeof SORTS)[number]["value"];
 
 const VIEW_KEY = "bebras_maestros_vista";
 
+/** Debe coincidir con la duracion de la transicion de salida de cada fila. */
+const EXIT_MS = 300;
+
 type ConfirmAction = "reject" | "suspend";
 
 type Confirmation = {
@@ -129,6 +132,24 @@ export function MaestrosHome() {
   const [sort, setSort] = useState<SortValue>(
     () => readView()?.sort ?? "recent",
   );
+  const [leaving, setLeaving] = useState<number[]>([]);
+  const leaveTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  const clearLeaveTimers = () => {
+    for (const timer of leaveTimers.current.values()) {
+      clearTimeout(timer);
+    }
+    leaveTimers.current.clear();
+  };
+
+  useEffect(() => clearLeaveTimers, []);
+
+  // Cambiar de filtro rearma la lista: no tiene sentido seguir animando salidas.
+  const selectFilter = (value: FilterValue) => {
+    clearLeaveTimers();
+    setLeaving([]);
+    setFilter(value);
+  };
 
   useEffect(() => {
     try {
@@ -178,7 +199,11 @@ export function MaestrosHome() {
   const visible = useMemo(() => {
     const term = normalize(search.trim());
     const filtered = maestros.filter((maestro) => {
-      if (filter !== "all" && maestro.status !== filter) {
+      if (
+        filter !== "all" &&
+        maestro.status !== filter &&
+        !leaving.includes(maestro.id)
+      ) {
         return false;
       }
 
@@ -201,7 +226,7 @@ export function MaestrosHome() {
       const right = new Date(b.createdAt).getTime();
       return sort === "oldest" ? left - right : right - left;
     });
-  }, [maestros, filter, search, sort]);
+  }, [maestros, filter, leaving, search, sort]);
 
   const openSchoolLetter = (schoolId: string) => {
     window.open(
@@ -245,6 +270,22 @@ export function MaestrosHome() {
             item.id === maestro.id ? { ...item, status } : item,
           ),
         );
+
+        if (filter !== "all" && status !== filter) {
+          setLeaving((current) =>
+            current.includes(maestro.id) ? current : [...current, maestro.id],
+          );
+          leaveTimers.current.set(
+            maestro.id,
+            setTimeout(() => {
+              leaveTimers.current.delete(maestro.id);
+              setLeaving((current) =>
+                current.filter((id) => id !== maestro.id),
+              );
+            }, EXIT_MS),
+          );
+        }
+
         toast.success(successMessage);
       })
       .catch((error) => {
@@ -321,7 +362,7 @@ export function MaestrosHome() {
               <button
                 key={item.value}
                 type="button"
-                onClick={() => setFilter(item.value)}
+                onClick={() => selectFilter(item.value)}
                 aria-pressed={filter === item.value}
                 className={cn(
                   "rounded-full px-3 py-1.5 text-sm font-medium transition",
@@ -374,181 +415,226 @@ export function MaestrosHome() {
               : "Ningún maestro coincide con este filtro."}
           </p>
         ) : (
-          <div className="flex flex-col divide-y border-b border-border">
+          <div className="flex flex-col">
             {visible.map((maestro) => {
               const schools = maestro.schools ?? [];
               const noDocuments =
                 !maestro.hasLetter && !maestro.hasIdFront && !maestro.hasIdBack;
 
+              const isLeaving = leaving.includes(maestro.id);
+
               return (
-                <article key={maestro.id} className="flex flex-col gap-3 py-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-semibold">
-                          {maestro.name ?? maestro.email}
-                        </h2>
-                        <Badge
-                          variant={
-                            maestro.status === "approved"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {STATUS_LABEL[maestro.status] ?? maestro.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm break-all text-muted-foreground">
-                        {maestro.email}
-                        {maestro.phone ? ` · ${maestro.phone}` : ""}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {maestro.isHomeschool
-                          ? "Educación en casa"
-                          : (maestro.schoolName ?? "Sin colegio")}
-                        {noDocuments ? " · sin documentos" : ""}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {maestro.hasLetter && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          onClick={() => openDoc(maestro.id, "letter")}
-                        >
-                          <FileTextIcon data-icon="inline-start" />
-                          Carta
-                        </Button>
-                      )}
-                      {maestro.hasIdFront && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          onClick={() => openDoc(maestro.id, "idFront")}
-                        >
-                          <FileTextIcon data-icon="inline-start" />
-                          Carnet anverso
-                        </Button>
-                      )}
-                      {maestro.hasIdBack && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          onClick={() => openDoc(maestro.id, "idBack")}
-                        >
-                          <FileTextIcon data-icon="inline-start" />
-                          Carnet reverso
-                        </Button>
-                      )}
-                      {maestro.status !== "approved" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          disabled={busyId === maestro.id}
-                          onClick={() => updateStatus(maestro, "approved")}
-                        >
-                          <CheckIcon data-icon="inline-start" />
-                          {maestro.status === "pending"
-                            ? "Aprobar"
-                            : "Reactivar"}
-                        </Button>
-                      )}
-                      {maestro.status === "approved" && (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          disabled={busyId === maestro.id}
-                          onClick={() =>
-                            setConfirming({ action: "suspend", maestro })
-                          }
-                        >
-                          <PauseIcon data-icon="inline-start" />
-                          Suspender
-                        </Button>
-                      )}
-                      {maestro.status !== "rejected" && (
-                        <Button
-                          size="icon-sm"
-                          type="button"
-                          variant="ghost"
-                          title={`Rechazar a ${maestro.name ?? maestro.email}`}
-                          aria-label={`Rechazar a ${maestro.name ?? maestro.email}`}
-                          disabled={busyId === maestro.id}
-                          onClick={() =>
-                            setConfirming({ action: "reject", maestro })
-                          }
-                        >
-                          <XIcon />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {schools.length > 0 && (
-                    <ul className="flex flex-col gap-2 border-l-2 border-border pl-4">
-                      {schools.map((school) => (
-                        <li
-                          key={school.id}
-                          className="flex flex-wrap items-center justify-between gap-2"
-                        >
-                          <div className="flex min-w-0 flex-col">
-                            <span className="text-sm">{school.schoolName}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Otro colegio ·{" "}
-                              {STATUS_LABEL[school.status] ?? school.status} ·{" "}
-                              {school.hasLetter ? "carta enviada" : "sin carta"}
-                            </span>
+                <article
+                  key={maestro.id}
+                  aria-hidden={isLeaving || undefined}
+                  className={cn(
+                    "grid grid-rows-[1fr] motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out",
+                    isLeaving &&
+                      "pointer-events-none grid-rows-[0fr] opacity-0",
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    {/* El separador vive aqui dentro y no en el <article>: un
+                        borde no encoge por debajo de su grosor, asi que puesto
+                        afuera la fila colapsada dejaba 1px pegado a la linea de
+                        la siguiente. Va abajo para que cada fila se lleve su
+                        propio separador al salir; el de la ultima cierra la
+                        lista. */}
+                    <div className="border-b border-border">
+                      <div
+                        className={cn(
+                          "flex flex-col gap-3 py-4 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out",
+                          isLeaving && "translate-x-3",
+                        )}
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h2 className="text-base font-semibold">
+                                {maestro.name ?? maestro.email}
+                              </h2>
+                              <Badge
+                                variant={
+                                  maestro.status === "approved"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                              >
+                                {STATUS_LABEL[maestro.status] ?? maestro.status}
+                              </Badge>
+                            </div>
+                            <p className="text-sm break-all text-muted-foreground">
+                              {maestro.email}
+                              {maestro.phone ? ` · ${maestro.phone}` : ""}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {maestro.isHomeschool
+                                ? "Educación en casa"
+                                : (maestro.schoolName ?? "Sin colegio")}
+                              {noDocuments ? " · sin documentos" : ""}
+                            </p>
                           </div>
+
                           <div className="flex flex-wrap items-center gap-2">
-                            {school.hasLetter && (
+                            {maestro.hasLetter && (
                               <Button
                                 size="sm"
                                 type="button"
                                 variant="outline"
-                                onClick={() => openSchoolLetter(school.id)}
+                                onClick={() => openDoc(maestro.id, "letter")}
                               >
                                 <FileTextIcon data-icon="inline-start" />
                                 Carta
                               </Button>
                             )}
-                            {school.status !== "approved" && (
+                            {maestro.hasIdFront && (
+                              <Button
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => openDoc(maestro.id, "idFront")}
+                              >
+                                <FileTextIcon data-icon="inline-start" />
+                                Carnet anverso
+                              </Button>
+                            )}
+                            {maestro.hasIdBack && (
+                              <Button
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => openDoc(maestro.id, "idBack")}
+                              >
+                                <FileTextIcon data-icon="inline-start" />
+                                Carnet reverso
+                              </Button>
+                            )}
+                            {maestro.status !== "approved" && (
                               <Button
                                 size="sm"
                                 type="button"
                                 disabled={busyId === maestro.id}
                                 onClick={() =>
-                                  decideSchool(maestro, school.id, "approve")
+                                  updateStatus(maestro, "approved")
                                 }
                               >
                                 <CheckIcon data-icon="inline-start" />
-                                Aprobar
+                                {maestro.status === "pending"
+                                  ? "Aprobar"
+                                  : "Reactivar"}
                               </Button>
                             )}
-                            {school.status !== "rejected" && (
+                            {maestro.status === "approved" && (
+                              <Button
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                                disabled={busyId === maestro.id}
+                                onClick={() =>
+                                  setConfirming({ action: "suspend", maestro })
+                                }
+                              >
+                                <PauseIcon data-icon="inline-start" />
+                                Suspender
+                              </Button>
+                            )}
+                            {maestro.status !== "rejected" && (
                               <Button
                                 size="icon-sm"
                                 type="button"
                                 variant="ghost"
-                                title={`Rechazar ${school.schoolName}`}
-                                aria-label={`Rechazar ${school.schoolName}`}
+                                title={`Rechazar a ${maestro.name ?? maestro.email}`}
+                                aria-label={`Rechazar a ${maestro.name ?? maestro.email}`}
                                 disabled={busyId === maestro.id}
                                 onClick={() =>
-                                  decideSchool(maestro, school.id, "reject")
+                                  setConfirming({ action: "reject", maestro })
                                 }
                               >
                                 <XIcon />
                               </Button>
                             )}
                           </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                        </div>
+
+                        {schools.length > 0 && (
+                          <ul className="flex flex-col gap-2 border-l-2 border-border pl-4">
+                            {schools.map((school) => (
+                              <li
+                                key={school.id}
+                                className="flex flex-wrap items-center justify-between gap-2"
+                              >
+                                <div className="flex min-w-0 flex-col">
+                                  <span className="text-sm">
+                                    {school.schoolName}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Otro colegio ·{" "}
+                                    {STATUS_LABEL[school.status] ??
+                                      school.status}{" "}
+                                    ·{" "}
+                                    {school.hasLetter
+                                      ? "carta enviada"
+                                      : "sin carta"}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {school.hasLetter && (
+                                    <Button
+                                      size="sm"
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() =>
+                                        openSchoolLetter(school.id)
+                                      }
+                                    >
+                                      <FileTextIcon data-icon="inline-start" />
+                                      Carta
+                                    </Button>
+                                  )}
+                                  {school.status !== "approved" && (
+                                    <Button
+                                      size="sm"
+                                      type="button"
+                                      disabled={busyId === maestro.id}
+                                      onClick={() =>
+                                        decideSchool(
+                                          maestro,
+                                          school.id,
+                                          "approve",
+                                        )
+                                      }
+                                    >
+                                      <CheckIcon data-icon="inline-start" />
+                                      Aprobar
+                                    </Button>
+                                  )}
+                                  {school.status !== "rejected" && (
+                                    <Button
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="ghost"
+                                      title={`Rechazar ${school.schoolName}`}
+                                      aria-label={`Rechazar ${school.schoolName}`}
+                                      disabled={busyId === maestro.id}
+                                      onClick={() =>
+                                        decideSchool(
+                                          maestro,
+                                          school.id,
+                                          "reject",
+                                        )
+                                      }
+                                    >
+                                      <XIcon />
+                                    </Button>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </article>
               );
             })}

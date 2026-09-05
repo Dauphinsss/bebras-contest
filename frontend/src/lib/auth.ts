@@ -1,3 +1,5 @@
+import { formatPersonName } from "./person-name";
+
 const TOKEN_KEY = "bebras_token";
 const USER_KEY = "bebras_user";
 
@@ -25,7 +27,13 @@ export function setToken(token: string) {
 }
 
 export function setUser(user: AuthUser) {
-  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  window.localStorage.setItem(
+    USER_KEY,
+    JSON.stringify({
+      ...user,
+      name: user.name === null ? null : formatPersonName(user.name),
+    }),
+  );
 }
 
 export function getUser(): AuthUser | null {
@@ -37,7 +45,11 @@ export function getUser(): AuthUser | null {
     return null;
   }
   try {
-    return JSON.parse(raw) as AuthUser;
+    const user = JSON.parse(raw) as AuthUser;
+    return {
+      ...user,
+      name: user.name == null ? null : formatPersonName(user.name),
+    };
   } catch {
     return null;
   }

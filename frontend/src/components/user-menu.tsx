@@ -85,7 +85,9 @@ export function UserMenu() {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <a href="/perfil">Mi perfil</a>
+          <a href="/perfil">
+            {user.role === "maestro" ? "Mi panel" : "Mi perfil"}
+          </a>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={handleLogout}>

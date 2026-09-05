@@ -101,7 +101,9 @@ const title = "Carta de autorización (modelo)";
         Presente.—
       </p>
 
-      <p><strong>Ref.: Autorización para participar como maestro</strong></p>
+      <p class="text-right underline underline-offset-4">
+        <strong>Ref.: Autorización para participar como maestro</strong>
+      </p>
 
       <p>De mi mayor consideración:</p>
 
@@ -155,6 +157,8 @@ const title = "Carta de autorización (modelo)";
 </Layout>
 
 <script>
+  import { formatPersonName } from "../lib/person-name";
+
   function setUpLetter() {
     const STORAGE_KEY = "bebras_carta_modelo";
     const fields = Array.from(
@@ -205,7 +209,7 @@ const title = "Carta de autorización (modelo)";
     let teacherName = "";
     try {
       const raw = localStorage.getItem("bebras_user");
-      teacherName = raw ? (JSON.parse(raw).name ?? "") : "";
+      teacherName = raw ? formatPersonName(JSON.parse(raw).name ?? "") : "";
     } catch {
       teacherName = "";
     }
@@ -224,7 +228,8 @@ const title = "Carta de autorización (modelo)";
 
     const fillField = (field: HTMLElement, value: string) => {
       const key = field.dataset.field ?? "";
-      field.textContent = stored[key] || value || "";
+      const text = stored[key] || value || "";
+      field.textContent = key === "maestro" ? formatPersonName(text) : text;
     };
 
     for (const field of fields) {

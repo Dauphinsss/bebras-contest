@@ -10,6 +10,8 @@ import { Readable } from "node:stream";
 import { mkdir, open, unlink } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { prisma } from "./lib/prisma";
+import type { Prisma } from "./generated/prisma/client";
+import { formatPersonName } from "./lib/person-name";
 import { requireAdmin, requireAuth, signToken } from "./lib/auth";
 
 const app = express();
@@ -1673,7 +1675,7 @@ app.post("/api/auth/login", async (req, res) => {
     user: {
       id: user.id,
       email: user.email,
-      name: user.name,
+      name: user.name === null ? null : formatPersonName(user.name),
       role: user.role,
       status: user.status,
     },
@@ -1694,9 +1696,10 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({
     id: user.id,
     email: user.email,
-    name: user.name,
-    firstName: user.firstName,
-    lastName: user.lastName,
+    name: user.name === null ? null : formatPersonName(user.name),
+    firstName:
+      user.firstName === null ? null : formatPersonName(user.firstName),
+    lastName: user.lastName === null ? null : formatPersonName(user.lastName),
     role: user.role,
     status: user.status,
     institutionType: user.institutionType,
@@ -1806,6 +1809,18 @@ app.post(
       return;
     }
 
+    // Sustituir una carta ya revisada dejaria al administrador con una
+    // aprobacion que no corresponde al documento guardado. Si el colegio se
+    // aprobo sin carta todavia se puede adjuntar la que falta.
+    if (school.status === "approved" && school.letterFilename) {
+      await cleanupFiles(letterFile, idFrontFile, idBackFile);
+      res.status(409).json({
+        message:
+          "Esa carta ya fue aprobada; pide al administrador que la cambie.",
+      });
+      return;
+    }
+
     if (idFrontFile || idBackFile) {
       await cleanupFiles(letterFile, idFrontFile, idBackFile);
       res.status(400).json({
@@ -1867,6 +1882,23 @@ app.post(
       return;
     }
 
+    // Con la cuenta aprobada se puede completar lo que falte, pero no cambiar
+    // un documento que el administrador ya reviso.
+    const replacesApproved =
+      user.status === "approved" &&
+      ((letterFile && user.letterFilename) ||
+        (idFrontFile && user.idFrontFilename) ||
+        (idBackFile && user.idBackFilename));
+
+    if (replacesApproved) {
+      await cleanupFiles(...allFiles);
+      res.status(409).json({
+        message:
+          "Ese documento ya fue aprobado; pide al administrador que lo cambie.",
+      });
+      return;
+    }
+
     const isSchool = user.institutionType !== "homeschool";
 
     if (isSchool && (idFrontFile || idBackFile)) {
@@ -1913,9 +1945,13 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   const allFiles = [letterFile, idFrontFile, idBackFile];
 
   const firstName =
-    typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
+    typeof req.body?.firstName === "string"
+      ? formatPersonName(req.body.firstName)
+      : "";
   const lastName =
-    typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
+    typeof req.body?.lastName === "string"
+      ? formatPersonName(req.body.lastName)
+      : "";
   const email =
     typeof req.body?.email === "string"
       ? req.body.email.trim().toLowerCase()
@@ -2051,7 +2087,7 @@ app.post("/api/letter/pdf", (req, res) => {
   const month = field("mes", "____________");
   const year = field("anio", "______");
   const school = field("colegio", blank);
-  const teacher = field("maestro", blank);
+  const teacher = formatPersonName(field("maestro", blank));
   const id = field("ci", "______________");
   const director = field("director", blank);
   const schoolSign = field("colegioFirma", school);
@@ -2108,7 +2144,10 @@ app.post("/api/letter/pdf", (req, res) => {
 
   doc
     .font("Times-Bold")
-    .text("Ref.: Autorización para participar como maestro");
+    .text("Ref.: Autorización para participar como maestro", {
+      align: "right",
+      underline: true,
+    });
   doc.moveDown(1);
 
   doc.font("Times-Roman").text("De mi mayor consideración:");
@@ -2189,7 +2228,7 @@ app.get("/api/schools", async (req, res) => {
 
 app.get("/api/public-contests", async (_req, res) => {
   const contests = await prisma.contest.findMany({
-    where: { publishedAt: { not: null } },
+    where: { publishedAt: { not: null }, isPractice: false },
     orderBy: { startsAt: "asc" },
     select: {
       id: true,
@@ -2357,6 +2396,258 @@ async function requireApproved(
 
 app.use("/api/groups", requireApproved);
 app.use("/api/teams", requireApproved);
+// Practicas: un maestro arma su propio desafio de practica para sus grupos.
+app.use("/api/practices", requireApproved);
+
+const PRACTICE_MAX_TASKS = 40;
+
+function practiceOwnerWhere(req: express.Request) {
+  // El admin no crea practicas, pero puede mirarlas para dar soporte.
+  return req.user?.role === "maestro"
+    ? { isPractice: true, createdById: req.user.id }
+    : { isPractice: true };
+}
+
+function serializePractice(contest: {
+  id: string;
+  title: string;
+  category: string;
+  durationMinutes: number;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  createdAt: Date;
+  tasks: { id: string }[];
+  groups: { id: string; accessCode: string; teams: { id: string }[] }[];
+}) {
+  return {
+    id: contest.id,
+    // El primero es el que se crea junto con la practica: ese es el codigo que
+    // se reparte. Si el maestro agrega mas grupos, viven en Grupos como
+    // cualquier otro.
+    accessCode: contest.groups[0]?.accessCode ?? null,
+    title: contest.title,
+    category: contest.category,
+    durationMinutes: contest.durationMinutes,
+    startsAt: contest.startsAt?.toISOString() ?? null,
+    endsAt: contest.endsAt?.toISOString() ?? null,
+    createdAt: contest.createdAt.toISOString(),
+    taskCount: contest.tasks.length,
+    groupCount: contest.groups.length,
+    studentCount: contest.groups.reduce(
+      (total, group) => total + group.teams.length,
+      0,
+    ),
+    state: computeContestState({
+      publishedAt: contest.createdAt,
+      startsAt: contest.startsAt,
+      endsAt: contest.endsAt,
+    }).state,
+  };
+}
+
+const practiceInclude = {
+  tasks: { select: { id: true } },
+  groups: {
+    select: { id: true, accessCode: true, teams: { select: { id: true } } },
+    orderBy: { createdAt: "asc" },
+  },
+} satisfies Prisma.ContestInclude;
+
+/** Las tareas que el administrador libero para practica, para elegir de ahi. */
+app.get("/api/practices/tasks", async (req, res) => {
+  const category =
+    typeof req.query.category === "string" ? req.query.category : "";
+  const ageRange = CATEGORY_AGE_RANGE[category];
+
+  if (!ageRange) {
+    res.status(400).json({ message: "Elige una categoría válida." });
+    return;
+  }
+
+  const drafts = await prisma.taskDraft.findMany({
+    where: { isPractice: true },
+    select: { id: true, title: true, difficulties: true },
+    orderBy: { title: "asc" },
+  });
+
+  // Solo sirven las que tienen dificultad definida para el rango de la
+  // categoria: el resto haria fallar el armado del desafio.
+  const usable = drafts.flatMap((draft) => {
+    const difficulties = parseJsonValue<Record<string, unknown>>(
+      draft.difficulties,
+      {},
+    );
+    const difficulty = difficulties[ageRange];
+    return isDifficultyKey(difficulty)
+      ? [{ id: draft.id, title: draft.title, difficulty }]
+      : [];
+  });
+
+  res.json({ category, ageRange, tasks: usable });
+});
+
+app.get("/api/practices", async (req, res) => {
+  const practices = await prisma.contest.findMany({
+    where: practiceOwnerWhere(req),
+    include: practiceInclude,
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json(practices.map(serializePractice));
+});
+
+app.post("/api/practices", async (req, res) => {
+  if (req.user?.role !== "maestro") {
+    res.status(403).json({
+      message: "Solo un maestro crea prácticas para sus estudiantes.",
+    });
+    return;
+  }
+
+  const title =
+    typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const category =
+    typeof req.body?.category === "string" ? req.body.category.trim() : "";
+  const durationMinutes = Number(req.body?.durationMinutes);
+  const taskIds = Array.isArray(req.body?.tasks)
+    ? req.body.tasks.filter(
+        (id: unknown): id is string => typeof id === "string",
+      )
+    : [];
+  let startsAt: Date | null;
+  let endsAt: Date | null;
+
+  try {
+    startsAt = parseOptionalDateInput(req.body?.startsAt);
+    endsAt = parseOptionalDateInput(req.body?.endsAt);
+  } catch {
+    res.status(400).json({ message: "El horario no es válido." });
+    return;
+  }
+
+  if (!title) {
+    res.status(400).json({ message: "Ponle un nombre a la práctica." });
+    return;
+  }
+
+  if (!CATEGORY_AGE_RANGE[category]) {
+    res.status(400).json({ message: "Elige una categoría válida." });
+    return;
+  }
+
+  if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+    res.status(400).json({ message: "La duración debe ser mayor que cero." });
+    return;
+  }
+
+  if (taskIds.length === 0) {
+    res.status(400).json({ message: "Elige al menos una pregunta." });
+    return;
+  }
+
+  if (taskIds.length > PRACTICE_MAX_TASKS) {
+    res.status(400).json({
+      message: `Una práctica admite hasta ${PRACTICE_MAX_TASKS} preguntas.`,
+    });
+    return;
+  }
+
+  if (new Set(taskIds).size !== taskIds.length) {
+    res.status(400).json({ message: "Hay preguntas repetidas." });
+    return;
+  }
+
+  if (startsAt && endsAt && endsAt <= startsAt) {
+    res.status(400).json({
+      message: "El horario de cierre debe ser posterior al de inicio.",
+    });
+    return;
+  }
+
+  if (startsAt && endsAt) {
+    const windowMinutes = (endsAt.getTime() - startsAt.getTime()) / 60000;
+    if (windowMinutes < durationMinutes) {
+      res.status(400).json({
+        message: `El horario (${Math.round(windowMinutes)} min) es más corto que la duración de la práctica (${durationMinutes} min).`,
+      });
+      return;
+    }
+  }
+
+  // Solo del conjunto que el administrador libero: una practica no puede
+  // filtrar tareas del banco reservadas para los desafios oficiales.
+  const released = await prisma.taskDraft.count({
+    where: { id: { in: taskIds }, isPractice: true },
+  });
+
+  if (released !== taskIds.length) {
+    res.status(400).json({
+      message: "Solo puedes usar preguntas liberadas para práctica.",
+    });
+    return;
+  }
+
+  const scoring = defaultContestScoring();
+  let taskWrites;
+
+  try {
+    taskWrites = await buildContestTaskWrites(taskIds, category, scoring);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Tareas inválidas.",
+    });
+    return;
+  }
+
+  // Una practica nace lista: sin borrador, sin ventana de inscripcion y con la
+  // retroalimentacion encendida, que es de lo que se trata practicar.
+  const practice = await prisma.contest.create({
+    data: {
+      title,
+      category,
+      durationMinutes,
+      startsAt,
+      endsAt,
+      initialScore: computeInitialScore(taskWrites),
+      scoring: JSON.stringify(scoring),
+      questionDisplayMode: "one_by_one",
+      allowPairs: false,
+      showFeedback: true,
+      showSolutions: true,
+      showTotalScore: true,
+      isPractice: true,
+      createdById: req.user.id,
+      publishedAt: currentDate(),
+      tasks: { create: taskWrites },
+      groups: {
+        create: {
+          name: title,
+          createdById: req.user.id,
+          accessCode: await generateUniqueAccessCode(),
+          recoveryCode: generateCode(10),
+        },
+      },
+    },
+    include: practiceInclude,
+  });
+
+  res.status(201).json(serializePractice(practice));
+});
+
+app.delete("/api/practices/:id", async (req, res) => {
+  const practice = await prisma.contest.findFirst({
+    where: { id: String(req.params.id), ...practiceOwnerWhere(req) },
+    include: { groups: { select: { id: true } } },
+  });
+
+  if (!practice) {
+    res.status(404).json({ message: "Práctica no encontrada." });
+    return;
+  }
+
+  await prisma.contest.delete({ where: { id: practice.id } });
+  res.status(204).end();
+});
 
 app.get("/api/tasks", async (_req, res) => {
   const tasks = await prisma.taskDraft.findMany({
@@ -2476,6 +2767,7 @@ app.delete("/api/tasks/:id", async (req, res) => {
 
 app.get("/api/contests", async (_req, res) => {
   const contests = await prisma.contest.findMany({
+    where: { isPractice: false },
     include: {
       tasks: {
         orderBy: {
@@ -2635,11 +2927,22 @@ app.put("/api/contests/:id", async (req, res) => {
     return;
   }
 
+  const keepsTasks = !Array.isArray(req.body?.tasks);
+  const taskIds = keepsTasks
+    ? (
+        await prisma.contestTask.findMany({
+          where: { contestId: req.params.id },
+          orderBy: { position: "asc" },
+          select: { taskDraftId: true },
+        })
+      ).map((task) => task.taskDraftId)
+    : payload.tasks;
+
   let taskWrites;
 
   try {
     taskWrites = await buildContestTaskWrites(
-      payload.tasks,
+      taskIds,
       payload.category,
       payload.scoring,
     );
@@ -3245,6 +3548,7 @@ app.get("/api/users/maestros", async (_req, res) => {
         ...maestro
       }) => ({
         ...maestro,
+        name: maestro.name === null ? null : formatPersonName(maestro.name),
         schools: schools.map(serializeTeacherSchool),
         institutionType:
           institutionType ?? (schoolCodUe ? "school" : "homeschool"),
@@ -3380,11 +3684,21 @@ app.get("/api/users/:id/documents/:doc", async (req, res) => {
 
 // ---- Desafíos publicados para armar grupos (admin y maestro) ----
 
-app.get("/api/published-contests", requireAuth, async (_req, res) => {
+app.get("/api/published-contests", requireAuth, async (req, res) => {
+  // Un maestro ve los desafios oficiales y ademas sus propias practicas; nadie
+  // mas ve las practicas de nadie.
+  const visibility =
+    req.user?.role === "maestro"
+      ? { OR: [{ isPractice: false }, { createdById: req.user.id }] }
+      : { isPractice: false };
+
   const contests = await prisma.contest.findMany({
     where: {
       publishedAt: { not: null },
-      OR: [{ endsAt: null }, { endsAt: { gte: currentDate() } }],
+      AND: [
+        { OR: [{ endsAt: null }, { endsAt: { gte: currentDate() } }] },
+        visibility,
+      ],
     },
     orderBy: { updatedAt: "desc" },
     select: {
@@ -3763,46 +4077,154 @@ app.get("/api/groups/:id/roster-template", async (req, res) => {
     return;
   }
 
-  const grades = gradesForCategory(group.contest.category);
+  const categoryGrades = gradesForCategory(group.contest.category);
+  // Sin categoria asignada el importador acepta cualquiera de los doce cursos,
+  // asi que se ofrecen todos en vez de dejar la columna sin lista.
+  const grades =
+    categoryGrades.length > 0 ? categoryGrades : SCHOOL_GRADES.slice();
+  const allowPairs = group.contest.allowPairs;
+  // Si el desafio es solo individual, Modalidad tendria un unico valor posible
+  // y las columnas del companero solo podrian provocar errores: la planilla se
+  // queda con lo que de verdad hay que llenar.
+  const headers = allowPairs ? ROSTER_COLUMNS : ROSTER_COLUMNS.slice(0, 3);
+  const widths = allowPairs ? [22, 22, 26, 16, 22, 22] : [26, 26, 30];
+  const BLANK_ROWS = 40;
+
+  const HEADER_FILL: ExcelJS.Fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF334155" },
+  };
+  const CELL_BORDER: Partial<ExcelJS.Borders> = {
+    top: { style: "thin", color: { argb: "FFD8DEE7" } },
+    left: { style: "thin", color: { argb: "FFD8DEE7" } },
+    bottom: { style: "thin", color: { argb: "FFD8DEE7" } },
+    right: { style: "thin", color: { argb: "FFD8DEE7" } },
+  };
+
+  function dressHeader(sheet: ExcelJS.Worksheet, rowNumber: number) {
+    const row = sheet.getRow(rowNumber);
+    row.height = 22;
+    row.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    row.alignment = { vertical: "middle" };
+    for (let column = 1; column <= headers.length; column += 1) {
+      const cell = row.getCell(column);
+      cell.fill = HEADER_FILL;
+      cell.border = CELL_BORDER;
+    }
+  }
+
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Participantes");
 
-  sheet.columns = ROSTER_COLUMNS.map((header) => ({
+  // Las listas viven en una hoja oculta y se referencian por rango: escritas
+  // dentro de la formula el formato las limita a 255 caracteres y Excel las
+  // descarta sin avisar. El importador acepta el codigo (P3) o la etiqueta
+  // (3.º de primaria); se ofrece la etiqueta porque es la que el maestro lee.
+  const data = workbook.addWorksheet("Datos", { state: "hidden" });
+  data.getCell("A1").value = "Cursos";
+  grades.forEach((grade, index) => {
+    data.getCell(`A${index + 2}`).value = grade.label;
+  });
+  if (allowPairs) {
+    data.getCell("B1").value = "Modalidades";
+    data.getCell("B2").value = "individual";
+    data.getCell("B3").value = "pareja";
+  }
+  const gradeRange = `Datos!$A$2:$A$${grades.length + 1}`;
+  const modeRange = "Datos!$B$2:$B$3";
+
+  sheet.columns = headers.map((header, index) => ({
     header,
     key: header,
-    width: header.length + 14,
+    width: widths[index],
   }));
-  sheet.getRow(1).font = { bold: true };
+  dressHeader(sheet, 1);
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: headers.length },
+  };
+
+  // Filas en blanco ya formateadas: la hoja se abre como un formulario listo
+  // para llenar.
+  const lastRow = BLANK_ROWS + 1;
+  for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    for (let column = 1; column <= headers.length; column += 1) {
+      row.getCell(column).border = CELL_BORDER;
+    }
+  }
+
+  // Una sola entrada por columna: aplicarlas celda a celda hace que ExcelJS
+  // emita rangos sqref solapados, y con eso Excel descarta las listas en
+  // silencio (la columna aparece sin desplegable).
+  const validations = (
+    sheet as unknown as {
+      dataValidations: {
+        add: (range: string, validation: ExcelJS.DataValidation) => void;
+      };
+    }
+  ).dataValidations;
+
+  validations.add(`C2:C${lastRow}`, {
+    type: "list",
+    allowBlank: true,
+    formulae: [gradeRange],
+    showErrorMessage: true,
+    errorStyle: "error",
+    errorTitle: "Curso no válido",
+    error:
+      categoryGrades.length > 0
+        ? `Elige uno de la lista. Esta categoría admite: ${categoryGrades
+            .map((grade) => grade.label)
+            .join(" o ")}.`
+        : "Elige uno de la lista desplegable.",
+  });
+
+  if (allowPairs) {
+    validations.add(`D2:D${lastRow}`, {
+      type: "list",
+      allowBlank: true,
+      formulae: [modeRange],
+      showErrorMessage: true,
+      errorStyle: "error",
+      errorTitle: "Modalidad no válida",
+      error: "Elige individual o pareja.",
+    });
+  }
 
   const example = workbook.addWorksheet("Ejemplo");
-  example.columns = ROSTER_COLUMNS.map((header) => ({
+  example.columns = headers.map((header, index) => ({
     key: header,
-    width: header.length + 14,
+    width: widths[index],
   }));
-  example.mergeCells(1, 1, 1, ROSTER_COLUMNS.length);
-  example.getCell(1, 1).value = "EJEMPLO - ESTA HOJA NO SE IMPORTA";
+  // Los titulos van en la fila 3 a proposito: el importador busca la hoja cuyos
+  // encabezados esten en la fila 1, y esta no debe competir con Participantes.
+  example.mergeCells(1, 1, 1, headers.length);
+  example.getCell(1, 1).value =
+    "Ejemplo de referencia — esta hoja no se importa";
   example.getCell(1, 1).font = { bold: true };
   example.addRow([]);
-  example.addRow(ROSTER_COLUMNS);
-  example.getRow(3).font = { bold: true };
-  example.addRow([
-    "Ana",
-    "Quispe",
-    grades[0]?.value ?? "P3",
-    "individual",
-    "",
-    "",
-  ]);
+  example.addRow(headers);
+  dressHeader(example, 3);
 
-  if (group.contest.allowPairs) {
-    example.addRow([
-      "Luis",
-      "Mamani",
-      grades[0]?.value ?? "P3",
-      "pareja",
-      "Sofía",
-      "Rojas",
-    ]);
+  const sampleGrade = grades[0]?.label ?? "";
+  const sampleRows = allowPairs
+    ? [
+        ["Ana", "Quispe", sampleGrade, "individual", "", ""],
+        ["Luis", "Mamani", sampleGrade, "pareja", "Sofía", "Rojas"],
+      ]
+    : [
+        ["Ana", "Quispe", sampleGrade],
+        ["Luis", "Mamani", sampleGrade],
+      ];
+
+  for (const values of sampleRows) {
+    const row = example.addRow(values);
+    for (let column = 1; column <= headers.length; column += 1) {
+      row.getCell(column).border = CELL_BORDER;
+    }
   }
 
   const notes = workbook.addWorksheet("Instrucciones");
@@ -3810,27 +4232,28 @@ app.get("/api/groups/:id/roster-template", async (req, res) => {
   notes.addRow(["Cómo llenar esta planilla"]);
   notes.getRow(1).font = { bold: true };
   notes.addRow([""]);
-  notes.addRow(["Una fila por participante (o por pareja)."]);
+  notes.addRow(["Llena la hoja Participantes: una fila por participante."]);
   notes.addRow([
-    "Modalidad: escribe individual o pareja. " +
-      (group.contest.allowPairs
-        ? "Este desafío permite parejas."
-        : "Este desafío es solo individual."),
+    allowPairs
+      ? "Curso y Modalidad tienen lista desplegable: elige de la lista en vez de escribir."
+      : "La columna Curso tiene lista desplegable: elige de la lista en vez de escribir.",
   ]);
   notes.addRow([
-    "En pareja, llena también las columnas del compañero. En individual, déjalas vacías.",
+    categoryGrades.length > 0
+      ? `Cursos válidos para la categoría ${group.contest.category}: ${categoryGrades
+          .map((grade) => `${grade.label} (${grade.value})`)
+          .join(", ")}.`
+      : "Este desafío todavía no tiene categoría asignada, así que la lista ofrece los doce cursos. Pídele al administrador que asigne la categoría para que la planilla solo acepte los que corresponden.",
   ]);
   notes.addRow([
-    `Cursos válidos para la categoría ${group.contest.category}: ${grades
-      .map((grade) => `${grade.value} (${grade.label})`)
-      .join(", ")}.`,
-  ]);
-  notes.addRow([
-    "La modalidad es obligatoria. Usa solamente individual o pareja.",
+    allowPairs
+      ? "En pareja, llena también las columnas del compañero. En individual, déjalas vacías."
+      : "Este desafío es solo individual, por eso la planilla no pide modalidad ni datos de compañero.",
   ]);
   notes.addRow([
     "Conserva los títulos en la primera fila. Puedes cambiar el orden de las columnas.",
   ]);
+  notes.addRow(["Deja sin llenar las filas que te sobren."]);
   notes.addRow([
     "La importación es todo o nada: si una fila tiene errores, no se guarda ninguna.",
   ]);
@@ -3917,7 +4340,12 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
       return;
     }
 
-    const requiredHeaders = ROSTER_COLUMNS.slice(0, 4).map(normalizeHeader);
+    // Modalidad solo se exige donde puede variar. En un desafio solo individual
+    // la plantilla ya no la trae, pero si el archivo la incluye se respeta.
+    const requiredColumns = group.contest.allowPairs
+      ? ROSTER_COLUMNS.slice(0, 4)
+      : ROSTER_COLUMNS.slice(0, 3);
+    const requiredHeaders = requiredColumns.map(normalizeHeader);
     const candidates: Array<{
       sheet: ExcelJS.Worksheet;
       columns: Map<string, number>;
@@ -3945,8 +4373,9 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
 
     if (candidates.length === 0) {
       res.status(400).json({
-        message:
-          "La planilla necesita una hoja con Nombres, Apellidos, Curso y Modalidad en la primera fila.",
+        message: `La planilla necesita una hoja con ${requiredColumns
+          .slice(0, -1)
+          .join(", ")} y ${requiredColumns.at(-1)} en la primera fila.`,
         code: "ROSTER_SHEET_NOT_FOUND",
       });
       return;
@@ -4056,7 +4485,10 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
         addIssue("Faltan nombres o apellidos.");
       }
 
-      const normalizedMode = normalizeHeader(modeText);
+      // Sin columna de modalidad, individual es la unica lectura posible.
+      const normalizedMode =
+        normalizeHeader(modeText) ||
+        (group.contest.allowPairs ? "" : "individual");
       const hasValidMode =
         normalizedMode === "individual" || normalizedMode === "pareja";
       const isPair = normalizedMode === "pareja";
@@ -4375,6 +4807,8 @@ app.get("/api/play/group/:code", async (req, res) => {
     groupName: group.name,
     contestTitle: group.contest.title,
     contestCategory: group.contest.category,
+    // Una practica no se inscribe: se entra con el nombre y ya.
+    isPractice: group.contest.isPractice,
     allowPairs: group.contest.allowPairs,
     durationMinutes: group.contest.durationMinutes,
     registrationStartsAt:
@@ -4384,6 +4818,90 @@ app.get("/api/play/group/:code", async (req, res) => {
       ? gradesForCategory(group.contest.category)
       : SCHOOL_GRADES,
     state,
+  });
+});
+
+app.post("/api/play/practice/:code/enter", async (req, res) => {
+  const code = String(req.params.code ?? "")
+    .trim()
+    .toUpperCase();
+  const rawName =
+    typeof req.body?.name === "string" ? cleanName(req.body.name) : "";
+
+  if (!rawName) {
+    res.status(400).json({ message: "Escribe tu nombre." });
+    return;
+  }
+
+  const group = await prisma.contestGroup.findUnique({
+    where: { accessCode: code },
+    include: { contest: true },
+  });
+
+  if (!group || !group.contest.isPractice) {
+    res.status(404).json({ message: "Código no encontrado." });
+    return;
+  }
+
+  if (groupAccessHasExpired(group)) {
+    res.status(410).json({ message: "Esta práctica ya cerró." });
+    return;
+  }
+
+  if (contestHasEnded(computeContestState(group.contest).state)) {
+    res.status(409).json({ message: "Esta práctica ya cerró." });
+    return;
+  }
+
+  const [first, ...rest] = rawName.split(" ");
+  const firstName = formatName(first);
+  const lastName = rest.length > 0 ? formatName(rest.join(" ")) : "";
+  const key = nameKey(firstName, lastName);
+
+  // El mismo nombre vuelve al mismo intento: asi quien cierra el navegador por
+  // accidente retoma donde iba en vez de empezar de cero con otro registro.
+  const existing = await prisma.team.findMany({ where: { groupId: group.id } });
+  const mine = existing.find(
+    (team) => nameKey(team.memberOneFirstName, team.memberOneLastName) === key,
+  );
+
+  if (mine && playSessionIsLive(mine)) {
+    res.status(409).json({
+      message:
+        "Ya hay alguien con ese nombre resolviendo la práctica. Si eres tú, espera medio minuto e inténtalo otra vez.",
+    });
+    return;
+  }
+
+  const team =
+    mine ??
+    (await prisma.team.create({
+      data: {
+        groupId: group.id,
+        participationMode: "individual",
+        memberOneFirstName: firstName,
+        memberOneLastName: lastName,
+        personalCode: await generateUniquePersonalCode(),
+        // Sin su intento, /api/play/attempt no encuentra al estudiante.
+        attempt: { create: { status: "pending" } },
+      },
+    }));
+
+  const sessionToken = randomUUID();
+  await prisma.team.update({
+    where: { id: team.id },
+    data: { sessionToken, sessionSeenAt: currentDate() },
+  });
+
+  res.status(201).json({
+    sessionToken,
+    groupName: group.name,
+    contestTitle: group.contest.title,
+    participationMode: team.participationMode,
+    memberOneFirstName: team.memberOneFirstName,
+    memberOneLastName: team.memberOneLastName,
+    memberTwoFirstName: null,
+    memberTwoLastName: null,
   });
 });
 
@@ -5176,30 +5694,44 @@ async function authorizePlay<T extends PlaySessionState & { id: string }>(
   return { team };
 }
 
+// Rendir la prueba exige el codigo personal que se entrega al inscribirse. El
+// codigo del grupo solo sirve para inscribirse, asi que aqui se rechaza con un
+// mensaje que explica la diferencia en vez de un "no encontrado" seco.
 app.post("/api/play/session", async (req, res) => {
-  const accessCode =
-    typeof req.body?.accessCode === "string"
-      ? req.body.accessCode.trim().toUpperCase()
+  const personalCode =
+    typeof req.body?.personalCode === "string"
+      ? req.body.personalCode.trim().toUpperCase()
       : "";
-  const firstName =
-    typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
-  const lastName =
-    typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
 
-  if (!firstName || !lastName) {
-    res.status(400).json({ message: "Escribe tu nombre y tu apellido." });
+  if (!personalCode) {
+    res.status(400).json({ message: "Escribe tu código personal." });
     return;
   }
 
-  const group = await prisma.contestGroup.findUnique({
-    where: { accessCode },
-    include: { contest: true },
+  const team = await prisma.team.findUnique({
+    where: { personalCode },
+    include: { group: { include: { contest: true } } },
   });
 
-  if (!group) {
+  if (!team) {
+    const isGroupCode = await prisma.contestGroup.findUnique({
+      where: { accessCode: personalCode },
+      select: { id: true },
+    });
+
+    if (isGroupCode) {
+      res.status(409).json({
+        message:
+          "Ese es el código del grupo, sirve para inscribirte. Para rendir usa el código personal que recibiste al inscribirte.",
+      });
+      return;
+    }
+
     res.status(404).json({ message: "Código no encontrado." });
     return;
   }
+
+  const group = team.group;
 
   if (groupAccessHasExpired(group)) {
     res.status(410).json({ message: "El código ya expiró." });
@@ -5216,30 +5748,10 @@ app.post("/api/play/session", async (req, res) => {
     return;
   }
 
-  const key = nameKey(firstName, lastName);
-  const teams = await prisma.team.findMany({ where: { groupId: group.id } });
-  const team = teams.find(
-    (candidate) =>
-      nameKey(candidate.memberOneFirstName, candidate.memberOneLastName) ===
-        key ||
-      (candidate.memberTwoFirstName !== null &&
-        candidate.memberTwoLastName !== null &&
-        nameKey(candidate.memberTwoFirstName, candidate.memberTwoLastName) ===
-          key),
-  );
-
-  if (!team) {
-    res.status(404).json({
-      message:
-        "No encontramos tu registro en este grupo. Revisa cómo escribiste tu nombre.",
-    });
-    return;
-  }
-
   if (playSessionIsLive(team)) {
     res.status(409).json({
       message:
-        "Ya hay una sesión abierta con tu nombre. Ciérrala o espera medio minuto e inténtalo otra vez.",
+        "Ya hay una sesión abierta con tu código. Ciérrala o espera medio minuto e inténtalo otra vez.",
     });
     return;
   }

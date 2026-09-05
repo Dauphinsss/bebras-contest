@@ -43,6 +43,7 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
             {backHref ? (
               <a
                 href={backHref}
+                data-back-link
                 data-practice-back={hasContextualPracticeBack ? "" : undefined}
                 class="group flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
@@ -131,14 +132,16 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
     const raw = localStorage.getItem("bebras_user");
     const user = raw ? JSON.parse(raw) : null;
     if (!user) return;
-    if ((user.status || "approved") !== "approved") return;
 
     document.querySelectorAll("[data-nav-role]").forEach(function (el) {
       const role = el.getAttribute("data-nav-role");
       const show =
-        user.role === "admin"
-          ? role === "admin" || role === "staff"
-          : user.role === "maestro" && role === "staff";
+        role === "maestro"
+          ? user.role === "maestro"
+          : (user.status || "approved") === "approved" &&
+            (user.role === "admin"
+              ? role === "admin" || role === "staff"
+              : user.role === "maestro" && role === "staff");
       if (show) {
         el.classList.remove("hidden");
       }
@@ -233,4 +236,29 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
 
   setPracticeBackLink();
   document.addEventListener("astro:page-load", setPracticeBackLink);
+</script>
+
+<script>
+  /**
+   * Si se llegó con ?volver, la flecha regresa a donde se venía en vez de al
+   * listado por defecto. El sitio es estático: esto solo se sabe en el cliente.
+   */
+  function setContextualBackLink() {
+    const backLink = document.querySelector<HTMLAnchorElement>(
+      "[data-back-link]:not([data-practice-back])",
+    );
+
+    if (!backLink) {
+      return;
+    }
+
+    const target = new URLSearchParams(window.location.search).get("volver");
+
+    if (target && target.startsWith("/") && !target.startsWith("//")) {
+      backLink.href = target;
+    }
+  }
+
+  setContextualBackLink();
+  document.addEventListener("astro:page-load", setContextualBackLink);
 </script>

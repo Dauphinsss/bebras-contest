@@ -191,6 +191,15 @@
     background: var(--background) !important;
   }
 
+  /* Los bloques de contenido de una tarea se editan como un documento: sin
+     marco, para que el enunciado se lea igual que lo verá el estudiante. El
+     borde aparece solo al pasar por encima o al escribir, como referencia. */
+  [data-slot="textarea"][data-plain],
+  [data-slot="textarea"][data-plain]:focus-visible {
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+
   [data-calendar-popover] {
     border-radius: 0.375rem !important;
     overflow: hidden;
@@ -469,6 +478,19 @@
     box-shadow: var(--shadow-hard) !important;
   }
 
+  /* Sonner desmonta el toast 200 ms despues de marcarlo como removido, pero su
+     transicion de salida dura 400 ms: el toast se borraba de golpe a mitad del
+     desvanecido. Aqui se comprime la salida para que termine dentro de esa
+     ventana y se vea completa. El resto de la pila conserva los 400 ms para
+     que las tarjetas restantes suban con calma. */
+  [data-sonner-toaster] [data-sonner-toast][data-removed="true"] {
+    transition:
+      transform 190ms cubic-bezier(0.4, 0, 1, 1),
+      opacity 150ms cubic-bezier(0.4, 0, 1, 1),
+      height 400ms,
+      box-shadow 200ms !important;
+  }
+
   [data-sonner-toaster] [data-button],
   [data-sonner-toaster] [data-close-button] {
     border-radius: 0 !important;
@@ -632,4 +654,25 @@
 ::view-transition-new(*.task-row) {
   animation-duration: 380ms;
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Una sola superficie editable: la selección y el texto comparten geometría. */
+.task-rich-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.task-rich-text p { margin: 0; }
+.task-rich-text:has(> p:only-child > br.ProseMirror-trailingBreak:only-child)::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+.task-rich-text code {
+  border-radius: 0.125rem;
+  background: var(--muted);
+  padding-inline: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }

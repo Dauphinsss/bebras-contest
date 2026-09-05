@@ -30,13 +30,11 @@ async function openJoinForm(page: import("@playwright/test").Page) {
   );
 }
 
-test("associates code and identification errors with their fields", async ({
-  page,
-}) => {
+test("associates code errors with the code field", async ({ page }) => {
   const group = await createGroup();
   await openJoinForm(page);
 
-  const code = page.getByLabel("Código de grupo");
+  const code = page.getByLabel("Tu código");
   await page.getByRole("button", { name: "Continuar" }).click();
 
   await expect(code).toBeFocused();
@@ -46,43 +44,26 @@ test("associates code and identification errors with their fields", async ({
     "Escribe el código que te dio tu maestro.",
   );
 
-  await code.fill(group.accessCode);
+  // Ocho caracteres: se intenta como codigo personal y no existe.
+  await code.fill("ZZZZZZZZ");
   await expect(code).toHaveAttribute("aria-invalid", "false");
   await expect(page.locator("#access-code-error")).toHaveCount(0);
   await page.getByRole("button", { name: "Continuar" }).click();
 
-  const firstName = page.getByLabel("Nombres", { exact: true });
-  const lastName = page.getByLabel("Apellidos", { exact: true });
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
-
-  await expect(firstName).toBeFocused();
-  await expect(firstName).toHaveAttribute("aria-invalid", "true");
-  await expect(firstName).toHaveAttribute(
-    "aria-describedby",
-    "student-first-name-error",
-  );
-  await expect(lastName).toHaveAttribute("aria-invalid", "true");
-  await expect(lastName).toHaveAttribute(
-    "aria-describedby",
-    "student-last-name-error",
+  await expect(code).toBeFocused();
+  await expect(code).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#access-code-error")).toHaveText(
+    "Código no encontrado.",
   );
 
-  await firstName.fill("Persona");
-  await expect(firstName).toHaveAttribute("aria-invalid", "false");
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
-  await expect(lastName).toBeFocused();
+  // El codigo del grupo lleva a inscribirse, nunca a rendir.
+  await code.fill(group.accessCode);
+  await expect(page.locator("#access-code-error")).toHaveCount(0);
+  await page.getByRole("button", { name: "Continuar" }).click();
 
-  await lastName.fill("Desconocida");
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
-
-  const notFound = page
-    .getByRole("alert")
-    .filter({ hasText: "No encontramos tu registro en este grupo." });
-  await expect(notFound).toBeVisible();
-  await expect(notFound).toBeFocused();
-
-  await firstName.fill("Otra");
-  await expect(notFound).toHaveCount(0);
+  await expect(
+    page.getByRole("combobox", { name: "¿En qué curso estás?" }),
+  ).toBeVisible();
 });
 
 test("validates pair registration and preserves general step errors", async ({
@@ -91,9 +72,8 @@ test("validates pair registration and preserves general step errors", async ({
   const group = await createGroup(true);
   await openJoinForm(page);
 
-  await page.getByLabel("Código de grupo").fill(group.accessCode);
+  await page.getByLabel("Tu código").fill(group.accessCode);
   await page.getByRole("button", { name: "Continuar" }).click();
-  await page.getByRole("button", { name: "Todavía no me registré" }).click();
 
   const grade = page.getByRole("combobox", {
     name: "¿En qué curso estás?",

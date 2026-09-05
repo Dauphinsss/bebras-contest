@@ -5,13 +5,16 @@ import { useEffect, useState } from "react";
 import { TaskUploadForm } from "@/components/task-upload-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getTask } from "@/lib/tasks-api";
+import { safeReturnTo } from "@/lib/site-navigation";
 import { type StoredTask } from "@/lib/task-schema";
 
 export function TaskEditPage() {
-  const taskId =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("id")
-      : null;
+  const params =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search);
+  const taskId = params?.get("id") ?? null;
+  const returnTo = safeReturnTo(params?.get("volver"));
   const [task, setTask] = useState<StoredTask | null>(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -58,5 +61,5 @@ export function TaskEditPage() {
     return null;
   }
 
-  return <TaskUploadForm initialTask={task} />;
+  return <TaskUploadForm initialTask={task} returnTo={returnTo} />;
 }

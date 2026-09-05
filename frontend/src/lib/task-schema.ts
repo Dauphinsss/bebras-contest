@@ -1,3 +1,4 @@
+import type { JSONContent } from "@tiptap/core";
 export const categories = [
   "Algoritmos y programación",
   "Estructuras de datos y representaciones",
@@ -38,6 +39,7 @@ export type ContentBlock = {
   id: string;
   type: ContentBlockType;
   content: string;
+  richText?: JSONContent;
   image: ContentImage | null;
   widthPercent: number;
 };
