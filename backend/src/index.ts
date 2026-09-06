@@ -673,6 +673,12 @@ function deserializeTaskSummary(task: {
 
 /** Lee un numero opcional; devuelve null si no hay uno usable. */
 function toFiniteNumber(value: unknown) {
+  // Number(null) y Number("") valen 0, no NaN: sin este filtro un rango vacío
+  // se leería como el intervalo 0 a 0 y daría por buena la respuesta "0".
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
