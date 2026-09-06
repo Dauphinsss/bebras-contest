@@ -15,14 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TaskOrigin } from "@/components/task-origin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertDialog,
@@ -112,142 +104,122 @@ export function TasksHome() {
   const deletingSelectedTask = deletingTaskId === taskToDelete?.id;
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-2">
-              <div className="text-sm text-muted-foreground">
-                Centro de gestión editorial para tareas Bebras.
-              </div>
-              <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                  Bebras Bolivia
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-                  Administra borradores, revisa el estado de cada tarea y prueba
-                  su experiencia final antes de publicarla.
-                </p>
-              </div>
-            </div>
+    <div className="flex w-full flex-col gap-8">
+      <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            Tareas
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Redacta las tareas del banco, pruébalas como las verá un estudiante
+            y elige cuáles quedan disponibles para practicar.
+          </p>
+        </div>
+        <Button asChild className="shrink-0">
+          <a href="/tareas/nueva">
+            <FilePlus2Icon data-icon="inline-start" />
+            Registrar tarea
+          </a>
+        </Button>
+      </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button asChild>
-                <a href="/tareas/nueva">
-                  <FilePlus2Icon data-icon="inline-start" />
-                  Registrar tarea
-                </a>
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      {tasks.length === 0 ? (
+        <Alert>
+          <AlertCircleIcon />
+          <AlertTitle>No hay tareas registradas</AlertTitle>
+          <AlertDescription>
+            Crea la primera tarea para empezar a probar el flujo editorial.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <ul className="divide-y border-y">
+          {tasks.map((task) => (
+            <li
+              key={task.id}
+              className="flex min-w-0 flex-col gap-4 px-3 py-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold break-words">
+                    <a
+                      href={`/tareas/editar?id=${task.id}`}
+                      className="outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                      {task.title}
+                    </a>
+                  </h2>
+                  {task.isPractice && (
+                    <Badge className="gap-1">
+                      <GraduationCapIcon className="size-3" />
+                      Práctica
+                    </Badge>
+                  )}
+                </div>
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Tareas</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {tasks.length === 0 ? (
-            <Alert>
-              <AlertCircleIcon />
-              <AlertTitle>No hay tareas registradas</AlertTitle>
-              <AlertDescription>
-                Crea la primera tarea para empezar a probar el flujo editorial.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            tasks.map((task) => (
-              <Card
-                key={task.id}
-                variant="soft-gradient"
-                className="relative isolate gap-0 py-0 transition hover:border-primary/40 focus-within:border-primary/40"
-              >
-                <a
-                  href={`/tareas/editar?id=${task.id}`}
-                  aria-label={`Abrir edición de ${task.title}`}
-                  className="absolute inset-0 z-0 rounded-[inherit] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                />
-                <CardHeader className="gap-4 py-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 flex-col gap-3">
-                      <div className="flex flex-wrap gap-2">
-                        {task.levels.map((level) => (
-                          <Badge key={level} variant="outline">
-                            {level}
-                          </Badge>
-                        ))}
-                        {task.isPractice && (
-                          <Badge className="gap-1">
-                            <GraduationCapIcon className="size-3" />
-                            Práctica
-                          </Badge>
-                        )}
-                      </div>
-                      <CardTitle className="text-xl sm:text-2xl">
-                        {task.title}
-                      </CardTitle>
-                      <TaskOrigin country={task.country} year={task.year} />
-                    </div>
-                    <div className="relative z-10 grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant={task.isPractice ? "default" : "outline"}
-                        className="w-full justify-start"
-                        onClick={() => togglePractice(task)}
-                      >
-                        <GraduationCapIcon data-icon="inline-start" />
-                        {task.isPractice ? "En práctica" : "Práctica"}
-                      </Button>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                      >
-                        <a href={`/tareas/editar?id=${task.id}`}>
-                          <FilePenLineIcon data-icon="inline-start" />
-                          Editar
-                        </a>
-                      </Button>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                      >
-                        <a href={`/tareas/probador?id=${task.id}`}>
-                          <PlayCircleIcon data-icon="inline-start" />
-                          Probar
-                        </a>
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => setTaskToDelete(task)}
-                      >
-                        <Trash2Icon data-icon="inline-start" />
-                        Eliminar
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <Separator />
-                <CardFooter className="flex flex-wrap gap-2 py-4">
+                <TaskOrigin country={task.country} year={task.year} />
+
+                <div className="flex flex-wrap gap-2">
+                  {task.levels.map((level) => (
+                    <Badge key={level} variant="outline">
+                      {level}
+                    </Badge>
+                  ))}
                   {task.categories.map((category) => (
                     <Badge key={category} variant="outline">
                       {category}
                     </Badge>
                   ))}
-                </CardFooter>
-              </Card>
-            ))
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              </div>
+
+              <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
+                <Button
+                  size="sm"
+                  type="button"
+                  variant={task.isPractice ? "default" : "outline"}
+                  className="w-full justify-start"
+                  onClick={() => togglePractice(task)}
+                >
+                  <GraduationCapIcon data-icon="inline-start" />
+                  {task.isPractice ? "En práctica" : "Práctica"}
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                >
+                  <a href={`/tareas/editar?id=${task.id}`}>
+                    <FilePenLineIcon data-icon="inline-start" />
+                    Editar
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                >
+                  <a href={`/tareas/probador?id=${task.id}`}>
+                    <PlayCircleIcon data-icon="inline-start" />
+                    Probar
+                  </a>
+                </Button>
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setTaskToDelete(task)}
+                >
+                  <Trash2Icon data-icon="inline-start" />
+                  Eliminar
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <AlertDialog
         open={taskToDelete !== null}

@@ -28,9 +28,12 @@ export function TaskOrigin({ country, year, className }: TaskOriginProps) {
       )}
     >
       {flag && (
+        // El borde del tema es negro puro y sobre una bandera de 14 px pesa
+        // demasiado; basta una línea tenue para que las banderas con blanco
+        // (Polonia, Indonesia) no se confundan con el fondo.
         <img
           alt=""
-          className="h-4 w-auto rounded-xs border border-border"
+          className="h-3.5 w-auto rounded-[2px] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)]"
           src={flag}
         />
       )}
