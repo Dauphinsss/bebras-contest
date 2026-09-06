@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircleIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { TaskExplanation } from "@/components/task-explanation";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import {
   DragDropPlayer,
@@ -36,6 +35,18 @@ function createSeedFromText(value: string) {
 
 function nextSeed(seed: number) {
   return (seed * 1664525 + 1013904223) >>> 0;
+}
+
+/** El número cae dentro del único intervalo aceptado, extremos incluidos. */
+function isInsideRange(
+  task: { rangeMin: number | null; rangeMax: number | null },
+  value: number,
+) {
+  if (task.rangeMin === null || task.rangeMax === null) {
+    return false;
+  }
+
+  return value >= task.rangeMin && value <= task.rangeMax;
 }
 
 export function TaskTester() {
@@ -185,10 +196,7 @@ export function TaskTester() {
       return false;
     }
 
-    return (selectedTask.rangeAnswers ?? []).some(
-      (rangeAnswer) =>
-        numericValue >= rangeAnswer.min && numericValue <= rangeAnswer.max,
-    );
+    return isInsideRange(selectedTask, numericValue);
   }, [
     checkedValue,
     dragDropPlacements,
@@ -291,13 +299,7 @@ export function TaskTester() {
     }
 
     setCheckedValue(rangeValue);
-    if (
-      (selectedTask.rangeAnswers ?? []).some(
-        (rangeAnswer) =>
-          Number(rangeValue) >= rangeAnswer.min &&
-          Number(rangeValue) <= rangeAnswer.max,
-      )
-    ) {
+    if (isInsideRange(selectedTask, Number(rangeValue))) {
       toast.success("Respuesta correcta");
     } else {
       toast.error("Respuesta incorrecta");
@@ -462,13 +464,10 @@ export function TaskTester() {
                   value={rangeValue}
                   onChange={(event) => setRangeValue(event.target.value)}
                 />
-                <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-                  {(selectedTask.rangeAnswers ?? []).map((rangeAnswer) => (
-                    <p key={rangeAnswer.id}>
-                      {rangeAnswer.label}: {rangeAnswer.min} a {rangeAnswer.max}
-                    </p>
-                  ))}
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  Rango válido: {selectedTask.rangeMin} a{" "}
+                  {selectedTask.rangeMax}
+                </p>
               </div>
             )}
 
@@ -492,10 +491,7 @@ export function TaskTester() {
               <AlertCircleIcon />
               <AlertTitle>{isCorrect ? "Correcto" : "Incorrecto"}</AlertTitle>
               <AlertDescription>
-                <TaskExplanation
-                  explanation={selectedTask.explanation}
-                  blocks={selectedTask.explanationBlocks}
-                />
+                <TaskContentRenderer blocks={selectedTask.explanationBlocks} />
               </AlertDescription>
             </Alert>
           )}

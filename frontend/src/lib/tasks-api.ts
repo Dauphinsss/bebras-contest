@@ -8,7 +8,6 @@ export type HomeTaskItem = {
   categories: string[];
   /** Categorías de Bebras que cubre, según los rangos de edad con dificultad. */
   levels: string[];
-  status: "Borrador";
   isPractice: boolean;
 };
 
@@ -58,7 +57,6 @@ export function mapTaskToHomeItem(task: StoredTask): HomeTaskItem {
     levels: BEBRAS_CATEGORIES.filter(
       (category) => (task.difficulties[category.ageRange] ?? "").trim() !== "",
     ).map((category) => category.name),
-    status: task.status,
     isPractice: Boolean((task as { isPractice?: boolean }).isPractice),
   };
 }

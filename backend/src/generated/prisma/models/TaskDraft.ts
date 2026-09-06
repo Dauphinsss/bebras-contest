@@ -20,8 +20,20 @@ export type TaskDraftModel = runtime.Types.Result.DefaultSelection<Prisma.$TaskD
 
 export type AggregateTaskDraft = {
   _count: TaskDraftCountAggregateOutputType | null
+  _avg: TaskDraftAvgAggregateOutputType | null
+  _sum: TaskDraftSumAggregateOutputType | null
   _min: TaskDraftMinAggregateOutputType | null
   _max: TaskDraftMaxAggregateOutputType | null
+}
+
+export type TaskDraftAvgAggregateOutputType = {
+  rangeMin: number | null
+  rangeMax: number | null
+}
+
+export type TaskDraftSumAggregateOutputType = {
+  rangeMin: number | null
+  rangeMax: number | null
 }
 
 export type TaskDraftMinAggregateOutputType = {
@@ -36,12 +48,11 @@ export type TaskDraftMinAggregateOutputType = {
   answers: string | null
   correctAnswerId: string | null
   shortAnswer: string | null
-  rangeAnswers: string | null
+  rangeMin: number | null
+  rangeMax: number | null
   dragDropBackground: string | null
   dragDropItems: string | null
-  explanation: string | null
   explanationBlocks: string | null
-  status: string | null
   isPractice: boolean | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -59,12 +70,11 @@ export type TaskDraftMaxAggregateOutputType = {
   answers: string | null
   correctAnswerId: string | null
   shortAnswer: string | null
-  rangeAnswers: string | null
+  rangeMin: number | null
+  rangeMax: number | null
   dragDropBackground: string | null
   dragDropItems: string | null
-  explanation: string | null
   explanationBlocks: string | null
-  status: string | null
   isPractice: boolean | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -82,18 +92,27 @@ export type TaskDraftCountAggregateOutputType = {
   answers: number
   correctAnswerId: number
   shortAnswer: number
-  rangeAnswers: number
+  rangeMin: number
+  rangeMax: number
   dragDropBackground: number
   dragDropItems: number
-  explanation: number
   explanationBlocks: number
-  status: number
   isPractice: number
   createdAt: number
   updatedAt: number
   _all: number
 }
 
+
+export type TaskDraftAvgAggregateInputType = {
+  rangeMin?: true
+  rangeMax?: true
+}
+
+export type TaskDraftSumAggregateInputType = {
+  rangeMin?: true
+  rangeMax?: true
+}
 
 export type TaskDraftMinAggregateInputType = {
   id?: true
@@ -107,12 +126,11 @@ export type TaskDraftMinAggregateInputType = {
   answers?: true
   correctAnswerId?: true
   shortAnswer?: true
-  rangeAnswers?: true
+  rangeMin?: true
+  rangeMax?: true
   dragDropBackground?: true
   dragDropItems?: true
-  explanation?: true
   explanationBlocks?: true
-  status?: true
   isPractice?: true
   createdAt?: true
   updatedAt?: true
@@ -130,12 +148,11 @@ export type TaskDraftMaxAggregateInputType = {
   answers?: true
   correctAnswerId?: true
   shortAnswer?: true
-  rangeAnswers?: true
+  rangeMin?: true
+  rangeMax?: true
   dragDropBackground?: true
   dragDropItems?: true
-  explanation?: true
   explanationBlocks?: true
-  status?: true
   isPractice?: true
   createdAt?: true
   updatedAt?: true
@@ -153,12 +170,11 @@ export type TaskDraftCountAggregateInputType = {
   answers?: true
   correctAnswerId?: true
   shortAnswer?: true
-  rangeAnswers?: true
+  rangeMin?: true
+  rangeMax?: true
   dragDropBackground?: true
   dragDropItems?: true
-  explanation?: true
   explanationBlocks?: true
-  status?: true
   isPractice?: true
   createdAt?: true
   updatedAt?: true
@@ -203,6 +219,18 @@ export type TaskDraftAggregateArgs<ExtArgs extends runtime.Types.Extensions.Inte
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: TaskDraftAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: TaskDraftSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: TaskDraftMinAggregateInputType
@@ -233,6 +261,8 @@ export type TaskDraftGroupByArgs<ExtArgs extends runtime.Types.Extensions.Intern
   take?: number
   skip?: number
   _count?: TaskDraftCountAggregateInputType | true
+  _avg?: TaskDraftAvgAggregateInputType
+  _sum?: TaskDraftSumAggregateInputType
   _min?: TaskDraftMinAggregateInputType
   _max?: TaskDraftMaxAggregateInputType
 }
@@ -249,16 +279,17 @@ export type TaskDraftGroupByOutputType = {
   answers: string
   correctAnswerId: string
   shortAnswer: string
-  rangeAnswers: string
+  rangeMin: number | null
+  rangeMax: number | null
   dragDropBackground: string
   dragDropItems: string
-  explanation: string
   explanationBlocks: string
-  status: string
   isPractice: boolean
   createdAt: Date
   updatedAt: Date
   _count: TaskDraftCountAggregateOutputType | null
+  _avg: TaskDraftAvgAggregateOutputType | null
+  _sum: TaskDraftSumAggregateOutputType | null
   _min: TaskDraftMinAggregateOutputType | null
   _max: TaskDraftMaxAggregateOutputType | null
 }
@@ -293,12 +324,11 @@ export type TaskDraftWhereInput = {
   answers?: Prisma.StringFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringFilter<"TaskDraft"> | string
   shortAnswer?: Prisma.StringFilter<"TaskDraft"> | string
-  rangeAnswers?: Prisma.StringFilter<"TaskDraft"> | string
+  rangeMin?: Prisma.FloatNullableFilter<"TaskDraft"> | number | null
+  rangeMax?: Prisma.FloatNullableFilter<"TaskDraft"> | number | null
   dragDropBackground?: Prisma.StringFilter<"TaskDraft"> | string
   dragDropItems?: Prisma.StringFilter<"TaskDraft"> | string
-  explanation?: Prisma.StringFilter<"TaskDraft"> | string
   explanationBlocks?: Prisma.StringFilter<"TaskDraft"> | string
-  status?: Prisma.StringFilter<"TaskDraft"> | string
   isPractice?: Prisma.BoolFilter<"TaskDraft"> | boolean
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
@@ -318,12 +348,11 @@ export type TaskDraftOrderByWithRelationInput = {
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   shortAnswer?: Prisma.SortOrder
-  rangeAnswers?: Prisma.SortOrder
+  rangeMin?: Prisma.SortOrderInput | Prisma.SortOrder
+  rangeMax?: Prisma.SortOrderInput | Prisma.SortOrder
   dragDropBackground?: Prisma.SortOrder
   dragDropItems?: Prisma.SortOrder
-  explanation?: Prisma.SortOrder
   explanationBlocks?: Prisma.SortOrder
-  status?: Prisma.SortOrder
   isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -346,12 +375,11 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
   answers?: Prisma.StringFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringFilter<"TaskDraft"> | string
   shortAnswer?: Prisma.StringFilter<"TaskDraft"> | string
-  rangeAnswers?: Prisma.StringFilter<"TaskDraft"> | string
+  rangeMin?: Prisma.FloatNullableFilter<"TaskDraft"> | number | null
+  rangeMax?: Prisma.FloatNullableFilter<"TaskDraft"> | number | null
   dragDropBackground?: Prisma.StringFilter<"TaskDraft"> | string
   dragDropItems?: Prisma.StringFilter<"TaskDraft"> | string
-  explanation?: Prisma.StringFilter<"TaskDraft"> | string
   explanationBlocks?: Prisma.StringFilter<"TaskDraft"> | string
-  status?: Prisma.StringFilter<"TaskDraft"> | string
   isPractice?: Prisma.BoolFilter<"TaskDraft"> | boolean
   createdAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TaskDraft"> | Date | string
@@ -371,18 +399,19 @@ export type TaskDraftOrderByWithAggregationInput = {
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   shortAnswer?: Prisma.SortOrder
-  rangeAnswers?: Prisma.SortOrder
+  rangeMin?: Prisma.SortOrderInput | Prisma.SortOrder
+  rangeMax?: Prisma.SortOrderInput | Prisma.SortOrder
   dragDropBackground?: Prisma.SortOrder
   dragDropItems?: Prisma.SortOrder
-  explanation?: Prisma.SortOrder
   explanationBlocks?: Prisma.SortOrder
-  status?: Prisma.SortOrder
   isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.TaskDraftCountOrderByAggregateInput
+  _avg?: Prisma.TaskDraftAvgOrderByAggregateInput
   _max?: Prisma.TaskDraftMaxOrderByAggregateInput
   _min?: Prisma.TaskDraftMinOrderByAggregateInput
+  _sum?: Prisma.TaskDraftSumOrderByAggregateInput
 }
 
 export type TaskDraftScalarWhereWithAggregatesInput = {
@@ -400,12 +429,11 @@ export type TaskDraftScalarWhereWithAggregatesInput = {
   answers?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   correctAnswerId?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   shortAnswer?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
-  rangeAnswers?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  rangeMin?: Prisma.FloatNullableWithAggregatesFilter<"TaskDraft"> | number | null
+  rangeMax?: Prisma.FloatNullableWithAggregatesFilter<"TaskDraft"> | number | null
   dragDropBackground?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   dragDropItems?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
-  explanation?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   explanationBlocks?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
-  status?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   isPractice?: Prisma.BoolWithAggregatesFilter<"TaskDraft"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"TaskDraft"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"TaskDraft"> | Date | string
@@ -423,12 +451,11 @@ export type TaskDraftCreateInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -448,12 +475,11 @@ export type TaskDraftUncheckedCreateInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -473,12 +499,11 @@ export type TaskDraftUpdateInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -498,12 +523,11 @@ export type TaskDraftUncheckedUpdateInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -523,12 +547,11 @@ export type TaskDraftCreateManyInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -546,12 +569,11 @@ export type TaskDraftUpdateManyMutationInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -569,12 +591,11 @@ export type TaskDraftUncheckedUpdateManyInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -592,15 +613,19 @@ export type TaskDraftCountOrderByAggregateInput = {
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   shortAnswer?: Prisma.SortOrder
-  rangeAnswers?: Prisma.SortOrder
+  rangeMin?: Prisma.SortOrder
+  rangeMax?: Prisma.SortOrder
   dragDropBackground?: Prisma.SortOrder
   dragDropItems?: Prisma.SortOrder
-  explanation?: Prisma.SortOrder
   explanationBlocks?: Prisma.SortOrder
-  status?: Prisma.SortOrder
   isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type TaskDraftAvgOrderByAggregateInput = {
+  rangeMin?: Prisma.SortOrder
+  rangeMax?: Prisma.SortOrder
 }
 
 export type TaskDraftMaxOrderByAggregateInput = {
@@ -615,12 +640,11 @@ export type TaskDraftMaxOrderByAggregateInput = {
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   shortAnswer?: Prisma.SortOrder
-  rangeAnswers?: Prisma.SortOrder
+  rangeMin?: Prisma.SortOrder
+  rangeMax?: Prisma.SortOrder
   dragDropBackground?: Prisma.SortOrder
   dragDropItems?: Prisma.SortOrder
-  explanation?: Prisma.SortOrder
   explanationBlocks?: Prisma.SortOrder
-  status?: Prisma.SortOrder
   isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -638,15 +662,19 @@ export type TaskDraftMinOrderByAggregateInput = {
   answers?: Prisma.SortOrder
   correctAnswerId?: Prisma.SortOrder
   shortAnswer?: Prisma.SortOrder
-  rangeAnswers?: Prisma.SortOrder
+  rangeMin?: Prisma.SortOrder
+  rangeMax?: Prisma.SortOrder
   dragDropBackground?: Prisma.SortOrder
   dragDropItems?: Prisma.SortOrder
-  explanation?: Prisma.SortOrder
   explanationBlocks?: Prisma.SortOrder
-  status?: Prisma.SortOrder
   isPractice?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type TaskDraftSumOrderByAggregateInput = {
+  rangeMin?: Prisma.SortOrder
+  rangeMax?: Prisma.SortOrder
 }
 
 export type TaskDraftScalarRelationFilter = {
@@ -698,12 +726,11 @@ export type TaskDraftCreateWithoutContestTasksInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -722,12 +749,11 @@ export type TaskDraftUncheckedCreateWithoutContestTasksInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -762,12 +788,11 @@ export type TaskDraftUpdateWithoutContestTasksInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -786,12 +811,11 @@ export type TaskDraftUncheckedUpdateWithoutContestTasksInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -810,12 +834,11 @@ export type TaskDraftCreateWithoutAttemptAnswersInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -834,12 +857,11 @@ export type TaskDraftUncheckedCreateWithoutAttemptAnswersInput = {
   answers: string
   correctAnswerId: string
   shortAnswer?: string
-  rangeAnswers?: string
+  rangeMin?: number | null
+  rangeMax?: number | null
   dragDropBackground?: string
   dragDropItems?: string
-  explanation: string
   explanationBlocks?: string
-  status?: string
   isPractice?: boolean
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -874,12 +896,11 @@ export type TaskDraftUpdateWithoutAttemptAnswersInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -898,12 +919,11 @@ export type TaskDraftUncheckedUpdateWithoutAttemptAnswersInput = {
   answers?: Prisma.StringFieldUpdateOperationsInput | string
   correctAnswerId?: Prisma.StringFieldUpdateOperationsInput | string
   shortAnswer?: Prisma.StringFieldUpdateOperationsInput | string
-  rangeAnswers?: Prisma.StringFieldUpdateOperationsInput | string
+  rangeMin?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  rangeMax?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   dragDropBackground?: Prisma.StringFieldUpdateOperationsInput | string
   dragDropItems?: Prisma.StringFieldUpdateOperationsInput | string
-  explanation?: Prisma.StringFieldUpdateOperationsInput | string
   explanationBlocks?: Prisma.StringFieldUpdateOperationsInput | string
-  status?: Prisma.StringFieldUpdateOperationsInput | string
   isPractice?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -962,12 +982,11 @@ export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   answers?: boolean
   correctAnswerId?: boolean
   shortAnswer?: boolean
-  rangeAnswers?: boolean
+  rangeMin?: boolean
+  rangeMax?: boolean
   dragDropBackground?: boolean
   dragDropItems?: boolean
-  explanation?: boolean
   explanationBlocks?: boolean
-  status?: boolean
   isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -988,12 +1007,11 @@ export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   answers?: boolean
   correctAnswerId?: boolean
   shortAnswer?: boolean
-  rangeAnswers?: boolean
+  rangeMin?: boolean
+  rangeMax?: boolean
   dragDropBackground?: boolean
   dragDropItems?: boolean
-  explanation?: boolean
   explanationBlocks?: boolean
-  status?: boolean
   isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -1011,12 +1029,11 @@ export type TaskDraftSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   answers?: boolean
   correctAnswerId?: boolean
   shortAnswer?: boolean
-  rangeAnswers?: boolean
+  rangeMin?: boolean
+  rangeMax?: boolean
   dragDropBackground?: boolean
   dragDropItems?: boolean
-  explanation?: boolean
   explanationBlocks?: boolean
-  status?: boolean
   isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -1034,18 +1051,17 @@ export type TaskDraftSelectScalar = {
   answers?: boolean
   correctAnswerId?: boolean
   shortAnswer?: boolean
-  rangeAnswers?: boolean
+  rangeMin?: boolean
+  rangeMax?: boolean
   dragDropBackground?: boolean
   dragDropItems?: boolean
-  explanation?: boolean
   explanationBlocks?: boolean
-  status?: boolean
   isPractice?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeAnswers" | "dragDropBackground" | "dragDropItems" | "explanation" | "explanationBlocks" | "status" | "isPractice" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
+export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeMin" | "rangeMax" | "dragDropBackground" | "dragDropItems" | "explanationBlocks" | "isPractice" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
 export type TaskDraftInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   contestTasks?: boolean | Prisma.TaskDraft$contestTasksArgs<ExtArgs>
   attemptAnswers?: boolean | Prisma.TaskDraft$attemptAnswersArgs<ExtArgs>
@@ -1072,12 +1088,11 @@ export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     answers: string
     correctAnswerId: string
     shortAnswer: string
-    rangeAnswers: string
+    rangeMin: number | null
+    rangeMax: number | null
     dragDropBackground: string
     dragDropItems: string
-    explanation: string
     explanationBlocks: string
-    status: string
     isPractice: boolean
     createdAt: Date
     updatedAt: Date
@@ -1517,12 +1532,11 @@ export interface TaskDraftFieldRefs {
   readonly answers: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly correctAnswerId: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly shortAnswer: Prisma.FieldRef<"TaskDraft", 'String'>
-  readonly rangeAnswers: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly rangeMin: Prisma.FieldRef<"TaskDraft", 'Float'>
+  readonly rangeMax: Prisma.FieldRef<"TaskDraft", 'Float'>
   readonly dragDropBackground: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly dragDropItems: Prisma.FieldRef<"TaskDraft", 'String'>
-  readonly explanation: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly explanationBlocks: Prisma.FieldRef<"TaskDraft", 'String'>
-  readonly status: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly isPractice: Prisma.FieldRef<"TaskDraft", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"TaskDraft", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"TaskDraft", 'DateTime'>

@@ -65,9 +65,10 @@ test("uses the 17-18 range and S5-S6 grades for Kuntur", async () => {
         { id: "A", blocks: [taskBlock(`kuntur-a-${suffix}`, "Incorrecta")] },
         { id: "B", blocks: [taskBlock(`kuntur-b-${suffix}`, "Correcta")] },
       ],
-      correctAnswerId: "B",
-      explanation: "B es correcta.",
-      status: "Borrador",
+      correctAnswerId: "single:B",
+      explanationBlocks: [
+        taskBlock(`kuntur-explicacion-${suffix}`, "B es correcta."),
+      ],
     },
   });
   expect(taskResponse.ok(), await taskResponse.text()).toBe(true);

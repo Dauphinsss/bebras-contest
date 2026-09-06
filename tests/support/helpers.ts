@@ -194,9 +194,13 @@ export async function createScoringTask(
           blocks: [block(`answer-b-${difficulty}-${index}`, "Correcta")],
         },
       ],
-      correctAnswerId: "B",
-      explanation: "B es la respuesta correcta.",
-      status: "Borrador",
+      correctAnswerId: "single:B",
+      explanationBlocks: [
+        block(
+          `explicacion-${difficulty}-${index}`,
+          "B es la respuesta correcta.",
+        ),
+      ],
     },
   });
   expect(response.ok(), await response.text()).toBe(true);
@@ -376,19 +380,18 @@ export async function createPracticeTask(
               { id: "B", blocks: [taskBlock(`b-${suffix}`, "Correcta")] },
             ]
           : [],
-      correctAnswerId: answerType === "multiple_choice" ? "B" : "",
+      correctAnswerId: answerType === "multiple_choice" ? "single:B" : "",
       shortAnswer: answerType === "short_text" ? "Bebras" : "",
-      rangeAnswers:
-        answerType === "range"
-          ? [{ id: `range-${suffix}`, label: "Válido", min: 10, max: 20 }]
-          : [],
+      rangeMin: answerType === "range" ? 10 : null,
+      rangeMax: answerType === "range" ? 20 : null,
       dragDropBackground:
         answerType === "drag_drop" ? DRAG_DROP_BACKGROUND : null,
       dragDropItems: answerType === "drag_drop" ? DRAG_DROP_ITEMS : [],
       dragDropTargets:
         answerType === "drag_drop" ? DRAG_DROP_INPUT_TARGETS : [],
-      explanation: `Explicación ${answerType}`,
-      status: "Borrador",
+      explanationBlocks: [
+        taskBlock(`explicacion-${suffix}`, `Explicación ${answerType}`),
+      ],
       isPractice: true,
       ...overrides,
     },

@@ -23,7 +23,10 @@ import {
   type StoredContest,
 } from "@/lib/contest-schema";
 import { listTasks } from "@/lib/tasks-api";
-import type { StoredTask } from "@/lib/task-schema";
+import {
+  parseMultipleChoiceCorrectness,
+  type StoredTask,
+} from "@/lib/task-schema";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +39,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { TaskExplanation } from "@/components/task-explanation";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +96,9 @@ export function ContestTasksPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<StoredTask | null>(null);
+  const previewCorrectIds = preview
+    ? parseMultipleChoiceCorrectness(preview.correctAnswerId).correctOptionIds
+    : [];
 
   useEffect(() => {
     if (!contestId) {
@@ -455,7 +460,7 @@ export function ContestTasksPage() {
                   preview.answers.length > 0 && (
                     <ul className="flex flex-col gap-2">
                       {preview.answers.map((answer) => {
-                        const right = answer.id === preview.correctAnswerId;
+                        const right = previewCorrectIds.includes(answer.id);
                         return (
                           <li
                             key={answer.id}
@@ -478,13 +483,10 @@ export function ContestTasksPage() {
                       })}
                     </ul>
                   )}
-                {(preview.explanation || preview.explanationBlocks?.length) && (
+                {preview.explanationBlocks?.length && (
                   <div className="rounded-sm border bg-muted/40 px-3 py-2 text-sm">
                     <span className="font-semibold">Explicación: </span>
-                    <TaskExplanation
-                      explanation={preview.explanation}
-                      blocks={preview.explanationBlocks}
-                    />
+                    <TaskContentRenderer blocks={preview.explanationBlocks} />
                   </div>
                 )}
               </>

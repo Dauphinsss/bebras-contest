@@ -65,3 +65,6 @@ frontend/public/*.pdf
 .analisis.json
 backend/.seed-backup.json
 backend/.sonaja-backup.json
+
+# Respaldos de la base local
+*.db.backup-*

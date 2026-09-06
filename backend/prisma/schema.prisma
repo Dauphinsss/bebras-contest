@@ -75,12 +75,11 @@ model TaskDraft {
   answers                 String
   correctAnswerId         String
   shortAnswer             String          @default("")
-  rangeAnswers            String          @default("[]")
+  rangeMin                Float?
+  rangeMax                Float?
   dragDropBackground      String          @default("null")
   dragDropItems           String          @default("[]")
-  explanation             String
   explanationBlocks       String          @default("[]")
-  status                  String          @default("Borrador")
   isPractice              Boolean         @default(false)
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt

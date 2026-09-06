@@ -171,7 +171,6 @@ export function TasksHome() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex min-w-0 flex-col gap-3">
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{task.status}</Badge>
                         {task.levels.map((level) => (
                           <Badge key={level} variant="outline">
                             {level}

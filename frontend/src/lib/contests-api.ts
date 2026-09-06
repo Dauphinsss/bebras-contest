@@ -115,7 +115,6 @@ export type ContestPreviewScore = {
     answered: boolean;
     correct: boolean;
     score: number;
-    explanation: string;
     explanationBlocks?: ContentBlock[];
   }>;
 };

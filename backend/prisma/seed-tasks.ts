@@ -20,12 +20,10 @@ type TaskItem = {
   answers?: Array<{ id: string; blocks: unknown[]; isCorrect?: boolean }>;
   correctAnswerId?: string;
   shortAnswer?: string;
-  rangeAnswers?: unknown[];
   dragDropBackground?: unknown;
   dragDropItems?: unknown;
   dragDropTargets?: unknown[];
-  explanation?: string;
-  status?: string;
+  explanationBlocks?: unknown[];
   isPractice?: boolean;
 };
 
@@ -45,7 +43,9 @@ async function main() {
     for (const task of tasks) {
       const data = {
         title: task.title,
-        category: JSON.stringify(task.categories ?? task.category ?? ["Algoritmos y programación"]),
+        category: JSON.stringify(
+          task.categories ?? task.category ?? ["Algoritmos y programación"],
+        ),
         difficulties: JSON.stringify(task.difficulties ?? {}),
         bodyBlocks: JSON.stringify(task.bodyBlocks ?? []),
         challengeBlocks: JSON.stringify(task.challengeBlocks ?? []),
@@ -54,7 +54,8 @@ async function main() {
         answers: JSON.stringify(task.answers ?? []),
         correctAnswerId: task.correctAnswerId ?? "",
         shortAnswer: task.shortAnswer ?? "",
-        rangeAnswers: JSON.stringify(task.rangeAnswers ?? []),
+        rangeMin: null,
+        rangeMax: null,
         dragDropBackground: JSON.stringify(task.dragDropBackground ?? null),
         dragDropItems: JSON.stringify(
           task.dragDropTargets
@@ -67,8 +68,7 @@ async function main() {
               }
             : (task.dragDropItems ?? []),
         ),
-        explanation: task.explanation ?? "",
-        status: task.status ?? "Borrador",
+        explanationBlocks: JSON.stringify(task.explanationBlocks ?? []),
         isPractice: task.isPractice ?? true,
       };
 
@@ -94,7 +94,7 @@ async function main() {
       difficulty: "easy",
       question: "¿Cuál de estas opciones representa el número dos?",
       answers: ["1", "2", "3", "4"],
-      correctAnswerId: "B",
+      correctAnswerId: "single:B",
       explanation: "La opción B representa el número dos.",
     },
     {
@@ -103,8 +103,9 @@ async function main() {
       difficulty: "medium",
       question: "¿Qué número continúa la secuencia 2, 4, 6?",
       answers: ["7", "8", "9", "10"],
-      correctAnswerId: "B",
-      explanation: "La secuencia aumenta de dos en dos, por lo que continúa con 8.",
+      correctAnswerId: "single:B",
+      explanation:
+        "La secuencia aumenta de dos en dos, por lo que continúa con 8.",
     },
     {
       id: "seed-bebras-hard",
@@ -112,7 +113,7 @@ async function main() {
       difficulty: "hard",
       question: "Si todos los caminos llevan a B, ¿qué nodo se alcanza?",
       answers: ["A", "B", "C", "D"],
-      correctAnswerId: "B",
+      correctAnswerId: "single:B",
       explanation: "Todos los caminos descritos terminan en el nodo B.",
     },
   ] as const;
@@ -130,7 +131,11 @@ async function main() {
         ),
       ),
       bodyBlocks: JSON.stringify([
-        contentBlock(`${task.id}-body`, "text", "Lee el desafío y selecciona la respuesta correcta."),
+        contentBlock(
+          `${task.id}-body`,
+          "text",
+          "Lee el desafío y selecciona la respuesta correcta.",
+        ),
       ]),
       challengeBlocks: JSON.stringify([
         contentBlock(`${task.id}-challenge`, "challenge", task.question),
@@ -145,11 +150,13 @@ async function main() {
       ),
       correctAnswerId: task.correctAnswerId,
       shortAnswer: "",
-      rangeAnswers: "[]",
+      rangeMin: null,
+      rangeMax: null,
       dragDropBackground: "null",
       dragDropItems: "[]",
-      explanation: task.explanation,
-      status: "Borrador",
+      explanationBlocks: JSON.stringify([
+        contentBlock(`${task.id}-explicacion`, "text", task.explanation),
+      ]),
       isPractice: false,
     };
 

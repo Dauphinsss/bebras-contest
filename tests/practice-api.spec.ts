@@ -123,8 +123,9 @@ test("serves and checks all four public practice answer types", async () => {
     expect(detail.answerType).toBe(practiceCase.task.answerType);
     expect(detail).not.toHaveProperty("correctAnswerId");
     expect(detail).not.toHaveProperty("shortAnswer");
-    expect(detail).not.toHaveProperty("rangeAnswers");
-    expect(detail).not.toHaveProperty("explanation");
+    expect(detail).not.toHaveProperty("rangeMin");
+    expect(detail).not.toHaveProperty("rangeMax");
+    expect(detail).not.toHaveProperty("explanationBlocks");
     if (detail.answerType === "drag_drop") {
       expect(detail.dragDropTargets).toHaveLength(DRAG_DROP_TARGETS.length);
       expect(detail.dragDropTargets).toEqual(

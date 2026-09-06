@@ -22,7 +22,6 @@ export type PracticeTaskList = {
 
 export type PracticeCheck = {
   correct: boolean;
-  explanation: string;
   explanationBlocks?: ContentBlock[];
 };
 

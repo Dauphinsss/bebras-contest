@@ -59,13 +59,6 @@ export type StoredTaskAnswer = {
   isCorrect?: boolean;
 };
 
-export type StoredTaskRangeAnswer = {
-  id: string;
-  label: string;
-  min: number;
-  max: number;
-};
-
 export type StoredTaskDragDropItem = {
   id: string;
   label: string;
@@ -105,14 +98,14 @@ export type StoredTask = {
   answers: StoredTaskAnswer[];
   correctAnswerId: string;
   shortAnswer: string;
-  rangeAnswers: StoredTaskRangeAnswer[];
+  /** Único intervalo aceptado cuando la respuesta es un número. */
+  rangeMin: number | null;
+  rangeMax: number | null;
   dragDropBackground: ContentImage | null;
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];
   dragDropSolutions?: StoredTaskDragDropSolution[];
-  explanation: string;
-  explanationBlocks?: ContentBlock[];
-  status: "Borrador";
+  explanationBlocks: ContentBlock[];
   updatedAt: string;
 };
 
@@ -237,45 +230,42 @@ export function encodeMultipleChoiceCorrectness(
   const uniqueOptions = [...new Set(correctOptionIds)].filter(isOptionKey);
 
   if (mode === "single") {
-    return uniqueOptions[0] ?? "A";
+    return `single:${uniqueOptions[0] ?? "A"}`;
   }
 
   const prefix = mode === "all" ? "all" : "any";
   return `${prefix}:${uniqueOptions.join(",")}`;
 }
 
+/**
+ * Lee `correctAnswerId`. El formato es `modo:opciones` (`single:B`, `any:B,C`,
+ * `all:B,D`). Una letra suelta es el formato viejo y se lee como `single`.
+ */
 export function parseMultipleChoiceCorrectness(
   value: string | null | undefined,
 ) {
   const rawValue = String(value ?? "").trim();
+  const separatorAt = rawValue.indexOf(":");
 
-  if (rawValue.startsWith("any:")) {
+  if (separatorAt !== -1) {
+    const rawMode = rawValue.slice(0, separatorAt);
+    const mode = (
+      (multipleChoiceCorrectnessModes as readonly string[]).includes(rawMode)
+        ? rawMode
+        : "single"
+    ) as MultipleChoiceCorrectnessMode;
     const correctOptionIds = normalizeOptionKeys(
       rawValue
-        .slice(4)
+        .slice(separatorAt + 1)
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean),
     );
 
     return {
-      mode: "any" as MultipleChoiceCorrectnessMode,
-      correctOptionIds,
-    };
-  }
-
-  if (rawValue.startsWith("all:")) {
-    const correctOptionIds = normalizeOptionKeys(
-      rawValue
-        .slice(4)
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    );
-
-    return {
-      mode: "all" as MultipleChoiceCorrectnessMode,
-      correctOptionIds,
+      mode,
+      correctOptionIds:
+        mode === "single" ? correctOptionIds.slice(0, 1) : correctOptionIds,
     };
   }
 

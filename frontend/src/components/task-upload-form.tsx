@@ -87,7 +87,6 @@ import {
   type StoredTaskDragDropItem,
   type StoredTaskDragDropSolution,
   type StoredTaskDragDropTarget,
-  type StoredTaskRangeAnswer,
   type StoredTask,
 } from "@/lib/task-schema";
 
@@ -116,7 +115,8 @@ type FormState = {
   multipleChoiceCorrectnessMode: MultipleChoiceCorrectnessMode;
   correctOptions: OptionKey[];
   shortAnswer: string;
-  rangeAnswers: StoredTaskRangeAnswer[];
+  rangeMin: number;
+  rangeMax: number;
   dragDropBackground: {
     id: string;
     name: string;
@@ -201,14 +201,8 @@ const createInitialState = (
     multipleChoiceCorrectnessMode: "single",
     correctOptions: [],
     shortAnswer: "",
-    rangeAnswers: [
-      {
-        id: crypto.randomUUID(),
-        label: "Rango válido",
-        min: 0,
-        max: 10,
-      },
-    ],
+    rangeMin: 0,
+    rangeMax: 10,
     dragDropBackground: null,
     dragDropItems: [dragDropEntry.item],
     dragDropTargets: [dragDropEntry.target],
@@ -274,17 +268,8 @@ function createStateFromTask(task: StoredTask): FormState {
     multipleChoiceCorrectnessMode: parsedCorrectness.mode,
     correctOptions: correctOptionIds,
     shortAnswer: task.shortAnswer ?? "",
-    rangeAnswers:
-      (task.rangeAnswers ?? []).length > 0
-        ? task.rangeAnswers
-        : [
-            {
-              id: crypto.randomUUID(),
-              label: "Rango válido",
-              min: 0,
-              max: 10,
-            },
-          ],
+    rangeMin: task.rangeMin ?? 0,
+    rangeMax: task.rangeMax ?? 10,
     dragDropBackground: task.dragDropBackground ?? null,
     dragDropItems: hasDragDropConfiguration
       ? task.dragDropItems.map((item) => ({
@@ -302,7 +287,7 @@ function createStateFromTask(task: StoredTask): FormState {
       : [],
     explanationBlocks: task.explanationBlocks?.length
       ? task.explanationBlocks
-      : [{ ...createContentBlock("text"), content: task.explanation }],
+      : [createContentBlock("text")],
   };
 }
 
@@ -382,24 +367,10 @@ function validateForm(state: FormState) {
   }
 
   if (state.answerType === "range") {
-    if (state.rangeAnswers.length === 0) {
-      errors.push("Debes agregar al menos un rango válido.");
-    }
-
-    for (const rangeAnswer of state.rangeAnswers) {
-      if (!rangeAnswer.label.trim()) {
-        errors.push("Cada rango debe tener una etiqueta.");
-      }
-
-      if (Number.isNaN(rangeAnswer.min) || Number.isNaN(rangeAnswer.max)) {
-        errors.push("Cada rango debe tener valores numéricos válidos.");
-      }
-
-      if (rangeAnswer.min > rangeAnswer.max) {
-        errors.push(
-          "En cada rango, el mínimo no puede ser mayor que el máximo.",
-        );
-      }
+    if (!Number.isFinite(state.rangeMin) || !Number.isFinite(state.rangeMax)) {
+      errors.push("El rango debe tener valores numéricos válidos.");
+    } else if (state.rangeMin > state.rangeMax) {
+      errors.push("El mínimo no puede ser mayor que el máximo.");
     }
   }
 
@@ -593,16 +564,11 @@ function buildStoredTask(
             state.multipleChoiceCorrectnessMode,
             activeCorrectOptions,
           )
-        : "A",
+        : "",
     shortAnswer:
       state.answerType === "short_text" ? state.shortAnswer.trim() : "",
-    rangeAnswers:
-      state.answerType === "range"
-        ? state.rangeAnswers.map((rangeAnswer) => ({
-            ...rangeAnswer,
-            label: rangeAnswer.label.trim(),
-          }))
-        : [],
+    rangeMin: state.answerType === "range" ? state.rangeMin : null,
+    rangeMax: state.answerType === "range" ? state.rangeMax : null,
     dragDropBackground:
       state.answerType === "drag_drop" ? state.dragDropBackground : null,
     dragDropItems:
@@ -617,12 +583,7 @@ function buildStoredTask(
       state.answerType === "drag_drop" ? state.dragDropTargets : [],
     dragDropSolutions:
       state.answerType === "drag_drop" ? state.dragDropSolutions : [],
-    explanation: state.explanationBlocks
-      .map((block) => block.content)
-      .filter(Boolean)
-      .join("\n"),
     explanationBlocks: state.explanationBlocks,
-    status: "Borrador",
     updatedAt: new Date().toISOString(),
   };
 }
@@ -1701,148 +1662,45 @@ export function TaskUploadForm({
           {form.answerType === "range" && (
             <FieldSet className="gap-4">
               <FieldLegend className="mb-0" variant="label">
-                Rangos válidos
+                Rango válido
               </FieldLegend>
               <FieldDescription>
-                Define uno o varios intervalos aceptados. La respuesta será
-                correcta si el valor cae dentro de al menos uno de ellos.
+                La respuesta será correcta si el número cae dentro de este
+                intervalo, extremos incluidos.
               </FieldDescription>
-              <div className="flex flex-col gap-4">
-                {form.rangeAnswers.map((rangeAnswer, index) => (
-                  <Card
-                    key={rangeAnswer.id}
-                    className="rounded-xl border bg-card shadow-sm"
-                  >
-                    <CardHeader className="border-b">
-                      <div className="flex items-center gap-3">
-                        <BetweenHorizonalStartIcon className="text-muted-foreground" />
-                        <div>
-                          <CardTitle className="text-base">
-                            {rangeAnswer.label.trim() || `Rango ${index + 1}`}
-                          </CardTitle>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
-                      <Field>
-                        <FieldLabel htmlFor={`range-label-${rangeAnswer.id}`}>
-                          Nombre del rango
-                        </FieldLabel>
-                        <FieldContent>
-                          <Input
-                            id={`range-label-${rangeAnswer.id}`}
-                            placeholder="Ej. Entre 10 y 20"
-                            value={rangeAnswer.label}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                rangeAnswers: current.rangeAnswers.map(
-                                  (item) =>
-                                    item.id === rangeAnswer.id
-                                      ? { ...item, label: event.target.value }
-                                      : item,
-                                ),
-                              }))
-                            }
-                          />
-                        </FieldContent>
-                      </Field>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Field>
-                          <FieldLabel htmlFor={`range-min-${rangeAnswer.id}`}>
-                            Mínimo
-                          </FieldLabel>
-                          <FieldContent>
-                            <Input
-                              id={`range-min-${rangeAnswer.id}`}
-                              type="number"
-                              value={String(rangeAnswer.min)}
-                              onChange={(event) =>
-                                setForm((current) => ({
-                                  ...current,
-                                  rangeAnswers: current.rangeAnswers.map(
-                                    (item) =>
-                                      item.id === rangeAnswer.id
-                                        ? {
-                                            ...item,
-                                            min: Number(
-                                              event.target.value || 0,
-                                            ),
-                                          }
-                                        : item,
-                                  ),
-                                }))
-                              }
-                            />
-                          </FieldContent>
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor={`range-max-${rangeAnswer.id}`}>
-                            Máximo
-                          </FieldLabel>
-                          <FieldContent>
-                            <Input
-                              id={`range-max-${rangeAnswer.id}`}
-                              type="number"
-                              value={String(rangeAnswer.max)}
-                              onChange={(event) =>
-                                setForm((current) => ({
-                                  ...current,
-                                  rangeAnswers: current.rangeAnswers.map(
-                                    (item) =>
-                                      item.id === rangeAnswer.id
-                                        ? {
-                                            ...item,
-                                            max: Number(
-                                              event.target.value || 0,
-                                            ),
-                                          }
-                                        : item,
-                                  ),
-                                }))
-                              }
-                            />
-                          </FieldContent>
-                        </Field>
-                      </div>
-                      {form.rangeAnswers.length > 1 && (
-                        <Button
-                          type="button"
-                          onClick={() =>
-                            setForm((current) => ({
-                              ...current,
-                              rangeAnswers: current.rangeAnswers.filter(
-                                (item) => item.id !== rangeAnswer.id,
-                              ),
-                            }))
-                          }
-                        >
-                          Eliminar rango
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-                <Button
-                  type="button"
-                  onClick={() =>
-                    setForm((current) => ({
-                      ...current,
-                      rangeAnswers: [
-                        ...current.rangeAnswers,
-                        {
-                          id: crypto.randomUUID(),
-                          label: "Nuevo rango",
-                          min: 0,
-                          max: 0,
-                        },
-                      ],
-                    }))
-                  }
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Agregar rango
-                </Button>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="range-min">Mínimo</FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="range-min"
+                      type="number"
+                      value={String(form.rangeMin)}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rangeMin: Number(event.target.value || 0),
+                        }))
+                      }
+                    />
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="range-max">Máximo</FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="range-max"
+                      type="number"
+                      value={String(form.rangeMax)}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          rangeMax: Number(event.target.value || 0),
+                        }))
+                      }
+                    />
+                  </FieldContent>
+                </Field>
               </div>
             </FieldSet>
           )}

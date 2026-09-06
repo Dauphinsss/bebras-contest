@@ -624,7 +624,8 @@ function deserializeTask<
     answerType?: unknown;
     answers: unknown;
     shortAnswer?: unknown;
-    rangeAnswers?: unknown;
+    rangeMin?: unknown;
+    rangeMax?: unknown;
     dragDropBackground?: unknown;
     dragDropItems?: unknown;
     multipleChoiceOrderMode?: unknown;
@@ -644,10 +645,8 @@ function deserializeTask<
     answerType: String(task.answerType ?? "multiple_choice"),
     answers: parseJsonValue<PlayTask["answers"]>(task.answers, []),
     shortAnswer: String(task.shortAnswer ?? ""),
-    rangeAnswers: parseJsonValue<PlayTask["rangeAnswers"]>(
-      task.rangeAnswers,
-      [],
-    ),
+    rangeMin: toFiniteNumber(task.rangeMin),
+    rangeMax: toFiniteNumber(task.rangeMax),
     dragDropBackground: parseJsonValue<unknown>(task.dragDropBackground, null),
     dragDropItems: dragDropConfig.items,
     dragDropTargets: dragDropConfig.targets,
@@ -663,15 +662,19 @@ function deserializeTaskSummary(task: {
   title: string;
   category: string;
   difficulties: string;
-  status: string;
 }) {
   return {
     id: task.id,
     title: task.title,
     categories: deserializeCategories(task.category),
     difficulties: normalizeTaskDifficulties(task.difficulties),
-    status: task.status,
   };
+}
+
+/** Lee un numero opcional; devuelve null si no hay uno usable. */
+function toFiniteNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 const TASK_CATEGORIES = [
@@ -802,18 +805,15 @@ function parseTaskPayload(body: Record<string, unknown>) {
     throw new Error("El tipo de respuesta no es válido.");
   }
 
-  const explanation = readText(body.explanation);
-
-  if (!explanation && countFilledBlocks(body.explanationBlocks) === 0) {
+  if (countFilledBlocks(body.explanationBlocks) === 0) {
     throw new Error("La explicación de la respuesta es obligatoria.");
   }
 
   const answers = Array.isArray(body.answers) ? body.answers : [];
   const correctAnswerId = readText(body.correctAnswerId);
   const shortAnswer = readText(body.shortAnswer);
-  const rangeAnswers = Array.isArray(body.rangeAnswers)
-    ? body.rangeAnswers
-    : [];
+  const rangeMin = toFiniteNumber(body.rangeMin);
+  const rangeMax = toFiniteNumber(body.rangeMax);
   const dragDropItems = Array.isArray(body.dragDropItems)
     ? body.dragDropItems
     : [];
@@ -874,28 +874,12 @@ function parseTaskPayload(body: Record<string, unknown>) {
   }
 
   if (answerType === "range") {
-    if (rangeAnswers.length === 0) {
-      throw new Error("Debes agregar al menos un rango válido.");
+    if (rangeMin === null || rangeMax === null) {
+      throw new Error("Debes definir el mínimo y el máximo del rango válido.");
     }
 
-    for (const rangeAnswer of rangeAnswers) {
-      const range = (rangeAnswer ?? {}) as Record<string, unknown>;
-      const min = Number(range.min);
-      const max = Number(range.max);
-
-      if (!readText(range.label)) {
-        throw new Error("Cada rango debe tener una etiqueta.");
-      }
-
-      if (!Number.isFinite(min) || !Number.isFinite(max)) {
-        throw new Error("Cada rango debe tener valores numéricos válidos.");
-      }
-
-      if (min > max) {
-        throw new Error(
-          "En cada rango, el mínimo no puede ser mayor que el máximo.",
-        );
-      }
+    if (rangeMin > rangeMax) {
+      throw new Error("El mínimo no puede ser mayor que el máximo.");
     }
   }
 
@@ -1142,16 +1126,15 @@ function parseTaskPayload(body: Record<string, unknown>) {
     answers: serializeJson(answers),
     correctAnswerId,
     shortAnswer: answerType === "short_text" ? shortAnswer : "",
-    rangeAnswers: serializeJson(answerType === "range" ? rangeAnswers : []),
+    rangeMin: answerType === "range" ? rangeMin : null,
+    rangeMax: answerType === "range" ? rangeMax : null,
     dragDropBackground: serializeJson(
       answerType === "drag_drop" ? (body.dragDropBackground ?? null) : null,
     ),
     dragDropItems: serializeJson(
       answerType === "drag_drop" ? dragDropConfig : [],
     ),
-    explanation,
     explanationBlocks: serializeJson(body.explanationBlocks ?? []),
-    status: readText(body.status) || "Borrador",
   };
 }
 
@@ -1576,7 +1559,6 @@ function deserializeContest(contest: {
       title: string;
       category: string;
       difficulties: string;
-      status: string;
     };
   }>;
 }) {
@@ -2498,7 +2480,6 @@ app.post("/api/practice/tasks/:id/check", async (req, res) => {
 
   res.json({
     correct,
-    explanation: (task as { explanation?: string }).explanation ?? "",
     explanationBlocks: task.explanationBlocks,
   });
 });
@@ -3236,7 +3217,6 @@ app.post("/api/contests/:id/preview/score", async (req, res) => {
       answered,
       correct,
       score,
-      explanation: task.explanation ?? "",
       explanationBlocks: task.explanationBlocks,
     };
   });
@@ -5264,37 +5244,31 @@ app.get("/api/play/team/:personalCode", async (req, res) => {
   });
 });
 
+/**
+ * Lee `correctAnswerId`. El formato es `modo:opciones` (`single:B`, `any:B,C`,
+ * `all:B,D`). Una letra suelta es el formato viejo y se lee como `single`.
+ */
 function parseMcCorrectness(value: string) {
   const raw = String(value ?? "").trim();
-  if (raw.startsWith("any:")) {
-    return {
-      mode: "any",
-      ids: [
-        ...new Set(
-          raw
-            .slice(4)
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-        ),
-      ],
-    };
+  const separatorAt = raw.indexOf(":");
+
+  if (separatorAt === -1) {
+    return { mode: "single", ids: raw ? [raw] : [] };
   }
-  if (raw.startsWith("all:")) {
-    return {
-      mode: "all",
-      ids: [
-        ...new Set(
-          raw
-            .slice(4)
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-        ),
-      ],
-    };
-  }
-  return { mode: "single", ids: raw ? [raw] : [] };
+
+  const rawMode = raw.slice(0, separatorAt);
+  const mode = rawMode === "any" || rawMode === "all" ? rawMode : "single";
+  const ids = [
+    ...new Set(
+      raw
+        .slice(separatorAt + 1)
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  return { mode, ids: mode === "single" ? ids.slice(0, 1) : ids };
 }
 
 type PlayTask = {
@@ -5307,13 +5281,13 @@ type PlayTask = {
   answers: Array<{ id: unknown; blocks: unknown }>;
   correctAnswerId: string;
   shortAnswer: unknown;
-  rangeAnswers: Array<{ min: number; max: number }>;
+  rangeMin: number | null;
+  rangeMax: number | null;
   dragDropBackground: unknown;
   dragDropItems: DragDropItem[];
   dragDropTargets: DragDropTarget[];
   dragDropSolutions: DragDropSolution[];
   dragDropVersion: 1 | 2;
-  explanation: unknown;
   explanationBlocks?: unknown;
 };
 
@@ -5456,9 +5430,10 @@ function answerIsCorrect(task: PlayTask, payload: unknown) {
     if (Number.isNaN(value)) {
       return false;
     }
-    return task.rangeAnswers.some(
-      (range) => value >= range.min && value <= range.max,
-    );
+    if (task.rangeMin === null || task.rangeMax === null) {
+      return false;
+    }
+    return value >= task.rangeMin && value <= task.rangeMax;
   }
   if (type === "drag_drop") {
     const items = task.dragDropItems;
@@ -6122,14 +6097,12 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
     const task = deserializeTask(contestTask.taskDraft) as PlayTask;
     const safe: ReturnType<typeof renderSafeTask> & {
       correct?: boolean | null;
-      explanation?: unknown;
       explanationBlocks?: unknown;
     } = renderSafeTask(contestTask, task);
     if (showResults) {
       safe.correct = correctnessByTask[task.id] ?? null;
     }
     if (showResults && contest.showSolutions) {
-      safe.explanation = task.explanation;
       safe.explanationBlocks = task.explanationBlocks;
     }
     return safe;

@@ -114,10 +114,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "C",
-    "explanation": "**Respuesta correcta: C**\n\nEn la caja se puede observar en dónde cabe cada una de las otras tres pulseras, pero no hay ningún espacio con el patrón negro/blanco alternado como el de la pulsera C.\n\n---\n\n### ¿Qué tiene que ver con informática?\nEn las computadoras usamos reglas claras para saber dónde organizar la información y filtrar aquello que no cumple con las condiciones.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:C",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "998213da-a9f4-55ac-be1e-cf85b61fff24",
+        "type": "text",
+        "content": "**Respuesta correcta: C**\n\nEn la caja se puede observar en dónde cabe cada una de las otras tres pulseras, pero no hay ningún espacio con el patrón negro/blanco alternado como el de la pulsera C.\n\n---\n\n### ¿Qué tiene que ver con informática?\nEn las computadoras usamos reglas claras para saber dónde organizar la información y filtrar aquello que no cumple con las condiciones.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-02-la-pelota",
@@ -257,10 +264,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "A",
-    "explanation": "**Respuesta correcta: A**\n\n1. Sin rayas: se descartan B y D.\n2. Con estrella: se descartan C y E.\n3. Sin luna: se descarta F.\nSolo queda la pelota **A**.\n\n---\n\n### ¿Qué tiene que ver con informática?\nEvaluación de condiciones lógicas compuestas (condicionales booleanas).",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:A",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "de7889af-7094-5ab9-a8cf-afa60232967a",
+        "type": "text",
+        "content": "**Respuesta correcta: A**\n\n1. Sin rayas: se descartan B y D.\n2. Con estrella: se descartan C y E.\n3. Sin luna: se descarta F.\nSolo queda la pelota **A**.\n\n---\n\n### ¿Qué tiene que ver con informática?\nEvaluación de condiciones lógicas compuestas (condicionales booleanas).",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-03-tarjetas-de-riccas",
@@ -377,10 +391,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "B",
-    "explanation": "**Respuesta correcta: B**\n\nEn la Tarjeta B el nombre es texto ('LORI'), los cuernos tienen símbolo booleano ('✓') y los ojos tienen número ('3').\n\n---\n\n### ¿Qué tiene que ver con informática?\nTipos de variables en computación (string, integer, boolean).",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:B",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "6fde789a-7984-5cff-86b6-8a417417c466",
+        "type": "text",
+        "content": "**Respuesta correcta: B**\n\nEn la Tarjeta B el nombre es texto ('LORI'), los cuernos tienen símbolo booleano ('✓') y los ojos tienen número ('3').\n\n---\n\n### ¿Qué tiene que ver con informática?\nTipos de variables en computación (string, integer, boolean).",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-05-pintando",
@@ -497,10 +518,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "A",
-    "explanation": "**Respuesta correcta: A**\n\nOrden de gasto (menor nivel restante = mayor área):\n1. Verde (pasto)\n2. Azul (cielo)\n3. Marrón (castor)\n4. Amarillo (sol) y Morado (flores).\nEl cuadro A sigue exactamente este orden de proporciones.\n\n---\n\n### ¿Qué tiene que ver con informática?\nAlgoritmos de ordenamiento de datos.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:A",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "993fd031-6e75-54ae-807a-bbcab7ff1b27",
+        "type": "text",
+        "content": "**Respuesta correcta: A**\n\nOrden de gasto (menor nivel restante = mayor área):\n1. Verde (pasto)\n2. Azul (cielo)\n3. Marrón (castor)\n4. Amarillo (sol) y Morado (flores).\nEl cuadro A sigue exactamente este orden de proporciones.\n\n---\n\n### ¿Qué tiene que ver con informática?\nAlgoritmos de ordenamiento de datos.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-06-treboles-giratorios",
@@ -617,17 +645,24 @@
         "isCorrect": true
       }
     ],
-    "correctAnswerId": "D",
-    "explanation": "**Respuesta correcta: D**\n\nAl alinear la orientación con el tallo hacia abajo, el único trébol idéntico al de Seamus en hojas y mordedura es el D.\n\n---\n\n### ¿Qué tiene que ver con informática?\nNormalización de datos antes de realizar comparaciones y búsqueda de duplicados.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:D",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "d77430f6-df2e-5f32-9fce-73d3a75b7c1c",
+        "type": "text",
+        "content": "**Respuesta correcta: D**\n\nAl alinear la orientación con el tallo hacia abajo, el único trébol idéntico al de Seamus en hojas y mordedura es el D.\n\n---\n\n### ¿Qué tiene que ver con informática?\nNormalización de datos antes de realizar comparaciones y búsqueda de duplicados.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-07-fiesta",
     "title": "07. Fiesta (República de Corea / 2024)",
     "categories": [
       "Algoritmos y programación",
-      "Estructuras de datos y lógica"
+      "Estructuras de datos y representaciones"
     ],
     "difficulties": {
       "5–8": "",
@@ -678,7 +713,6 @@
     "answers": [],
     "correctAnswerId": "",
     "shortAnswer": "",
-    "rangeAnswers": [],
     "dragDropBackground": {
       "id": "bg-b07-fiesta",
       "name": "escenario-fiesta.png",
@@ -756,9 +790,16 @@
         }
       }
     ],
-    "explanation": "Solución paso a paso:\n\n1. Contenido de las brochetas:\n   • Brocheta 1: 3 carnes, 1 zanahoria, 1 ajo.\n   • Brocheta 2: 2 zanahorias, 2 carnes, 1 ajo.\n   • Brocheta 3: 1 zanahoria, 2 carnes, 1 cebolla, 1 ajo.\n   • Brocheta 4: 2 ajos, 2 carnes, 1 cebolla.\n\n2. Deducción lógica:\n   • Castor C quiere tanto ajo como sea posible: Solo la brocheta 4 tiene 2 ajos, así que le corresponde al castor C.\n   • Castor D quiere tanta carne como sea posible: Solo la brocheta 1 tiene 3 cubos de carne, así que le corresponde al castor D.\n   • De las restantes (brochetas 2 y 3), el castor B no puede comer cebolla. Como la brocheta 3 tiene cebolla, no se le puede dar a B; por lo tanto, la brocheta 3 le corresponde al castor A (a quien le gusta la zanahoria y la brocheta 3 tiene zanahoria).\n   • Al castor B le damos la brocheta 2 (que no tiene cebolla y tiene zanahorias y carne).\n\nAsignación final correcta:\n• Castor A → Brocheta 3\n• Castor B → Brocheta 2\n• Castor C → Brocheta 4\n• Castor D → Brocheta 1\n\n¿Qué tiene que ver con la informática?\nEn informática, este tipo de problemas se denominan Problemas de Satisfacción de Restricciones (CSP - Constraint Satisfaction Problems). En ellos se busca asignar recursos a destinatarios cumpliendo una serie de condiciones y restricciones. Se utilizan comúnmente en la asignación de recursos computacionales, resolución de acertijos y planificación de horarios.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "d61c2045-ab76-5a46-8e9e-dc6d09756b72",
+        "type": "text",
+        "content": "Solución paso a paso:\n\n1. Contenido de las brochetas:\n   • Brocheta 1: 3 carnes, 1 zanahoria, 1 ajo.\n   • Brocheta 2: 2 zanahorias, 2 carnes, 1 ajo.\n   • Brocheta 3: 1 zanahoria, 2 carnes, 1 cebolla, 1 ajo.\n   • Brocheta 4: 2 ajos, 2 carnes, 1 cebolla.\n\n2. Deducción lógica:\n   • Castor C quiere tanto ajo como sea posible: Solo la brocheta 4 tiene 2 ajos, así que le corresponde al castor C.\n   • Castor D quiere tanta carne como sea posible: Solo la brocheta 1 tiene 3 cubos de carne, así que le corresponde al castor D.\n   • De las restantes (brochetas 2 y 3), el castor B no puede comer cebolla. Como la brocheta 3 tiene cebolla, no se le puede dar a B; por lo tanto, la brocheta 3 le corresponde al castor A (a quien le gusta la zanahoria y la brocheta 3 tiene zanahoria).\n   • Al castor B le damos la brocheta 2 (que no tiene cebolla y tiene zanahorias y carne).\n\nAsignación final correcta:\n• Castor A → Brocheta 3\n• Castor B → Brocheta 2\n• Castor C → Brocheta 4\n• Castor D → Brocheta 1\n\n¿Qué tiene que ver con la informática?\nEn informática, este tipo de problemas se denominan Problemas de Satisfacción de Restricciones (CSP - Constraint Satisfaction Problems). En ellos se busca asignar recursos a destinatarios cumpliendo una serie de condiciones y restricciones. Se utilizan comúnmente en la asignación de recursos computacionales, resolución de acertijos y planificación de horarios.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-08-platos-en-la-repisa",
@@ -903,10 +944,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "C",
-    "explanation": "**Respuesta correcta: C**\n\nTodas las repisas válidas deben iniciar con TAZA-PLATO y terminar con PLATO-TETERA. En la repisa C, el orden de los elementos intermedios incumple las transiciones del autómata.\n\n---\n\n### ¿Qué tiene que ver con informática?\nEste diagrama modela un **autómata finito**, que define reglas precisas sobre qué secuencias de instrucciones o símbolos son válidos en un lenguaje de programación.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:C",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "570c0e0d-50ad-501d-8ee4-d0aa24779a32",
+        "type": "text",
+        "content": "**Respuesta correcta: C**\n\nTodas las repisas válidas deben iniciar con TAZA-PLATO y terminar con PLATO-TETERA. En la repisa C, el orden de los elementos intermedios incumple las transiciones del autómata.\n\n---\n\n### ¿Qué tiene que ver con informática?\nEste diagrama modela un **autómata finito**, que define reglas precisas sobre qué secuencias de instrucciones o símbolos son válidos en un lenguaje de programación.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-13-arbol-flor-milagrosa",
@@ -966,9 +1014,16 @@
     "shortAnswer": "5",
     "answers": [],
     "correctAnswerId": "",
-    "explanation": "**Respuesta correcta: 5 días**\n\nAl final de cada día nace una bifurcación de 2 botones por cada botón previo. Contando los niveles de ramificación a lo largo de cualquier rama desde el tronco hasta el extremo exterior, se observan exactamente 5 días de crecimiento.\n\n---\n\n### ¿Qué tiene que ver con informática?\nRepresenta el concepto de **recursión** y estructuras de datos de **árbol binario**, donde cada nodo se divide en subárboles siguiendo una misma regla base.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "68bbdbed-dbff-5592-bbe8-17f21f31f858",
+        "type": "text",
+        "content": "**Respuesta correcta: 5 días**\n\nAl final de cada día nace una bifurcación de 2 botones por cada botón previo. Contando los niveles de ramificación a lo largo de cualquier rama desde el tronco hasta el extremo exterior, se observan exactamente 5 días de crecimiento.\n\n---\n\n### ¿Qué tiene que ver con informática?\nRepresenta el concepto de **recursión** y estructuras de datos de **árbol binario**, donde cada nodo se divide en subárboles siguiendo una misma regla base.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-15-estacionamiento-barcos",
@@ -1096,9 +1151,16 @@
       }
     ],
     "correctAnswerId": "all:A,B,D,F",
-    "explanation": "**Respuesta correcta: Lugares 1, 2, 5 y 7**\n\n• Lugar 1: Libre viernes, sábado y domingo (3 días libres).\n• Lugar 2: Libre sábado y domingo (2 días libres consecutivos).\n• Lugar 5: Libre viernes, sábado y domingo (3 días libres).\n• Lugar 7: Libre viernes y sábado (2 días libres consecutivos).\n\n---\n\n### ¿Qué tiene que ver con informática?\nRepresentación binaria (0 = libre, 1 = ocupado) y operaciones lógicas a nivel de bits para consultar disponibilidad contigua.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "155df6de-b0f3-5143-b36c-64ff6be5ff2a",
+        "type": "text",
+        "content": "**Respuesta correcta: Lugares 1, 2, 5 y 7**\n\n• Lugar 1: Libre viernes, sábado y domingo (3 días libres).\n• Lugar 2: Libre sábado y domingo (2 días libres consecutivos).\n• Lugar 5: Libre viernes, sábado y domingo (3 días libres).\n• Lugar 7: Libre viernes y sábado (2 días libres consecutivos).\n\n---\n\n### ¿Qué tiene que ver con informática?\nRepresentación binaria (0 = libre, 1 = ocupado) y operaciones lógicas a nivel de bits para consultar disponibilidad contigua.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-19-dias-soleados",
@@ -1199,10 +1261,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "B",
-    "explanation": "**Respuesta correcta: B**\n\nPara refutar una afirmación de tipo 'en cada lago hay al menos un castor', basta encontrar un contraejemplo: un lago donde no haya nadado ningún castor (opción B).\n\n---\n\n### ¿Qué tiene que ver con informática?\nLógica formal y negación de proposiciones con cuantificadores universales.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:B",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "275c1da8-b537-574b-b8a1-865460d83260",
+        "type": "text",
+        "content": "**Respuesta correcta: B**\n\nPara refutar una afirmación de tipo 'en cada lago hay al menos un castor', basta encontrar un contraejemplo: un lago donde no haya nadado ningún castor (opción B).\n\n---\n\n### ¿Qué tiene que ver con informática?\nLógica formal y negación de proposiciones con cuantificadores universales.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-24-el-siguiente-por-favor",
@@ -1303,10 +1372,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "A",
-    "explanation": "**Respuesta correcta: A (Andrea, Cony, David, Beto, Emilia)**\n\n1. 9:00 Andrea (4 libros) -> termina 9:04.\n2. 9:04 en fila: Beto (6) y Cony (2). Pasa Cony -> termina 9:06.\n3. 9:06 en fila: Beto (6) y David (4). Pasa David -> termina 9:10.\n4. 9:10 en fila solo Beto (6) -> termina 9:16.\n5. 9:16 pasa Emilia (1) -> termina 9:17.\n\n---\n\n### ¿Qué tiene que ver con informática?\nAlgoritmo de planificación de tareas en sistemas operativos: **Shortest Job First (SJF)**.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:A",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "b6a9fb41-0bc4-5890-9ef7-e5b3004d16f2",
+        "type": "text",
+        "content": "**Respuesta correcta: A (Andrea, Cony, David, Beto, Emilia)**\n\n1. 9:00 Andrea (4 libros) -> termina 9:04.\n2. 9:04 en fila: Beto (6) y Cony (2). Pasa Cony -> termina 9:06.\n3. 9:06 en fila: Beto (6) y David (4). Pasa David -> termina 9:10.\n4. 9:10 en fila solo Beto (6) -> termina 9:16.\n5. 9:16 pasa Emilia (1) -> termina 9:17.\n\n---\n\n### ¿Qué tiene que ver con informática?\nAlgoritmo de planificación de tareas en sistemas operativos: **Shortest Job First (SJF)**.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-27-cadenas-de-codigos",
@@ -1407,10 +1483,17 @@
         "isCorrect": false
       }
     ],
-    "correctAnswerId": "C",
-    "explanation": "**Respuesta correcta: C (TEF → CEF → COF)**\n\nSi se usa la cadena C, la palabra TOF queda aislada sin opciones para conectarse con otras dos palabras compatibles.\n\n---\n\n### ¿Qué tiene que ver with informática?\nTeoría de grafos, caminos hamiltonianos y distancia de Hamming entre cadenas.",
-    "status": "Borrador",
-    "isPractice": true
+    "correctAnswerId": "single:C",
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "0e8458df-3abe-5e14-8904-62b41f659ed8",
+        "type": "text",
+        "content": "**Respuesta correcta: C (TEF → CEF → COF)**\n\nSi se usa la cadena C, la palabra TOF queda aislada sin opciones para conectarse con otras dos palabras compatibles.\n\n---\n\n### ¿Qué tiene que ver with informática?\nTeoría de grafos, caminos hamiltonianos y distancia de Hamming entre cadenas.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-29-encontrando-el-tesoro",
@@ -1459,9 +1542,16 @@
     "shortAnswer": "4",
     "answers": [],
     "correctAnswerId": "",
-    "explanation": "**Respuesta correcta: 4 preguntas**\n\nCon una estrategia óptima (búsqueda binaria), cada pregunta divide el espacio de búsqueda a la mitad:\n16 -> 8 -> 4 -> 2 -> 1 celda (log2(16) = 4 preguntas).\n\n---\n\n### ¿Qué tiene que ver con informática?\nEl algoritmo de **Búsqueda Binaria** (Binary Search).",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "6ddaba7e-13cf-538a-87a6-a46e3526a879",
+        "type": "text",
+        "content": "**Respuesta correcta: 4 preguntas**\n\nCon una estrategia óptima (búsqueda binaria), cada pregunta divide el espacio de búsqueda a la mitad:\n16 -> 8 -> 4 -> 2 -> 1 celda (log2(16) = 4 preguntas).\n\n---\n\n### ¿Qué tiene que ver con informática?\nEl algoritmo de **Búsqueda Binaria** (Binary Search).",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-30-pulsera-mas-larga",
@@ -1521,9 +1611,16 @@
     "shortAnswer": "6",
     "answers": [],
     "correctAnswerId": "",
-    "explanation": "**Respuesta correcta: 6 cuentas**\n\nLa subsecuencia estrictamente creciente más larga tiene 6 cuentas: [1, 2, 4, 6, 7, 9] o [1, 3, 4, 6, 7, 9].\n\n---\n\n### ¿Qué tiene que ver con informática?\nProblema clásico de optimización: **Longest Increasing Subsequence (LIS)** mediante programación dinámica.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "3da9dccd-d4eb-526a-9231-6372813736b4",
+        "type": "text",
+        "content": "**Respuesta correcta: 6 cuentas**\n\nLa subsecuencia estrictamente creciente más larga tiene 6 cuentas: [1, 2, 4, 6, 7, 9] o [1, 3, 4, 6, 7, 9].\n\n---\n\n### ¿Qué tiene que ver con informática?\nProblema clásico de optimización: **Longest Increasing Subsequence (LIS)** mediante programación dinámica.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-32-amigos",
@@ -1638,9 +1735,16 @@
       }
     ],
     "correctAnswerId": "all:A,B",
-    "explanation": "**Respuesta correcta: Dave y Fred**\n\nDave y Fred solo se comunican entre ellos dos, por lo que solo reciben 2 mensajes en total. Todos los demás castores forman una red interconectada de 5 miembros donde cada uno recibe 5 mensajes.\n\n---\n\n### ¿Qué tiene que ver con informática?\nMatrices de adyacencia y componentes conexas en redes y grafos.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "0a32824f-70df-5ee4-9e6b-ce3b7378dcf3",
+        "type": "text",
+        "content": "**Respuesta correcta: Dave y Fred**\n\nDave y Fred solo se comunican entre ellos dos, por lo que solo reciben 2 mensajes en total. Todos los demás castores forman una red interconectada de 5 miembros donde cada uno recibe 5 mensajes.\n\n---\n\n### ¿Qué tiene que ver con informática?\nMatrices de adyacencia y componentes conexas en redes y grafos.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-41-pared-de-ladrillos",
@@ -1786,15 +1890,22 @@
       }
     ],
     "correctAnswerId": "all:A,C",
-    "explanation": "**Respuesta correcta: Paredes A y C**\n\nSolo A y C cumplen con las dependencias de remoción y colocación de ladrillos. B y D violan el orden topológico de soporte.\n\n---\n\n### ¿Qué tiene que ver con informática?\nGrafos acíclicos dirigidos (DAG), relaciones de dependencia y ordenamiento topológico.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "e04db8d3-016b-55b6-aeaa-1bf21bb84c03",
+        "type": "text",
+        "content": "**Respuesta correcta: Paredes A y C**\n\nSolo A y C cumplen con las dependencias de remoción y colocación de ladrillos. B y D violan el orden topológico de soporte.\n\n---\n\n### ¿Qué tiene que ver con informática?\nGrafos acíclicos dirigidos (DAG), relaciones de dependencia y ordenamiento topológico.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-10-video-llamada",
     "title": "10. Video llamada (Malasia / 2024)",
     "categories": [
-      "Estructuras de datos y lógica",
+      "Estructuras de datos y representaciones",
       "Algoritmos y programación"
     ],
     "difficulties": {
@@ -1846,7 +1957,6 @@
     "answers": [],
     "correctAnswerId": "",
     "shortAnswer": "",
-    "rangeAnswers": [],
     "dragDropBackground": {
       "id": "bg-b10-desks",
       "name": "fila-computadoras-escenario.png",
@@ -2009,15 +2119,22 @@
         }
       }
     ],
-    "explanation": "Solución paso a paso:\n\n1. Observando los bordes de las cámaras en la videollamada identificamos quién está al lado de quién en el salón real:\n   • **James** solo tiene a Emma a su lado y el extremo vacío del otro lado → Puesto 1: **James**\n   • **Emma** está entre James y Diana → Puesto 2: **Emma**\n   • **Diana** está entre Emma y Lee → Puesto 3: **Diana**\n   • **Lee** está entre Diana y Hannah → Puesto 4: **Lee**\n   • **Hannah** está entre Lee y Bella → Puesto 5: **Hannah**\n   • **Bella** está entre Hannah y Alice → Puesto 6: **Bella**\n   • **Alice** está entre Bella y Raul → Puesto 7: **Alice**\n   • **Raul** está entre Alice y Maya → Puesto 8: **Raul**\n   • **Maya** solo tiene a Raul a su lado y nadie del otro lado → Puesto 9: **Maya**\n\nOrden final de la fila de izquierda a derecha:\n**James → Emma → Diana → Lee → Hannah → Bella → Alice → Raul → Maya**\n\n¿Qué tiene que ver con la informática?\nEn informática, este problema ilustra cómo reconstruir una lista ordenada o estructura lineal a partir de información de adyacencias locales (grafos lineales o listas doblemente enlazadas). Los sistemas distribuidos y aplicaciones de videoconferencia frecuentemente reciben fragmentos de datos locales que deben ensamblarse y correlacionarse para reconstruir el estado global coherente.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "a4162872-a9ab-5465-bda6-9166716b11b9",
+        "type": "text",
+        "content": "Solución paso a paso:\n\n1. Observando los bordes de las cámaras en la videollamada identificamos quién está al lado de quién en el salón real:\n   • **James** solo tiene a Emma a su lado y el extremo vacío del otro lado → Puesto 1: **James**\n   • **Emma** está entre James y Diana → Puesto 2: **Emma**\n   • **Diana** está entre Emma y Lee → Puesto 3: **Diana**\n   • **Lee** está entre Diana y Hannah → Puesto 4: **Lee**\n   • **Hannah** está entre Lee y Bella → Puesto 5: **Hannah**\n   • **Bella** está entre Hannah y Alice → Puesto 6: **Bella**\n   • **Alice** está entre Bella y Raul → Puesto 7: **Alice**\n   • **Raul** está entre Alice y Maya → Puesto 8: **Raul**\n   • **Maya** solo tiene a Raul a su lado y nadie del otro lado → Puesto 9: **Maya**\n\nOrden final de la fila de izquierda a derecha:\n**James → Emma → Diana → Lee → Hannah → Bella → Alice → Raul → Maya**\n\n¿Qué tiene que ver con la informática?\nEn informática, este problema ilustra cómo reconstruir una lista ordenada o estructura lineal a partir de información de adyacencias locales (grafos lineales o listas doblemente enlazadas). Los sistemas distribuidos y aplicaciones de videoconferencia frecuentemente reciben fragmentos de datos locales que deben ensamblarse y correlacionarse para reconstruir el estado global coherente.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-12-sonaja-oliver",
     "title": "12. La Sonaja de Oliver (Eslovaquia / 2024)",
     "categories": [
-      "Estructuras de datos y lógica",
+      "Estructuras de datos y representaciones",
       "Algoritmos y programación"
     ],
     "difficulties": {
@@ -2069,7 +2186,6 @@
     "answers": [],
     "correctAnswerId": "",
     "shortAnswer": "",
-    "rangeAnswers": [],
     "dragDropBackground": {
       "id": "bg-b12-sonaja",
       "name": "sonaja-escenario.png",
@@ -2130,15 +2246,22 @@
         }
       }
     ],
-    "explanation": "Solución paso a paso:\n\n1. En una sonaja circular, cuando las bolitas se desplazan, su secuencia cíclica no se altera. La secuencia circular es: Rosa → Roja → Amarilla → Verde → Azul → Rosa.\n\n2. En la sonaja de la pregunta:\n   • La bolita Rosa está fija a la izquierda.\n   • Inmediatamente después de la Rosa debe ir la **Bolita Roja (triángulo)**.\n   • Después de la Roja debe ir la **Bolita Amarilla (estrella)**.\n   • Luego ya se encuentra colocada la bolita Verde (cuadrado).\n   • Finalmente, inmediatamente después de la Verde debe ir la **Bolita Azul (hexágono)**, que cierra el ciclo conectando de nuevo con la Rosa.\n\n¿Qué tiene que ver con la informática?\nEn ciencias de la computación, esta estructura se conoce como Lista Circular Enlazada (circular linked list). En ella, el último elemento apunta directamente al primero, formando un ciclo continuo sin principio ni fin definidos. Es la estructura estándar utilizada en listas de reproducción multimedia (playlists en bucle), algoritmos de turnos rotativos (Round Robin) en sistemas operativos y búferes circulares en memoria.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "0379ff35-e2ca-56f6-8e8b-729a18be7847",
+        "type": "text",
+        "content": "Solución paso a paso:\n\n1. En una sonaja circular, cuando las bolitas se desplazan, su secuencia cíclica no se altera. La secuencia circular es: Rosa → Roja → Amarilla → Verde → Azul → Rosa.\n\n2. En la sonaja de la pregunta:\n   • La bolita Rosa está fija a la izquierda.\n   • Inmediatamente después de la Rosa debe ir la **Bolita Roja (triángulo)**.\n   • Después de la Roja debe ir la **Bolita Amarilla (estrella)**.\n   • Luego ya se encuentra colocada la bolita Verde (cuadrado).\n   • Finalmente, inmediatamente después de la Verde debe ir la **Bolita Azul (hexágono)**, que cierra el ciclo conectando de nuevo con la Rosa.\n\n¿Qué tiene que ver con la informática?\nEn ciencias de la computación, esta estructura se conoce como Lista Circular Enlazada (circular linked list). En ella, el último elemento apunta directamente al primero, formando un ciclo continuo sin principio ni fin definidos. Es la estructura estándar utilizada en listas de reproducción multimedia (playlists en bucle), algoritmos de turnos rotativos (Round Robin) en sistemas operativos y búferes circulares en memoria.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   },
   {
     "id": "bebras-2024-21-tour-bosque",
     "title": "21. Tour por el Bosque (Alemania / 2024)",
     "categories": [
-      "Estructuras de datos y lógica",
+      "Estructuras de datos y representaciones",
       "Algoritmos y programación"
     ],
     "difficulties": {
@@ -2190,7 +2313,6 @@
     "answers": [],
     "correctAnswerId": "",
     "shortAnswer": "",
-    "rangeAnswers": [],
     "dragDropBackground": {
       "id": "bg-b21-bosque",
       "name": "bosque-orden-escenario.png",
@@ -2285,8 +2407,15 @@
         }
       }
     ],
-    "explanation": "Solución paso a paso:\n\n1. Combinamos las relaciones de orden parcial de los tres paseos:\n   • Del Paseo 1: A < B < C < D\n   • Del Paseo 2: B < E < C y C < F (por lo tanto: B < E < C < F)\n   • Del Paseo 3: G < D < F (el árbol D es menor que F)\n\n2. Integrando estas restricciones en una sola cadena de orden de menor a mayor:\n   A < B < E < C < D < F\n\n3. Los 5 árboles que se deben ubicar en los cuadros son precisamente:\n   • Cuadro 1 (menos popular): Árbol A (verde redondo)\n   • Cuadro 2: Árbol E (amarillo hexagonal)\n   • Cuadro 3: Árbol C (naranja triangular)\n   • Cuadro 4: Árbol D (rosa corazón)\n   • Cuadro 5 (más popular): Árbol F (naranja nube)\n\n¿Qué tiene que ver con la informática?\nEste problema representa un Ordenamiento Topológico (Topological Sort) sobre un Grafo Acíclico Dirigido (DAG). En programación e ingeniería de software, el ordenamiento topológico se utiliza ampliamente para resolver dependencias de paquetes y compilación, planificar tareas que tienen prerrequisitos y calendarizar procesos en sistemas distribuidos.",
-    "status": "Borrador",
-    "isPractice": true
+    "isPractice": true,
+    "explanationBlocks": [
+      {
+        "id": "50e4c4e6-f424-51eb-927b-465f90b6a93e",
+        "type": "text",
+        "content": "Solución paso a paso:\n\n1. Combinamos las relaciones de orden parcial de los tres paseos:\n   • Del Paseo 1: A < B < C < D\n   • Del Paseo 2: B < E < C y C < F (por lo tanto: B < E < C < F)\n   • Del Paseo 3: G < D < F (el árbol D es menor que F)\n\n2. Integrando estas restricciones en una sola cadena de orden de menor a mayor:\n   A < B < E < C < D < F\n\n3. Los 5 árboles que se deben ubicar en los cuadros son precisamente:\n   • Cuadro 1 (menos popular): Árbol A (verde redondo)\n   • Cuadro 2: Árbol E (amarillo hexagonal)\n   • Cuadro 3: Árbol C (naranja triangular)\n   • Cuadro 4: Árbol D (rosa corazón)\n   • Cuadro 5 (más popular): Árbol F (naranja nube)\n\n¿Qué tiene que ver con la informática?\nEste problema representa un Ordenamiento Topológico (Topological Sort) sobre un Grafo Acíclico Dirigido (DAG). En programación e ingeniería de software, el ordenamiento topológico se utiliza ampliamente para resolver dependencias de paquetes y compilación, planificar tareas que tienen prerrequisitos y calendarizar procesos en sistemas distribuidos.",
+        "image": null,
+        "widthPercent": 100
+      }
+    ]
   }
 ]
