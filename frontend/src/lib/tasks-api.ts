@@ -1,6 +1,8 @@
 import { normalizeCategories, type StoredTask } from "@/lib/task-schema";
 import { BEBRAS_CATEGORIES } from "@/lib/contest-schema";
 import { apiRequest as request } from "@/lib/api-client";
+import type { PlayTask } from "@/lib/play-api";
+import type { ContentBlock } from "@/lib/task-schema";
 
 export type HomeTaskItem = {
   id: string;
@@ -19,6 +21,32 @@ export function listTasks() {
 
 export function getTask(taskId: string) {
   return request<StoredTask>(`/api/tasks/${taskId}`);
+}
+
+export function previewTask(taskId: string, signal?: AbortSignal) {
+  return request<PlayTask>(`/api/tasks/${encodeURIComponent(taskId)}/preview`, {
+    signal,
+  });
+}
+
+export type TaskCheckResult = {
+  correct: boolean;
+  explanationBlocks: ContentBlock[];
+};
+
+export function checkTask(
+  taskId: string,
+  payload: unknown,
+  signal?: AbortSignal,
+) {
+  return request<TaskCheckResult>(
+    `/api/tasks/${encodeURIComponent(taskId)}/check`,
+    {
+      method: "POST",
+      body: JSON.stringify({ payload }),
+      signal,
+    },
+  );
 }
 
 export function createTask(task: Omit<StoredTask, "id"> & { id?: string }) {

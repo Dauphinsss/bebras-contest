@@ -73,6 +73,8 @@ model TaskDraft {
   bodyBlocks              String
   challengeBlocks         String
   answerType              String          @default("multiple_choice")
+  answerConfig            String          @default("{}")
+  answerKey               String          @default("{}")
   multipleChoiceOrderMode String          @default("fixed")
   answers                 String
   correctAnswerId         String

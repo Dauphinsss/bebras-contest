@@ -5,11 +5,11 @@
  *
  * 1. **Piezas iguales.** Si una tarea reparte dos fichas idénticas —las dos B
  *    de «Puntos por Letras»— da lo mismo cuál cae en cuál destino. Dos objetos
- *    cuentan como la misma pieza cuando comparten la imagen.
- * 2. **Varias soluciones.** Hay tareas con más de un acomodo correcto; en
- *    «Camino de robot» la propia guía dice que hay dos opciones. La solución
- *    principal sigue viviendo en el `correctTargetId` de cada objeto y las
- *    demás se guardan aparte.
+ *    cuentan como la misma pieza cuando comparten una clave de equivalencia
+ *    explícita o, para tareas antiguas sin clave, la imagen o etiqueta.
+ * 2. **Varias soluciones.** Cada acomodo puede ocupar un subconjunto distinto
+ *    de destinos. La solución principal sigue viviendo en el `correctTargetId`
+ *    de cada objeto y las demás se guardan aparte.
  *
  * El truco para resolver ambas de una vez es no comparar objeto por objeto,
  * sino reducir cada acomodo a una firma: qué *clase* de pieza quedó en cada
@@ -21,6 +21,7 @@ export type GradableDragDropItem = {
   id: string;
   label?: unknown;
   image?: unknown;
+  equivalenceKey?: string;
   correctTargetId: string;
 };
 
@@ -31,6 +32,11 @@ export type DragDropSolution = {
 
 /** Qué pieza es esta, a efectos de corrección. */
 export function dragDropPieceKey(item: GradableDragDropItem) {
+  const equivalenceKey = item.equivalenceKey?.trim();
+  if (equivalenceKey) {
+    return `equivalent:${equivalenceKey}`;
+  }
+
   const image = item.image as { url?: unknown } | null | undefined;
   const url = typeof image?.url === "string" ? image.url.trim() : "";
 
@@ -53,6 +59,13 @@ export function dragDropSignature(
   items: GradableDragDropItem[],
   placements: Record<string, string>,
 ) {
+  if (
+    Object.keys(placements).length !== items.length ||
+    items.some((item) => !Object.hasOwn(placements, item.id))
+  ) {
+    return null;
+  }
+
   const pieceByTarget = new Map<string, string>();
 
   for (const item of items) {
@@ -65,10 +78,11 @@ export function dragDropSignature(
     pieceByTarget.set(targetId, dragDropPieceKey(item));
   }
 
-  return [...pieceByTarget.entries()]
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-    .map(([targetId, piece]) => `${targetId}\u0000${piece}`)
-    .join("\u0001");
+  return JSON.stringify(
+    [...pieceByTarget.entries()].sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0,
+    ),
+  );
 }
 
 /** El acomodo que describen los `correctTargetId`. */

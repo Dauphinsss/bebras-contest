@@ -1,317 +1,104 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircleIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircleIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
-
 import { TaskContentRenderer } from "@/components/task-content-renderer";
-import {
-  DragDropPlayer,
-  type DragDropPlacements,
-} from "@/components/drag-drop-player";
+import { TaskPlayContent } from "@/components/task-play-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { isDragDropAnswerCorrect } from "@/lib/drag-drop-grading";
-import { listTasks } from "@/lib/tasks-api";
-import { BEBRAS_CATEGORIES } from "@/lib/contest-schema";
 import {
-  parseMultipleChoiceCorrectness,
-  type OptionKey,
-  type StoredTask,
-} from "@/lib/task-schema";
-import { cn } from "@/lib/utils";
-
-function createSeedFromText(value: string) {
-  let hash = 0;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-
-  return hash || 1;
-}
-
-function nextSeed(seed: number) {
-  return (seed * 1664525 + 1013904223) >>> 0;
-}
-
-/** El número cae dentro del único intervalo aceptado, extremos incluidos. */
-function isInsideRange(
-  task: { rangeMin: number | null; rangeMax: number | null },
-  value: number,
-) {
-  if (task.rangeMin === null || task.rangeMax === null) {
-    return false;
-  }
-
-  return value >= task.rangeMin && value <= task.rangeMax;
-}
+  getTask,
+  listTasks,
+  previewTask,
+  checkTask,
+  type TaskCheckResult,
+} from "@/lib/tasks-api";
+import { answerHasResponse, type PlayTask } from "@/lib/play-api";
+import { BEBRAS_CATEGORIES } from "@/lib/contest-schema";
+import type { StoredTask } from "@/lib/task-schema";
 
 export function TaskTester() {
-  const [tasks, setTasks] = useState<StoredTask[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [selectedAnswerIds, setSelectedAnswerIds] = useState<OptionKey[]>([]);
-  const [checkedValue, setCheckedValue] = useState("");
-  const [shortAnswer, setShortAnswer] = useState("");
-  const [rangeValue, setRangeValue] = useState("");
-  const [dragDropPlacements, setDragDropPlacements] =
-    useState<DragDropPlacements>({});
+  const [selectedTask, setSelectedTask] = useState<StoredTask | null>(null);
+  const [playTask, setPlayTask] = useState<PlayTask | null>(null);
+  const [answer, setAnswer] = useState<unknown>({});
+  const [result, setResult] = useState<TaskCheckResult | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const revision = useRef(0);
+  const checkController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const taskIdFromUrl = new URLSearchParams(window.location.search).get("id");
+    const taskId = new URLSearchParams(window.location.search).get("id");
+    const controller = new AbortController();
     let active = true;
-
-    void listTasks()
-      .then((loadedTasks) => {
-        if (!active) {
-          return;
-        }
-
-        setTasks(loadedTasks);
-        setSelectedTaskId(
-          loadedTasks.find((task) => task.id === taskIdFromUrl)?.id ??
-            loadedTasks[0]?.id ??
-            "",
-        );
-      })
-      .catch(() => {
-        toast.error("No se pudieron cargar las tareas.");
-      });
-
+    void (async () => {
+      try {
+        const task = taskId ? await getTask(taskId) : (await listTasks())[0];
+        if (!task || !active) return;
+        const preview = await previewTask(task.id, controller.signal);
+        if (!active) return;
+        setSelectedTask(task);
+        setPlayTask(preview);
+      } catch {
+        if (active) toast.error("No se pudo cargar la tarea.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
     return () => {
       active = false;
+      controller.abort();
+      checkController.current?.abort();
+      revision.current += 1;
     };
   }, []);
 
-  const selectedTask = useMemo(
-    () => tasks.find((task) => task.id === selectedTaskId) ?? null,
-    [selectedTaskId, tasks],
-  );
-  const selectedAnswerType = selectedTask?.answerType ?? "multiple_choice";
-  const answerSectionTitle = {
-    multiple_choice: "Opciones de respuesta",
-    short_text: "Respuesta corta",
-    range: "Respuesta por rangos",
-    drag_drop: "Arrastrar y soltar",
-  }[selectedAnswerType];
-
-  const displayedAnswers = useMemo(() => {
-    if (!selectedTask) {
-      return [];
-    }
-
-    const answers = [...selectedTask.answers];
-
-    if (selectedTask.multipleChoiceOrderMode !== "random") {
-      return answers;
-    }
-
-    let seed = createSeedFromText(
-      `${selectedTask.id}:${selectedTask.updatedAt}:${selectedTask.correctAnswerId}`,
-    );
-
-    for (let index = answers.length - 1; index > 0; index -= 1) {
-      seed = nextSeed(seed);
-      const randomIndex = seed % (index + 1);
-      [answers[index], answers[randomIndex]] = [
-        answers[randomIndex],
-        answers[index],
-      ];
-    }
-
-    return answers;
-  }, [selectedTask]);
-
-  const multipleChoiceCorrectness = useMemo(() => {
-    if (
-      !selectedTask ||
-      (selectedTask.answerType ?? "multiple_choice") !== "multiple_choice"
-    ) {
-      return {
-        mode: "single" as const,
-        correctOptionIds: [] as OptionKey[],
-      };
-    }
-
-    return parseMultipleChoiceCorrectness(selectedTask.correctAnswerId);
-  }, [selectedTask]);
-
-  const isCorrect = useMemo(() => {
-    if (!selectedTask || !checkedValue) {
-      return false;
-    }
-
-    const answerType = selectedTask.answerType ?? "multiple_choice";
-
-    if (answerType === "multiple_choice") {
-      const checkedIds = checkedValue
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean) as OptionKey[];
-
-      if (multipleChoiceCorrectness.mode === "single") {
-        return (
-          checkedIds.length === 1 &&
-          checkedIds[0] === multipleChoiceCorrectness.correctOptionIds[0]
-        );
-      }
-
-      if (multipleChoiceCorrectness.mode === "any") {
-        return (
-          checkedIds.length === 1 &&
-          multipleChoiceCorrectness.correctOptionIds.includes(checkedIds[0])
-        );
-      }
-
-      if (
-        checkedIds.length !== multipleChoiceCorrectness.correctOptionIds.length
-      ) {
-        return false;
-      }
-
-      return checkedIds.every((id) =>
-        multipleChoiceCorrectness.correctOptionIds.includes(id),
-      );
-    }
-
-    if (answerType === "short_text") {
-      return (
-        checkedValue.trim().toLowerCase() ===
-        (selectedTask.shortAnswer ?? "").trim().toLowerCase()
-      );
-    }
-
-    if (answerType === "drag_drop") {
-      return isDragDropAnswerCorrect(
-        selectedTask.dragDropItems ?? [],
-        selectedTask.dragDropSolutions ?? [],
-        dragDropPlacements,
-      );
-    }
-
-    const numericValue = Number(checkedValue);
-    if (Number.isNaN(numericValue)) {
-      return false;
-    }
-
-    return isInsideRange(selectedTask, numericValue);
-  }, [
-    checkedValue,
-    dragDropPlacements,
-    multipleChoiceCorrectness,
-    selectedTask,
-  ]);
-
-  const handleCheckAnswer = () => {
-    if (!selectedTask) {
-      return;
-    }
-
-    const answerType = selectedTask.answerType ?? "multiple_choice";
-
-    if (answerType === "multiple_choice") {
-      if (selectedAnswerIds.length === 0) {
-        toast.error("Selecciona una respuesta antes de probar la tarea.");
-        return;
-      }
-
-      const nextCheckedValue = [...selectedAnswerIds].sort().join(",");
-      setCheckedValue(nextCheckedValue);
-
-      const hasAnyCorrect =
-        selectedAnswerIds.length === 1 &&
-        multipleChoiceCorrectness.correctOptionIds.includes(
-          selectedAnswerIds[0],
-        );
-      const hasAllCorrect =
-        selectedAnswerIds.length ===
-          multipleChoiceCorrectness.correctOptionIds.length &&
-        selectedAnswerIds.every((id) =>
-          multipleChoiceCorrectness.correctOptionIds.includes(id),
-        );
-      const correctInSingleMode =
-        selectedAnswerIds.length === 1 &&
-        selectedAnswerIds[0] === multipleChoiceCorrectness.correctOptionIds[0];
-
-      const success =
-        multipleChoiceCorrectness.mode === "single"
-          ? correctInSingleMode
-          : multipleChoiceCorrectness.mode === "any"
-            ? hasAnyCorrect
-            : hasAllCorrect;
-
-      if (success) {
-        toast.success("Respuesta correcta");
-      } else {
-        toast.error("Respuesta incorrecta");
-      }
-      return;
-    }
-
-    if (answerType === "short_text") {
-      if (!shortAnswer.trim()) {
-        toast.error("Escribe una respuesta antes de probar la tarea.");
-        return;
-      }
-
-      setCheckedValue(shortAnswer);
-      if (
-        shortAnswer.trim().toLowerCase() ===
-        (selectedTask.shortAnswer ?? "").trim().toLowerCase()
-      ) {
-        toast.success("Respuesta correcta");
-      } else {
-        toast.error("Respuesta incorrecta");
-      }
-      return;
-    }
-
-    if (answerType === "drag_drop") {
-      if (
-        (selectedTask.dragDropItems ?? []).some(
-          (item) => !dragDropPlacements[item.id],
-        )
-      ) {
-        toast.error("Debes colocar todos los objetos antes de verificar.");
-        return;
-      }
-
-      setCheckedValue("drag_drop");
-      if (
-        isDragDropAnswerCorrect(
-          selectedTask.dragDropItems ?? [],
-          selectedTask.dragDropSolutions ?? [],
-          dragDropPlacements,
-        )
-      ) {
-        toast.success("Respuesta correcta");
-      } else {
-        toast.error("Respuesta incorrecta");
-      }
-      return;
-    }
-
-    if (!rangeValue.trim() || Number.isNaN(Number(rangeValue))) {
-      toast.error("Escribe un valor numérico válido.");
-      return;
-    }
-
-    setCheckedValue(rangeValue);
-    if (isInsideRange(selectedTask, Number(rangeValue))) {
-      toast.success("Respuesta correcta");
-    } else {
-      toast.error("Respuesta incorrecta");
-    }
+  const handleAnswerChange = (payload: unknown) => {
+    revision.current += 1;
+    checkController.current?.abort();
+    setChecking(false);
+    setResult(null);
+    setAnswer(payload);
   };
 
-  const handleReset = () => {
-    setSelectedAnswerIds([]);
-    setCheckedValue("");
-    setShortAnswer("");
-    setRangeValue("");
-    setDragDropPlacements({});
+  const handleReset = () => handleAnswerChange({});
+
+  const handleCheckAnswer = async () => {
+    if (!playTask || checking) return;
+    if (!answerHasResponse(playTask.answerType, answer)) {
+      toast.error("Completa una respuesta antes de probar la tarea.");
+      return;
+    }
+    const checkedRevision = ++revision.current;
+    const controller = new AbortController();
+    checkController.current?.abort();
+    checkController.current = controller;
+    setResult(null);
+    setChecking(true);
+    try {
+      const checked = await checkTask(
+        playTask.taskId,
+        answer,
+        controller.signal,
+      );
+      // A result belongs only to the exact answer that initiated this request.
+      if (checkedRevision !== revision.current) return;
+      setResult(checked);
+      if (checked.correct) toast.success("Respuesta correcta");
+      else toast.error("Respuesta incorrecta");
+    } catch (error) {
+      if (checkedRevision === revision.current) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo comprobar la respuesta.",
+        );
+      }
+    } finally {
+      if (checkedRevision === revision.current) setChecking(false);
+    }
   };
 
   return (
@@ -319,7 +106,9 @@ export function TaskTester() {
       {!selectedTask && (
         <Alert>
           <AlertCircleIcon />
-          <AlertTitle>No hay una tarea seleccionada</AlertTitle>
+          <AlertTitle>
+            {loading ? "Cargando tarea…" : "No se pudo abrir la tarea"}
+          </AlertTitle>
           <AlertDescription>
             Abre el probador desde una tarea específica para verla en esta
             vista.
@@ -331,9 +120,9 @@ export function TaskTester() {
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 sm:gap-7">
           <div className="flex flex-wrap items-center gap-2 border-b pb-3 text-sm text-muted-foreground">
             <span>Probando:</span>
-            <span className="font-medium text-foreground">
+            <h1 className="font-medium text-foreground">
               {selectedTask.title}
-            </span>
+            </h1>
             {selectedTask.categories.map((category) => (
               <Badge key={category} variant="secondary">
                 {category}
@@ -350,148 +139,26 @@ export function TaskTester() {
             ))}
           </div>
 
-          <TaskContentRenderer
-            blocks={selectedTask.bodyBlocks}
-            className="gap-5"
-          />
-
-          <section className="flex flex-col gap-3">
-            <h2 className="text-xl font-semibold sm:text-2xl">
-              Pregunta o desafío
-            </h2>
-            <TaskContentRenderer
-              blocks={selectedTask.challengeBlocks}
-              className="gap-5"
+          {playTask && (
+            <TaskPlayContent
+              task={playTask}
+              value={answer}
+              onChange={handleAnswerChange}
+              showHeadings
             />
-          </section>
+          )}
 
-          <section className="flex flex-col gap-4">
-            <h2 className="text-xl font-semibold sm:text-2xl">
-              {answerSectionTitle}
-            </h2>
-
-            {(selectedTask.answerType ?? "multiple_choice") ===
-              "multiple_choice" && (
-              <div className="flex flex-col gap-3 sm:gap-4">
-                {displayedAnswers.map((answer) => {
-                  const selected = selectedAnswerIds.includes(answer.id);
-                  const checkedIds = checkedValue
-                    .split(",")
-                    .map((value) => value.trim())
-                    .filter(Boolean) as OptionKey[];
-                  const checked = checkedIds.includes(answer.id);
-                  const isCorrectOption =
-                    multipleChoiceCorrectness.correctOptionIds.includes(
-                      answer.id,
-                    );
-                  const correct = checked && isCorrectOption;
-                  const incorrect = checked && !isCorrectOption;
-                  const multi = multipleChoiceCorrectness.mode === "all";
-
-                  return (
-                    <button
-                      key={answer.id}
-                      type="button"
-                      aria-pressed={selected}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-md border-2 bg-card px-4 py-4 text-left transition",
-                        selected
-                          ? "border-primary bg-primary/10 shadow-hard"
-                          : "border-border hover:border-primary/50",
-                        correct && "border-primary bg-primary/10",
-                        incorrect && "border-destructive bg-destructive/10",
-                      )}
-                      onClick={() =>
-                        setSelectedAnswerIds((current) => {
-                          if (
-                            multipleChoiceCorrectness.mode === "single" ||
-                            multipleChoiceCorrectness.mode === "any"
-                          ) {
-                            return [answer.id];
-                          }
-
-                          return current.includes(answer.id)
-                            ? current.filter((item) => item !== answer.id)
-                            : [...current, answer.id];
-                        })
-                      }
-                    >
-                      <span
-                        className={cn(
-                          "flex size-5 shrink-0 items-center justify-center border-2 border-foreground",
-                          multi ? "rounded-none" : "rounded-full",
-                          incorrect
-                            ? "border-destructive bg-destructive text-white"
-                            : selected || correct
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "bg-background",
-                        )}
-                      >
-                        {(selected || checked) && (
-                          <CheckIcon className="size-3.5" strokeWidth={3} />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <TaskContentRenderer
-                          blocks={answer.blocks}
-                          className="gap-3 text-lg leading-8 sm:text-xl"
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {(selectedTask.answerType ?? "multiple_choice") ===
-              "short_text" && (
-              <div className="flex max-w-lg flex-col gap-3">
-                <Input
-                  aria-label="Tu respuesta"
-                  placeholder="Escribe tu respuesta"
-                  value={shortAnswer}
-                  onChange={(event) => setShortAnswer(event.target.value)}
-                />
-              </div>
-            )}
-
-            {(selectedTask.answerType ?? "multiple_choice") === "range" && (
-              <div className="flex max-w-lg flex-col gap-4">
-                <Input
-                  aria-label="Tu respuesta numérica"
-                  placeholder="Escribe un valor numérico"
-                  type="number"
-                  value={rangeValue}
-                  onChange={(event) => setRangeValue(event.target.value)}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Rango válido: {selectedTask.rangeMin} a{" "}
-                  {selectedTask.rangeMax}
-                </p>
-              </div>
-            )}
-
-            {(selectedTask.answerType ?? "multiple_choice") === "drag_drop" &&
-              selectedTask.dragDropBackground && (
-                <DragDropPlayer
-                  backgroundUrl={selectedTask.dragDropBackground.url}
-                  items={selectedTask.dragDropItems}
-                  targets={selectedTask.dragDropTargets}
-                  placements={dragDropPlacements}
-                  onChange={setDragDropPlacements}
-                />
-              )}
-          </section>
-
-          {checkedValue && (
+          {result && (
             <Alert
-              variant={isCorrect ? "default" : "destructive"}
+              variant={result.correct ? "default" : "destructive"}
               className="gap-3"
             >
               <AlertCircleIcon />
-              <AlertTitle>{isCorrect ? "Correcto" : "Incorrecto"}</AlertTitle>
+              <AlertTitle>
+                {result.correct ? "Correcto" : "Incorrecto"}
+              </AlertTitle>
               <AlertDescription>
-                <TaskContentRenderer blocks={selectedTask.explanationBlocks} />
+                <TaskContentRenderer blocks={result.explanationBlocks} />
               </AlertDescription>
             </Alert>
           )}
@@ -502,8 +169,12 @@ export function TaskTester() {
                 <RotateCcwIcon data-icon="inline-start" />
                 Reiniciar
               </Button>
-              <Button type="button" onClick={handleCheckAnswer}>
-                Probar respuesta
+              <Button
+                type="button"
+                onClick={handleCheckAnswer}
+                disabled={!playTask || checking}
+              >
+                {checking ? "Comprobando…" : "Probar respuesta"}
               </Button>
             </div>
           </div>

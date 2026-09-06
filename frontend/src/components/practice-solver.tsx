@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
-import { PlayTaskFields } from "@/components/play-task-fields";
+import { TaskPlayContent } from "@/components/task-play-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,17 +117,9 @@ export function PracticeSolver() {
         <CardContent className="flex flex-col gap-5 pt-6">
           <div className="flex flex-col gap-2">
             <h1 className="text-xl font-semibold">{task.title}</h1>
-            <TaskContentRenderer blocks={task.bodyBlocks} className="gap-4" />
           </div>
 
-          {task.challengeBlocks.length > 0 && (
-            <TaskContentRenderer
-              blocks={task.challengeBlocks}
-              className="gap-4"
-            />
-          )}
-
-          <PlayTaskFields
+          <TaskPlayContent
             task={task}
             value={answer}
             onChange={setAnswer}

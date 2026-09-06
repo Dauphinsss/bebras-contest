@@ -14,6 +14,7 @@ const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "bebras2026";
 const testEnv = {
   ...process.env,
   DATABASE_URL: "file:./test.db",
+  JWT_SECRET: "bebras-isolated-e2e-session-secret",
   E2E_ADMIN_EMAIL: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
   E2E_ADMIN_PASSWORD: adminPassword,
   SEED_ADMIN_PASSWORD: adminPassword,

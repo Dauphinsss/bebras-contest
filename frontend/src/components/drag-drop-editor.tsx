@@ -1,903 +1,495 @@
 "use client";
-
-import {
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
-import { ImagePlusIcon, PlusIcon, XIcon } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { PlusIcon, XIcon } from "lucide-react";
+import { DragDropPlayer } from "@/components/drag-drop-player";
 import { ImageUploadButton } from "@/components/image-upload-button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Field,
-  FieldContent,
+  FieldDescription,
   FieldGroup,
+  FieldLabel,
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
-import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import {
-  DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
-  type StoredTaskDragDropItem,
-  type StoredTaskDragDropSolution,
-  type StoredTaskDragDropTarget,
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
+import { Slider } from "@/components/ui/slider";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { dragDropPrimaryPlacements } from "@/lib/drag-drop-grading";
+import type {
+  StoredTaskDragDropItem,
+  StoredTaskDragDropSolution,
+  StoredTaskDragDropTarget,
 } from "@/lib/task-schema";
 import { cn } from "@/lib/utils";
 
-type DragDropEditorProps = {
+type Props = {
   backgroundUrl: string | null;
   items: StoredTaskDragDropItem[];
   targets: StoredTaskDragDropTarget[];
+  solutions: StoredTaskDragDropSolution[];
   onUploadBackground: (files: FileList | null) => void;
-  onReplaceItemImage: (itemId: string, files: FileList | null) => void;
+  onReplaceItemImage: (id: string, files: FileList | null) => void;
   onAddItem: () => void;
-  onRemoveItem: (itemId: string) => void;
+  onRemoveItem: (id: string) => void;
   onUpdateItem: (
-    itemId: string,
-    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "widthPercent">>,
+    id: string,
+    patch: Partial<
+      Pick<StoredTaskDragDropItem, "label" | "widthPercent" | "equivalenceKey">
+    >,
   ) => void;
+  onAddTarget: () => string;
+  onRemoveTarget: (id: string) => void;
   onUpdateTarget: (
-    targetId: string,
+    id: string,
     patch: Partial<Pick<StoredTaskDragDropTarget, "x" | "y" | "snapRadius">>,
   ) => void;
-  /** Acomodos correctos además del principal. */
-  solutions: StoredTaskDragDropSolution[];
-  /** Crea una copia del acomodo principal y devuelve su ID. */
+  onUpdatePrimary: (placements: Record<string, string>) => void;
   onAddSolution: () => string;
-  onRemoveSolution: (solutionId: string) => void;
-  onUpdateSolution: (
-    solutionId: string,
-    placements: Record<string, string>,
-  ) => void;
+  onRemoveSolution: (id: string) => void;
+  onUpdateSolution: (id: string, placements: Record<string, string>) => void;
 };
+const clamp = (v: number) =>
+  Math.round(Math.max(0, Math.min(100, v)) * 1000) / 1000;
 
-type StageSize = {
-  width: number;
-  height: number;
-};
-
-function roundCoordinate(value: number) {
-  return Math.round(value * 1000) / 1000;
-}
-
-export function DragDropEditor({
-  backgroundUrl,
-  items,
-  targets,
-  onUploadBackground,
-  onReplaceItemImage,
-  onAddItem,
-  onRemoveItem,
-  onUpdateItem,
-  onUpdateTarget,
-  solutions,
-  onAddSolution,
-  onRemoveSolution,
-  onUpdateSolution,
-}: DragDropEditorProps) {
-  const stageRef = useRef<HTMLDivElement | null>(null);
-  // Solo afecta a cómo se ve mientras editas: las posiciones son porcentajes,
-  // así que el escenario se reescala entero y nada se descoloca.
-  const [stageZoom, setStageZoom] = useState(100);
-
-  // El encaje es uno solo para toda la tarea. Tenerlo por objeto no aportaba
-  // nada y se descuadraba solo: cada objeto nuevo nacía con otro valor.
-  const sharedSnapRadius = Number.isFinite(targets[0]?.snapRadius)
-    ? targets[0].snapRadius
-    : 10;
-
-  const setSharedSnapRadius = (value: number) => {
-    for (const target of targets) {
-      onUpdateTarget(target.id, { snapRadius: value });
-    }
-  };
-  const dragStateRef = useRef<{
-    pointerId: number;
-    targetId: string;
-  } | null>(null);
-  const resizeStateRef = useRef<{
-    pointerId: number;
-    itemId: string;
-    side: "left" | "right";
-    startX: number;
-    startWidthPx: number;
-  } | null>(null);
-  const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const [livePosition, setLivePosition] = useState<{
-    targetId: string;
-    x: number;
-    y: number;
-  } | null>(null);
-  const [liveWidth, setLiveWidth] = useState<{
-    itemId: string;
-    widthPercent: number;
-  } | null>(null);
-  const [activeItemId, setActiveItemId] = useState<string | null>(
-    items[0]?.id ?? null,
-  );
-  const [stageSize, setStageSize] = useState<StageSize>({
-    width: 0,
-    height: 0,
-  });
-  // `null` = el acomodo principal, el que se edite moviendo los destinos.
-  // Con una alternativa activa los destinos no se mueven: solo se cambia qué
-  // objeto va en cuál.
-  const [activeSolutionId, setActiveSolutionId] = useState<string | null>(null);
-  const solutionDragRef = useRef<{
-    pointerId: number;
-    itemId: string;
-  } | null>(null);
-  const [solutionDrag, setSolutionDrag] = useState<{
-    itemId: string;
-    x: number;
-    y: number;
-  } | null>(null);
-
+export function DragDropEditor(p: Props) {
+  const { backgroundUrl, items, targets, solutions } = p;
+  const [mode, setMode] = useState("positions");
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [solutionId, setSolutionId] = useState("primary");
+  const stageRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ id: string; pointerId: number } | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const stage = stageRef.current;
-
-    if (!stage) {
-      return;
-    }
-
-    const updateStageSize = () => {
-      setStageSize({ width: stage.clientWidth, height: stage.clientHeight });
-    };
-
-    updateStageSize();
-    const observer = new ResizeObserver(updateStageSize);
+    if (!stage) return;
+    const measure = () =>
+      setSize({ width: stage.clientWidth, height: stage.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(stage);
-
     return () => observer.disconnect();
-  }, [backgroundUrl]);
-
-  const activeItem =
-    items.find((item) => item.id === activeItemId) ?? items[0] ?? null;
-
-  const pointerToPercent = (clientX: number, clientY: number) => {
+  }, [backgroundUrl, mode]);
+  const selected = targets.find((t) => t.id === targetId) ?? targets[0];
+  const selectedIndex = targets.findIndex((t) => t.id === selected?.id);
+  const alternative = solutions.find((s) => s.id === solutionId);
+  const placements =
+    alternative?.placements ?? dragDropPrimaryPlacements(items);
+  const change = (next: Record<string, string>) =>
+    alternative
+      ? p.onUpdateSolution(alternative.id, next)
+      : p.onUpdatePrimary(next);
+  const targetIds = new Set(targets.map((t) => t.id));
+  const incomplete = [
+    { name: "Principal", placements: dragDropPrimaryPlacements(items) },
+    ...solutions.map((s, i) => ({
+      name: `Alterna ${i + 1}`,
+      placements: s.placements,
+    })),
+  ].filter((s) => {
+    const assigned = items.map((item) => s.placements[item.id]);
+    return (
+      assigned.some((id) => !targetIds.has(id)) ||
+      new Set(assigned).size !== assigned.length
+    );
+  });
+  const assign = (id: string, destination: string) => {
+    const next = { ...placements };
+    const previous = next[id];
+    const other = items.find(
+      (item) => item.id !== id && next[item.id] === destination,
+    );
+    if (destination) next[id] = destination;
+    else delete next[id];
+    if (destination && other) {
+      if (targetIds.has(previous)) next[other.id] = previous;
+      else delete next[other.id];
+    }
+    change(next);
+  };
+  const move = (event: PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
     const stage = stageRef.current;
-
-    if (!stage) {
-      return null;
-    }
-
+    if (!drag || drag.pointerId !== event.pointerId || !stage) return;
     const rect = stage.getBoundingClientRect();
-    const width = stage.clientWidth;
-    const height = stage.clientHeight;
-
-    if (width === 0 || height === 0) {
-      return null;
-    }
-
-    return {
-      x: roundCoordinate(
-        Math.max(
-          0,
-          Math.min(
-            100,
-            ((clientX - rect.left - stage.clientLeft) / width) * 100,
-          ),
-        ),
-      ),
-      y: roundCoordinate(
-        Math.max(
-          0,
-          Math.min(
-            100,
-            ((clientY - rect.top - stage.clientTop) / height) * 100,
-          ),
-        ),
-      ),
-    };
-  };
-
-  const handleMarkerPointerDown = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-    itemId: string,
-    targetId: string,
-  ) => {
-    if (!event.isPrimary || event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragStateRef.current = { pointerId: event.pointerId, targetId };
-    setActiveItemId(itemId);
-  };
-
-  const handleMarkerPointerMove = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) => {
-    const dragState = dragStateRef.current;
-
-    if (!dragState || dragState.pointerId !== event.pointerId) {
-      return;
-    }
-
-    event.preventDefault();
-    const position = pointerToPercent(event.clientX, event.clientY);
-
-    if (position) {
-      setLivePosition({ targetId: dragState.targetId, ...position });
-    }
-  };
-
-  const finishMarkerDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (dragStateRef.current?.pointerId !== event.pointerId) {
-      return;
-    }
-
-    const dragState = dragStateRef.current;
-    dragStateRef.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    // Un solo guardado, al soltar.
-    if (livePosition && livePosition.targetId === dragState.targetId) {
-      onUpdateTarget(dragState.targetId, {
-        x: livePosition.x,
-        y: livePosition.y,
-      });
-    }
-
-    setLivePosition(null);
-  };
-
-  const itemWidthPercent = (item: StoredTaskDragDropItem) => {
-    if (liveWidth?.itemId === item.id) {
-      return liveWidth.widthPercent;
-    }
-
-    return Number.isFinite(item.widthPercent)
-      ? item.widthPercent
-      : DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT;
-  };
-
-  // Redimensionar sobre la propia foto: se agranda desde el centro, así el
-  // objeto no se desplaza de su destino mientras cambias el tamaño.
-  const startResize = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-    item: StoredTaskDragDropItem,
-    side: "left" | "right",
-  ) => {
-    if (!event.isPrimary || event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    resizeStateRef.current = {
-      pointerId: event.pointerId,
-      itemId: item.id,
-      side,
-      startX: event.clientX,
-      startWidthPx: (itemWidthPercent(item) / 100) * stageSize.width,
-    };
-  };
-
-  const handleResizeMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const state = resizeStateRef.current;
-
-    if (!state || state.pointerId !== event.pointerId || !stageSize.width) {
-      return;
-    }
-
-    event.preventDefault();
-    const delta = event.clientX - state.startX;
-    const nextPx =
-      state.startWidthPx + (state.side === "right" ? delta * 2 : -delta * 2);
-
-    setLiveWidth({
-      itemId: state.itemId,
-      widthPercent: Math.max(
-        1,
-        Math.min(60, Math.round((nextPx / stageSize.width) * 1000) / 10),
-      ),
+    if (!rect.width || !rect.height) return;
+    p.onUpdateTarget(drag.id, {
+      x: clamp(((event.clientX - rect.left) / rect.width) * 100),
+      y: clamp(((event.clientY - rect.top) / rect.height) * 100),
     });
   };
-
-  const finishResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (resizeStateRef.current?.pointerId !== event.pointerId) {
-      return;
-    }
-
-    resizeStateRef.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+  const end = (event: PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    if (liveWidth) {
-      onUpdateItem(liveWidth.itemId, { widthPercent: liveWidth.widthPercent });
-    }
-
-    setLiveWidth(null);
   };
-
-  const activeSolution =
-    solutions.find((solution) => solution.id === activeSolutionId) ?? null;
-
-  // Un acomodo completo: si a la alternativa le falta algún objeto (porque se
-  // agregó después) se cae al destino principal de ese objeto.
-  const solutionPlacements = activeSolution
-    ? Object.fromEntries(
-        items.map((item) => [
-          item.id,
-          activeSolution.placements[item.id] ?? item.correctTargetId,
-        ]),
-      )
-    : null;
-
-  const startSolutionDrag = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-    itemId: string,
-  ) => {
-    if (!event.isPrimary || event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    solutionDragRef.current = { pointerId: event.pointerId, itemId };
-    setActiveItemId(itemId);
-  };
-
-  const moveSolutionDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const state = solutionDragRef.current;
-
-    if (!state || state.pointerId !== event.pointerId) {
-      return;
-    }
-
-    event.preventDefault();
-    const position = pointerToPercent(event.clientX, event.clientY);
-
-    if (position) {
-      setSolutionDrag({ itemId: state.itemId, ...position });
-    }
-  };
-
-  const finishSolutionDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const state = solutionDragRef.current;
-
-    if (!state || state.pointerId !== event.pointerId) {
-      return;
-    }
-
-    solutionDragRef.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    const drop = solutionDrag;
-    setSolutionDrag(null);
-
-    if (!drop || !activeSolution || !solutionPlacements) {
-      return;
-    }
-
-    // Siempre cae en algún destino: el más cercano a donde soltaste. Un
-    // acomodo a medias no sirve de nada como respuesta correcta.
-    let closestId: string | null = null;
-    let closestDistance = Number.POSITIVE_INFINITY;
-
-    for (const target of targets) {
-      const distance = Math.hypot(drop.x - target.x, drop.y - target.y);
-
-      if (distance < closestDistance) {
-        closestId = target.id;
-        closestDistance = distance;
-      }
-    }
-
-    const previousTargetId = solutionPlacements[state.itemId];
-
-    if (!closestId || closestId === previousTargetId) {
-      return;
-    }
-
-    const displacedItemId = Object.keys(solutionPlacements).find(
-      (itemId) =>
-        itemId !== state.itemId && solutionPlacements[itemId] === closestId,
-    );
-    const next = { ...solutionPlacements, [state.itemId]: closestId };
-
-    // Si el destino estaba ocupado, los dos objetos intercambian lugar.
-    if (displacedItemId) {
-      next[displacedItemId] = previousTargetId;
-    }
-
-    onUpdateSolution(activeSolution.id, next);
-  };
-
-  const targetById = new Map(targets.map((target) => [target.id, target]));
-  const handleSize = "h-10 w-4 sm:w-3";
-
   return (
-    <FieldGroup className="gap-3">
-      <FieldSet className="gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-          <FieldLegend className="mb-0" variant="label">
-            Escenario
-          </FieldLegend>
+    <FieldGroup>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ToggleGroup
+          type="single"
+          value={mode}
+          onValueChange={(v) => v && setMode(v)}
+          variant="outline"
+          aria-label="Modo del editor"
+        >
+          <ToggleGroupItem value="positions">Editar posiciones</ToggleGroupItem>
+          <ToggleGroupItem value="solutions">Definir solución</ToggleGroupItem>
+        </ToggleGroup>
+        <ImageUploadButton
+          id="drag-background"
+          onChange={(e) => {
+            p.onUploadBackground(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {items.length} piezas · {targets.length} destinos
+      </p>
+      {incomplete.length > 0 && (
+        <Alert>
+          <AlertDescription>
+            Soluciones incompletas: {incomplete.map((s) => s.name).join(", ")}.
+            Coloca cada pieza en un destino distinto antes de guardar.
+          </AlertDescription>
+        </Alert>
+      )}
+      {mode === "positions" ? (
+        <FieldSet>
+          <FieldLegend>Posiciones permitidas</FieldLegend>
+          <FieldDescription>
+            Marca todos los lugares donde se puede colocar una pieza, incluidos
+            los que pueden quedar vacíos. Arrastra un destino o ajústalo con las
+            flechas; Shift permite un ajuste fino.
+          </FieldDescription>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTargetId(p.onAddTarget())}
+          >
+            <PlusIcon data-icon="inline-start" />
+            Agregar destino
+          </Button>
           {backgroundUrl && (
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <div className="w-48">
-                <SliderField
-                  id="drag-stage-snap"
-                  label="Encaje"
-                  value={sharedSnapRadius}
-                  min={1}
-                  max={40}
-                  onChange={setSharedSnapRadius}
-                />
-              </div>
-              <div className="w-48">
-                <SliderField
-                  id="drag-stage-zoom"
-                  label="Zoom"
-                  value={stageZoom}
-                  min={40}
-                  max={150}
-                  onChange={setStageZoom}
-                />
-              </div>
+            <div
+              ref={stageRef}
+              className="relative mx-auto w-full max-w-3xl"
+              data-drag-target-editor
+            >
+              <img
+                src={backgroundUrl}
+                alt="Escenario para editar destinos"
+                className="block h-auto w-full"
+                draggable={false}
+              />
+              {targets.map((t, i) => {
+                const diameter = Math.max(
+                  24,
+                  (t.snapRadius / 50) * Math.min(size.width, size.height),
+                );
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-label={`Mover destino ${i + 1}`}
+                    aria-pressed={selected?.id === t.id}
+                    className={cn(
+                      "absolute flex -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border-2 border-dashed bg-background/80 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      selected?.id === t.id
+                        ? "border-primary text-primary"
+                        : "border-muted-foreground text-foreground",
+                    )}
+                    style={{
+                      left: `${t.x}%`,
+                      top: `${t.y}%`,
+                      width: diameter,
+                      height: diameter,
+                    }}
+                    onClick={() => setTargetId(t.id)}
+                    onPointerDown={(e) => {
+                      if (!e.isPrimary || e.button !== 0) return;
+                      e.preventDefault();
+                      setTargetId(t.id);
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      dragRef.current = { id: t.id, pointerId: e.pointerId };
+                    }}
+                    onPointerMove={move}
+                    onPointerUp={end}
+                    onPointerCancel={end}
+                    onKeyDown={(e) => {
+                      const step = e.shiftKey ? 0.2 : 1;
+                      const offset = (
+                        {
+                          ArrowLeft: [-step, 0],
+                          ArrowRight: [step, 0],
+                          ArrowUp: [0, -step],
+                          ArrowDown: [0, step],
+                        } as Record<string, number[]>
+                      )[e.key];
+                      if (!offset) return;
+                      e.preventDefault();
+                      setTargetId(t.id);
+                      p.onUpdateTarget(t.id, {
+                        x: clamp(t.x + offset[0]),
+                        y: clamp(t.y + offset[1]),
+                      });
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
             </div>
           )}
-        </div>
-
-        <Field>
-          <FieldContent className="gap-3">
-            {!backgroundUrl && (
-              <ImageUploadButton
-                onChange={(event) => {
-                  onUploadBackground(event.target.files);
-                  event.target.value = "";
+          {selected && (
+            <FieldGroup className="mx-auto w-full max-w-3xl">
+              <Field>
+                <FieldLabel htmlFor="drag-selected-target">
+                  Destino a editar
+                </FieldLabel>
+                <NativeSelect
+                  id="drag-selected-target"
+                  value={selected.id}
+                  onChange={(e) => setTargetId(e.target.value)}
+                >
+                  {targets.map((t, i) => (
+                    <NativeSelectOption key={t.id} value={t.id}>
+                      Destino {i + 1}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {(
+                  [
+                    ["x", "Horizontal (%)"],
+                    ["y", "Vertical (%)"],
+                    ["snapRadius", "Radio de encaje (%)"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <Field key={key}>
+                    <FieldLabel htmlFor={`drag-target-${key}`}>
+                      {label}
+                    </FieldLabel>
+                    <Input
+                      id={`drag-target-${key}`}
+                      type="number"
+                      min={key === "snapRadius" ? 0.1 : 0}
+                      max={100}
+                      step={0.1}
+                      value={selected[key]}
+                      onChange={(e) => {
+                        const v = e.target.valueAsNumber;
+                        if (Number.isFinite(v))
+                          p.onUpdateTarget(selected.id, {
+                            [key]:
+                              key === "snapRadius"
+                                ? Math.max(0.1, clamp(v))
+                                : clamp(v),
+                          });
+                      }}
+                    />
+                  </Field>
+                ))}
+              </FieldGroup>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={`Quitar destino ${selectedIndex + 1}`}
+                onClick={() => p.onRemoveTarget(selected.id)}
+              >
+                <XIcon data-icon="inline-start" />
+                Quitar destino {selectedIndex + 1}
+              </Button>
+            </FieldGroup>
+          )}
+        </FieldSet>
+      ) : (
+        <FieldSet>
+          <FieldLegend>Soluciones válidas</FieldLegend>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field className="w-auto">
+              <FieldLabel htmlFor="drag-solution">Solución válida</FieldLabel>
+              <NativeSelect
+                id="drag-solution"
+                value={alternative?.id ?? "primary"}
+                onChange={(e) => setSolutionId(e.target.value)}
+              >
+                <NativeSelectOption value="primary">
+                  Principal
+                </NativeSelectOption>
+                {solutions.map((s, i) => (
+                  <NativeSelectOption key={s.id} value={s.id}>
+                    Alterna {i + 1}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSolutionId(p.onAddSolution())}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Otra solución
+            </Button>
+            {alternative && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  p.onRemoveSolution(alternative.id);
+                  setSolutionId("primary");
                 }}
-              />
+              >
+                Quitar alternativa
+              </Button>
             )}
-
-            {backgroundUrl && (
-              <div className="flex flex-col gap-2">
-                <div
-                  style={{ maxWidth: `calc(48rem * ${stageZoom} / 100)` }}
-                  className="relative mx-auto w-full overflow-hidden rounded-sm"
-                  ref={stageRef}
-                  role="group"
-                  aria-label="Ubicación de los destinos de encaje"
-                >
+          </div>
+          <FieldDescription>
+            Coloca todas las piezas. Puedes dejar destinos vacíos. Al ocupar el
+            destino de otra pieza, se intercambian; si venías de la bandeja, la
+            otra pieza vuelve a ella.
+          </FieldDescription>
+          {backgroundUrl && (
+            <DragDropPlayer
+              key={alternative?.id ?? "primary"}
+              backgroundUrl={backgroundUrl}
+              items={items}
+              targets={targets}
+              placements={placements}
+              onChange={change}
+              showTargets
+            />
+          )}
+        </FieldSet>
+      )}
+      <FieldSet>
+        <FieldLegend>Piezas</FieldLegend>
+        <FieldDescription>
+          Usa el mismo grupo en «Piezas equivalentes» para fichas
+          intercambiables, por ejemplo B. Déjalo vacío para conservar la
+          equivalencia por imagen.
+        </FieldDescription>
+        <Button type="button" variant="outline" size="sm" onClick={p.onAddItem}>
+          <PlusIcon data-icon="inline-start" />
+          Agregar pieza
+        </Button>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {items.map((item, i) => (
+            <FieldSet key={item.id} className="min-w-0 rounded-md border p-3">
+              <FieldLegend variant="label">Pieza {i + 1}</FieldLegend>
+              <div className="flex items-center gap-3">
+                {item.image && (
                   <img
-                    alt="Escenario de fondo"
-                    className="block h-auto w-full select-none"
-                    draggable={false}
-                    src={backgroundUrl}
+                    src={item.image.url}
+                    alt={item.label}
+                    className="size-16 object-contain"
                   />
-
-                  {items.map((item, index) => {
-                    const target = targets.find(
-                      (candidate) => candidate.id === item.correctTargetId,
-                    );
-
-                    if (!target || activeSolution) {
-                      return null;
-                    }
-
-                    const selected = item.id === activeItem?.id;
-                    const position =
-                      livePosition?.targetId === target.id
-                        ? livePosition
-                        : {
-                            x: Number.isFinite(target.x) ? target.x : 0,
-                            y: Number.isFinite(target.y) ? target.y : 0,
-                          };
-                    const radiusPixels =
-                      (sharedSnapRadius / 100) *
-                      Math.min(stageSize.width, stageSize.height);
-                    const itemWidthPixels =
-                      (itemWidthPercent(item) / 100) * stageSize.width;
-                    const name = `Objeto ${index + 1}`;
-
-                    return (
-                      <div
-                        key={target.id}
-                        className="pointer-events-none absolute"
-                        style={{
-                          left: `${position.x}%`,
-                          top: `${position.y}%`,
-                        }}
-                      >
-                        {selected && (
-                          <div
-                            className="pointer-events-none absolute z-0 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-primary bg-primary/5"
-                            style={{
-                              height: `${radiusPixels * 2}px`,
-                              width: `${radiusPixels * 2}px`,
-                            }}
-                          />
-                        )}
-
-                        <button
-                          className={cn(
-                            "pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 cursor-grab border-2 border-transparent outline-none transition-[opacity,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing",
-                            // Al pasar por encima el objeto se aclara y se
-                            // perfila: sin eso no había forma de saber que los
-                            // demás también se pueden seleccionar.
-                            selected
-                              ? "z-20"
-                              : "z-10 opacity-70 hover:z-20 hover:opacity-100 hover:ring-2 hover:ring-primary/40",
-                            item.image
-                              ? "block overflow-hidden rounded-sm bg-transparent p-0"
-                              : "size-10 rounded-full border-dashed border-muted-foreground bg-background/90",
-                            // Sin recuadro: el círculo punteado ya marca cuál
-                            // está seleccionado, y un marco cuadrado sobre una
-                            // pieza redonda estorba al colocarla.
-                          )}
-                          style={{
-                            touchAction: "none",
-                            ...(item.image
-                              ? { width: `${itemWidthPixels}px` }
-                              : {}),
-                          }}
-                          type="button"
-                          aria-label={`Mover ${name}`}
-                          aria-pressed={selected}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setActiveItemId(item.id);
-                            if (!item.image) {
-                              imageInputRefs.current[item.id]?.click();
-                            }
-                          }}
-                          onKeyDown={(event) => {
-                            const step = event.shiftKey ? 0.2 : 1;
-                            const moves: Record<string, [number, number]> = {
-                              ArrowLeft: [-step, 0],
-                              ArrowRight: [step, 0],
-                              ArrowUp: [0, -step],
-                              ArrowDown: [0, step],
-                            };
-                            const move = moves[event.key];
-
-                            if (!move) {
-                              return;
-                            }
-
-                            event.preventDefault();
-                            setActiveItemId(item.id);
-                            const clamp = (value: number) =>
-                              Math.min(100, Math.max(0, value));
-                            onUpdateTarget(target.id, {
-                              x: clamp(position.x + move[0]),
-                              y: clamp(position.y + move[1]),
-                            });
-                          }}
-                          onPointerCancel={finishMarkerDrag}
-                          onPointerDown={(event) =>
-                            handleMarkerPointerDown(event, item.id, target.id)
-                          }
-                          onPointerMove={handleMarkerPointerMove}
-                          onPointerUp={finishMarkerDrag}
-                        >
-                          {item.image ? (
-                            <img
-                              alt=""
-                              className="block h-auto w-full select-none"
-                              draggable={false}
-                              src={item.image.url}
-                            />
-                          ) : (
-                            <ImagePlusIcon className="mx-auto size-4 text-muted-foreground" />
-                          )}
-                        </button>
-
-                        {/* Todo lo del objeto se hace aquí: cambiar su imagen,
-                            estirarlo y quitarlo. Sin panel debajo. */}
-                        {selected && (
-                          <>
-                            <button
-                              aria-label={`Estirar ${name} desde la izquierda`}
-                              className={cn(
-                                "pointer-events-auto absolute z-30 flex -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border bg-background text-muted-foreground",
-                                handleSize,
-                              )}
-                              style={{
-                                left: `${-itemWidthPixels / 2}px`,
-                                transform: "translate(-50%, -50%)",
-                              }}
-                              type="button"
-                              onPointerCancel={finishResize}
-                              onPointerDown={(event) =>
-                                startResize(event, item, "left")
-                              }
-                              onPointerMove={handleResizeMove}
-                              onPointerUp={finishResize}
-                            >
-                              <span className="block h-4 w-0.5 rounded-full bg-current" />
-                            </button>
-
-                            <button
-                              aria-label={`Estirar ${name} desde la derecha`}
-                              className={cn(
-                                "pointer-events-auto absolute z-30 flex -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border bg-background text-muted-foreground",
-                                handleSize,
-                              )}
-                              style={{
-                                left: `${itemWidthPixels / 2}px`,
-                                transform: "translate(-50%, -50%)",
-                              }}
-                              type="button"
-                              onPointerCancel={finishResize}
-                              onPointerDown={(event) =>
-                                startResize(event, item, "right")
-                              }
-                              onPointerMove={handleResizeMove}
-                              onPointerUp={finishResize}
-                            >
-                              <span className="block h-4 w-0.5 rounded-full bg-current" />
-                            </button>
-
-                            {items.length > 1 && (
-                              <Button
-                                size="icon-sm"
-                                type="button"
-                                variant="outline"
-                                aria-label={`Quitar ${name}`}
-                                className="pointer-events-auto absolute z-30 rounded-full"
-                                style={{
-                                  left: `${itemWidthPixels / 2 + 14}px`,
-                                  top: `${-itemWidthPixels / 2 - 14}px`,
-                                }}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onRemoveItem(item.id);
-                                }}
-                              >
-                                <XIcon />
-                              </Button>
-                            )}
-                          </>
-                        )}
-
-                        <input
-                          accept="image/*"
-                          className="sr-only"
-                          ref={(node) => {
-                            imageInputRefs.current[item.id] = node;
-                          }}
-                          tabIndex={-1}
-                          type="file"
-                          onChange={(event) => {
-                            onReplaceItemImage(item.id, event.target.files);
-                            event.target.value = "";
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-
-                  {activeSolution &&
-                    solutionPlacements &&
-                    targets.map((target) => {
-                      const radiusPixels =
-                        (sharedSnapRadius / 100) *
-                        Math.min(stageSize.width, stageSize.height);
-
-                      return (
-                        <div
-                          key={`hueco-${target.id}`}
-                          className="pointer-events-none absolute z-0 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-muted-foreground/50"
-                          style={{
-                            left: `${Number.isFinite(target.x) ? target.x : 0}%`,
-                            top: `${Number.isFinite(target.y) ? target.y : 0}%`,
-                            height: `${radiusPixels * 2}px`,
-                            width: `${radiusPixels * 2}px`,
-                          }}
-                        />
-                      );
-                    })}
-
-                  {activeSolution &&
-                    solutionPlacements &&
-                    items.map((item, index) => {
-                      const target = targetById.get(
-                        solutionPlacements[item.id],
-                      );
-
-                      if (!target) {
-                        return null;
-                      }
-
-                      const dragging = solutionDrag?.itemId === item.id;
-                      const position = dragging
-                        ? solutionDrag
-                        : {
-                            x: Number.isFinite(target.x) ? target.x : 0,
-                            y: Number.isFinite(target.y) ? target.y : 0,
-                          };
-                      const itemWidthPixels =
-                        (itemWidthPercent(item) / 100) * stageSize.width;
-                      const name = `Objeto ${index + 1}`;
-
-                      return (
-                        <button
-                          key={`alterno-${item.id}`}
-                          aria-label={`Llevar ${name} a otro destino`}
-                          className={cn(
-                            "absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-grab overflow-hidden rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing",
-                            dragging && "opacity-70",
-                          )}
-                          style={{
-                            left: `${position.x}%`,
-                            top: `${position.y}%`,
-                            touchAction: "none",
-                            width: item.image
-                              ? `${itemWidthPixels}px`
-                              : undefined,
-                          }}
-                          type="button"
-                          onPointerCancel={finishSolutionDrag}
-                          onPointerDown={(event) =>
-                            startSolutionDrag(event, item.id)
-                          }
-                          onPointerMove={moveSolutionDrag}
-                          onPointerUp={finishSolutionDrag}
-                        >
-                          {item.image ? (
-                            <img
-                              alt=""
-                              className="block h-auto w-full select-none"
-                              draggable={false}
-                              src={item.image.url}
-                            />
-                          ) : (
-                            <span className="block rounded-sm border border-dashed border-muted-foreground bg-background/90 px-2 py-4 text-xs">
-                              {name}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                </div>
-
-                {items.length > 1 && (
-                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm text-muted-foreground">
-                        Soluciones válidas
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={activeSolutionId ? "outline" : "default"}
-                        onClick={() => setActiveSolutionId(null)}
-                      >
-                        Principal
-                      </Button>
-                      {solutions.map((solution, index) => (
-                        <span
-                          key={solution.id}
-                          className="inline-flex items-center gap-0.5"
-                        >
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={
-                              activeSolutionId === solution.id
-                                ? "default"
-                                : "outline"
-                            }
-                            onClick={() => setActiveSolutionId(solution.id)}
-                          >
-                            {`Alterna ${index + 1}`}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label={`Quitar la solución alterna ${index + 1}`}
-                            onClick={() => {
-                              if (activeSolutionId === solution.id) {
-                                setActiveSolutionId(null);
-                              }
-
-                              onRemoveSolution(solution.id);
-                            }}
-                          >
-                            <XIcon />
-                          </Button>
-                        </span>
-                      ))}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setActiveSolutionId(onAddSolution())}
-                      >
-                        <PlusIcon data-icon="inline-start" />
-                        Otra solución
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {activeSolution
-                        ? "Arrastra un objeto a otro destino para armar este acomodo; si el destino está ocupado, los dos objetos se intercambian."
-                        : "Agrega una alterna si la tarea admite más de un acomodo correcto. Dos objetos con la misma imagen ya cuentan como intercambiables."}
-                    </p>
-                  </div>
                 )}
-
-                <div
-                  className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2"
-                  hidden={Boolean(activeSolution)}
+                <ImageUploadButton
+                  id={`drag-image-${item.id}`}
+                  onChange={(e) => {
+                    p.onReplaceItemImage(item.id, e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label={`Quitar pieza ${i + 1}`}
+                  onClick={() => p.onRemoveItem(item.id)}
                 >
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={onAddItem}
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    Agregar objeto
-                  </Button>
-                  <ImageUploadButton
-                    onChange={(event) => {
-                      onUploadBackground(event.target.files);
-                      event.target.value = "";
-                    }}
-                  />
-                </div>
+                  <XIcon />
+                </Button>
               </div>
-            )}
-          </FieldContent>
-        </Field>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor={`drag-name-${item.id}`}>
+                    Nombre de la pieza {i + 1}
+                  </FieldLabel>
+                  <Input
+                    id={`drag-name-${item.id}`}
+                    value={item.label}
+                    onChange={(e) =>
+                      p.onUpdateItem(item.id, { label: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`drag-equivalence-${item.id}`}>
+                    Piezas equivalentes {i + 1}
+                  </FieldLabel>
+                  <Input
+                    id={`drag-equivalence-${item.id}`}
+                    value={item.equivalenceKey ?? ""}
+                    maxLength={100}
+                    placeholder="Sin grupo explícito"
+                    onChange={(e) =>
+                      p.onUpdateItem(item.id, {
+                        equivalenceKey: e.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`drag-width-${item.id}`}>
+                    Ancho de la pieza {i + 1}: {item.widthPercent}%
+                  </FieldLabel>
+                  <Slider
+                    id={`drag-width-${item.id}`}
+                    value={[item.widthPercent]}
+                    min={1}
+                    max={100}
+                    step={0.5}
+                    onValueChange={([widthPercent]) =>
+                      p.onUpdateItem(item.id, { widthPercent })
+                    }
+                  />
+                </Field>
+                {mode === "solutions" && (
+                  <Field data-invalid={!targetIds.has(placements[item.id])}>
+                    <FieldLabel htmlFor={`drag-placement-${item.id}`}>
+                      Destino de la pieza {i + 1}
+                    </FieldLabel>
+                    <NativeSelect
+                      id={`drag-placement-${item.id}`}
+                      aria-invalid={!targetIds.has(placements[item.id])}
+                      value={
+                        targetIds.has(placements[item.id])
+                          ? placements[item.id]
+                          : ""
+                      }
+                      onChange={(e) => assign(item.id, e.target.value)}
+                    >
+                      <NativeSelectOption value="">
+                        Sin colocar
+                      </NativeSelectOption>
+                      {targets.map((t, n) => (
+                        <NativeSelectOption key={t.id} value={t.id}>
+                          Destino {n + 1}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                )}
+              </FieldGroup>
+            </FieldSet>
+          ))}
+        </div>
       </FieldSet>
     </FieldGroup>
-  );
-}
-
-function SliderField({
-  id,
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <label
-        htmlFor={id}
-        className="w-14 shrink-0 text-xs text-muted-foreground"
-      >
-        {label}
-      </label>
-      <Slider
-        id={id}
-        className="min-w-0 flex-1"
-        min={min}
-        max={max}
-        step={0.5}
-        value={[Math.min(max, Math.max(min, value))]}
-        onValueChange={([next]) => onChange(next)}
-      />
-      <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">
-        {value.toFixed(1)}%
-      </span>
-    </div>
   );
 }

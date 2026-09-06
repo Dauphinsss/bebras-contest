@@ -62,6 +62,8 @@ export type StoredTaskAnswer = {
 export type StoredTaskDragDropItem = {
   id: string;
   label: string;
+  /** Grupo semántico privado; vacío conserva la equivalencia histórica. */
+  equivalenceKey?: string;
   image: ContentImage | null;
   correctTargetId: string;
   widthPercent: number;
@@ -77,8 +79,7 @@ export type StoredTaskDragDropTarget = {
 /**
  * Otra forma de resolver la misma tarea: a qué destino va cada objeto.
  * La solución principal ya está en `correctTargetId` de cada objeto; aquí solo
- * viven las alternativas. Varias tareas del Bebras admiten más de un acomodo
- * correcto (p. ej. «Camino de robot»: la guía dice que hay dos opciones).
+ * viven las alternativas, que pueden ocupar distintos subconjuntos de destinos.
  */
 export type StoredTaskDragDropSolution = {
   id: string;
@@ -97,6 +98,9 @@ export type StoredTask = {
   bodyBlocks: ContentBlock[];
   challengeBlocks: ContentBlock[];
   answerType: AnswerType;
+  /** Reserved for versioned interactive answer types. */
+  answerConfig?: Record<string, unknown>;
+  answerKey?: Record<string, unknown>;
   multipleChoiceOrderMode: MultipleChoiceOrderMode;
   answers: StoredTaskAnswer[];
   correctAnswerId: string;

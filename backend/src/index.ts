@@ -13,11 +13,15 @@ import { prisma } from "./lib/prisma";
 import type { Prisma } from "./generated/prisma/client";
 import { formatPersonName } from "./lib/person-name";
 import {
-  dragDropPrimaryPlacements,
-  dragDropSignature,
-  isDragDropAnswerCorrect,
-  type DragDropSolution,
-} from "./lib/drag-drop-grading";
+  countFilledBlocks,
+  normalizeDragDropConfig,
+  parseTaskAnswerConfig,
+} from "./lib/task-answers/config";
+import { answerHasResponse } from "./lib/task-answers/presence";
+import { answerIsCorrect } from "./lib/task-answers/grading";
+import { validateTaskAnswer } from "./lib/task-answers/validation";
+import { renderSafeTask } from "./lib/task-answers/public-task";
+import type { PlayTask } from "./lib/task-answers/types";
 import { requireAdmin, requireAuth, signToken } from "./lib/auth";
 
 const app = express();
@@ -409,195 +413,6 @@ function parseJsonValue<T>(value: unknown, fallback: T) {
   }
 }
 
-type DragDropItem = {
-  id: string;
-  label: unknown;
-  image: unknown;
-  widthPercent: number;
-  correctTargetId: string;
-};
-
-type DragDropTarget = {
-  id: string;
-  x: number;
-  y: number;
-  snapRadius: number;
-};
-
-type DragDropConfig = {
-  version: 1 | 2;
-  items: DragDropItem[];
-  targets: DragDropTarget[];
-  /** Acomodos correctos además del que describen los `correctTargetId`. */
-  solutions: DragDropSolution[];
-};
-
-function readFiniteNumber(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function normalizeDragDropCoordinate(value: unknown) {
-  return Math.round(readFiniteNumber(value) * 1000) / 1000;
-}
-
-function normalizeDragDropWidth(value: unknown) {
-  return typeof value === "number" &&
-    Number.isFinite(value) &&
-    value > 0 &&
-    value <= 100
-    ? value
-    : 12;
-}
-
-function legacyDragDropTargetId(
-  index: number,
-  itemId: string,
-  x: number,
-  y: number,
-  snapRadius: number,
-) {
-  const value = `${index}\u0000${itemId}\u0000${x}\u0000${y}\u0000${snapRadius}`;
-  let hash = 2166136261;
-
-  for (let character = 0; character < value.length; character += 1) {
-    hash = Math.imul(hash ^ value.charCodeAt(character), 16777619);
-  }
-
-  return `legacy-target-${(hash >>> 0).toString(36)}`;
-}
-
-function normalizeDragDropSolutions(value: unknown): DragDropSolution[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const solutions: DragDropSolution[] = [];
-
-  value.forEach((entry, index) => {
-    const solution =
-      entry && typeof entry === "object" && !Array.isArray(entry)
-        ? (entry as Record<string, unknown>)
-        : {};
-    const raw = solution.placements;
-
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      return;
-    }
-
-    const placements: Record<string, string> = {};
-
-    for (const [itemId, targetId] of Object.entries(
-      raw as Record<string, unknown>,
-    )) {
-      if (typeof targetId === "string" && targetId) {
-        placements[itemId] = targetId;
-      }
-    }
-
-    solutions.push({
-      id:
-        typeof solution.id === "string" && solution.id
-          ? solution.id
-          : `solution-${index + 1}`,
-      placements,
-    });
-  });
-
-  return solutions;
-}
-
-function normalizeDragDropConfig(value: unknown): DragDropConfig {
-  if (Array.isArray(value)) {
-    const items: DragDropItem[] = [];
-    const targets: DragDropTarget[] = [];
-    const targetIds = new Set<string>();
-
-    value.forEach((entry, index) => {
-      const item =
-        entry && typeof entry === "object"
-          ? (entry as Record<string, unknown>)
-          : {};
-      const id =
-        typeof item.id === "string" && item.id
-          ? item.id
-          : `legacy-item-${index + 1}`;
-      const x = normalizeDragDropCoordinate(item.targetX);
-      const y = normalizeDragDropCoordinate(item.targetY);
-      const snapRadius = readFiniteNumber(item.tolerance);
-      const targetIdBase = legacyDragDropTargetId(index, id, x, y, snapRadius);
-      let targetId = targetIdBase;
-      let collisionSuffix = 2;
-      while (targetIds.has(targetId)) {
-        targetId = `${targetIdBase}-${collisionSuffix}`;
-        collisionSuffix += 1;
-      }
-      targetIds.add(targetId);
-
-      items.push({
-        id,
-        label: item.label ?? "",
-        image: item.image ?? null,
-        widthPercent: normalizeDragDropWidth(item.widthPercent),
-        correctTargetId: targetId,
-      });
-      targets.push({ id: targetId, x, y, snapRadius });
-    });
-
-    return { version: 1, items, targets, solutions: [] };
-  }
-
-  if (!value || typeof value !== "object") {
-    return { version: 2, items: [], targets: [], solutions: [] };
-  }
-
-  const config = value as Record<string, unknown>;
-  if (
-    (config.version !== 1 && config.version !== 2) ||
-    !Array.isArray(config.items) ||
-    !Array.isArray(config.targets)
-  ) {
-    return { version: 2, items: [], targets: [], solutions: [] };
-  }
-
-  return {
-    version: config.version,
-    solutions: normalizeDragDropSolutions(config.solutions),
-    items: config.items.map((entry, index) => {
-      const item =
-        entry && typeof entry === "object"
-          ? (entry as Record<string, unknown>)
-          : {};
-      return {
-        id:
-          typeof item.id === "string" && item.id
-            ? item.id
-            : `item-${index + 1}`,
-        label: item.label ?? "",
-        image: item.image ?? null,
-        widthPercent: normalizeDragDropWidth(item.widthPercent),
-        correctTargetId:
-          typeof item.correctTargetId === "string" ? item.correctTargetId : "",
-      };
-    }),
-    targets: config.targets.map((entry, index) => {
-      const target =
-        entry && typeof entry === "object"
-          ? (entry as Record<string, unknown>)
-          : {};
-      return {
-        id:
-          typeof target.id === "string" && target.id
-            ? target.id
-            : `target-${index + 1}`,
-        x: normalizeDragDropCoordinate(target.x),
-        y: normalizeDragDropCoordinate(target.y),
-        snapRadius: readFiniteNumber(target.snapRadius),
-      };
-    }),
-  };
-}
-
 function normalizeTaskDifficulties(value: unknown) {
   const difficulties = parseJsonValue<Record<string, unknown>>(value, {});
   const normalized = { ...difficulties };
@@ -622,6 +437,8 @@ function deserializeTask<
     challengeBlocks: unknown;
     explanationBlocks?: unknown;
     answerType?: unknown;
+    answerConfig?: unknown;
+    answerKey?: unknown;
     answers: unknown;
     shortAnswer?: unknown;
     rangeMin?: unknown;
@@ -643,6 +460,11 @@ function deserializeTask<
     challengeBlocks: parseJsonValue<unknown[]>(task.challengeBlocks, []),
     explanationBlocks: parseJsonValue<unknown[]>(task.explanationBlocks, []),
     answerType: String(task.answerType ?? "multiple_choice"),
+    answerConfig: parseJsonValue<Record<string, unknown>>(
+      task.answerConfig,
+      {},
+    ),
+    answerKey: parseJsonValue<Record<string, unknown>>(task.answerKey, {}),
     answers: parseJsonValue<PlayTask["answers"]>(task.answers, []),
     shortAnswer: String(task.shortAnswer ?? ""),
     rangeMin: toFiniteNumber(task.rangeMin),
@@ -770,32 +592,6 @@ const TASK_AGE_RANGES: string[] = BEBRAS_CATEGORIES.map(
   (category) => category.ageRange,
 );
 
-const TASK_ANSWER_TYPES = [
-  "multiple_choice",
-  "short_text",
-  "range",
-  "drag_drop",
-];
-
-type ContentBlockInput = {
-  content?: unknown;
-  image?: unknown;
-};
-
-function blockHasContent(block: unknown) {
-  if (!block || typeof block !== "object") {
-    return false;
-  }
-
-  const typed = block as ContentBlockInput;
-  const text = typeof typed.content === "string" ? typed.content.trim() : "";
-  return text.length > 0 || Boolean(typed.image);
-}
-
-function countFilledBlocks(value: unknown) {
-  return Array.isArray(value) ? value.filter(blockHasContent).length : 0;
-}
-
 function readText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -881,320 +677,10 @@ function parseTaskPayload(body: Record<string, unknown>) {
     throw new Error("Debes agregar contenido en la pregunta o desafío.");
   }
 
-  const answerType = readText(body.answerType) || "multiple_choice";
-
-  if (!TASK_ANSWER_TYPES.includes(answerType)) {
-    throw new Error("El tipo de respuesta no es válido.");
-  }
-
   if (countFilledBlocks(body.explanationBlocks) === 0) {
     throw new Error("La explicación de la respuesta es obligatoria.");
   }
-
-  const answers = Array.isArray(body.answers) ? body.answers : [];
-  const correctAnswerId = readText(body.correctAnswerId);
-  const shortAnswer = readText(body.shortAnswer);
-  const rangeMin = toFiniteNumber(body.rangeMin);
-  const rangeMax = toFiniteNumber(body.rangeMax);
-  const dragDropItems = Array.isArray(body.dragDropItems)
-    ? body.dragDropItems
-    : [];
-  const dragDropTargets = Array.isArray(body.dragDropTargets)
-    ? body.dragDropTargets
-    : [];
-  const dragDropSolutions = Array.isArray(body.dragDropSolutions)
-    ? body.dragDropSolutions
-    : [];
-  let dragDropConfig: {
-    version: 2;
-    items: DragDropItem[];
-    targets: DragDropTarget[];
-    solutions: DragDropSolution[];
-  } = {
-    version: 2,
-    items: [],
-    targets: [],
-    solutions: [],
-  };
-
-  if (answerType === "multiple_choice") {
-    const filledAnswers = answers.filter(
-      (answer) =>
-        answer &&
-        typeof answer === "object" &&
-        countFilledBlocks((answer as { blocks?: unknown }).blocks) > 0,
-    );
-
-    if (filledAnswers.length < 2) {
-      throw new Error("Debes completar al menos dos respuestas.");
-    }
-
-    const { mode, ids } = parseMcCorrectness(correctAnswerId);
-
-    if (mode === "single" && ids.length !== 1) {
-      throw new Error("Debes marcar exactamente una respuesta correcta.");
-    }
-
-    if (mode !== "single" && ids.length < 2) {
-      throw new Error("Debes marcar al menos dos respuestas correctas.");
-    }
-
-    const filledIds = new Set(
-      filledAnswers.map((answer) => String((answer as { id?: unknown }).id)),
-    );
-    const missing = ids.find((id) => !filledIds.has(id));
-
-    if (missing) {
-      throw new Error(
-        "Las respuestas marcadas como correctas deben tener contenido.",
-      );
-    }
-  }
-
-  if (answerType === "short_text" && !shortAnswer) {
-    throw new Error("Debes definir la respuesta corta esperada.");
-  }
-
-  if (answerType === "range") {
-    if (rangeMin === null || rangeMax === null) {
-      throw new Error("Debes definir el mínimo y el máximo del rango válido.");
-    }
-
-    if (rangeMin > rangeMax) {
-      throw new Error("El mínimo no puede ser mayor que el máximo.");
-    }
-  }
-
-  if (answerType === "drag_drop") {
-    if (!body.dragDropBackground) {
-      throw new Error(
-        "Debes agregar la imagen de fondo para arrastrar y soltar.",
-      );
-    }
-
-    if (dragDropItems.length === 0 || dragDropTargets.length === 0) {
-      throw new Error(
-        "Debes agregar al menos un objeto arrastrable y un destino.",
-      );
-    }
-
-    if (dragDropItems.length !== dragDropTargets.length) {
-      throw new Error(
-        "Debe haber la misma cantidad de objetos arrastrables y destinos.",
-      );
-    }
-
-    const normalizedItems: DragDropItem[] = [];
-    const normalizedTargets: DragDropTarget[] = [];
-    const itemIds = new Set<string>();
-    const targetIds = new Set<string>();
-
-    for (const dragDropItem of dragDropItems) {
-      const item = (dragDropItem ?? {}) as Record<string, unknown>;
-      const id = readText(item.id);
-      const label = readText(item.label);
-      const widthPercent = item.widthPercent;
-      const correctTargetId = readText(item.correctTargetId);
-
-      if (!id) {
-        throw new Error("Cada objeto arrastrable debe tener un ID.");
-      }
-
-      if (itemIds.has(id)) {
-        throw new Error(
-          "Los IDs de los objetos arrastrables deben ser únicos.",
-        );
-      }
-      itemIds.add(id);
-
-      if (!label) {
-        throw new Error("Cada objeto arrastrable debe tener un nombre.");
-      }
-
-      if (!item.image) {
-        throw new Error("Cada objeto arrastrable debe tener una imagen.");
-      }
-
-      if (
-        typeof widthPercent !== "number" ||
-        !Number.isFinite(widthPercent) ||
-        widthPercent <= 0 ||
-        widthPercent > 100
-      ) {
-        throw new Error(
-          "El ancho de cada objeto arrastrable debe ser mayor que 0 y menor o igual a 100.",
-        );
-      }
-
-      if (!correctTargetId) {
-        throw new Error(
-          "Cada objeto arrastrable debe tener un destino correcto.",
-        );
-      }
-
-      normalizedItems.push({
-        id,
-        label,
-        image: item.image,
-        widthPercent,
-        correctTargetId,
-      });
-    }
-
-    for (const dragDropTarget of dragDropTargets) {
-      const target = (dragDropTarget ?? {}) as Record<string, unknown>;
-      const id = readText(target.id);
-      const x = target.x;
-      const y = target.y;
-      const snapRadius = target.snapRadius;
-
-      if (!id) {
-        throw new Error("Cada destino debe tener un ID.");
-      }
-
-      if (targetIds.has(id)) {
-        throw new Error("Los IDs de los destinos deben ser únicos.");
-      }
-      targetIds.add(id);
-
-      if (
-        typeof x !== "number" ||
-        typeof y !== "number" ||
-        !Number.isFinite(x) ||
-        !Number.isFinite(y) ||
-        x < 0 ||
-        x > 100 ||
-        y < 0 ||
-        y > 100
-      ) {
-        throw new Error(
-          "La posición de cada destino debe estar entre 0 y 100.",
-        );
-      }
-
-      if (
-        typeof snapRadius !== "number" ||
-        !Number.isFinite(snapRadius) ||
-        snapRadius <= 0 ||
-        snapRadius > 100
-      ) {
-        throw new Error(
-          "El radio de ajuste de cada destino debe ser mayor que 0 y menor o igual a 100.",
-        );
-      }
-
-      normalizedTargets.push({
-        id,
-        x: normalizeDragDropCoordinate(x),
-        y: normalizeDragDropCoordinate(y),
-        snapRadius,
-      });
-    }
-
-    const usedTargetIds = new Set<string>();
-    for (const item of normalizedItems) {
-      if (!targetIds.has(item.correctTargetId)) {
-        throw new Error(
-          "El destino correcto de cada objeto debe existir en la tarea.",
-        );
-      }
-
-      if (usedTargetIds.has(item.correctTargetId)) {
-        throw new Error(
-          "Cada destino debe ser la respuesta correcta de un solo objeto.",
-        );
-      }
-      usedTargetIds.add(item.correctTargetId);
-    }
-
-    if (usedTargetIds.size !== targetIds.size) {
-      throw new Error("Cada destino debe usarse exactamente una vez.");
-    }
-
-    // Alternativas: cada una reparte los mismos objetos entre los mismos
-    // destinos, de otra manera. Dos alternativas que solo intercambian piezas
-    // idénticas son la misma respuesta, así que se rechazan por repetidas.
-    const normalizedSolutions: DragDropSolution[] = [];
-    const solutionIds = new Set<string>();
-    const seenSignatures = new Set<string>();
-    const primarySignature = dragDropSignature(
-      normalizedItems,
-      dragDropPrimaryPlacements(normalizedItems),
-    );
-
-    if (primarySignature) {
-      seenSignatures.add(primarySignature);
-    }
-
-    for (const dragDropSolution of dragDropSolutions) {
-      const solution = (dragDropSolution ?? {}) as Record<string, unknown>;
-      const id = readText(solution.id);
-
-      if (!id) {
-        throw new Error("Cada solución alternativa debe tener un ID.");
-      }
-
-      if (solutionIds.has(id)) {
-        throw new Error(
-          "Los IDs de las soluciones alternativas deben ser únicos.",
-        );
-      }
-      solutionIds.add(id);
-
-      const rawPlacements = solution.placements;
-
-      if (
-        !rawPlacements ||
-        typeof rawPlacements !== "object" ||
-        Array.isArray(rawPlacements)
-      ) {
-        throw new Error(
-          "Cada solución alternativa debe indicar dónde va cada objeto.",
-        );
-      }
-
-      const placements: Record<string, string> = {};
-      const usedInSolution = new Set<string>();
-
-      for (const item of normalizedItems) {
-        const targetId = readText(
-          (rawPlacements as Record<string, unknown>)[item.id],
-        );
-
-        if (!targetId || !targetIds.has(targetId)) {
-          throw new Error(
-            "Cada solución alternativa debe colocar todos los objetos en destinos de la tarea.",
-          );
-        }
-
-        if (usedInSolution.has(targetId)) {
-          throw new Error(
-            "En cada solución alternativa, cada destino debe recibir un solo objeto.",
-          );
-        }
-        usedInSolution.add(targetId);
-        placements[item.id] = targetId;
-      }
-
-      const signature = dragDropSignature(normalizedItems, placements);
-
-      if (!signature || seenSignatures.has(signature)) {
-        throw new Error(
-          "Esa solución alternativa es igual a otra que ya guardaste.",
-        );
-      }
-      seenSignatures.add(signature);
-
-      normalizedSolutions.push({ id, placements });
-    }
-
-    dragDropConfig = {
-      version: 2,
-      items: normalizedItems,
-      targets: normalizedTargets,
-      solutions: normalizedSolutions,
-    };
-  }
+  const answerFields = parseTaskAnswerConfig(body);
 
   return {
     title,
@@ -1204,20 +690,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
     difficulties: serializeJson(difficulties),
     bodyBlocks: serializeJson(body.bodyBlocks ?? []),
     challengeBlocks: serializeJson(body.challengeBlocks ?? []),
-    answerType,
-    multipleChoiceOrderMode:
-      body.multipleChoiceOrderMode === "random" ? "random" : "fixed",
-    answers: serializeJson(answers),
-    correctAnswerId,
-    shortAnswer: answerType === "short_text" ? shortAnswer : "",
-    rangeMin: answerType === "range" ? rangeMin : null,
-    rangeMax: answerType === "range" ? rangeMax : null,
-    dragDropBackground: serializeJson(
-      answerType === "drag_drop" ? (body.dragDropBackground ?? null) : null,
-    ),
-    dragDropItems: serializeJson(
-      answerType === "drag_drop" ? dragDropConfig : [],
-    ),
+    ...answerFields,
     explanationBlocks: serializeJson(body.explanationBlocks ?? []),
   };
 }
@@ -2900,6 +2373,40 @@ app.post("/api/tasks", async (req, res) => {
   });
 
   res.status(201).json(deserializeTask(task));
+});
+
+// Uses the same public projection and grader as play, including private drafts.
+// These routes inherit requireAdmin from /api/tasks.
+app.get("/api/tasks/:id/preview", async (req, res) => {
+  const raw = await prisma.taskDraft.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!raw) {
+    res.status(404).json({ message: "Tarea no encontrada." });
+    return;
+  }
+  res.json(renderSafeTask({ position: 0 }, deserializeTask(raw)));
+});
+
+app.post("/api/tasks/:id/check", async (req, res) => {
+  const raw = await prisma.taskDraft.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!raw) {
+    res.status(404).json({ message: "Tarea no encontrada." });
+    return;
+  }
+  const task = deserializeTask(raw);
+  const payload = req.body?.payload;
+  const error = validateTaskAnswer(task, payload);
+  if (error) {
+    res.status(400).json({ message: error });
+    return;
+  }
+  res.json({
+    correct: answerIsCorrect(task, payload),
+    explanationBlocks: task.explanationBlocks,
+  });
 });
 
 app.put("/api/tasks/:id", async (req, res) => {
@@ -5330,318 +4837,6 @@ app.get("/api/play/team/:personalCode", async (req, res) => {
   });
 });
 
-/**
- * Lee `correctAnswerId`. El formato es `modo:opciones` (`single:B`, `any:B,C`,
- * `all:B,D`). Una letra suelta es el formato viejo y se lee como `single`.
- */
-function parseMcCorrectness(value: string) {
-  const raw = String(value ?? "").trim();
-  const separatorAt = raw.indexOf(":");
-
-  if (separatorAt === -1) {
-    return { mode: "single", ids: raw ? [raw] : [] };
-  }
-
-  const rawMode = raw.slice(0, separatorAt);
-  const mode = rawMode === "any" || rawMode === "all" ? rawMode : "single";
-  const ids = [
-    ...new Set(
-      raw
-        .slice(separatorAt + 1)
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-  ];
-
-  return { mode, ids: mode === "single" ? ids.slice(0, 1) : ids };
-}
-
-type PlayTask = {
-  id: string;
-  title: string;
-  bodyBlocks: unknown;
-  challengeBlocks: unknown;
-  answerType: string;
-  multipleChoiceOrderMode: string;
-  answers: Array<{ id: unknown; blocks: unknown }>;
-  correctAnswerId: string;
-  shortAnswer: unknown;
-  rangeMin: number | null;
-  rangeMax: number | null;
-  dragDropBackground: unknown;
-  dragDropItems: DragDropItem[];
-  dragDropTargets: DragDropTarget[];
-  dragDropSolutions: DragDropSolution[];
-  dragDropVersion: 1 | 2;
-  explanationBlocks?: unknown;
-};
-
-function answerHasResponse(answerType: string, payload: unknown) {
-  if (!payload || typeof payload !== "object") {
-    return false;
-  }
-  const response = payload as Record<string, unknown>;
-  if (answerType === "multiple_choice") {
-    return Array.isArray(response.selected) && response.selected.length > 0;
-  }
-  if (answerType === "short_text") {
-    return typeof response.text === "string" && response.text.trim().length > 0;
-  }
-  if (answerType === "range") {
-    const value = String(response.value ?? "").trim();
-    return value !== "" && !Number.isNaN(Number(value));
-  }
-  if (answerType === "drag_drop") {
-    return (
-      response.placements &&
-      typeof response.placements === "object" &&
-      Object.keys(response.placements).length > 0
-    );
-  }
-  return false;
-}
-
-type ParsedDragDropAnswer =
-  | { kind: "targets"; placements: Record<string, string> }
-  | {
-      kind: "coordinates";
-      placements: Record<string, { x: number; y: number }>;
-    };
-
-function parseDragDropAnswer(
-  task: PlayTask,
-  payload: unknown,
-): ParsedDragDropAnswer | null {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return null;
-  }
-
-  const placements = (payload as Record<string, unknown>).placements;
-  if (
-    !placements ||
-    typeof placements !== "object" ||
-    Array.isArray(placements)
-  ) {
-    return null;
-  }
-
-  const entries = Object.entries(placements as Record<string, unknown>);
-  const itemIds = new Set(task.dragDropItems.map((item) => item.id));
-  if (entries.some(([itemId]) => !itemIds.has(itemId))) {
-    return null;
-  }
-
-  if (entries.every(([, targetId]) => typeof targetId === "string")) {
-    const targetIds = new Set(task.dragDropTargets.map((target) => target.id));
-    const occupiedTargetIds = new Set<string>();
-    const normalizedPlacements: Record<string, string> = {};
-
-    for (const [itemId, targetId] of entries) {
-      const normalizedTargetId = targetId as string;
-      if (
-        !targetIds.has(normalizedTargetId) ||
-        occupiedTargetIds.has(normalizedTargetId)
-      ) {
-        return null;
-      }
-      occupiedTargetIds.add(normalizedTargetId);
-      normalizedPlacements[itemId] = normalizedTargetId;
-    }
-
-    return { kind: "targets", placements: normalizedPlacements };
-  }
-
-  const normalizedPlacements: Record<string, { x: number; y: number }> = {};
-  for (const [itemId, placement] of entries) {
-    if (
-      !placement ||
-      typeof placement !== "object" ||
-      Array.isArray(placement)
-    ) {
-      return null;
-    }
-
-    const { x, y } = placement as Record<string, unknown>;
-    if (
-      typeof x !== "number" ||
-      typeof y !== "number" ||
-      !Number.isFinite(x) ||
-      !Number.isFinite(y)
-    ) {
-      return null;
-    }
-    normalizedPlacements[itemId] = { x, y };
-  }
-
-  return { kind: "coordinates", placements: normalizedPlacements };
-}
-
-function answerIsCorrect(task: PlayTask, payload: unknown) {
-  const response =
-    payload && typeof payload === "object"
-      ? (payload as Record<string, unknown>)
-      : {};
-  const type = task.answerType;
-  if (type === "multiple_choice") {
-    const selected = Array.isArray(response.selected)
-      ? response.selected.map(String)
-      : [];
-    if (selected.length === 0 || new Set(selected).size !== selected.length) {
-      return false;
-    }
-    const { mode, ids } = parseMcCorrectness(task.correctAnswerId);
-    if (mode === "single") {
-      return selected.length === 1 && selected[0] === ids[0];
-    }
-    if (mode === "any") {
-      return selected.length === 1 && ids.includes(selected[0]);
-    }
-    return (
-      selected.length === ids.length &&
-      selected.every((item: string) => ids.includes(item))
-    );
-  }
-  if (type === "short_text") {
-    const text = typeof response.text === "string" ? response.text : "";
-    return (
-      text.trim().toLowerCase() ===
-      String(task.shortAnswer ?? "")
-        .trim()
-        .toLowerCase()
-    );
-  }
-  if (type === "range") {
-    const value = Number(response.value);
-    if (Number.isNaN(value)) {
-      return false;
-    }
-    if (task.rangeMin === null || task.rangeMax === null) {
-      return false;
-    }
-    return value >= task.rangeMin && value <= task.rangeMax;
-  }
-  if (type === "drag_drop") {
-    const items = task.dragDropItems;
-    if (items.length === 0) {
-      return false;
-    }
-
-    const answer = parseDragDropAnswer(task, payload);
-    if (!answer) {
-      return false;
-    }
-
-    const solutions = task.dragDropSolutions ?? [];
-
-    if (answer.kind === "targets") {
-      return isDragDropAnswerCorrect(items, solutions, answer.placements);
-    }
-
-    if (task.dragDropVersion !== 1) {
-      return false;
-    }
-
-    // Respuestas viejas, guardadas como coordenadas: primero se resuelve en
-    // qué destino cayó cada objeto y desde ahí se corrige igual que el resto.
-    const placements: Record<string, string> = {};
-
-    for (const item of items) {
-      const placement = answer.placements[item.id];
-
-      if (!placement) {
-        return false;
-      }
-
-      let closest: { id: string; distance: number } | null = null;
-
-      for (const target of task.dragDropTargets) {
-        const distance = Math.hypot(
-          placement.x - target.x,
-          placement.y - target.y,
-        );
-
-        if (
-          distance <= target.snapRadius &&
-          (!closest || distance < closest.distance)
-        ) {
-          closest = { id: target.id, distance };
-        }
-      }
-
-      if (!closest) {
-        return false;
-      }
-
-      placements[item.id] = closest.id;
-    }
-
-    return isDragDropAnswerCorrect(items, solutions, placements);
-  }
-  return false;
-}
-
-function seedFromText(value: string) {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return hash || 1;
-}
-
-function shuffleWithSeed<T>(input: T[], seed: number) {
-  const result = [...input];
-  let state = seed;
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    const j = state % (i + 1);
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-function renderSafeTask(contestTask: { position: number }, task: PlayTask) {
-  let answers = task.answers.map((answer) => ({
-    id: answer.id,
-    blocks: answer.blocks,
-  }));
-  if (task.multipleChoiceOrderMode === "random") {
-    answers = shuffleWithSeed(answers, seedFromText(task.id));
-  }
-
-  return {
-    taskId: task.id,
-    position: contestTask.position,
-    title: task.title,
-    bodyBlocks: task.bodyBlocks,
-    challengeBlocks: task.challengeBlocks,
-    answerType: task.answerType,
-    multipleChoiceOrderMode: task.multipleChoiceOrderMode,
-    multipleChoiceMode: parseMcCorrectness(task.correctAnswerId).mode,
-    answers,
-    dragDropBackground: task.dragDropBackground,
-    dragDropItems: task.dragDropItems.map((item) => ({
-      id: item.id,
-      label: item.label,
-      image: item.image,
-      widthPercent: item.widthPercent,
-    })),
-    dragDropTargets: [...task.dragDropTargets]
-      .sort(
-        (left, right) =>
-          left.x - right.x ||
-          left.y - right.y ||
-          left.id.localeCompare(right.id),
-      )
-      .map((target) => ({
-        id: target.id,
-        x: target.x,
-        y: target.y,
-        snapRadius: target.snapRadius,
-      })),
-  };
-}
-
 function attemptElapsedMs(attempt: {
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -6290,17 +5485,10 @@ app.post("/api/play/answer", async (req, res) => {
   }
 
   const task = deserializeTask(contestTask.taskDraft) as PlayTask;
-  if (task.answerType === "drag_drop") {
-    const answer = parseDragDropAnswer(task, payload);
-    if (
-      !answer ||
-      (answer.kind === "coordinates" && task.dragDropVersion !== 1)
-    ) {
-      res.status(400).json({
-        message: "La respuesta de arrastrar y soltar no es válida.",
-      });
-      return;
-    }
+  const answerError = validateTaskAnswer(task, payload);
+  if (answerError) {
+    res.status(400).json({ message: answerError });
+    return;
   }
 
   await prisma.attemptAnswer.upsert({

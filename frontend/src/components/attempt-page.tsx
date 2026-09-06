@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
-import { PlayTaskFields } from "@/components/play-task-fields";
+import { TaskPlayContent } from "@/components/task-play-content";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -862,21 +862,12 @@ function TaskCard({
             Tarea {task.position}
           </span>
           <h2 className="text-xl font-semibold">{task.title}</h2>
-          <TaskContentRenderer blocks={task.bodyBlocks} className="gap-4" />
         </div>
-
-        {task.challengeBlocks.length > 0 && (
-          <TaskContentRenderer
-            blocks={task.challengeBlocks}
-            className="gap-4"
-          />
-        )}
-
-        <PlayTaskFields
+        <TaskPlayContent
           task={task}
           value={value}
           disabled={disabled}
-          onChange={disabled ? () => undefined : onChange}
+          onChange={onChange}
         />
       </CardContent>
     </Card>

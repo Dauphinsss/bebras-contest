@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  BetweenHorizonalStartIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayIcon,
@@ -23,7 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageUploadButton } from "@/components/image-upload-button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -426,7 +425,7 @@ function validateForm(state: FormState) {
       (item) => item.correctTargetId,
     );
     const hasOneToOneMapping =
-      state.dragDropItems.length === state.dragDropTargets.length &&
+      state.dragDropItems.length <= state.dragDropTargets.length &&
       itemIds.every(Boolean) &&
       targetIds.every(Boolean) &&
       correctTargetIds.every(Boolean) &&
@@ -970,7 +969,9 @@ export function TaskUploadForm({
 
   const updateDragDropItem = (
     itemId: string,
-    patch: Partial<Pick<StoredTaskDragDropItem, "label" | "widthPercent">>,
+    patch: Partial<
+      Pick<StoredTaskDragDropItem, "label" | "widthPercent" | "equivalenceKey">
+    >,
   ) => {
     setForm((current) => ({
       ...current,
@@ -1782,10 +1783,9 @@ export function TaskUploadForm({
                 Escenario interactivo
               </FieldLegend>
               <FieldDescription>
-                Configura el fondo, el nombre y la imagen de cada objeto.
-                Selecciona uno y arrástralo sobre el escenario, o muévelo con
-                las flechas del teclado (Shift para ajuste fino). El círculo
-                punteado marca su radio de encaje y solo se ve al editar.
+                Agrega las piezas y todas las posiciones donde pueden colocarse.
+                Después define la solución principal y los demás acomodos
+                válidos. Los destinos pueden quedar vacíos.
               </FieldDescription>
               <DragDropEditor
                 backgroundUrl={form.dragDropBackground?.url ?? null}
@@ -1799,8 +1799,6 @@ export function TaskUploadForm({
                 }}
                 onAddItem={() => {
                   const itemId = crypto.randomUUID();
-                  const targetId = crypto.randomUUID();
-
                   setForm((current) => ({
                     ...current,
                     dragDropItems: [
@@ -1809,79 +1807,78 @@ export function TaskUploadForm({
                         id: itemId,
                         label: `Objeto ${current.dragDropItems.length + 1}`,
                         image: null,
-                        correctTargetId: targetId,
+                        correctTargetId: "",
                         widthPercent: DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
                       },
                     ],
+                  }));
+                }}
+                onRemoveItem={(itemId) =>
+                  setForm((current) => ({
+                    ...current,
+                    dragDropItems: current.dragDropItems.filter(
+                      (item) => item.id !== itemId,
+                    ),
+                    dragDropSolutions: current.dragDropSolutions.map(
+                      (solution) => ({
+                        ...solution,
+                        placements: Object.fromEntries(
+                          Object.entries(solution.placements).filter(
+                            ([id]) => id !== itemId,
+                          ),
+                        ),
+                      }),
+                    ),
+                  }))
+                }
+                onAddTarget={() => {
+                  const targetId = crypto.randomUUID();
+                  setForm((current) => ({
+                    ...current,
                     dragDropTargets: [
                       ...current.dragDropTargets,
                       {
                         id: targetId,
                         x: 50,
                         y: 50,
-                        // El encaje es uno para toda la tarea: un valor fijo
-                        // aquí hacía que cada objeto nuevo naciera descuadrado.
                         snapRadius:
                           current.dragDropTargets[0]?.snapRadius ?? 10,
                       },
                     ],
-                    // Una alternativa tiene que repartir todos los objetos; el
-                    // nuevo entra en su propio destino para no invalidarlas.
+                  }));
+                  return targetId;
+                }}
+                onRemoveTarget={(targetId) =>
+                  setForm((current) => ({
+                    ...current,
+                    dragDropTargets: current.dragDropTargets.filter(
+                      (target) => target.id !== targetId,
+                    ),
+                    dragDropItems: current.dragDropItems.map((item) =>
+                      item.correctTargetId === targetId
+                        ? { ...item, correctTargetId: "" }
+                        : item,
+                    ),
                     dragDropSolutions: current.dragDropSolutions.map(
                       (solution) => ({
                         ...solution,
-                        placements: {
-                          ...solution.placements,
-                          [itemId]: targetId,
-                        },
+                        placements: Object.fromEntries(
+                          Object.entries(solution.placements).filter(
+                            ([, id]) => id !== targetId,
+                          ),
+                        ),
                       }),
                     ),
-                  }));
-                }}
-                onRemoveItem={(itemId) =>
-                  setForm((current) => {
-                    if (current.dragDropItems.length <= 1) {
-                      return current;
-                    }
-
-                    const removedItem = current.dragDropItems.find(
-                      (item) => item.id === itemId,
-                    );
-
-                    const remainingItems = current.dragDropItems.filter(
-                      (item) => item.id !== itemId,
-                    );
-
-                    return {
-                      ...current,
-                      dragDropItems: remainingItems,
-                      dragDropTargets: current.dragDropTargets.filter(
-                        (target) => target.id !== removedItem?.correctTargetId,
-                      ),
-                      dragDropSolutions: current.dragDropSolutions
-                        .map((solution) => {
-                          const placements = { ...solution.placements };
-                          delete placements[itemId];
-
-                          return { ...solution, placements };
-                        })
-                        .filter((solution) => {
-                          const signature = dragDropSignature(
-                            remainingItems,
-                            solution.placements,
-                          );
-
-                          return (
-                            signature !== null &&
-                            signature !==
-                              dragDropSignature(
-                                remainingItems,
-                                dragDropPrimaryPlacements(remainingItems),
-                              )
-                          );
-                        }),
-                    };
-                  })
+                  }))
+                }
+                onUpdatePrimary={(placements) =>
+                  setForm((current) => ({
+                    ...current,
+                    dragDropItems: current.dragDropItems.map((item) => ({
+                      ...item,
+                      correctTargetId: placements[item.id] ?? "",
+                    })),
+                  }))
                 }
                 onUpdateItem={updateDragDropItem}
                 onUpdateTarget={updateDragDropTarget}

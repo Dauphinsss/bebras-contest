@@ -19,6 +19,7 @@ export type PlayTask = {
   bodyBlocks: ContentBlock[];
   challengeBlocks: ContentBlock[];
   answerType: string;
+  answerConfig?: Record<string, unknown>;
   multipleChoiceOrderMode: string;
   multipleChoiceMode: "single" | "any" | "all";
   answers: PlayAnswerOption[];
@@ -60,36 +61,7 @@ export type AttemptState = {
   result: AttemptResult | null;
 };
 
-export function answerHasResponse(answerType: string, payload: unknown) {
-  if (!payload || typeof payload !== "object") {
-    return false;
-  }
-
-  const value = payload as Record<string, unknown>;
-
-  if (answerType === "multiple_choice") {
-    return Array.isArray(value.selected) && value.selected.length > 0;
-  }
-
-  if (answerType === "short_text") {
-    return typeof value.text === "string" && value.text.trim().length > 0;
-  }
-
-  if (answerType === "range") {
-    const raw = String(value.value ?? "").trim();
-    return raw !== "" && !Number.isNaN(Number(raw));
-  }
-
-  if (answerType === "drag_drop") {
-    return (
-      Boolean(value.placements) &&
-      typeof value.placements === "object" &&
-      Object.keys(value.placements as object).length > 0
-    );
-  }
-
-  return false;
-}
+export { answerHasResponse } from "./answer-presence";
 
 const PLAY_SESSION_KEY = "bebras_play_session";
 

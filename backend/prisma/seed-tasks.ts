@@ -2,6 +2,7 @@ import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "../src/lib/prisma";
+import { seedDragDropConfig } from "./seed-drag-drop";
 
 const AGE_RANGES = ["5–8", "8–10", "10–12", "12–14", "14–16", "17–18"];
 
@@ -18,6 +19,8 @@ type TaskItem = {
   bodyBlocks?: unknown[];
   challengeBlocks?: unknown[];
   answerType?: string;
+  answerConfig?: Record<string, unknown>;
+  answerKey?: Record<string, unknown>;
   multipleChoiceOrderMode?: string;
   answers?: Array<{ id: string; blocks: unknown[]; isCorrect?: boolean }>;
   correctAnswerId?: string;
@@ -25,6 +28,7 @@ type TaskItem = {
   dragDropBackground?: unknown;
   dragDropItems?: unknown;
   dragDropTargets?: unknown[];
+  dragDropSolutions?: unknown[];
   explanationBlocks?: unknown[];
   isPractice?: boolean;
 };
@@ -54,6 +58,8 @@ async function main() {
         bodyBlocks: JSON.stringify(task.bodyBlocks ?? []),
         challengeBlocks: JSON.stringify(task.challengeBlocks ?? []),
         answerType: task.answerType ?? "multiple_choice",
+        answerConfig: JSON.stringify(task.answerConfig ?? {}),
+        answerKey: JSON.stringify(task.answerKey ?? {}),
         multipleChoiceOrderMode: task.multipleChoiceOrderMode ?? "fixed",
         answers: JSON.stringify(task.answers ?? []),
         correctAnswerId: task.correctAnswerId ?? "",
@@ -61,17 +67,7 @@ async function main() {
         rangeMin: null,
         rangeMax: null,
         dragDropBackground: JSON.stringify(task.dragDropBackground ?? null),
-        dragDropItems: JSON.stringify(
-          task.dragDropTargets
-            ? {
-                version: 2,
-                items: Array.isArray(task.dragDropItems)
-                  ? task.dragDropItems
-                  : [],
-                targets: task.dragDropTargets,
-              }
-            : (task.dragDropItems ?? []),
-        ),
+        dragDropItems: JSON.stringify(seedDragDropConfig(task)),
         explanationBlocks: JSON.stringify(task.explanationBlocks ?? []),
         isPractice: task.isPractice ?? true,
       };

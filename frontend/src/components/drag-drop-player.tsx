@@ -38,6 +38,7 @@ type KeyboardCursor = {
 };
 
 type DragDropPlayerProps = {
+  showTargets?: boolean;
   backgroundUrl: string;
   items: PublicDragDropItem[];
   targets: StoredTaskDragDropTarget[];
@@ -92,6 +93,7 @@ function findTargetAtPoint(
 }
 
 export function DragDropPlayer({
+  showTargets = false,
   backgroundUrl,
   items,
   targets,
@@ -101,6 +103,7 @@ export function DragDropPlayer({
 }: DragDropPlayerProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageWidth, setStageWidth] = useState(0);
+  const [stageHeight, setStageHeight] = useState(0);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -109,7 +112,10 @@ export function DragDropPlayer({
       return;
     }
 
-    const measure = () => setStageWidth(stage.clientWidth);
+    const measure = () => {
+      setStageWidth(stage.clientWidth);
+      setStageHeight(stage.clientHeight);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
@@ -499,6 +505,28 @@ export function DragDropPlayer({
           src={backgroundUrl}
         />
 
+        {showTargets &&
+          targets.map((target, index) => (
+            <span
+              key={target.id}
+              aria-hidden="true"
+              className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-dashed border-primary bg-background/70 text-xs"
+              style={{
+                left: `${target.x}%`,
+                top: `${target.y}%`,
+                width: Math.max(
+                  24,
+                  (target.snapRadius / 50) * Math.min(stageWidth, stageHeight),
+                ),
+                height: Math.max(
+                  24,
+                  (target.snapRadius / 50) * Math.min(stageWidth, stageHeight),
+                ),
+              }}
+            >
+              {index + 1}
+            </span>
+          ))}
         {placedItems.map((item) => {
           const target = targetById.get(placements[item.id]);
 
