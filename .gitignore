@@ -54,3 +54,14 @@ skills*
 test-results/
 playwright-report/
 .playwright/
+
+# Material del concurso (el repositorio es publico: enunciados y guia de
+# soluciones NO se suben, se guardan solo en local)
+tareas-otono-2024/
+*Guia_Soluciones*
+frontend/public/*.pdf
+
+# Respaldos y analisis locales
+.analisis.json
+backend/.seed-backup.json
+backend/.sonaja-backup.json

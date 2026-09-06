@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isDragDropAnswerCorrect } from "@/lib/drag-drop-grading";
 import { listTasks } from "@/lib/tasks-api";
 import { BEBRAS_CATEGORIES } from "@/lib/contest-schema";
 import {
@@ -172,8 +173,10 @@ export function TaskTester() {
     }
 
     if (answerType === "drag_drop") {
-      return (selectedTask.dragDropItems ?? []).every(
-        (item) => dragDropPlacements[item.id] === item.correctTargetId,
+      return isDragDropAnswerCorrect(
+        selectedTask.dragDropItems ?? [],
+        selectedTask.dragDropSolutions ?? [],
+        dragDropPlacements,
       );
     }
 
@@ -269,8 +272,10 @@ export function TaskTester() {
 
       setCheckedValue("drag_drop");
       if (
-        (selectedTask.dragDropItems ?? []).every(
-          (item) => dragDropPlacements[item.id] === item.correctTargetId,
+        isDragDropAnswerCorrect(
+          selectedTask.dragDropItems ?? [],
+          selectedTask.dragDropSolutions ?? [],
+          dragDropPlacements,
         )
       ) {
         toast.success("Respuesta correcta");

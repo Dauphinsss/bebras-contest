@@ -57,6 +57,10 @@ import {
 import { DragDropEditor } from "@/components/drag-drop-editor";
 import { TaskContentBuilder } from "@/components/task-content-builder";
 import { FormSection } from "@/components/form-section";
+import {
+  dragDropPrimaryPlacements,
+  dragDropSignature,
+} from "@/lib/drag-drop-grading";
 import { createTask, updateTask } from "@/lib/tasks-api";
 import { categoryForAgeRange } from "@/lib/contest-schema";
 import {
@@ -81,6 +85,7 @@ import {
   type MultipleChoiceOrderMode,
   type OptionKey,
   type StoredTaskDragDropItem,
+  type StoredTaskDragDropSolution,
   type StoredTaskDragDropTarget,
   type StoredTaskRangeAnswer,
   type StoredTask,
@@ -119,6 +124,7 @@ type FormState = {
   } | null;
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];
+  dragDropSolutions: StoredTaskDragDropSolution[];
   explanationBlocks: ContentBlock[];
 };
 
@@ -206,6 +212,7 @@ const createInitialState = (
     dragDropBackground: null,
     dragDropItems: [dragDropEntry.item],
     dragDropTargets: [dragDropEntry.target],
+    dragDropSolutions: [],
     explanationBlocks: [
       { ...createContentBlock("text"), id: `${idPrefix}-explanation` },
     ],
@@ -290,6 +297,9 @@ function createStateFromTask(task: StoredTask): FormState {
     dragDropTargets: hasDragDropConfiguration
       ? task.dragDropTargets
       : [fallbackDragDropEntry.target],
+    dragDropSolutions: hasDragDropConfiguration
+      ? (task.dragDropSolutions ?? [])
+      : [],
     explanationBlocks: task.explanationBlocks?.length
       ? task.explanationBlocks
       : [{ ...createContentBlock("text"), content: task.explanation }],
@@ -473,6 +483,57 @@ function validateForm(state: FormState) {
         "El radio de encaje de cada destino debe ser mayor que 0 y hasta 100.",
       );
     }
+
+    // Las alternativas reparten los mismos objetos entre los mismos destinos.
+    // Dos que solo intercambian piezas idénticas son la misma respuesta.
+    const signatures = new Set<string>();
+    const primary = dragDropSignature(
+      state.dragDropItems,
+      dragDropPrimaryPlacements(state.dragDropItems),
+    );
+
+    if (primary) {
+      signatures.add(primary);
+    }
+
+    for (const solution of state.dragDropSolutions) {
+      const usedTargets = new Set<string>();
+      let valid = true;
+
+      for (const item of state.dragDropItems) {
+        const targetId = solution.placements[item.id];
+
+        if (
+          !targetId ||
+          !targetIds.includes(targetId) ||
+          usedTargets.has(targetId)
+        ) {
+          valid = false;
+          break;
+        }
+
+        usedTargets.add(targetId);
+      }
+
+      if (!valid) {
+        errors.push(
+          "Cada solución alternativa debe colocar todos los objetos en un destino distinto.",
+        );
+        break;
+      }
+
+      const signature = dragDropSignature(
+        state.dragDropItems,
+        solution.placements,
+      );
+
+      if (!signature || signatures.has(signature)) {
+        errors.push("Hay una solución alternativa repetida.");
+        break;
+      }
+
+      signatures.add(signature);
+    }
   }
 
   if (!getNonEmptyBlocks(state.explanationBlocks).length) {
@@ -554,6 +615,8 @@ function buildStoredTask(
         : [],
     dragDropTargets:
       state.answerType === "drag_drop" ? state.dragDropTargets : [],
+    dragDropSolutions:
+      state.answerType === "drag_drop" ? state.dragDropSolutions : [],
     explanation: state.explanationBlocks
       .map((block) => block.content)
       .filter(Boolean)
@@ -1833,6 +1896,17 @@ export function TaskUploadForm({
                           current.dragDropTargets[0]?.snapRadius ?? 10,
                       },
                     ],
+                    // Una alternativa tiene que repartir todos los objetos; el
+                    // nuevo entra en su propio destino para no invalidarlas.
+                    dragDropSolutions: current.dragDropSolutions.map(
+                      (solution) => ({
+                        ...solution,
+                        placements: {
+                          ...solution.placements,
+                          [itemId]: targetId,
+                        },
+                      }),
+                    ),
                   }));
                 }}
                 onRemoveItem={(itemId) =>
@@ -1845,19 +1919,81 @@ export function TaskUploadForm({
                       (item) => item.id === itemId,
                     );
 
+                    const remainingItems = current.dragDropItems.filter(
+                      (item) => item.id !== itemId,
+                    );
+
                     return {
                       ...current,
-                      dragDropItems: current.dragDropItems.filter(
-                        (item) => item.id !== itemId,
-                      ),
+                      dragDropItems: remainingItems,
                       dragDropTargets: current.dragDropTargets.filter(
                         (target) => target.id !== removedItem?.correctTargetId,
                       ),
+                      dragDropSolutions: current.dragDropSolutions
+                        .map((solution) => {
+                          const placements = { ...solution.placements };
+                          delete placements[itemId];
+
+                          return { ...solution, placements };
+                        })
+                        .filter((solution) => {
+                          const signature = dragDropSignature(
+                            remainingItems,
+                            solution.placements,
+                          );
+
+                          return (
+                            signature !== null &&
+                            signature !==
+                              dragDropSignature(
+                                remainingItems,
+                                dragDropPrimaryPlacements(remainingItems),
+                              )
+                          );
+                        }),
                     };
                   })
                 }
                 onUpdateItem={updateDragDropItem}
                 onUpdateTarget={updateDragDropTarget}
+                solutions={form.dragDropSolutions}
+                onAddSolution={() => {
+                  const solutionId = crypto.randomUUID();
+
+                  setForm((current) => ({
+                    ...current,
+                    dragDropSolutions: [
+                      ...current.dragDropSolutions,
+                      {
+                        id: solutionId,
+                        placements: dragDropPrimaryPlacements(
+                          current.dragDropItems,
+                        ),
+                      },
+                    ],
+                  }));
+
+                  return solutionId;
+                }}
+                onRemoveSolution={(solutionId) =>
+                  setForm((current) => ({
+                    ...current,
+                    dragDropSolutions: current.dragDropSolutions.filter(
+                      (solution) => solution.id !== solutionId,
+                    ),
+                  }))
+                }
+                onUpdateSolution={(solutionId, placements) =>
+                  setForm((current) => ({
+                    ...current,
+                    dragDropSolutions: current.dragDropSolutions.map(
+                      (solution) =>
+                        solution.id === solutionId
+                          ? { ...solution, placements }
+                          : solution,
+                    ),
+                  }))
+                }
               />
             </FieldSet>
           )}

@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import {
   DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT,
   type StoredTaskDragDropItem,
+  type StoredTaskDragDropSolution,
   type StoredTaskDragDropTarget,
 } from "@/lib/task-schema";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,15 @@ type DragDropEditorProps = {
   onUpdateTarget: (
     targetId: string,
     patch: Partial<Pick<StoredTaskDragDropTarget, "x" | "y" | "snapRadius">>,
+  ) => void;
+  /** Acomodos correctos además del principal. */
+  solutions: StoredTaskDragDropSolution[];
+  /** Crea una copia del acomodo principal y devuelve su ID. */
+  onAddSolution: () => string;
+  onRemoveSolution: (solutionId: string) => void;
+  onUpdateSolution: (
+    solutionId: string,
+    placements: Record<string, string>,
   ) => void;
 };
 
@@ -62,6 +72,10 @@ export function DragDropEditor({
   onRemoveItem,
   onUpdateItem,
   onUpdateTarget,
+  solutions,
+  onAddSolution,
+  onRemoveSolution,
+  onUpdateSolution,
 }: DragDropEditorProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   // Solo afecta a cómo se ve mientras editas: las posiciones son porcentajes,
@@ -107,6 +121,19 @@ export function DragDropEditor({
     width: 0,
     height: 0,
   });
+  // `null` = el acomodo principal, el que se edite moviendo los destinos.
+  // Con una alternativa activa los destinos no se mueven: solo se cambia qué
+  // objeto va en cuál.
+  const [activeSolutionId, setActiveSolutionId] = useState<string | null>(null);
+  const solutionDragRef = useRef<{
+    pointerId: number;
+    itemId: string;
+  } | null>(null);
+  const [solutionDrag, setSolutionDrag] = useState<{
+    itemId: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -294,6 +321,105 @@ export function DragDropEditor({
     setLiveWidth(null);
   };
 
+  const activeSolution =
+    solutions.find((solution) => solution.id === activeSolutionId) ?? null;
+
+  // Un acomodo completo: si a la alternativa le falta algún objeto (porque se
+  // agregó después) se cae al destino principal de ese objeto.
+  const solutionPlacements = activeSolution
+    ? Object.fromEntries(
+        items.map((item) => [
+          item.id,
+          activeSolution.placements[item.id] ?? item.correctTargetId,
+        ]),
+      )
+    : null;
+
+  const startSolutionDrag = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    itemId: string,
+  ) => {
+    if (!event.isPrimary || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    solutionDragRef.current = { pointerId: event.pointerId, itemId };
+    setActiveItemId(itemId);
+  };
+
+  const moveSolutionDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const state = solutionDragRef.current;
+
+    if (!state || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    const position = pointerToPercent(event.clientX, event.clientY);
+
+    if (position) {
+      setSolutionDrag({ itemId: state.itemId, ...position });
+    }
+  };
+
+  const finishSolutionDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const state = solutionDragRef.current;
+
+    if (!state || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    solutionDragRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const drop = solutionDrag;
+    setSolutionDrag(null);
+
+    if (!drop || !activeSolution || !solutionPlacements) {
+      return;
+    }
+
+    // Siempre cae en algún destino: el más cercano a donde soltaste. Un
+    // acomodo a medias no sirve de nada como respuesta correcta.
+    let closestId: string | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    for (const target of targets) {
+      const distance = Math.hypot(drop.x - target.x, drop.y - target.y);
+
+      if (distance < closestDistance) {
+        closestId = target.id;
+        closestDistance = distance;
+      }
+    }
+
+    const previousTargetId = solutionPlacements[state.itemId];
+
+    if (!closestId || closestId === previousTargetId) {
+      return;
+    }
+
+    const displacedItemId = Object.keys(solutionPlacements).find(
+      (itemId) =>
+        itemId !== state.itemId && solutionPlacements[itemId] === closestId,
+    );
+    const next = { ...solutionPlacements, [state.itemId]: closestId };
+
+    // Si el destino estaba ocupado, los dos objetos intercambian lugar.
+    if (displacedItemId) {
+      next[displacedItemId] = previousTargetId;
+    }
+
+    onUpdateSolution(activeSolution.id, next);
+  };
+
+  const targetById = new Map(targets.map((target) => [target.id, target]));
   const handleSize = "h-10 w-4 sm:w-3";
 
   return (
@@ -361,7 +487,7 @@ export function DragDropEditor({
                       (candidate) => candidate.id === item.correctTargetId,
                     );
 
-                    if (!target) {
+                    if (!target || activeSolution) {
                       return null;
                     }
 
@@ -557,9 +683,161 @@ export function DragDropEditor({
                       </div>
                     );
                   })}
+
+                  {activeSolution &&
+                    solutionPlacements &&
+                    targets.map((target) => {
+                      const radiusPixels =
+                        (sharedSnapRadius / 100) *
+                        Math.min(stageSize.width, stageSize.height);
+
+                      return (
+                        <div
+                          key={`hueco-${target.id}`}
+                          className="pointer-events-none absolute z-0 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-muted-foreground/50"
+                          style={{
+                            left: `${Number.isFinite(target.x) ? target.x : 0}%`,
+                            top: `${Number.isFinite(target.y) ? target.y : 0}%`,
+                            height: `${radiusPixels * 2}px`,
+                            width: `${radiusPixels * 2}px`,
+                          }}
+                        />
+                      );
+                    })}
+
+                  {activeSolution &&
+                    solutionPlacements &&
+                    items.map((item, index) => {
+                      const target = targetById.get(
+                        solutionPlacements[item.id],
+                      );
+
+                      if (!target) {
+                        return null;
+                      }
+
+                      const dragging = solutionDrag?.itemId === item.id;
+                      const position = dragging
+                        ? solutionDrag
+                        : {
+                            x: Number.isFinite(target.x) ? target.x : 0,
+                            y: Number.isFinite(target.y) ? target.y : 0,
+                          };
+                      const itemWidthPixels =
+                        (itemWidthPercent(item) / 100) * stageSize.width;
+                      const name = `Objeto ${index + 1}`;
+
+                      return (
+                        <button
+                          key={`alterno-${item.id}`}
+                          aria-label={`Llevar ${name} a otro destino`}
+                          className={cn(
+                            "absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-grab overflow-hidden rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing",
+                            dragging && "opacity-70",
+                          )}
+                          style={{
+                            left: `${position.x}%`,
+                            top: `${position.y}%`,
+                            touchAction: "none",
+                            width: item.image
+                              ? `${itemWidthPixels}px`
+                              : undefined,
+                          }}
+                          type="button"
+                          onPointerCancel={finishSolutionDrag}
+                          onPointerDown={(event) =>
+                            startSolutionDrag(event, item.id)
+                          }
+                          onPointerMove={moveSolutionDrag}
+                          onPointerUp={finishSolutionDrag}
+                        >
+                          {item.image ? (
+                            <img
+                              alt=""
+                              className="block h-auto w-full select-none"
+                              draggable={false}
+                              src={item.image.url}
+                            />
+                          ) : (
+                            <span className="block rounded-sm border border-dashed border-muted-foreground bg-background/90 px-2 py-4 text-xs">
+                              {name}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                 </div>
 
-                <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2">
+                {items.length > 1 && (
+                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        Soluciones válidas
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={activeSolutionId ? "outline" : "default"}
+                        onClick={() => setActiveSolutionId(null)}
+                      >
+                        Principal
+                      </Button>
+                      {solutions.map((solution, index) => (
+                        <span
+                          key={solution.id}
+                          className="inline-flex items-center gap-0.5"
+                        >
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              activeSolutionId === solution.id
+                                ? "default"
+                                : "outline"
+                            }
+                            onClick={() => setActiveSolutionId(solution.id)}
+                          >
+                            {`Alterna ${index + 1}`}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={`Quitar la solución alterna ${index + 1}`}
+                            onClick={() => {
+                              if (activeSolutionId === solution.id) {
+                                setActiveSolutionId(null);
+                              }
+
+                              onRemoveSolution(solution.id);
+                            }}
+                          >
+                            <XIcon />
+                          </Button>
+                        </span>
+                      ))}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setActiveSolutionId(onAddSolution())}
+                      >
+                        <PlusIcon data-icon="inline-start" />
+                        Otra solución
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {activeSolution
+                        ? "Arrastra un objeto a otro destino para armar este acomodo; si el destino está ocupado, los dos objetos se intercambian."
+                        : "Agrega una alterna si la tarea admite más de un acomodo correcto. Dos objetos con la misma imagen ya cuentan como intercambiables."}
+                    </p>
+                  </div>
+                )}
+
+                <div
+                  className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2"
+                  hidden={Boolean(activeSolution)}
+                >
                   <Button
                     type="button"
                     size="sm"

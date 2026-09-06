@@ -81,6 +81,18 @@ export type StoredTaskDragDropTarget = {
   snapRadius: number;
 };
 
+/**
+ * Otra forma de resolver la misma tarea: a qué destino va cada objeto.
+ * La solución principal ya está en `correctTargetId` de cada objeto; aquí solo
+ * viven las alternativas. Varias tareas del Bebras admiten más de un acomodo
+ * correcto (p. ej. «Camino de robot»: la guía dice que hay dos opciones).
+ */
+export type StoredTaskDragDropSolution = {
+  id: string;
+  /** idObjeto -> idDestino. Cubre todos los objetos, sin repetir destino. */
+  placements: Record<string, string>;
+};
+
 export type StoredTask = {
   id: string;
   title: string;
@@ -97,6 +109,7 @@ export type StoredTask = {
   dragDropBackground: ContentImage | null;
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];
+  dragDropSolutions?: StoredTaskDragDropSolution[];
   explanation: string;
   explanationBlocks?: ContentBlock[];
   status: "Borrador";
