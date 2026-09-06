@@ -1,7 +1,7 @@
 [
   {
     "id": "bebras-2024-01-caja-de-pulseras",
-    "title": "01. Caja de Pulseras (Brasil / 2024)",
+    "title": "Caja de Pulseras",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -124,11 +124,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Brasil",
+    "year": 2024
   },
   {
     "id": "bebras-2024-02-la-pelota",
-    "title": "02. La pelota (Holanda / 2024)",
+    "title": "La pelota",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -274,11 +276,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Holanda",
+    "year": 2024
   },
   {
     "id": "bebras-2024-03-tarjetas-de-riccas",
-    "title": "03. Tarjetas de Riccas (Suiza / 2024)",
+    "title": "Tarjetas de Riccas",
     "categories": [
       "Estructuras de datos y representaciones"
     ],
@@ -401,11 +405,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Suiza",
+    "year": 2024
   },
   {
     "id": "bebras-2024-05-pintando",
-    "title": "05. Pintando (Finlandia / 2024)",
+    "title": "Pintando",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -528,11 +534,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Finlandia",
+    "year": 2024
   },
   {
     "id": "bebras-2024-06-treboles-giratorios",
-    "title": "06. Tréboles giratorios (Irlanda / 2024)",
+    "title": "Tréboles giratorios",
     "categories": [
       "Estructuras de datos y representaciones"
     ],
@@ -655,11 +663,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Irlanda",
+    "year": 2024
   },
   {
     "id": "bebras-2024-07-fiesta",
-    "title": "07. Fiesta (República de Corea / 2024)",
+    "title": "Fiesta",
     "categories": [
       "Algoritmos y programación",
       "Estructuras de datos y representaciones"
@@ -799,11 +809,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "República de Corea",
+    "year": 2024
   },
   {
     "id": "bebras-2024-08-platos-en-la-repisa",
-    "title": "08. Platos en la Repisa (Lituania / 2024)",
+    "title": "Platos en la Repisa",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -954,11 +966,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Lituania",
+    "year": 2024
   },
   {
     "id": "bebras-2024-13-arbol-flor-milagrosa",
-    "title": "13. El árbol de la flor Milagrosa (Alemania / 2024)",
+    "title": "El árbol de la flor Milagrosa",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -1023,11 +1037,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Alemania",
+    "year": 2024
   },
   {
     "id": "bebras-2024-15-estacionamiento-barcos",
-    "title": "15. Estacionamiento de Barcos (Malta / 2024)",
+    "title": "Estacionamiento de Barcos",
     "categories": [
       "Estructuras de datos y representaciones"
     ],
@@ -1160,11 +1176,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Malta",
+    "year": 2024
   },
   {
     "id": "bebras-2024-19-dias-soleados",
-    "title": "19. Días Soleados (Alemania / 2024)",
+    "title": "Días Soleados",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -1271,11 +1289,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Alemania",
+    "year": 2024
   },
   {
     "id": "bebras-2024-24-el-siguiente-por-favor",
-    "title": "24. El siguiente por favor (Eslovenia / 2024)",
+    "title": "El siguiente por favor",
     "categories": [
       "Procesos computacionales y hardware"
     ],
@@ -1382,11 +1402,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Eslovenia",
+    "year": 2024
   },
   {
     "id": "bebras-2024-27-cadenas-de-codigos",
-    "title": "27. Cadenas de Códigos (Canadá / 2024)",
+    "title": "Cadenas de Códigos",
     "categories": [
       "Estructuras de datos y representaciones"
     ],
@@ -1493,11 +1515,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Canadá",
+    "year": 2024
   },
   {
     "id": "bebras-2024-29-encontrando-el-tesoro",
-    "title": "29. Encontrando el Tesoro (Hungría / 2024)",
+    "title": "Encontrando el Tesoro",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -1551,11 +1575,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Hungría",
+    "year": 2024
   },
   {
     "id": "bebras-2024-30-pulsera-mas-larga",
-    "title": "30. La pulsera más larga (Taiwan / 2024)",
+    "title": "La pulsera más larga",
     "categories": [
       "Algoritmos y programación"
     ],
@@ -1620,11 +1646,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Taiwán",
+    "year": 2024
   },
   {
     "id": "bebras-2024-32-amigos",
-    "title": "32. Amigos (Lituania / 2024)",
+    "title": "Amigos",
     "categories": [
       "Comunicación y redes"
     ],
@@ -1744,11 +1772,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Lituania",
+    "year": 2024
   },
   {
     "id": "bebras-2024-41-pared-de-ladrillos",
-    "title": "41. Pared de Ladrillos (Finlandia / 2024)",
+    "title": "Pared de Ladrillos",
     "categories": [
       "Estructuras de datos y representaciones"
     ],
@@ -1899,11 +1929,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Finlandia",
+    "year": 2024
   },
   {
     "id": "bebras-2024-10-video-llamada",
-    "title": "10. Video llamada (Malasia / 2024)",
+    "title": "Video llamada",
     "categories": [
       "Estructuras de datos y representaciones",
       "Algoritmos y programación"
@@ -2128,11 +2160,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Malasia",
+    "year": 2024
   },
   {
     "id": "bebras-2024-12-sonaja-oliver",
-    "title": "12. La Sonaja de Oliver (Eslovaquia / 2024)",
+    "title": "La Sonaja de Oliver",
     "categories": [
       "Estructuras de datos y representaciones",
       "Algoritmos y programación"
@@ -2255,11 +2289,13 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Eslovaquia",
+    "year": 2024
   },
   {
     "id": "bebras-2024-21-tour-bosque",
-    "title": "21. Tour por el Bosque (Alemania / 2024)",
+    "title": "Tour por el Bosque",
     "categories": [
       "Estructuras de datos y representaciones",
       "Algoritmos y programación"
@@ -2416,6 +2452,8 @@
         "image": null,
         "widthPercent": 100
       }
-    ]
+    ],
+    "country": "Alemania",
+    "year": 2024
   }
 ]

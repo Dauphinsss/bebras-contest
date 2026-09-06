@@ -8,6 +8,8 @@ const AGE_RANGES = ["5–8", "8–10", "10–12", "12–14", "14–16", "17–18
 type TaskItem = {
   id: string;
   title: string;
+  country?: string | null;
+  year?: number | null;
   categories?: string[];
   category?: string[];
   difficulties?: Record<string, string>;
@@ -43,6 +45,8 @@ async function main() {
     for (const task of tasks) {
       const data = {
         title: task.title,
+        country: task.country ?? null,
+        year: task.year ?? null,
         category: JSON.stringify(
           task.categories ?? task.category ?? ["Algoritmos y programación"],
         ),
@@ -121,6 +125,8 @@ async function main() {
   for (const task of fallbackTasks) {
     const data = {
       title: task.title,
+      country: null,
+      year: null,
       category: JSON.stringify(["Algoritmos y programación"]),
       difficulties: JSON.stringify(
         Object.fromEntries(

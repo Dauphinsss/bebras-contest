@@ -66,6 +66,8 @@ model School {
 model TaskDraft {
   id                      String          @id @default(cuid())
   title                   String
+  country                 String?
+  year                    Int?
   category                String
   difficulties            String
   bodyBlocks              String

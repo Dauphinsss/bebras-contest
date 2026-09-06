@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { TaskOrigin } from "@/components/task-origin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -186,6 +187,7 @@ export function TasksHome() {
                       <CardTitle className="text-xl sm:text-2xl">
                         {task.title}
                       </CardTitle>
+                      <TaskOrigin country={task.country} year={task.year} />
                     </div>
                     <div className="relative z-10 grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                       <Button

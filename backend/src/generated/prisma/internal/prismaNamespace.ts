@@ -1323,6 +1323,8 @@ export type SchoolScalarFieldEnum = (typeof SchoolScalarFieldEnum)[keyof typeof 
 export const TaskDraftScalarFieldEnum = {
   id: 'id',
   title: 'title',
+  country: 'country',
+  year: 'year',
   category: 'category',
   difficulties: 'difficulties',
   bodyBlocks: 'bodyBlocks',

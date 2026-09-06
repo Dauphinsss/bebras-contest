@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { countries } from "@/lib/countries";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -101,6 +102,8 @@ type BlocksSection = "bodyBlocks" | "challengeBlocks" | "explanationBlocks";
 
 type FormState = {
   title: string;
+  country: string;
+  year: string;
   categories: CategoryItem[];
   selectedAgeRanges: Record<DifficultyKey, boolean>;
   difficulties: Record<DifficultyKey, string>;
@@ -171,6 +174,8 @@ const createInitialState = (
 
   return {
     title: "",
+    country: "",
+    year: "",
     categories: [],
     selectedAgeRanges: {
       "5–8": false,
@@ -239,6 +244,8 @@ function createStateFromTask(task: StoredTask): FormState {
 
   return {
     title: task.title,
+    country: task.country ?? "",
+    year: task.year ? String(task.year) : "",
     categories: normalizeCategories(task.categories),
     selectedAgeRanges: {
       "5–8": Boolean(task.difficulties["5–8"]),
@@ -364,6 +371,12 @@ function validateForm(state: FormState) {
 
   if (state.answerType === "short_text" && !state.shortAnswer.trim()) {
     errors.push("Debes definir la respuesta corta esperada.");
+  }
+
+  const year = state.year.trim();
+
+  if (year && !/^\d{4}$/.test(year)) {
+    errors.push("El año del desafío debe tener cuatro cifras.");
   }
 
   if (state.answerType === "range") {
@@ -526,6 +539,8 @@ function buildStoredTask(
   return {
     id: existingTaskId ?? crypto.randomUUID(),
     title: state.title.trim(),
+    country: state.country || null,
+    year: state.year.trim() ? Number(state.year) : null,
     categories: state.categories,
     difficulties: ageRanges.reduce<Record<DifficultyKey, string>>(
       (acc, range) => {
@@ -1012,6 +1027,62 @@ export function TaskUploadForm({
               />
             </FieldContent>
           </Field>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="country">País de origen</FieldLabel>
+              <FieldContent>
+                <Select
+                  value={form.country || "ninguno"}
+                  onValueChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      country: value === "ninguno" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full" id="country">
+                    <SelectValue placeholder="Sin país" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ninguno">Sin país</SelectItem>
+                    {countries.map((country) => (
+                      <SelectItem key={country.name} value={country.name}>
+                        <span className="inline-flex items-center gap-2">
+                          <img
+                            alt=""
+                            className="h-4 w-auto rounded-xs border border-border"
+                            src={country.flag}
+                          />
+                          {country.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="year">Año del desafío</FieldLabel>
+              <FieldContent>
+                <Input
+                  id="year"
+                  inputMode="numeric"
+                  max={2100}
+                  min={1900}
+                  placeholder="Ej. 2024"
+                  type="number"
+                  value={form.year}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      year: event.target.value,
+                    }))
+                  }
+                />
+              </FieldContent>
+            </Field>
+          </div>
 
           <FieldSet>
             <FieldLegend variant="label">Área de contenido</FieldLegend>

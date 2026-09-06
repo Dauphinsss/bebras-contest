@@ -27,11 +27,13 @@ export type AggregateTaskDraft = {
 }
 
 export type TaskDraftAvgAggregateOutputType = {
+  year: number | null
   rangeMin: number | null
   rangeMax: number | null
 }
 
 export type TaskDraftSumAggregateOutputType = {
+  year: number | null
   rangeMin: number | null
   rangeMax: number | null
 }
@@ -39,6 +41,8 @@ export type TaskDraftSumAggregateOutputType = {
 export type TaskDraftMinAggregateOutputType = {
   id: string | null
   title: string | null
+  country: string | null
+  year: number | null
   category: string | null
   difficulties: string | null
   bodyBlocks: string | null
@@ -61,6 +65,8 @@ export type TaskDraftMinAggregateOutputType = {
 export type TaskDraftMaxAggregateOutputType = {
   id: string | null
   title: string | null
+  country: string | null
+  year: number | null
   category: string | null
   difficulties: string | null
   bodyBlocks: string | null
@@ -83,6 +89,8 @@ export type TaskDraftMaxAggregateOutputType = {
 export type TaskDraftCountAggregateOutputType = {
   id: number
   title: number
+  country: number
+  year: number
   category: number
   difficulties: number
   bodyBlocks: number
@@ -105,11 +113,13 @@ export type TaskDraftCountAggregateOutputType = {
 
 
 export type TaskDraftAvgAggregateInputType = {
+  year?: true
   rangeMin?: true
   rangeMax?: true
 }
 
 export type TaskDraftSumAggregateInputType = {
+  year?: true
   rangeMin?: true
   rangeMax?: true
 }
@@ -117,6 +127,8 @@ export type TaskDraftSumAggregateInputType = {
 export type TaskDraftMinAggregateInputType = {
   id?: true
   title?: true
+  country?: true
+  year?: true
   category?: true
   difficulties?: true
   bodyBlocks?: true
@@ -139,6 +151,8 @@ export type TaskDraftMinAggregateInputType = {
 export type TaskDraftMaxAggregateInputType = {
   id?: true
   title?: true
+  country?: true
+  year?: true
   category?: true
   difficulties?: true
   bodyBlocks?: true
@@ -161,6 +175,8 @@ export type TaskDraftMaxAggregateInputType = {
 export type TaskDraftCountAggregateInputType = {
   id?: true
   title?: true
+  country?: true
+  year?: true
   category?: true
   difficulties?: true
   bodyBlocks?: true
@@ -270,6 +286,8 @@ export type TaskDraftGroupByArgs<ExtArgs extends runtime.Types.Extensions.Intern
 export type TaskDraftGroupByOutputType = {
   id: string
   title: string
+  country: string | null
+  year: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -315,6 +333,8 @@ export type TaskDraftWhereInput = {
   NOT?: Prisma.TaskDraftWhereInput | Prisma.TaskDraftWhereInput[]
   id?: Prisma.StringFilter<"TaskDraft"> | string
   title?: Prisma.StringFilter<"TaskDraft"> | string
+  country?: Prisma.StringNullableFilter<"TaskDraft"> | string | null
+  year?: Prisma.IntNullableFilter<"TaskDraft"> | number | null
   category?: Prisma.StringFilter<"TaskDraft"> | string
   difficulties?: Prisma.StringFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringFilter<"TaskDraft"> | string
@@ -339,6 +359,8 @@ export type TaskDraftWhereInput = {
 export type TaskDraftOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   title?: Prisma.SortOrder
+  country?: Prisma.SortOrderInput | Prisma.SortOrder
+  year?: Prisma.SortOrderInput | Prisma.SortOrder
   category?: Prisma.SortOrder
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
@@ -366,6 +388,8 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.TaskDraftWhereInput[]
   NOT?: Prisma.TaskDraftWhereInput | Prisma.TaskDraftWhereInput[]
   title?: Prisma.StringFilter<"TaskDraft"> | string
+  country?: Prisma.StringNullableFilter<"TaskDraft"> | string | null
+  year?: Prisma.IntNullableFilter<"TaskDraft"> | number | null
   category?: Prisma.StringFilter<"TaskDraft"> | string
   difficulties?: Prisma.StringFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringFilter<"TaskDraft"> | string
@@ -390,6 +414,8 @@ export type TaskDraftWhereUniqueInput = Prisma.AtLeast<{
 export type TaskDraftOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   title?: Prisma.SortOrder
+  country?: Prisma.SortOrderInput | Prisma.SortOrder
+  year?: Prisma.SortOrderInput | Prisma.SortOrder
   category?: Prisma.SortOrder
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
@@ -420,6 +446,8 @@ export type TaskDraftScalarWhereWithAggregatesInput = {
   NOT?: Prisma.TaskDraftScalarWhereWithAggregatesInput | Prisma.TaskDraftScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   title?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
+  country?: Prisma.StringNullableWithAggregatesFilter<"TaskDraft"> | string | null
+  year?: Prisma.IntNullableWithAggregatesFilter<"TaskDraft"> | number | null
   category?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   difficulties?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
   bodyBlocks?: Prisma.StringWithAggregatesFilter<"TaskDraft"> | string
@@ -442,6 +470,8 @@ export type TaskDraftScalarWhereWithAggregatesInput = {
 export type TaskDraftCreateInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -466,6 +496,8 @@ export type TaskDraftCreateInput = {
 export type TaskDraftUncheckedCreateInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -490,6 +522,8 @@ export type TaskDraftUncheckedCreateInput = {
 export type TaskDraftUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -514,6 +548,8 @@ export type TaskDraftUpdateInput = {
 export type TaskDraftUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -538,6 +574,8 @@ export type TaskDraftUncheckedUpdateInput = {
 export type TaskDraftCreateManyInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -560,6 +598,8 @@ export type TaskDraftCreateManyInput = {
 export type TaskDraftUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -582,6 +622,8 @@ export type TaskDraftUpdateManyMutationInput = {
 export type TaskDraftUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -604,6 +646,8 @@ export type TaskDraftUncheckedUpdateManyInput = {
 export type TaskDraftCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   title?: Prisma.SortOrder
+  country?: Prisma.SortOrder
+  year?: Prisma.SortOrder
   category?: Prisma.SortOrder
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
@@ -624,6 +668,7 @@ export type TaskDraftCountOrderByAggregateInput = {
 }
 
 export type TaskDraftAvgOrderByAggregateInput = {
+  year?: Prisma.SortOrder
   rangeMin?: Prisma.SortOrder
   rangeMax?: Prisma.SortOrder
 }
@@ -631,6 +676,8 @@ export type TaskDraftAvgOrderByAggregateInput = {
 export type TaskDraftMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   title?: Prisma.SortOrder
+  country?: Prisma.SortOrder
+  year?: Prisma.SortOrder
   category?: Prisma.SortOrder
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
@@ -653,6 +700,8 @@ export type TaskDraftMaxOrderByAggregateInput = {
 export type TaskDraftMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   title?: Prisma.SortOrder
+  country?: Prisma.SortOrder
+  year?: Prisma.SortOrder
   category?: Prisma.SortOrder
   difficulties?: Prisma.SortOrder
   bodyBlocks?: Prisma.SortOrder
@@ -673,6 +722,7 @@ export type TaskDraftMinOrderByAggregateInput = {
 }
 
 export type TaskDraftSumOrderByAggregateInput = {
+  year?: Prisma.SortOrder
   rangeMin?: Prisma.SortOrder
   rangeMax?: Prisma.SortOrder
 }
@@ -717,6 +767,8 @@ export type TaskDraftUpdateOneRequiredWithoutAttemptAnswersNestedInput = {
 export type TaskDraftCreateWithoutContestTasksInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -740,6 +792,8 @@ export type TaskDraftCreateWithoutContestTasksInput = {
 export type TaskDraftUncheckedCreateWithoutContestTasksInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -779,6 +833,8 @@ export type TaskDraftUpdateToOneWithWhereWithoutContestTasksInput = {
 export type TaskDraftUpdateWithoutContestTasksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -802,6 +858,8 @@ export type TaskDraftUpdateWithoutContestTasksInput = {
 export type TaskDraftUncheckedUpdateWithoutContestTasksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -825,6 +883,8 @@ export type TaskDraftUncheckedUpdateWithoutContestTasksInput = {
 export type TaskDraftCreateWithoutAttemptAnswersInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -848,6 +908,8 @@ export type TaskDraftCreateWithoutAttemptAnswersInput = {
 export type TaskDraftUncheckedCreateWithoutAttemptAnswersInput = {
   id?: string
   title: string
+  country?: string | null
+  year?: number | null
   category: string
   difficulties: string
   bodyBlocks: string
@@ -887,6 +949,8 @@ export type TaskDraftUpdateToOneWithWhereWithoutAttemptAnswersInput = {
 export type TaskDraftUpdateWithoutAttemptAnswersInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -910,6 +974,8 @@ export type TaskDraftUpdateWithoutAttemptAnswersInput = {
 export type TaskDraftUncheckedUpdateWithoutAttemptAnswersInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  year?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   category?: Prisma.StringFieldUpdateOperationsInput | string
   difficulties?: Prisma.StringFieldUpdateOperationsInput | string
   bodyBlocks?: Prisma.StringFieldUpdateOperationsInput | string
@@ -973,6 +1039,8 @@ export type TaskDraftCountOutputTypeCountAttemptAnswersArgs<ExtArgs extends runt
 export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   title?: boolean
+  country?: boolean
+  year?: boolean
   category?: boolean
   difficulties?: boolean
   bodyBlocks?: boolean
@@ -998,6 +1066,8 @@ export type TaskDraftSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
 export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   title?: boolean
+  country?: boolean
+  year?: boolean
   category?: boolean
   difficulties?: boolean
   bodyBlocks?: boolean
@@ -1020,6 +1090,8 @@ export type TaskDraftSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
 export type TaskDraftSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   title?: boolean
+  country?: boolean
+  year?: boolean
   category?: boolean
   difficulties?: boolean
   bodyBlocks?: boolean
@@ -1042,6 +1114,8 @@ export type TaskDraftSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
 export type TaskDraftSelectScalar = {
   id?: boolean
   title?: boolean
+  country?: boolean
+  year?: boolean
   category?: boolean
   difficulties?: boolean
   bodyBlocks?: boolean
@@ -1061,7 +1135,7 @@ export type TaskDraftSelectScalar = {
   updatedAt?: boolean
 }
 
-export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeMin" | "rangeMax" | "dragDropBackground" | "dragDropItems" | "explanationBlocks" | "isPractice" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
+export type TaskDraftOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "country" | "year" | "category" | "difficulties" | "bodyBlocks" | "challengeBlocks" | "answerType" | "multipleChoiceOrderMode" | "answers" | "correctAnswerId" | "shortAnswer" | "rangeMin" | "rangeMax" | "dragDropBackground" | "dragDropItems" | "explanationBlocks" | "isPractice" | "createdAt" | "updatedAt", ExtArgs["result"]["taskDraft"]>
 export type TaskDraftInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   contestTasks?: boolean | Prisma.TaskDraft$contestTasksArgs<ExtArgs>
   attemptAnswers?: boolean | Prisma.TaskDraft$attemptAnswersArgs<ExtArgs>
@@ -1079,6 +1153,8 @@ export type $TaskDraftPayload<ExtArgs extends runtime.Types.Extensions.InternalA
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     title: string
+    country: string | null
+    year: number | null
     category: string
     difficulties: string
     bodyBlocks: string
@@ -1523,6 +1599,8 @@ export interface Prisma__TaskDraftClient<T, Null = never, ExtArgs extends runtim
 export interface TaskDraftFieldRefs {
   readonly id: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly title: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly country: Prisma.FieldRef<"TaskDraft", 'String'>
+  readonly year: Prisma.FieldRef<"TaskDraft", 'Int'>
   readonly category: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly difficulties: Prisma.FieldRef<"TaskDraft", 'String'>
   readonly bodyBlocks: Prisma.FieldRef<"TaskDraft", 'String'>

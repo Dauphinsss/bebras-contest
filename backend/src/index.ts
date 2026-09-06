@@ -660,12 +660,16 @@ function deserializeTask<
 function deserializeTaskSummary(task: {
   id: string;
   title: string;
+  country: string | null;
+  year: number | null;
   category: string;
   difficulties: string;
 }) {
   return {
     id: task.id,
     title: task.title,
+    country: task.country,
+    year: task.year,
     categories: deserializeCategories(task.category),
     difficulties: normalizeTaskDifficulties(task.difficulties),
   };
@@ -682,6 +686,35 @@ function toFiniteNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
+
+const TASK_COUNTRIES = [
+  "Alemania",
+  "Australia",
+  "Austria",
+  "Brasil",
+  "Bulgaria",
+  "Bélgica",
+  "Canadá",
+  "Chequia",
+  "Eslovaquia",
+  "Eslovenia",
+  "Finlandia",
+  "Holanda",
+  "Hungría",
+  "India",
+  "Indonesia",
+  "Irlanda",
+  "Italia",
+  "Lituania",
+  "Malasia",
+  "Malta",
+  "Pakistán",
+  "Polonia",
+  "República de Corea",
+  "Suiza",
+  "Taiwán",
+  "Vietnam",
+];
 
 const TASK_CATEGORIES = [
   "Algoritmos y programación",
@@ -744,6 +777,21 @@ function parseTaskPayload(body: Record<string, unknown>) {
 
   if (!title) {
     throw new Error("El título es obligatorio.");
+  }
+
+  const country = readText(body.country);
+
+  if (country && !TASK_COUNTRIES.includes(country)) {
+    throw new Error(`El país "${country}" no es válido.`);
+  }
+
+  const year = toFiniteNumber(body.year);
+
+  if (
+    year !== null &&
+    (!Number.isInteger(year) || year < 1900 || year > 2100)
+  ) {
+    throw new Error("El año de la tarea no es válido.");
   }
 
   const categories = Array.isArray(body.categories)
@@ -1122,6 +1170,8 @@ function parseTaskPayload(body: Record<string, unknown>) {
 
   return {
     title,
+    country: country || null,
+    year,
     category: serializeJson(categories),
     difficulties: serializeJson(difficulties),
     bodyBlocks: serializeJson(body.bodyBlocks ?? []),
@@ -1563,6 +1613,8 @@ function deserializeContest(contest: {
     taskDraft: {
       id: string;
       title: string;
+      country: string | null;
+      year: number | null;
       category: string;
       difficulties: string;
     };

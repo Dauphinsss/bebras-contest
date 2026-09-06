@@ -89,6 +89,9 @@ export type StoredTaskDragDropSolution = {
 export type StoredTask = {
   id: string;
   title: string;
+  /** País que propuso la tarea y año del desafío, según el cuadernillo. */
+  country: string | null;
+  year: number | null;
   categories: CategoryItem[];
   difficulties: Record<DifficultyKey, string>;
   bodyBlocks: ContentBlock[];

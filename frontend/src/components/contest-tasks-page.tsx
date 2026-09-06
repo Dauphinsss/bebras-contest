@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
+import { TaskOrigin } from "@/components/task-origin";
 import { cn } from "@/lib/utils";
 
 function normalize(value: string) {
@@ -432,6 +433,9 @@ export function ContestTasksPage() {
             <DialogTitle className="break-words">
               {preview?.title ?? ""}
             </DialogTitle>
+            {preview && (
+              <TaskOrigin country={preview.country} year={preview.year} />
+            )}
             <DialogDescription>
               {preview
                 ? [
