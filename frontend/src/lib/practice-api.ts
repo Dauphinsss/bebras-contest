@@ -1,3 +1,4 @@
+import type { ContentBlock } from "@/lib/task-schema";
 import type { PlayTask } from "@/lib/play-api";
 import { publicRequest } from "@/lib/api-client";
 
@@ -22,6 +23,7 @@ export type PracticeTaskList = {
 export type PracticeCheck = {
   correct: boolean;
   explanation: string;
+  explanationBlocks?: ContentBlock[];
 };
 
 function get<T>(path: string) {

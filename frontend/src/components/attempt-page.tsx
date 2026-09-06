@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { TaskExplanation } from "@/components/task-explanation";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import { PlayTaskFields } from "@/components/play-task-fields";
 import {
@@ -307,6 +308,9 @@ export function AttemptPage({
               return {
                 ...task,
                 correct: graded?.correct ?? false,
+                explanationBlocks: current.showSolutions
+                  ? graded?.explanationBlocks
+                  : undefined,
                 explanation: current.showSolutions
                   ? (graded?.explanation ?? "")
                   : undefined,
@@ -645,11 +649,15 @@ export function AttemptPage({
                         : "Sin responder"}
                   </Badge>
                 </div>
-                {attempt.showSolutions && task.explanation && (
-                  <p className="text-sm text-muted-foreground">
-                    {task.explanation}
-                  </p>
-                )}
+                {attempt.showSolutions &&
+                  (task.explanation || task.explanationBlocks?.length) && (
+                    <div className="text-sm text-muted-foreground">
+                      <TaskExplanation
+                        explanation={task.explanation}
+                        blocks={task.explanationBlocks}
+                      />
+                    </div>
+                  )}
               </CardContent>
             </Card>
           ))}

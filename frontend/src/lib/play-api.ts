@@ -29,6 +29,7 @@ export type PlayTask = {
   >[];
   dragDropTargets: StoredTaskDragDropTarget[];
   explanation?: string;
+  explanationBlocks?: ContentBlock[];
   correct?: boolean | null;
 };
 

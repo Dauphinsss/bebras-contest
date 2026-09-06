@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -100,6 +100,22 @@ export function DragDropPlayer({
   onChange,
 }: DragDropPlayerProps) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const [stageWidth, setStageWidth] = useState(0);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+
+    if (!stage) {
+      return;
+    }
+
+    const measure = () => setStageWidth(stage.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+
+    return () => observer.disconnect();
+  }, [backgroundUrl]);
   const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const pointerDragRef = useRef<PointerDrag | null>(null);
   const suppressClickItemIdRef = useRef<string | null>(null);
@@ -392,7 +408,7 @@ export function DragDropPlayer({
         ref={stageRef}
         aria-label="Escenario de la tarea. Selecciona un objeto y toca el escenario, o usa las flechas y Enter, para colocarlo."
         className={cn(
-          "relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border bg-muted/30 [box-shadow:var(--shadow-hard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           selectedItemId && !disabled && "cursor-crosshair",
         )}
         onFocus={() => {
@@ -554,32 +570,39 @@ export function DragDropPlayer({
           Con teclado, usa las flechas para moverlo, Shift para avanzar más y
           Enter para intentar encajarlo.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-wrap justify-center gap-2">
           {trayItems.map((item) => (
             <button
               key={item.id}
               {...itemButtonProps(item)}
               className={cn(
-                "flex min-h-32 touch-none cursor-grab flex-col items-center justify-center gap-3 rounded-sm border bg-background p-4 text-center [box-shadow:var(--shadow-hard)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-70",
-                selectedItemId === item.id &&
-                  "border-primary ring-2 ring-primary",
+                "flex touch-none cursor-grab items-center justify-center rounded-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-70",
+                selectedItemId === item.id
+                  ? "ring-2 ring-primary"
+                  : "hover:bg-muted/60",
                 dragPreview?.itemId === item.id && "opacity-50",
               )}
+              style={
+                stageWidth
+                  ? {
+                      width: `${Math.max(40, (itemWidth(item) / 100) * stageWidth)}px`,
+                    }
+                  : undefined
+              }
               type="button"
             >
               {item.image ? (
                 <img
                   alt=""
-                  className="block max-h-20 max-w-full object-contain"
+                  className="block h-auto w-full"
                   draggable={false}
                   src={item.image.url}
                 />
               ) : (
-                <div className="size-20 rounded-sm border border-dashed border-border" />
+                <span className="px-2 py-6 text-center text-sm font-medium">
+                  {item.label || "Objeto"}
+                </span>
               )}
-              <span className="text-sm font-medium">
-                {item.label || "Objeto"}
-              </span>
             </button>
           ))}
         </div>
@@ -588,7 +611,7 @@ export function DragDropPlayer({
       {dragPreview && previewItem && (
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-sm border-2 border-primary/60 bg-background/90 opacity-80 shadow-lg"
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-sm opacity-70"
           style={{
             left: dragPreview.x,
             top: dragPreview.y,

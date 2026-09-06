@@ -570,10 +570,15 @@ export function TaskContentBuilder({
             <div className="flex flex-col gap-1.5">
               <p>Enter abre un bloque nuevo; Shift+Enter, un salto de línea.</p>
               <p>
+                Listas: Ctrl+Shift+8 para viñetas y Ctrl+Shift+7 para
+                numeración. Dentro de una lista, Enter agrega un elemento; Enter
+                en un elemento vacío sale de la lista.
+              </p>
+              <p>
                 Selecciona texto para abrir el menú de formato, o usa Ctrl+B
-                negrita, Ctrl+I cursiva, Ctrl+U subrayado, Ctrl+Shift+X tachado,
-                Ctrl+E código. Repite el atajo para quitarlo. En Mac, ⌘ en lugar
-                de Ctrl.
+                negrita, Ctrl+I cursiva, Ctrl+U subrayado y Ctrl+Shift+X
+                tachado. Repite el atajo para quitarlo. En Mac, ⌘ en lugar de
+                Ctrl.
               </p>
               <p>
                 También puedes escribirlo: *negrita* · _cursiva_ ·

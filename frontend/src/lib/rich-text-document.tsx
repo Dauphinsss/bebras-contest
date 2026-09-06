@@ -72,6 +72,25 @@ export function renderRichTextDocument(document: JSONContent): ReactNode {
     const children = (node.content ?? []).map((child, index) =>
       render(child, `${key}-${index}`, depth + 1),
     );
+    if (node.type === "bulletList")
+      return (
+        <ul key={key} className="list-disc pl-6">
+          {children}
+        </ul>
+      );
+    if (node.type === "orderedList")
+      return (
+        <ol
+          key={key}
+          className="list-decimal pl-6"
+          start={
+            Number.isSafeInteger(node.attrs?.start) ? node.attrs?.start : 1
+          }
+        >
+          {children}
+        </ol>
+      );
+    if (node.type === "listItem") return <li key={key}>{children}</li>;
     return node.type === "paragraph" ? (
       <p key={key}>{children.length ? children : <br />}</p>
     ) : (

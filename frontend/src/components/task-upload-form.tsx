@@ -11,6 +11,7 @@ import {
   BetweenHorizonalStartIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  PlayIcon,
   PlusIcon,
   ShieldAlertIcon,
   Trash2Icon,
@@ -53,7 +54,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { DragDropEditor } from "@/components/drag-drop-editor";
 import { TaskContentBuilder } from "@/components/task-content-builder";
 import { FormSection } from "@/components/form-section";
@@ -93,7 +93,7 @@ const difficultyOptions = [
 ] as const;
 const minimumAnswerCount = 2;
 
-type BlocksSection = "bodyBlocks" | "challengeBlocks";
+type BlocksSection = "bodyBlocks" | "challengeBlocks" | "explanationBlocks";
 
 type FormState = {
   title: string;
@@ -119,7 +119,7 @@ type FormState = {
   } | null;
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];
-  explanation: string;
+  explanationBlocks: ContentBlock[];
 };
 
 type TaskUploadFormProps = {
@@ -206,7 +206,9 @@ const createInitialState = (
     dragDropBackground: null,
     dragDropItems: [dragDropEntry.item],
     dragDropTargets: [dragDropEntry.target],
-    explanation: "",
+    explanationBlocks: [
+      { ...createContentBlock("text"), id: `${idPrefix}-explanation` },
+    ],
   };
 };
 
@@ -288,7 +290,9 @@ function createStateFromTask(task: StoredTask): FormState {
     dragDropTargets: hasDragDropConfiguration
       ? task.dragDropTargets
       : [fallbackDragDropEntry.target],
-    explanation: task.explanation,
+    explanationBlocks: task.explanationBlocks?.length
+      ? task.explanationBlocks
+      : [{ ...createContentBlock("text"), content: task.explanation }],
   };
 }
 
@@ -471,7 +475,7 @@ function validateForm(state: FormState) {
     }
   }
 
-  if (!state.explanation.trim()) {
+  if (!getNonEmptyBlocks(state.explanationBlocks).length) {
     errors.push("La explicación de la respuesta es obligatoria.");
   }
 
@@ -550,7 +554,11 @@ function buildStoredTask(
         : [],
     dragDropTargets:
       state.answerType === "drag_drop" ? state.dragDropTargets : [],
-    explanation: state.explanation.trim(),
+    explanation: state.explanationBlocks
+      .map((block) => block.content)
+      .filter(Boolean)
+      .join("\n"),
+    explanationBlocks: state.explanationBlocks,
     status: "Borrador",
     updatedAt: new Date().toISOString(),
   };
@@ -568,7 +576,8 @@ export function TaskUploadForm({
       : createInitialState(initialId),
   );
   const [errors, setErrors] = useState<string[]>([]);
-  const [loadedTask, setLoadedTask] = useState<StoredTask | null>(initialTask);
+  // Ya no cambia en vivo: al guardar se sale de la pantalla.
+  const loadedTask = initialTask;
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const activeOptionLabels = form.answerOrder.slice(0, form.answerCount);
 
@@ -595,31 +604,16 @@ export function TaskUploadForm({
     const task = loadedTask ? await updateTask(draft) : await createTask(draft);
 
     onSubmitted?.(task);
-    if (!loadedTask) {
-      toast.success("La tarea se guardó correctamente.", {
-        description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
-      });
-      window.location.assign(
-        `/tareas/editar?id=${encodeURIComponent(task.id)}`,
-      );
-      return;
-    }
+    toast.success(
+      loadedTask
+        ? "La tarea se actualizó correctamente."
+        : "La tarea se guardó correctamente.",
+      { description: `${task.title} · ${buildAgeSummary(task.difficulties)}` },
+    );
 
-    // Si se llegó desde el desafío, se vuelve allá con la tarea ya guardada.
-    if (returnTo) {
-      toast.success("La tarea se actualizó correctamente.", {
-        description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
-      });
-      window.location.assign(returnTo);
-      return;
-    }
-
-    setLoadedTask(task);
-    setForm(createStateFromTask(task));
-    setErrors([]);
-    toast.success("La tarea se actualizó correctamente.", {
-      description: `${task.title} · ${buildAgeSummary(task.difficulties)}`,
-    });
+    // Guardar cierra el trabajo: se vuelve de donde se vino, y si se entró
+    // directo, al banco de tareas.
+    window.location.assign(returnTo ?? "/tareas");
   };
 
   const handleClearForm = () => {
@@ -735,13 +729,13 @@ export function TaskUploadForm({
     position: "before" | "after",
   ) => {
     setForm((current) => {
-      const destination: BlocksSection = current[section].some(
-        (block) => block.id === toBlockId,
-      )
-        ? section
-        : section === "bodyBlocks"
-          ? "challengeBlocks"
-          : "bodyBlocks";
+      const destination: BlocksSection =
+        section === "explanationBlocks" ||
+        current[section].some((block) => block.id === toBlockId)
+          ? section
+          : section === "bodyBlocks"
+            ? "challengeBlocks"
+            : "bodyBlocks";
       if (destination !== section) {
         const block = current[section].find((item) => item.id === fromBlockId);
         const targetIndex = current[destination].findIndex(
@@ -1797,9 +1791,9 @@ export function TaskUploadForm({
               </FieldLegend>
               <FieldDescription>
                 Configura el fondo, el nombre y la imagen de cada objeto.
-                Selecciona uno y toca o arrástralo sobre el escenario para
-                ubicar su destino; los círculos indican el radio de encaje solo
-                durante la edición.
+                Selecciona uno y arrástralo sobre el escenario, o muévelo con
+                las flechas del teclado (Shift para ajuste fino). El círculo
+                punteado marca su radio de encaje y solo se ve al editar.
               </FieldDescription>
               <DragDropEditor
                 backgroundUrl={form.dragDropBackground?.url ?? null}
@@ -1829,7 +1823,15 @@ export function TaskUploadForm({
                     ],
                     dragDropTargets: [
                       ...current.dragDropTargets,
-                      { id: targetId, x: 50, y: 50, snapRadius: 10 },
+                      {
+                        id: targetId,
+                        x: 50,
+                        y: 50,
+                        // El encaje es uno para toda la tarea: un valor fijo
+                        // aquí hacía que cada objeto nuevo naciera descuadrado.
+                        snapRadius:
+                          current.dragDropTargets[0]?.snapRadius ?? 10,
+                      },
                     ],
                   }));
                 }}
@@ -1870,58 +1872,87 @@ export function TaskUploadForm({
         title="Explicación de la respuesta"
         hint="Esta explicación es para revisión interna; no se muestra al estudiante."
       >
-        <Field data-invalid={!form.explanation.trim() && errors.length > 0}>
-          <FieldLabel className="sr-only" htmlFor="explanation">
-            Explicación
-          </FieldLabel>
-          <FieldContent>
-            <Textarea
-              id="explanation"
-              rows={6}
-              aria-invalid={!form.explanation.trim() && errors.length > 0}
-              placeholder="Explica por qué la respuesta correcta resuelve la tarea y cómo se descartan las demás."
-              value={form.explanation}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  explanation: event.target.value,
-                }))
-              }
-            />
-          </FieldContent>
-        </Field>
+        <TaskContentBuilder
+          allowedBlockTypes={["text", "image"]}
+          blocks={form.explanationBlocks}
+          onAddBlock={(type) => addSectionBlock("explanationBlocks", type)}
+          onRemoveBlock={(blockId) =>
+            removeSectionBlock("explanationBlocks", blockId)
+          }
+          onMoveBlock={(fromBlockId, toBlockId, position) =>
+            moveSectionBlock(
+              "explanationBlocks",
+              fromBlockId,
+              toBlockId,
+              position,
+            )
+          }
+          onUpdateBlockContent={(blockId, content, richText) =>
+            updateSectionBlocks("explanationBlocks", blockId, (current) => ({
+              ...current,
+              content,
+              richText,
+            }))
+          }
+          onUpdateBlockImage={(blockId, files) => {
+            void updateSectionBlockImage("explanationBlocks", blockId, files);
+          }}
+          onUpdateBlockWidth={(blockId, widthPercent) =>
+            updateSectionBlockWidth("explanationBlocks", blockId, widthPercent)
+          }
+          showChallengeErrors={false}
+          textPlaceholder="Explica por qué la respuesta es correcta."
+        />
       </FormSection>
 
       <div className="flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-3">
-          <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-            <DialogTrigger asChild>
-              <Button type="button" variant="outline">
-                Limpiar
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Limpiar todo el formulario</DialogTitle>
-                <DialogDescription>
-                  Se eliminará todo el contenido cargado en esta tarea. Esta
-                  acción no se puede deshacer.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setClearDialogOpen(false)}
-                >
-                  Cancelar
+          {/* Probar solo tiene sentido sobre una tarea guardada: el probador la
+              lee del servidor. En una tarea nueva sigue estando Limpiar, que es
+              lo único útil ahí. */}
+          {loadedTask ? (
+            <Button asChild type="button" variant="outline">
+              <a
+                href={`/tareas/probador?id=${encodeURIComponent(loadedTask.id)}&volver=${encodeURIComponent(
+                  typeof window === "undefined"
+                    ? "/tareas"
+                    : window.location.pathname + window.location.search,
+                )}`}
+              >
+                <PlayIcon data-icon="inline-start" />
+                Probar
+              </a>
+            </Button>
+          ) : (
+            <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline">
+                  Limpiar
                 </Button>
-                <Button type="button" onClick={handleClearForm}>
-                  Sí, limpiar todo
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Limpiar todo el formulario</DialogTitle>
+                  <DialogDescription>
+                    Se eliminará todo el contenido cargado en esta tarea. Esta
+                    acción no se puede deshacer.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setClearDialogOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={handleClearForm}>
+                    Sí, limpiar todo
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           <Button type="submit">
             <UploadIcon data-icon="inline-start" />
             {loadedTask ? "Guardar cambios" : "Guardar borrador"}

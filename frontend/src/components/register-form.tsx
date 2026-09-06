@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -74,7 +73,7 @@ export function RegisterForm() {
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
   const [idBackFile, setIdBackFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [uploadNow, setUploadNow] = useState(true);
+  const [sentDocuments, setSentDocuments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<RegisterErrors>({});
   const firstNameRef = useRef<HTMLInputElement>(null);
@@ -109,12 +108,7 @@ export function RegisterForm() {
     setFile: (value: File | null) => void,
   ) => {
     setFile(file);
-    const missingMessages: Record<DocumentField, string> = {
-      letter: "Adjunta la carta o elige subirla después.",
-      idFront: "Adjunta el anverso o elige subirlo después.",
-      idBack: "Adjunta el reverso o elige subirlo después.",
-    };
-    const error = file ? documentError(file) : missingMessages[field];
+    const error = file ? documentError(file) : undefined;
     setErrors((current) => ({ ...current, [field]: error, form: undefined }));
     if (error) {
       toast.error(error);
@@ -169,24 +163,12 @@ export function RegisterForm() {
       school: hasSchoolChoice
         ? undefined
         : "Indica tu colegio o selecciona educación en casa.",
-      letter:
-        uploadNow && hasSchoolChoice && isSchool
-          ? letterFile
-            ? documentError(letterFile)
-            : "Adjunta la carta o elige subirla después."
-          : undefined,
-      idFront:
-        uploadNow && hasSchoolChoice && !isSchool
-          ? idFrontFile
-            ? documentError(idFrontFile)
-            : "Adjunta el anverso o elige subirlo después."
-          : undefined,
-      idBack:
-        uploadNow && hasSchoolChoice && !isSchool
-          ? idBackFile
-            ? documentError(idBackFile)
-            : "Adjunta el reverso o elige subirlo después."
-          : undefined,
+      // Los documentos son opcionales al registrarse: la carta necesita la
+      // firma del director y casi nadie la tiene a mano. Solo se revisa el
+      // formato de lo que sí adjunten.
+      letter: letterFile ? documentError(letterFile) : undefined,
+      idFront: idFrontFile ? documentError(idFrontFile) : undefined,
+      idBack: idBackFile ? documentError(idBackFile) : undefined,
     };
     const fieldOrder = [
       "firstName",
@@ -238,20 +220,21 @@ export function RegisterForm() {
       if (school.codUe) {
         form.append("schoolCodUe", school.codUe);
       }
-      if (uploadNow) {
-        if (isSchool) {
-          if (letterFile) {
-            form.append("letter", letterFile);
-          }
-        } else {
-          if (idFrontFile) {
-            form.append("idFront", idFrontFile);
-          }
-          if (idBackFile) {
-            form.append("idBack", idBackFile);
-          }
+      // Lo que se haya adjuntado viaja; lo que no, se completa desde el perfil.
+      const attached = isSchool
+        ? [["letter", letterFile] as const]
+        : ([
+            ["idFront", idFrontFile],
+            ["idBack", idBackFile],
+          ] as const);
+
+      for (const [field, file] of attached) {
+        if (file) {
+          form.append(field, file);
         }
       }
+
+      setSentDocuments(attached.every(([, file]) => file !== null));
 
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
@@ -302,7 +285,7 @@ export function RegisterForm() {
           <CardDescription>
             Ya entraste con tu cuenta. Queda{" "}
             <strong>pendiente de aprobación</strong>
-            {uploadNow
+            {sentDocuments
               ? ": el administrador revisará tus documentos."
               : " hasta que subas tus documentos."}
           </CardDescription>
@@ -310,7 +293,7 @@ export function RegisterForm() {
         <CardContent>
           <Button asChild className="w-full">
             <a href="/perfil">
-              {uploadNow ? "Ir a mi perfil" : "Subir mis documentos"}
+              {sentDocuments ? "Ir a mi perfil" : "Subir mis documentos"}
             </a>
           </Button>
         </CardContent>
@@ -624,29 +607,7 @@ export function RegisterForm() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-            )}
-          >
-            <div className="overflow-hidden">
-              <Field orientation="horizontal" className="py-2 pr-1">
-                <Checkbox
-                  id="reg-upload-later"
-                  checked={!uploadNow}
-                  onCheckedChange={(checked) => {
-                    setUploadNow(checked !== true);
-                    clearErrors("letter", "idFront", "idBack");
-                  }}
-                />
-                <FieldLabel htmlFor="reg-upload-later" className="font-normal">
-                  Subir mis documentos más tarde
-                </FieldLabel>
-              </Field>
-            </div>
-          </div>
-          <div
-            className={cn(
-              "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice && uploadNow && isSchool
+              hasSchoolChoice && isSchool
                 ? "grid-rows-[1fr]"
                 : "grid-rows-[0fr]",
             )}
@@ -657,7 +618,10 @@ export function RegisterForm() {
                 data-invalid={Boolean(errors.letter) || undefined}
               >
                 <FieldLabel htmlFor="reg-letter">
-                  Carta de autorización del director
+                  Carta de autorización del director{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
                 </FieldLabel>
                 <FieldContent>
                   <Input
@@ -702,7 +666,7 @@ export function RegisterForm() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-300 ease-out",
-              hasSchoolChoice && uploadNow && !isSchool
+              hasSchoolChoice && !isSchool
                 ? "grid-rows-[1fr]"
                 : "grid-rows-[0fr]",
             )}

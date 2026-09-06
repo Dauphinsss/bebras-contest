@@ -1,3 +1,4 @@
+import type { ContentBlock } from "@/lib/task-schema";
 import {
   type ContestState,
   type ContestDraftInput,
@@ -115,6 +116,7 @@ export type ContestPreviewScore = {
     correct: boolean;
     score: number;
     explanation: string;
+    explanationBlocks?: ContentBlock[];
   }>;
 };
 

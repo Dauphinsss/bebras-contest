@@ -1336,6 +1336,7 @@ export const TaskDraftScalarFieldEnum = {
   dragDropBackground: 'dragDropBackground',
   dragDropItems: 'dragDropItems',
   explanation: 'explanation',
+  explanationBlocks: 'explanationBlocks',
   status: 'status',
   isPractice: 'isPractice',
   createdAt: 'createdAt',

@@ -98,6 +98,7 @@ export type StoredTask = {
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];
   explanation: string;
+  explanationBlocks?: ContentBlock[];
   status: "Borrador";
   updatedAt: string;
 };

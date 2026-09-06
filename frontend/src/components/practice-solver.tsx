@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { TaskExplanation } from "@/components/task-explanation";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import { PlayTaskFields } from "@/components/play-task-fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -146,8 +147,13 @@ export function PracticeSolver() {
           <AlertTitle>
             {result.correct ? "¡Correcto!" : "Respuesta incorrecta"}
           </AlertTitle>
-          {result.explanation && (
-            <AlertDescription>{result.explanation}</AlertDescription>
+          {(result.explanation || result.explanationBlocks?.length) && (
+            <AlertDescription>
+              <TaskExplanation
+                explanation={result.explanation}
+                blocks={result.explanationBlocks}
+              />
+            </AlertDescription>
           )}
         </Alert>
       )}

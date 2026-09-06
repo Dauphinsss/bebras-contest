@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   EditorContent,
   useEditor,
@@ -20,7 +20,8 @@ import {
   ItalicIcon,
   UnderlineIcon,
   StrikethroughIcon,
-  CodeIcon,
+  ListIcon,
+  ListOrderedIcon,
 } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -35,10 +36,8 @@ const extensions = [
   StarterKit.configure({
     heading: false,
     blockquote: false,
-    bulletList: false,
-    orderedList: false,
-    listItem: false,
-    listKeymap: false,
+    bulletList: { keepMarks: true },
+    orderedList: { keepMarks: true },
     codeBlock: false,
     horizontalRule: false,
     link: false,
@@ -107,7 +106,18 @@ const formats = [
     shortcut: "Ctrl+Shift+X",
     icon: StrikethroughIcon,
   },
-  { name: "code", label: "Código", shortcut: "Ctrl+E", icon: CodeIcon },
+  {
+    name: "bulletList",
+    label: "Lista con viñetas",
+    shortcut: "Ctrl+Shift+8",
+    icon: ListIcon,
+  },
+  {
+    name: "orderedList",
+    label: "Lista numerada",
+    shortcut: "Ctrl+Shift+7",
+    icon: ListOrderedIcon,
+  },
 ];
 
 export function TaskRichTextEditor({
@@ -131,9 +141,19 @@ export function TaskRichTextEditor({
   onEnter?: () => void;
   onRemoveEmpty?: () => boolean;
 }) {
+  const previousValue = useRef({ content, richText });
   const editor = useEditor({
     immediatelyRender: false,
     extensions,
+    enableInputRules: [
+      "bold",
+      "italic",
+      "underline",
+      "strike",
+      "bulletList",
+      "orderedList",
+    ],
+    enablePasteRules: false,
     content: richText ?? legacyTextToDocument(content),
     editorProps: {
       attributes: {
@@ -148,6 +168,13 @@ export function TaskRichTextEditor({
       },
       handleKeyDown(view, event) {
         if (event.isComposing || view.composing) return false;
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "e")
+          return true;
+        // List commands own Enter, Backspace and indentation inside a list.
+        for (let depth = view.state.selection.$from.depth; depth > 0; depth--) {
+          if (view.state.selection.$from.node(depth).type.name === "listItem")
+            return false;
+        }
         if (
           event.key === "Enter" &&
           !event.shiftKey &&
@@ -194,6 +221,8 @@ export function TaskRichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
+    if (previousValue.current.content === content && previousValue.current.richText === richText) return;
+    previousValue.current = { content, richText };
     // Parent updates from this editor must not reset selection or undo history.
     const next = richText ?? legacyTextToDocument(content);
     if (JSON.stringify(editor.getJSON()) !== JSON.stringify(next)) {
@@ -210,9 +239,16 @@ export function TaskRichTextEditor({
           updateDelay={0}
           getReferencedVirtualElement={() => {
             const selection = editor.view.dom.ownerDocument.getSelection();
-            if (!selection?.rangeCount || !editor.view.dom.contains(selection.anchorNode)) return null;
+            if (
+              !selection?.rangeCount ||
+              !editor.view.dom.contains(selection.anchorNode)
+            )
+              return null;
             const range = selection.getRangeAt(0).cloneRange();
-            return { getBoundingClientRect: () => range.getBoundingClientRect(), getClientRects: () => range.getClientRects() };
+            return {
+              getBoundingClientRect: () => range.getBoundingClientRect(),
+              getClientRects: () => range.getClientRects(),
+            };
           }}
           options={{
             placement: "top",
@@ -236,9 +272,15 @@ export function TaskRichTextEditor({
                       value={name}
                       aria-label={label}
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() =>
-                        editor.chain().focus().toggleMark(name).run()
-                      }
+                      onClick={() => {
+                        const chain = editor.chain();
+                        if (name === "bulletList")
+                          chain.toggleBulletList().run();
+                        else if (name === "orderedList")
+                          chain.toggleOrderedList().run();
+                        else chain.toggleMark(name).run();
+                        editor.view.focus();
+                      }}
                     >
                       <Icon />
                     </ToggleGroupItem>

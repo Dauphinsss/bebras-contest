@@ -571,6 +571,7 @@ function deserializeTask<
     difficulties: unknown;
     bodyBlocks: unknown;
     challengeBlocks: unknown;
+    explanationBlocks?: unknown;
     answerType?: unknown;
     answers: unknown;
     shortAnswer?: unknown;
@@ -590,6 +591,7 @@ function deserializeTask<
     difficulties: normalizeTaskDifficulties(task.difficulties),
     bodyBlocks: parseJsonValue<unknown[]>(task.bodyBlocks, []),
     challengeBlocks: parseJsonValue<unknown[]>(task.challengeBlocks, []),
+    explanationBlocks: parseJsonValue<unknown[]>(task.explanationBlocks, []),
     answerType: String(task.answerType ?? "multiple_choice"),
     answers: parseJsonValue<PlayTask["answers"]>(task.answers, []),
     shortAnswer: String(task.shortAnswer ?? ""),
@@ -752,7 +754,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
 
   const explanation = readText(body.explanation);
 
-  if (!explanation) {
+  if (!explanation && countFilledBlocks(body.explanationBlocks) === 0) {
     throw new Error("La explicación de la respuesta es obligatoria.");
   }
 
@@ -1015,6 +1017,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
       answerType === "drag_drop" ? dragDropConfig : [],
     ),
     explanation,
+    explanationBlocks: serializeJson(body.explanationBlocks ?? []),
     status: readText(body.status) || "Borrador",
   };
 }
@@ -2363,6 +2366,7 @@ app.post("/api/practice/tasks/:id/check", async (req, res) => {
   res.json({
     correct,
     explanation: (task as { explanation?: string }).explanation ?? "",
+    explanationBlocks: task.explanationBlocks,
   });
 });
 
@@ -3100,6 +3104,7 @@ app.post("/api/contests/:id/preview/score", async (req, res) => {
       correct,
       score,
       explanation: task.explanation ?? "",
+      explanationBlocks: task.explanationBlocks,
     };
   });
 
@@ -5175,6 +5180,7 @@ type PlayTask = {
   dragDropTargets: DragDropTarget[];
   dragDropVersion: 1 | 2;
   explanation: unknown;
+  explanationBlocks?: unknown;
 };
 
 function answerHasResponse(answerType: string, payload: unknown) {
@@ -5961,12 +5967,14 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
     const safe: ReturnType<typeof renderSafeTask> & {
       correct?: boolean | null;
       explanation?: unknown;
+      explanationBlocks?: unknown;
     } = renderSafeTask(contestTask, task);
     if (showResults) {
       safe.correct = correctnessByTask[task.id] ?? null;
     }
     if (showResults && contest.showSolutions) {
       safe.explanation = task.explanation;
+      safe.explanationBlocks = task.explanationBlocks;
     }
     return safe;
   });

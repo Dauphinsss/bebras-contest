@@ -79,6 +79,7 @@ model TaskDraft {
   dragDropBackground      String          @default("null")
   dragDropItems           String          @default("[]")
   explanation             String
+  explanationBlocks       String          @default("[]")
   status                  String          @default("Borrador")
   isPractice              Boolean         @default(false)
   createdAt               DateTime        @default(now())

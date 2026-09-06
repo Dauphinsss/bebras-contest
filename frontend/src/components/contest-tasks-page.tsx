@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { TaskExplanation } from "@/components/task-explanation";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import { cn } from "@/lib/utils";
 
@@ -477,10 +478,13 @@ export function ContestTasksPage() {
                       })}
                     </ul>
                   )}
-                {preview.explanation && (
+                {(preview.explanation || preview.explanationBlocks?.length) && (
                   <div className="rounded-sm border bg-muted/40 px-3 py-2 text-sm">
                     <span className="font-semibold">Explicación: </span>
-                    {preview.explanation}
+                    <TaskExplanation
+                      explanation={preview.explanation}
+                      blocks={preview.explanationBlocks}
+                    />
                   </div>
                 )}
               </>
