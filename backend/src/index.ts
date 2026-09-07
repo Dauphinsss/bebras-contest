@@ -484,6 +484,7 @@ function deserializeTaskSummary(task: {
   title: string;
   country: string | null;
   year: number | null;
+  sourceTaskCode: string | null;
   category: string;
   difficulties: string;
 }) {
@@ -492,6 +493,7 @@ function deserializeTaskSummary(task: {
     title: task.title,
     country: task.country,
     year: task.year,
+    sourceTaskCode: task.sourceTaskCode,
     categories: deserializeCategories(task.category),
     difficulties: normalizeTaskDifficulties(task.difficulties),
   };
@@ -618,6 +620,18 @@ function parseTaskPayload(body: Record<string, unknown>) {
     throw new Error("El año de la tarea no es válido.");
   }
 
+  const sourceTaskCode = readText(body.sourceTaskCode);
+
+  if (
+    sourceTaskCode &&
+    (sourceTaskCode.length > 64 ||
+      !/^\d{4}-[A-Z]{2}(?:-[A-Za-z0-9]+)+$/.test(sourceTaskCode))
+  ) {
+    throw new Error(
+      "El código original debe tener un formato como 2024-DE-04a y no superar 64 caracteres.",
+    );
+  }
+
   const categories = Array.isArray(body.categories)
     ? body.categories.filter((item): item is string => typeof item === "string")
     : typeof body.category === "string" && body.category
@@ -686,6 +700,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
     title,
     country: country || null,
     year,
+    sourceTaskCode: sourceTaskCode || null,
     category: serializeJson(categories),
     difficulties: serializeJson(difficulties),
     bodyBlocks: serializeJson(body.bodyBlocks ?? []),
@@ -1116,6 +1131,7 @@ function deserializeContest(contest: {
       title: string;
       country: string | null;
       year: number | null;
+      sourceTaskCode: string | null;
       category: string;
       difficulties: string;
     };

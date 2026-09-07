@@ -1400,6 +1400,7 @@ test("redirects a newly created task to editing with its data preserved", async 
   });
 
   await page.getByLabel("Título", { exact: true }).fill(title);
+  await page.getByLabel("Código original").fill(" 2024-DE-04a ");
   const categoryCheckbox = page.getByRole("checkbox", {
     name: "Algoritmos y programación",
   });
@@ -1441,6 +1442,7 @@ test("redirects a newly created task to editing with its data preserved", async 
   expect(createdTaskId).not.toBeNull();
 
   await expect(page.getByLabel("Título", { exact: true })).toHaveValue(title);
+  await expect(page.getByLabel("Código original")).toHaveValue("2024-DE-04a");
   await expect(
     page.getByPlaceholder("Escribe el contenido del cuerpo."),
   ).toHaveValue("Contenido que debe conservarse");

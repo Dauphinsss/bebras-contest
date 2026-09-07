@@ -9,6 +9,7 @@ export type HomeTaskItem = {
   title: string;
   country: string | null;
   year: number | null;
+  sourceTaskCode: string | null;
   categories: string[];
   /** Categorías de Bebras que cubre, según los rangos de edad con dificultad. */
   levels: string[];
@@ -85,6 +86,7 @@ export function mapTaskToHomeItem(task: StoredTask): HomeTaskItem {
     title: task.title,
     country: task.country ?? null,
     year: task.year ?? null,
+    sourceTaskCode: task.sourceTaskCode ?? null,
     categories: normalizeCategories(task.categories),
     levels: BEBRAS_CATEGORIES.filter(
       (category) => (task.difficulties[category.ageRange] ?? "").trim() !== "",

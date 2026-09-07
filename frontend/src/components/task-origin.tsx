@@ -4,17 +4,27 @@ import { cn } from "@/lib/utils";
 type TaskOriginProps = {
   country?: string | null;
   year?: number | null;
+  sourceTaskCode?: string | null;
   className?: string;
 };
 
 /**
- * De dónde viene la tarea: la bandera del país que la propuso y el año.
+ * De dónde viene la tarea: país, año y código oficial del cuadernillo.
  *
  * Antes esto vivía dentro del título ("01. Caja de Pulseras (Brasil / 2024)"),
  * donde no se podía filtrar ni corregir por separado.
  */
-export function TaskOrigin({ country, year, className }: TaskOriginProps) {
-  if (!country && !year) {
+export function TaskOrigin({
+  country,
+  year,
+  sourceTaskCode,
+  className,
+}: TaskOriginProps) {
+  const details = [country, year, sourceTaskCode].filter(
+    (detail) => detail !== null && detail !== undefined && detail !== "",
+  );
+
+  if (details.length === 0) {
     return null;
   }
 
@@ -37,9 +47,7 @@ export function TaskOrigin({ country, year, className }: TaskOriginProps) {
           src={flag}
         />
       )}
-      {country}
-      {country && year ? " · " : null}
-      {year}
+      {details.join(" · ")}
     </span>
   );
 }

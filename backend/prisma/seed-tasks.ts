@@ -11,6 +11,7 @@ type TaskItem = {
   title: string;
   country?: string | null;
   year?: number | null;
+  sourceTaskCode?: string | null;
   categories?: string[];
   category?: string[];
   difficulties?: Record<string, string>;
@@ -51,6 +52,7 @@ async function main() {
         title: task.title,
         country: task.country ?? null,
         year: task.year ?? null,
+        sourceTaskCode: task.sourceTaskCode ?? null,
         category: JSON.stringify(
           task.categories ?? task.category ?? ["Algoritmos y programación"],
         ),
@@ -123,6 +125,7 @@ async function main() {
       title: task.title,
       country: null,
       year: null,
+      sourceTaskCode: null,
       category: JSON.stringify(["Algoritmos y programación"]),
       difficulties: JSON.stringify(
         Object.fromEntries(

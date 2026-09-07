@@ -138,6 +138,7 @@ export const TaskDraftScalarFieldEnum = {
   title: 'title',
   country: 'country',
   year: 'year',
+  sourceTaskCode: 'sourceTaskCode',
   category: 'category',
   difficulties: 'difficulties',
   bodyBlocks: 'bodyBlocks',

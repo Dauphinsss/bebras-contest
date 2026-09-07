@@ -20,7 +20,11 @@ test("private drafts use authenticated preview/check, preserve the storage contr
   const headers = await loginAdmin(request);
   const task = await createPracticeTask(request, headers, "short_text", {
     isPractice: false,
+    country: "Alemania",
+    year: 2024,
+    sourceTaskCode: " 2024-DE-04a ",
   });
+  expect(task.sourceTaskCode).toBe("2024-DE-04a");
   expect(task.answerConfig).toEqual({});
   expect(task.answerKey).toEqual({});
   const teacher = {
@@ -62,6 +66,7 @@ test("private drafts use authenticated preview/check, preserve the storage contr
   expect(preview.ok()).toBe(true);
   const safe = await preview.json();
   expect(safe.answerConfig).toEqual({});
+  expect(safe).not.toHaveProperty("sourceTaskCode");
   for (const key of [
     "answerKey",
     "correctAnswerId",
@@ -111,7 +116,18 @@ test("private drafts use authenticated preview/check, preserve the storage contr
     answerConfig: {},
     answerKey: {},
     shortAnswer: "Bebras",
+    sourceTaskCode: "2024-DE-04a",
     isPractice: false,
+  });
+
+  const invalidSourceCode = await request.put(`${API}/api/tasks/${task.id}`, {
+    headers,
+    data: { ...task, sourceTaskCode: "2024 DE 04a" },
+  });
+  expect(invalidSourceCode.status()).toBe(400);
+  expect(await invalidSourceCode.json()).toEqual({
+    message:
+      "El código original debe tener un formato como 2024-DE-04a y no superar 64 caracteres.",
   });
   expect(
     (

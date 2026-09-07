@@ -96,13 +96,22 @@ const difficultyOptions = [
   { value: "hard", label: "Difícil" },
 ] as const;
 const minimumAnswerCount = 2;
+const sourceTaskCodePattern = /^\d{4}-[A-Z]{2}(?:-[A-Za-z0-9]+)+$/;
 
 type BlocksSection = "bodyBlocks" | "challengeBlocks" | "explanationBlocks";
+
+function sourceTaskCodeIsInvalid(value: string) {
+  const code = value.trim();
+  return (
+    Boolean(code) && (code.length > 64 || !sourceTaskCodePattern.test(code))
+  );
+}
 
 type FormState = {
   title: string;
   country: string;
   year: string;
+  sourceTaskCode: string;
   categories: CategoryItem[];
   selectedAgeRanges: Record<DifficultyKey, boolean>;
   difficulties: Record<DifficultyKey, string>;
@@ -175,6 +184,7 @@ const createInitialState = (
     title: "",
     country: "",
     year: "",
+    sourceTaskCode: "",
     categories: [],
     selectedAgeRanges: {
       "5–8": false,
@@ -245,6 +255,7 @@ function createStateFromTask(task: StoredTask): FormState {
     title: task.title,
     country: task.country ?? "",
     year: task.year ? String(task.year) : "",
+    sourceTaskCode: task.sourceTaskCode ?? "",
     categories: normalizeCategories(task.categories),
     selectedAgeRanges: {
       "5–8": Boolean(task.difficulties["5–8"]),
@@ -376,6 +387,14 @@ function validateForm(state: FormState) {
 
   if (year && !/^\d{4}$/.test(year)) {
     errors.push("El año del desafío debe tener cuatro cifras.");
+  }
+
+  const sourceTaskCode = state.sourceTaskCode.trim();
+
+  if (sourceTaskCodeIsInvalid(sourceTaskCode)) {
+    errors.push(
+      "El código original debe tener un formato como 2024-DE-04a y no superar 64 caracteres.",
+    );
   }
 
   if (state.answerType === "range") {
@@ -540,6 +559,7 @@ function buildStoredTask(
     title: state.title.trim(),
     country: state.country || null,
     year: state.year.trim() ? Number(state.year) : null,
+    sourceTaskCode: state.sourceTaskCode.trim() || null,
     categories: state.categories,
     difficulties: ageRanges.reduce<Record<DifficultyKey, string>>(
       (acc, range) => {
@@ -1029,7 +1049,7 @@ export function TaskUploadForm({
             </FieldContent>
           </Field>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="country">País de origen</FieldLabel>
               <FieldContent>
@@ -1078,6 +1098,34 @@ export function TaskUploadForm({
                     setForm((current) => ({
                       ...current,
                       year: event.target.value,
+                    }))
+                  }
+                />
+              </FieldContent>
+            </Field>
+            <Field
+              data-invalid={
+                errors.length > 0 &&
+                sourceTaskCodeIsInvalid(form.sourceTaskCode)
+              }
+            >
+              <FieldLabel htmlFor="source-task-code">
+                Código original
+              </FieldLabel>
+              <FieldContent>
+                <Input
+                  id="source-task-code"
+                  maxLength={64}
+                  placeholder="Ej. 2024-DE-04a"
+                  value={form.sourceTaskCode}
+                  aria-invalid={
+                    errors.length > 0 &&
+                    sourceTaskCodeIsInvalid(form.sourceTaskCode)
+                  }
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      sourceTaskCode: event.target.value,
                     }))
                   }
                 />

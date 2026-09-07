@@ -73,6 +73,9 @@ export type ContestState =
 export type ContestTaskSummary = {
   id: string;
   title: string;
+  country: string | null;
+  year: number | null;
+  sourceTaskCode: string | null;
   categories: CategoryItem[];
   difficulties: Record<DifficultyKey, string>;
   status: string;
