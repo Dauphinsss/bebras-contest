@@ -148,7 +148,6 @@ model ContestGroup {
   contestId    String
   createdById  Int?
   name         String
-  scheduledAt  DateTime?
   accessCode   String    @unique
   recoveryCode String
   firstUsedAt  DateTime?

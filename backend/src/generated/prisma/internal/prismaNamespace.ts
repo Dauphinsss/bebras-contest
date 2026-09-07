@@ -1399,7 +1399,6 @@ export const ContestGroupScalarFieldEnum = {
   contestId: 'contestId',
   createdById: 'createdById',
   name: 'name',
-  scheduledAt: 'scheduledAt',
   accessCode: 'accessCode',
   recoveryCode: 'recoveryCode',
   firstUsedAt: 'firstUsedAt',

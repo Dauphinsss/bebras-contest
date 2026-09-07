@@ -3173,7 +3173,6 @@ function serializeGroup(group: {
   name: string;
   accessCode: string;
   contestId: string;
-  scheduledAt: Date | null;
   firstUsedAt: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
@@ -3199,7 +3198,6 @@ function serializeGroup(group: {
     contestTitle: group.contest?.title ?? "",
     contestCategory: group.contest?.category ?? "",
     contestAllowPairs: group.contest?.allowPairs ?? false,
-    scheduledAt: group.scheduledAt?.toISOString() ?? null,
     firstUsedAt: group.firstUsedAt?.toISOString() ?? null,
     expiresAt: group.expiresAt?.toISOString() ?? null,
     createdAt: group.createdAt.toISOString(),
@@ -3485,19 +3483,6 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
-  let scheduledAt: Date | null;
-  try {
-    scheduledAt = parseOptionalDateInput(req.body?.scheduledAt);
-  } catch (error) {
-    res.status(400).json({
-      message:
-        error instanceof Error ? error.message : "Fecha de sesión inválida.",
-      code: "GROUP_SCHEDULE_INVALID",
-      field: "scheduledAt",
-    });
-    return;
-  }
-
   const contest = await prisma.contest.findUnique({ where: { id: contestId } });
 
   if (!contest) {
@@ -3532,20 +3517,6 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
-  if (
-    scheduledAt &&
-    contest.startsAt &&
-    contest.endsAt &&
-    (scheduledAt < contest.startsAt || scheduledAt > contest.endsAt)
-  ) {
-    res.status(400).json({
-      message: "La sesión debe estar dentro del horario del desafío.",
-      code: "GROUP_SCHEDULE_OUTSIDE_CONTEST",
-      field: "scheduledAt",
-    });
-    return;
-  }
-
   const accessCode = await generateUniqueAccessCode();
   const recoveryCode = generateCode(10);
 
@@ -3553,7 +3524,6 @@ app.post("/api/groups", async (req, res) => {
     data: {
       contestId,
       name,
-      scheduledAt,
       accessCode,
       recoveryCode,
       createdById: req.user?.id ?? null,
