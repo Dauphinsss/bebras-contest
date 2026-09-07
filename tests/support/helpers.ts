@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext } from "@playwright/test";
-import { readdirSync, rmSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const API = "http://localhost:3100";
@@ -54,6 +54,16 @@ export async function createContest(
   overrides: Record<string, unknown> = {},
 ) {
   const picked = SEEDED_TASK;
+  const now = Date.now();
+  const startsAt =
+    typeof overrides.startsAt === "string"
+      ? new Date(overrides.startsAt)
+      : new Date(now + 2 * 3600000);
+  const registrationEndsAt = new Date(
+    Math.min(now + 3600000, startsAt.getTime() - 60000),
+  );
+
+  rmSync(E2E_CLOCK_FILE, { force: true });
 
   const created = await api.post(`${API}/api/contests`, {
     headers,
@@ -61,8 +71,12 @@ export async function createContest(
       title: "PW Eval " + Date.now(),
       category: picked.category,
       durationMinutes: 60,
-      startsAt: new Date(Date.now() - 3600000).toISOString(),
-      endsAt: new Date(Date.now() + 7200000).toISOString(),
+      registrationStartsAt: new Date(
+        registrationEndsAt.getTime() - 2 * 3600000,
+      ).toISOString(),
+      registrationEndsAt: registrationEndsAt.toISOString(),
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 3 * 3600000).toISOString(),
       allowPairs: false,
       showFeedback: true,
       showSolutions: true,
@@ -83,6 +97,40 @@ export async function createContest(
   return { ...contest, picked };
 }
 
+export function openContest(contest: { startsAt: string; endsAt: string }) {
+  const startsAt = new Date(contest.startsAt).getTime();
+  const endsAt = new Date(contest.endsAt).getTime();
+  const executionTime = Math.min(
+    Math.max(Date.now(), startsAt + 1000),
+    endsAt - 1000,
+  );
+  writeFileSync(E2E_CLOCK_FILE, new Date(executionTime).toISOString());
+}
+
+async function enterContestRegistration(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  contestId: string,
+) {
+  const response = await api.get(`${API}/api/contests/${contestId}`, {
+    headers,
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const contest = (await response.json()) as {
+    registrationStartsAt: string;
+    registrationEndsAt: string;
+    startsAt: string;
+    endsAt: string;
+  };
+  const registrationStartsAt = new Date(contest.registrationStartsAt).getTime();
+  const registrationEndsAt = new Date(contest.registrationEndsAt).getTime();
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date((registrationStartsAt + registrationEndsAt) / 2).toISOString(),
+  );
+  return contest;
+}
+
 export async function joinContest(
   api: APIRequestContext,
   headers: Record<string, string>,
@@ -90,6 +138,7 @@ export async function joinContest(
   grade: string,
   firstName = "Playwright",
 ) {
+  const contest = await enterContestRegistration(api, headers, contestId);
   const group = await api
     .post(`${API}/api/groups`, {
       headers,
@@ -108,6 +157,7 @@ export async function joinContest(
   });
   expect(response.ok(), await response.text()).toBe(true);
   const join = await response.json();
+  openContest(contest);
 
   return join.personalCode as string;
 }
@@ -124,6 +174,7 @@ export async function joinContestSession(
   firstName = "Playwright",
   lastName = "Tester",
 ) {
+  const contest = await enterContestRegistration(api, headers, contestId);
   const group = await api
     .post(`${API}/api/groups`, {
       headers,
@@ -149,6 +200,7 @@ export async function joinContestSession(
     data: { personalCode },
   });
   expect(session.ok(), await session.text()).toBe(true);
+  openContest(contest);
 
   return {
     accessCode: group.accessCode as string,

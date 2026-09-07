@@ -8,6 +8,7 @@ import {
   createContest,
   joinContest,
   createScoringTask,
+  openContest,
   taskBlock,
 } from "./support/helpers";
 
@@ -312,6 +313,7 @@ test("protects tasks and played contest records from deletion", async () => {
   expect(removeUsedTask.status()).toBe(409);
   expect((await removeUsedTask.json()).message).toContain("desafío");
 
+  openContest(contest);
   const start = await api.post(`${API}/api/play/start`, {
     data: { personalCode },
   });
@@ -430,6 +432,7 @@ test("freezes a contest once it is running", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const contest = await createContest(api, headers);
+  openContest(contest);
 
   const edit = await api.put(`${API}/api/contests/${contest.id}`, {
     headers,

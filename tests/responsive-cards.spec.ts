@@ -357,7 +357,6 @@ test("keeps group and teacher cards responsive and compact", async ({
           contestTitle: "Desafío responsive",
           contestCategory: "Capibara",
           contestAllowPairs: true,
-          scheduledAt: now,
           firstUsedAt: null,
           expiresAt: null,
           createdAt: now,
