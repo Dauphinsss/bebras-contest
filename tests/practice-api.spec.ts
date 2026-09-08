@@ -8,6 +8,7 @@ import {
   createContest,
   joinContest,
   taskBlock,
+  DRAG_DROP_BACKGROUND,
   DRAG_DROP_TARGETS,
   DRAG_DROP_ITEMS,
   DRAG_DROP_CORRECT_PLACEMENTS,
@@ -195,6 +196,62 @@ test("serves and checks all four public practice answer types", async () => {
     }),
   ).toMatchObject({ correct: false });
 
+  await api.dispose();
+});
+
+test("keeps private tasks hidden and reveals solution images only after checking", async () => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const solutionBlocks = [
+    taskBlock("private-explanation", "Explicación privada"),
+    {
+      id: "private-solution-image-block",
+      type: "image",
+      content: "",
+      image: {
+        id: "private-solution-image",
+        name: "solution.svg",
+        url: DRAG_DROP_BACKGROUND.url,
+      },
+      widthPercent: 100,
+    },
+  ];
+  const task = await createPracticeTask(api, headers, "multiple_choice", {
+    title: `Tarea privada ${Date.now()}`,
+    explanationBlocks: solutionBlocks,
+    isPractice: false,
+  });
+
+  const hiddenDetail = await api.get(`${API}/api/practice/tasks/${task.id}`);
+  expect(hiddenDetail.status()).toBe(404);
+  const hiddenList = await api
+    .get(`${API}/api/practice/tasks?category=Titi`)
+    .then((response) => response.json());
+  expect(
+    hiddenList.tasks.some(
+      (candidate: { id: string }) => candidate.id === task.id,
+    ),
+  ).toBe(false);
+
+  const publish = await api.patch(`${API}/api/tasks/${task.id}/practice`, {
+    headers,
+    data: { isPractice: true },
+  });
+  expect(publish.ok(), await publish.text()).toBe(true);
+
+  const detailResponse = await api.get(`${API}/api/practice/tasks/${task.id}`);
+  expect(detailResponse.ok(), await detailResponse.text()).toBe(true);
+  expect(await detailResponse.json()).not.toHaveProperty("explanationBlocks");
+
+  const checkResponse = await api.post(
+    `${API}/api/practice/tasks/${task.id}/check`,
+    { data: { payload: { selected: ["B"] } } },
+  );
+  expect(checkResponse.ok(), await checkResponse.text()).toBe(true);
+  expect(await checkResponse.json()).toMatchObject({
+    correct: true,
+    explanationBlocks: solutionBlocks,
+  });
   await api.dispose();
 });
 
