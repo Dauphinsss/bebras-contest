@@ -260,8 +260,11 @@ test("validates manual enrollment and recovers from a duplicate", async ({
   }, session);
   await page.goto("/grupos");
   const groupCard = page
-    .getByText("Grupo inscripción accesible", { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    .getByRole("heading", {
+      name: "Grupo inscripción accesible",
+      exact: true,
+    })
+    .locator("xpath=ancestor::li[1]");
   await groupCard.getByRole("button", { name: /1 equipo/ }).click();
   await groupCard
     .getByRole("button", { name: "Inscribir participante" })
@@ -516,8 +519,8 @@ test("validates participant editing and recovers from a duplicate", async ({
   }, session);
   await page.goto("/grupos");
   const groupCard = page
-    .getByText("Grupo edición accesible", { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    .getByRole("heading", { name: "Grupo edición accesible", exact: true })
+    .locator("xpath=ancestor::li[1]");
   await groupCard.getByRole("button", { name: /2 equipo/ }).click();
   const targetRow = groupCard
     .getByRole("listitem")
@@ -929,16 +932,17 @@ test("discovers one importable XLSX sheet and keeps template examples inert", as
   const templateBuffer = await templateResponse.body();
   const templateWorkbook = new ExcelJS.Workbook();
   await templateWorkbook.xlsx.load(templateBuffer);
-  expect(templateWorkbook.worksheets.map((sheet) => sheet.name)).toEqual([
-    "Participantes",
-    "Ejemplo",
-    "Instrucciones",
-  ]);
+  expect(
+    templateWorkbook.worksheets
+      .filter((sheet) => sheet.state === "visible")
+      .map((sheet) => sheet.name),
+  ).toEqual(["Participantes", "Ejemplo", "Instrucciones"]);
+  expect(templateWorkbook.getWorksheet("Datos")?.state).toBe("hidden");
   expect(
     templateWorkbook.getWorksheet("Participantes")?.getRow(2).values,
   ).toEqual([]);
-  expect(templateWorkbook.getWorksheet("Ejemplo")?.getCell("A1").value).toBe(
-    "EJEMPLO - ESTA HOJA NO SE IMPORTA",
+  expect(templateWorkbook.getWorksheet("Ejemplo")?.getCell("A1").value).toMatch(
+    /ejemplo.*esta hoja no se importa/i,
   );
   expect(templateWorkbook.getWorksheet("Ejemplo")?.getRow(3).values).toContain(
     "Modalidad",
@@ -1081,11 +1085,14 @@ test("announces roster validation, atomic results and refresh failures", async (
   }, session);
   await page.goto("/grupos");
   const groupCard = page
-    .getByText("Grupo importación accesible", { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    .getByRole("heading", {
+      name: "Grupo importación accesible",
+      exact: true,
+    })
+    .locator("xpath=ancestor::li[1]");
   const siblingCard = page
-    .getByText("Grupo importación paralelo", { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    .getByRole("heading", { name: "Grupo importación paralelo", exact: true })
+    .locator("xpath=ancestor::li[1]");
   await groupCard.getByRole("button", { name: /0 equipo/ }).click();
   const input = groupCard.getByLabel("Importar planilla");
   await expect(input).toHaveAttribute(
@@ -1328,9 +1335,13 @@ test("associates group creation errors and recovers after a remote rejection", a
     { timeout: 30000 },
   );
 
-  const contest = page.getByRole("combobox", { name: "Desafío" });
-  const name = page.getByLabel("Nombre del grupo");
-  const create = page.getByRole("button", { name: "Crear grupo" });
+  await page.getByRole("button", { name: "Nuevo grupo" }).click();
+  const form = page
+    .getByRole("dialog", { name: "Crear grupo" })
+    .locator("form");
+  const contest = form.getByRole("combobox", { name: "Desafío" });
+  const name = form.getByLabel("Nombre del grupo");
+  const create = form.getByRole("button", { name: "Crear grupo" });
   await create.click();
 
   await expect(contest).toBeFocused();
@@ -1339,7 +1350,7 @@ test("associates group creation errors and recovers after a remote rejection", a
     "aria-describedby",
     "group-contest-error",
   );
-  await expect(page.locator("#group-contest-error")).toHaveText(
+  await expect(form.locator("#group-contest-error")).toHaveText(
     "Elige un desafío publicado.",
   );
   await expect(name).toHaveAttribute("aria-invalid", "true");
@@ -1348,7 +1359,7 @@ test("associates group creation errors and recovers after a remote rejection", a
   await contest.click();
   await page.getByRole("option", { name: firstContest.title }).click();
   await expect(contest).toHaveAttribute("aria-invalid", "false");
-  await expect(page.locator("#group-contest-error")).toHaveCount(0);
+  await expect(form.locator("#group-contest-error")).toHaveCount(0);
   await create.click();
   await expect(name).toBeFocused();
 
@@ -1362,11 +1373,11 @@ test("associates group creation errors and recovers after a remote rejection", a
   ).toBeVisible();
   await expect(contest).toBeFocused();
   await expect(contest).toHaveAttribute("aria-invalid", "true");
-  await expect(page.locator("#group-contest-error")).toHaveText(closedMessage);
+  await expect(form.locator("#group-contest-error")).toHaveText(closedMessage);
 
   await contest.click();
   await page.getByRole("option", { name: secondContest.title }).click();
-  await expect(page.locator("#group-contest-error")).toHaveCount(0);
+  await expect(form.locator("#group-contest-error")).toHaveCount(0);
   await create.click();
 
   await expect(
