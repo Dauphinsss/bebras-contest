@@ -221,7 +221,11 @@ export function TaskRichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
-    if (previousValue.current.content === content && previousValue.current.richText === richText) return;
+    if (
+      previousValue.current.content === content &&
+      previousValue.current.richText === richText
+    )
+      return;
     previousValue.current = { content, richText };
     // Parent updates from this editor must not reset selection or undo history.
     const next = richText ?? legacyTextToDocument(content);
