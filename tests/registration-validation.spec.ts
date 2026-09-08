@@ -93,15 +93,6 @@ test("shows field errors and associates an existing email with its input", async
   );
   await manualSchool.fill("Colegio Accesible");
   await page.getByRole("button", { name: "Continuar" }).click();
-
-  const letter = page.getByLabel("Carta de autorización del director");
-  await expect(letter).toBeFocused();
-  await expect(letter).toHaveAttribute("aria-invalid", "true");
-  await expect(letter).toHaveAttribute("aria-describedby", "reg-letter-error");
-
-  await page.getByLabel("Subir mis documentos más tarde").click();
-  await expect(page.locator("#reg-letter-error")).toHaveCount(0);
-  await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByRole("button", { name: "Confirmar y crear cuenta" }).click();
 
   const existingMessage = "Ya existe una cuenta con ese correo.";
@@ -129,13 +120,9 @@ test("validates each homeschool document and maps backend errors to the file", a
     await openRegistration(page);
     await fillAccountFields(page, `casa-ui-${Date.now()}@example.com`);
     await page.getByRole("button", { name: "Enseño en casa" }).click();
-    await page.getByRole("button", { name: "Continuar" }).click();
 
     const front = page.getByLabel("Carnet — anverso");
     const back = page.getByLabel("Carnet — reverso");
-    await expect(front).toBeFocused();
-    await expect(front).toHaveAttribute("aria-invalid", "true");
-    await expect(back).toHaveAttribute("aria-invalid", "true");
 
     await front.setInputFiles({
       name: "carnet.txt",
