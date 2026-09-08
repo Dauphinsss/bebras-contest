@@ -17,6 +17,9 @@
     "prisma:push": "prisma db push",
     "db:seed": "tsx ./prisma/seed.ts",
     "db:tasks": "tsx ./prisma/seed-tasks.ts",
+    "catalog:migrate": "tsx ./prisma/migrate-catalog.ts",
+    "catalog:validate": "tsx ./prisma/migrate-catalog.ts --check",
+    "test:catalog": "tsx --test ./prisma/catalog-migration.test.ts",
     "db:schools:fetch": "tsx ./scripts/fetch-schools.ts",
     "db:admins": "tsx ./scripts/seed-admins.ts",
     "db:clear-teams": "tsx ./scripts/clear-teams.ts"
