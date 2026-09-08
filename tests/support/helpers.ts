@@ -194,13 +194,13 @@ export async function joinContestSession(
   expect(join.ok(), await join.text()).toBe(true);
 
   const personalCode = (await join.json()).personalCode as string;
+  openContest(contest);
 
   // Rendir exige el codigo personal; el del grupo solo sirve para inscribirse.
   const session = await api.post(`${API}/api/play/session`, {
     data: { personalCode },
   });
   expect(session.ok(), await session.text()).toBe(true);
-  openContest(contest);
 
   return {
     accessCode: group.accessCode as string,

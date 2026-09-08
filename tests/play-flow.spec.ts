@@ -6,6 +6,7 @@ import {
   loginAdmin,
   createContest,
   joinContestSession,
+  openContest,
   playHeaders,
   SCORING_TASKS,
 } from "./support/helpers";
@@ -384,7 +385,15 @@ test("keeps a single open session per student", async () => {
   });
   expect(withSession.ok(), await withSession.text()).toBe(true);
 
-  writeFileSync(E2E_CLOCK_FILE, new Date(Date.now() + 60000).toISOString());
+  const attemptResponse = await api.get(`${API}/api/play/attempt`, {
+    headers: playHeaders(student.sessionToken),
+  });
+  expect(attemptResponse.ok(), await attemptResponse.text()).toBe(true);
+  const attempt = await attemptResponse.json();
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(new Date(attempt.startedAt).getTime() + 60000).toISOString(),
+  );
 
   const takeover = await api.post(`${API}/api/play/session`, {
     data: { personalCode: student.personalCode },
@@ -440,6 +449,7 @@ test("enters with the personal code handed out at enrolment", async ({
   });
   expect(registered.ok(), await registered.text()).toBe(true);
   const personalCode = (await registered.json()).personalCode as string;
+  openContest(contest);
   await api.dispose();
 
   await page.goto("/entrar");
