@@ -38,14 +38,15 @@ bun run dev
 La base local (`backend/dev.db`) **no se versiona**. Se reconstruye con
 `prisma:push` mas `db:seed`.
 
-| Comando                    | Qué hace                                                                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run db:setup`         | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores.                                |
-| `bun run db:seed`          | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
-| `bun run db:tasks`         | Valida el banco Bebras e inserta solo las tareas que faltan; nunca sobrescribe tareas existentes.                                 |
-| `bun run db:schools:fetch` | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
-| `bun run db:admins`        | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
-| `bun run db:clear-teams`   | Borra equipos e intentos para volver a probar el flujo.                                                                           |
+| Comando                                      | Qué hace                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run db:setup`                           | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores.                                |
+| `bun run db:seed`                            | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
+| `bun run db:tasks`                           | Valida el banco Bebras e inserta solo las tareas que faltan; nunca sobrescribe tareas existentes.                                 |
+| `bun run db:tasks:replace --confirm-replace` | Respalda la base y reemplaza tareas, concursos, grupos, equipos, intentos y resultados por el catálogo oficial. Es destructivo.   |
+| `bun run db:schools:fetch`                   | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
+| `bun run db:admins`                          | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
+| `bun run db:clear-teams`                     | Borra equipos e intentos para volver a probar el flujo.                                                                           |
 
 Los recortes corregidos del banco se pueden regenerar con
 `uv run --with pymupdf python backend/scripts/recrop-task-images.py`.
@@ -53,6 +54,10 @@ El script requiere el PDF original en `tareas-otono-2024/_referencia/`, conserva
 los identificadores de las imágenes y modifica únicamente la semilla JSON.
 `bun run db:tasks` carga las tareas oficiales que falten en la base configurada.
 Los tres fixtures sintéticos se cargan únicamente en la base temporal E2E.
+El reemplazo explícito conserva intactos colegios, usuarios y solicitudes de
+maestros. El respaldo verificado queda junto a la base como
+`*.db.backup-<fecha>`; también se puede indicar otra ubicación con
+`--backup <ruta>`. Detén el backend antes de ejecutarlo.
 
 ## Autoría de arrastre
 

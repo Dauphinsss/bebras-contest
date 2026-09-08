@@ -17,10 +17,11 @@
     "prisma:push": "prisma db push",
     "db:seed": "tsx ./prisma/seed.ts",
     "db:tasks": "tsx ./prisma/seed-tasks.ts",
+    "db:tasks:replace": "tsx ./prisma/replace-tasks.ts",
     "db:test-tasks": "tsx ./prisma/seed-test-tasks.ts",
     "catalog:migrate": "tsx ./prisma/migrate-catalog.ts",
     "catalog:validate": "tsx ./prisma/migrate-catalog.ts --check",
-    "test:catalog": "tsx --test ./prisma/catalog-migration.test.ts ./prisma/task-catalog.test.ts",
+    "test:catalog": "tsx --test ./prisma/catalog-migration.test.ts ./prisma/task-catalog.test.ts ./prisma/replace-tasks.test.ts",
     "db:schools:fetch": "tsx ./scripts/fetch-schools.ts",
     "db:admins": "tsx ./scripts/seed-admins.ts",
     "db:clear-teams": "tsx ./scripts/clear-teams.ts"

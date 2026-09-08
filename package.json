@@ -10,6 +10,7 @@
     "db:push": "bun run --cwd backend prisma:push",
     "db:seed": "bun run --cwd backend db:seed",
     "db:tasks": "bun run --cwd backend db:tasks",
+    "db:tasks:replace": "bun run --cwd backend db:tasks:replace",
     "db:admins": "bun run --cwd backend db:admins",
     "db:schools:fetch": "bun run --cwd backend db:schools:fetch",
     "db:clear-teams": "bun run --cwd backend db:clear-teams",
