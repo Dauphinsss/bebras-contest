@@ -19,6 +19,7 @@ const testEnv = {
   E2E_ADMIN_PASSWORD: adminPassword,
   SEED_ADMIN_PASSWORD: adminPassword,
   E2E_CLOCK_FILE: resolve(backend, "test-clock.txt"),
+  BEBRAS_E2E: "1",
 };
 
 function cleanupTestArtifacts() {
@@ -51,7 +52,7 @@ async function main() {
   try {
     await run(["bun", "run", "prisma:push"], backend);
     await run(["bun", "run", "db:admins"], backend);
-    await run(["bun", "run", "db:tasks"], backend);
+    await run(["bun", "run", "db:test-tasks"], backend);
     await run(["bun", "x", "playwright", "test", ...playwrightArgs], root);
   } finally {
     cleanupTestArtifacts();

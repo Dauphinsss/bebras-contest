@@ -40,9 +40,9 @@ La base local (`backend/dev.db`) **no se versiona**. Se reconstruye con
 
 | Comando                    | Qué hace                                                                                                                          |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run db:setup`         | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores. |
+| `bun run db:setup`         | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores.                                |
 | `bun run db:seed`          | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
-| `bun run db:tasks`         | Carga el banco de tareas Bebras desde `backend/prisma/seed/bebras-tasks.json`.                                                    |
+| `bun run db:tasks`         | Valida el banco Bebras e inserta solo las tareas que faltan; nunca sobrescribe tareas existentes.                                 |
 | `bun run db:schools:fetch` | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
 | `bun run db:admins`        | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
 | `bun run db:clear-teams`   | Borra equipos e intentos para volver a probar el flujo.                                                                           |
@@ -51,7 +51,8 @@ Los recortes corregidos del banco se pueden regenerar con
 `uv run --with pymupdf python backend/scripts/recrop-task-images.py`.
 El script requiere el PDF original en `tareas-otono-2024/_referencia/`, conserva
 los identificadores de las imágenes y modifica únicamente la semilla JSON.
-`bun run db:tasks` carga el banco completo en la base configurada.
+`bun run db:tasks` carga las tareas oficiales que falten en la base configurada.
+Los tres fixtures sintéticos se cargan únicamente en la base temporal E2E.
 
 ## Autoría de arrastre
 
@@ -105,7 +106,7 @@ semillas para incorporar las columnas; así se conservan las tareas editadas.
 bun run test:e2e
 ```
 
-El comando crea una base temporal, carga las semillas, inicia backend y frontend
+El comando crea una base temporal, carga fixtures sintéticos aislados, inicia backend y frontend
 en puertos de prueba y elimina la base al terminar. No requiere procesos previos.
 Usa una clave de sesión exclusiva de las pruebas.
 
