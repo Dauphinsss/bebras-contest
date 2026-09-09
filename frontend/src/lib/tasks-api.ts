@@ -50,6 +50,27 @@ export function checkTask(
   );
 }
 
+/** Prueba lo que hay en el editor: la tarea viaja entera, sin pasar por la base. */
+export function previewTaskDraft(task: unknown, signal?: AbortSignal) {
+  return request<PlayTask>("/api/tasks/draft/preview", {
+    method: "POST",
+    body: JSON.stringify(task),
+    signal,
+  });
+}
+
+export function checkTaskDraft(
+  task: unknown,
+  payload: unknown,
+  signal?: AbortSignal,
+) {
+  return request<TaskCheckResult>("/api/tasks/draft/check", {
+    method: "POST",
+    body: JSON.stringify({ task, payload }),
+    signal,
+  });
+}
+
 export function createTask(task: Omit<StoredTask, "id"> & { id?: string }) {
   return request<StoredTask>("/api/tasks", {
     method: "POST",

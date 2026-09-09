@@ -1,6 +1,13 @@
 "use client";
 
 import { CheckIcon } from "lucide-react";
+import {
+  StateGridPlayer,
+  readAssignments,
+} from "@/components/assignment-player";
+import type { GridConfig } from "@/lib/assignment-answers";
+import { ImageHotspotPlayer } from "@/components/image-hotspot-player";
+import type { HotspotConfig } from "@/lib/image-hotspot";
 
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import {
@@ -10,7 +17,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import type { PlayTask } from "@/lib/play-api";
-import type { StoredTaskDragDropTarget } from "@/lib/task-schema";
+import {
+  readMultipleChoiceLayout,
+  type StoredTaskDragDropTarget,
+} from "@/lib/task-schema";
 import { cn } from "@/lib/utils";
 
 function compareIds(left: string, right: string) {
@@ -111,11 +121,39 @@ export function PlayTaskFields({
     task.dragDropItems.map((item) => item.id),
     task.dragDropTargets,
   );
+  const horizontalChoices =
+    readMultipleChoiceLayout(task.answerConfig) === "horizontal";
 
   return (
     <>
+      {task.answerType === "state_grid" && task.answerConfig?.version === 1 && (
+        <StateGridPlayer
+          config={task.answerConfig as unknown as GridConfig}
+          value={readAssignments(value, "cells")}
+          disabled={disabled}
+          onChange={(cells) => onChange({ version: 1, cells })}
+        />
+      )}
+      {task.answerType === "image_hotspot" &&
+        task.answerConfig?.version === 1 && (
+          <ImageHotspotPlayer
+            config={task.answerConfig as unknown as HotspotConfig}
+            regionId={
+              typeof response.regionId === "string" ? response.regionId : null
+            }
+            disabled={disabled}
+            onChange={(regionId) => onChange({ version: 1, regionId })}
+          />
+        )}
       {task.answerType === "multiple_choice" && (
-        <div className="flex flex-col gap-3">
+        <div
+          className={cn(
+            "gap-3",
+            horizontalChoices
+              ? "grid grid-cols-2 items-stretch lg:grid-cols-4"
+              : "flex flex-col",
+          )}
+        >
           {task.answers.map((answer) => {
             const isSelected = selected.includes(answer.id);
             const multi = task.multipleChoiceMode === "all";
@@ -126,7 +164,10 @@ export function PlayTaskFields({
                 disabled={disabled}
                 aria-pressed={isSelected}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-md border-2 bg-card px-4 py-4 text-left transition",
+                  "flex w-full gap-3 rounded-md border-2 bg-card px-4 py-4 transition",
+                  horizontalChoices
+                    ? "h-full flex-col items-center text-center"
+                    : "items-center text-left",
                   isSelected
                     ? "border-primary bg-primary/10 shadow-hard"
                     : "border-border hover:border-primary/50",
@@ -160,22 +201,30 @@ export function PlayTaskFields({
                     <CheckIcon className="size-3.5" strokeWidth={3} />
                   )}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    "min-w-0",
+                    horizontalChoices ? "w-full" : "flex-1",
+                  )}
+                >
                   <TaskContentRenderer
                     blocks={answer.blocks}
                     className="gap-2 text-base"
+                    minImageWidth="0px"
                   />
                 </div>
               </button>
             );
           })}
-          {task.multipleChoiceMode === "all" && (
-            <p className="text-xs text-muted-foreground">
-              Debes marcar todas las opciones correctas.
-            </p>
-          )}
         </div>
       )}
+
+      {task.answerType === "multiple_choice" &&
+        task.multipleChoiceMode === "all" && (
+          <p className="text-xs text-muted-foreground">
+            Debes marcar todas las opciones correctas.
+          </p>
+        )}
 
       {task.answerType === "short_text" && (
         <Input
@@ -184,17 +233,6 @@ export function PlayTaskFields({
           disabled={disabled}
           value={String(response.text ?? "")}
           onChange={(event) => onChange({ text: event.target.value })}
-        />
-      )}
-
-      {task.answerType === "range" && (
-        <Input
-          aria-label="Tu respuesta numérica"
-          type="number"
-          placeholder="Escribe un número"
-          disabled={disabled}
-          value={String(response.value ?? "")}
-          onChange={(event) => onChange({ value: event.target.value })}
         />
       )}
 

@@ -91,7 +91,7 @@ export function LoginForm() {
         data.user.status && data.user.status !== "approved"
           ? "/perfil"
           : data.user.role === "admin"
-            ? "/competencias"
+            ? "/desafios"
             : "/perfil";
     } catch {
       toast.error("No se pudo conectar con el servidor.");

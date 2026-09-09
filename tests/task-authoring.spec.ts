@@ -129,8 +129,8 @@ test("keeps task authoring controls responsive in the current layout", async ({
   const shortTextType = answersSection.getByRole("radio", {
     name: "Respuesta corta",
   });
-  const rangeType = answersSection.getByRole("radio", {
-    name: "Respuesta por rangos",
+  const stateGridType = answersSection.getByRole("radio", {
+    name: "Estados por casilla",
   });
   const dragDropType = answersSection.getByRole("radio", {
     name: "Arrastrar y soltar",
@@ -141,7 +141,7 @@ test("keeps task authoring controls responsive in the current layout", async ({
   const shortTextTypeField = shortTextType.locator(
     'xpath=ancestor::*[@data-slot="field"][1]',
   );
-  const rangeTypeField = rangeType.locator(
+  const stateGridTypeField = stateGridType.locator(
     'xpath=ancestor::*[@data-slot="field"][1]',
   );
   const dragDropTypeField = dragDropType.locator(
@@ -150,27 +150,29 @@ test("keeps task authoring controls responsive in the current layout", async ({
   const [
     desktopMultipleChoiceTypeField,
     desktopShortTextTypeField,
-    desktopRangeTypeField,
+    desktopStateGridTypeField,
     desktopDragDropTypeField,
   ] = await Promise.all([
     multipleChoiceTypeField.boundingBox(),
     shortTextTypeField.boundingBox(),
-    rangeTypeField.boundingBox(),
+    stateGridTypeField.boundingBox(),
     dragDropTypeField.boundingBox(),
   ]);
   expect(desktopMultipleChoiceTypeField).not.toBeNull();
   expect(desktopShortTextTypeField).not.toBeNull();
-  expect(desktopRangeTypeField).not.toBeNull();
+  expect(desktopStateGridTypeField).not.toBeNull();
   expect(desktopDragDropTypeField).not.toBeNull();
   expect(desktopShortTextTypeField!.y).toBe(desktopMultipleChoiceTypeField!.y);
   expect(desktopShortTextTypeField!.x).toBeGreaterThan(
     desktopMultipleChoiceTypeField!.x,
   );
-  expect(desktopRangeTypeField!.y).toBeGreaterThan(
+  expect(desktopStateGridTypeField!.y).toBeGreaterThan(
     desktopMultipleChoiceTypeField!.y,
   );
-  expect(desktopDragDropTypeField!.y).toBe(desktopRangeTypeField!.y);
-  expect(desktopDragDropTypeField!.x).toBeGreaterThan(desktopRangeTypeField!.x);
+  expect(desktopDragDropTypeField!.y).toBe(desktopStateGridTypeField!.y);
+  expect(desktopDragDropTypeField!.x).toBeGreaterThan(
+    desktopStateGridTypeField!.x,
+  );
 
   const marker = answersSection.getByRole("button", {
     name: "Mover destino 1",
@@ -238,20 +240,19 @@ test("keeps task authoring controls responsive in the current layout", async ({
     answersSection.getByRole("button", { name: "Mover respuesta 2 después" }),
   ).toBeDisabled();
 
-  await rangeType.click();
-  await expect(
-    answersSection.getByText("Rango válido", { exact: true }),
-  ).toHaveCount(1);
-  const rangeMin = answersSection.getByRole("spinbutton", { name: "Mínimo" });
-  const rangeMax = answersSection.getByRole("spinbutton", { name: "Máximo" });
-  const [desktopRangeMin, desktopRangeMax] = await Promise.all([
-    rangeMin.boundingBox(),
-    rangeMax.boundingBox(),
+  await stateGridType.click();
+  const gridRows = answersSection.getByRole("spinbutton", { name: "Filas" });
+  const gridColumns = answersSection.getByRole("spinbutton", {
+    name: "Columnas",
+  });
+  const [desktopGridRows, desktopGridColumns] = await Promise.all([
+    gridRows.boundingBox(),
+    gridColumns.boundingBox(),
   ]);
-  expect(desktopRangeMin).not.toBeNull();
-  expect(desktopRangeMax).not.toBeNull();
-  expect(desktopRangeMax!.y).toBe(desktopRangeMin!.y);
-  expect(desktopRangeMax!.x).toBeGreaterThan(desktopRangeMin!.x);
+  expect(desktopGridRows).not.toBeNull();
+  expect(desktopGridColumns).not.toBeNull();
+  expect(desktopGridColumns!.y).toBe(desktopGridRows!.y);
+  expect(desktopGridColumns!.x).toBeGreaterThan(desktopGridRows!.x);
 
   await dragDropType.click();
   expect(
@@ -270,7 +271,7 @@ test("keeps task authoring controls responsive in the current layout", async ({
     mobileSecondAgeField,
     mobileMultipleChoiceTypeField,
     mobileShortTextTypeField,
-    mobileRangeTypeField,
+    mobileStateGridTypeField,
     mobileDragDropTypeField,
     mobileHorizontal,
     mobileVertical,
@@ -290,7 +291,7 @@ test("keeps task authoring controls responsive in the current layout", async ({
     secondAgeField.boundingBox(),
     multipleChoiceTypeField.boundingBox(),
     shortTextTypeField.boundingBox(),
-    rangeTypeField.boundingBox(),
+    stateGridTypeField.boundingBox(),
     dragDropTypeField.boundingBox(),
     horizontal.boundingBox(),
     vertical.boundingBox(),
@@ -311,7 +312,7 @@ test("keeps task authoring controls responsive in the current layout", async ({
     mobileSecondAgeField,
     mobileMultipleChoiceTypeField,
     mobileShortTextTypeField,
-    mobileRangeTypeField,
+    mobileStateGridTypeField,
     mobileDragDropTypeField,
     mobileHorizontal,
     mobileVertical,
@@ -337,16 +338,16 @@ test("keeps task authoring controls responsive in the current layout", async ({
   expect(mobileSecondDifficulty!.width).toBe(mobileFirstDifficulty!.width);
   expect(mobileSecondDifficulty!.x).toBe(mobileFirstDifficulty!.x);
   expect(mobileShortTextTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
-  expect(mobileRangeTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
+  expect(mobileStateGridTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
   expect(mobileDragDropTypeField!.x).toBe(mobileMultipleChoiceTypeField!.x);
   expect(mobileShortTextTypeField!.y).toBeGreaterThan(
     mobileMultipleChoiceTypeField!.y + mobileMultipleChoiceTypeField!.height,
   );
-  expect(mobileRangeTypeField!.y).toBeGreaterThan(
+  expect(mobileStateGridTypeField!.y).toBeGreaterThan(
     mobileShortTextTypeField!.y + mobileShortTextTypeField!.height,
   );
   expect(mobileDragDropTypeField!.y).toBeGreaterThan(
-    mobileRangeTypeField!.y + mobileRangeTypeField!.height,
+    mobileStateGridTypeField!.y + mobileStateGridTypeField!.height,
   );
   expect(mobileVertical!.y).toBeGreaterThan(
     mobileHorizontal!.y + mobileHorizontal!.height,
@@ -794,25 +795,25 @@ test("evaluates any and all criteria in the task tester", async ({ page }) => {
   await page.goto(`/tareas/probador?id=${anyTask.id}`);
   const resultAlert = page.locator("main").getByRole("alert");
   await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Correcto", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Reiniciar" }).click();
   await page.getByRole("button", { name: "Respuesta A", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Incorrecto", { exact: true }),
   ).toBeVisible();
 
   await page.goto(`/tareas/probador?id=${allTask.id}`);
   await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Incorrecto", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Respuesta C", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Correcto", { exact: true }),
   ).toBeVisible();
@@ -828,7 +829,6 @@ test("labels tester controls for each answer type", async ({ page }) => {
   const cases = [
     { answerType: "multiple_choice", heading: "Opciones de respuesta" },
     { answerType: "short_text", heading: "Respuesta corta" },
-    { answerType: "range", heading: "Respuesta por rangos" },
     { answerType: "drag_drop", heading: "Arrastrar y soltar" },
   ] as const;
   const tasks = [];
@@ -856,22 +856,13 @@ test("labels tester controls for each answer type", async ({ page }) => {
     ).toHaveCount(0);
     await expect(page.getByText("Resuelve", { exact: true })).toHaveCount(1);
     await expect(
-      page.getByRole("button", { name: "Probar respuesta" }),
+      page.getByRole("button", { name: "Probar", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Reiniciar" })).toBeVisible();
 
     if (testCase.answerType === "short_text") {
       await expect(
         page.getByRole("textbox", { name: "Tu respuesta", exact: true }),
-      ).toBeVisible();
-    }
-
-    if (testCase.answerType === "range") {
-      await expect(
-        page.getByRole("spinbutton", {
-          name: "Tu respuesta numérica",
-          exact: true,
-        }),
       ).toBeVisible();
     }
   }

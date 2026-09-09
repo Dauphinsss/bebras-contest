@@ -3,6 +3,10 @@ import type { PlayTask } from "./types";
 import { parseMcCorrectness } from "./multiple-choice";
 import { answerHasResponse } from "./presence";
 import { validateTaskAnswer, parseDragDropAnswer } from "./validation";
+import {
+  assignmentAnswerIsCorrect,
+  parseAssignmentConfig,
+} from "./assignment-answers";
 
 export function answerIsCorrect(task: PlayTask, payload: unknown) {
   if (
@@ -15,6 +19,25 @@ export function answerIsCorrect(task: PlayTask, payload: unknown) {
       ? (payload as Record<string, unknown>)
       : {};
   const type = task.answerType;
+  if (type === "state_grid" || type === "text_cloze") {
+    try {
+      return assignmentAnswerIsCorrect(
+        parseAssignmentConfig(type, task.answerConfig),
+        task.answerKey,
+        payload,
+      );
+    } catch {
+      return false;
+    }
+  }
+  if (type === "image_hotspot") {
+    const key = task.answerKey;
+    return (
+      key?.version === 1 &&
+      Array.isArray(key.acceptedRegionIds) &&
+      key.acceptedRegionIds.includes(response.regionId)
+    );
+  }
   if (type === "multiple_choice") {
     const selected = Array.isArray(response.selected)
       ? response.selected.map(String)
@@ -42,16 +65,6 @@ export function answerIsCorrect(task: PlayTask, payload: unknown) {
         .trim()
         .toLowerCase()
     );
-  }
-  if (type === "range") {
-    const value = Number(response.value);
-    if (Number.isNaN(value)) {
-      return false;
-    }
-    if (task.rangeMin === null || task.rangeMax === null) {
-      return false;
-    }
-    return value >= task.rangeMin && value <= task.rangeMax;
   }
   if (type === "drag_drop") {
     const items = task.dragDropItems;

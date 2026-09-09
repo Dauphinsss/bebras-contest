@@ -145,7 +145,7 @@ export function ContestTasksPage() {
   // Editar una pregunta lleva al editor y de vuelta a esta misma pantalla.
   const editHref = (taskId: string) =>
     `/tareas/editar?id=${encodeURIComponent(taskId)}&volver=${encodeURIComponent(
-      `/competencias/preguntas?id=${contestId ?? ""}`,
+      `/desafios/preguntas?id=${contestId ?? ""}`,
     )}`;
   const tasksById = useMemo(
     () => new Map(tasks.map((task) => [task.id, task])),
@@ -232,7 +232,7 @@ export function ContestTasksPage() {
         <AlertTitle>No se pudo abrir</AlertTitle>
         <AlertDescription>
           {loadError ?? "Desafío no encontrado."}{" "}
-          <a href="/competencias" className="underline underline-offset-4">
+          <a href="/desafios" className="underline underline-offset-4">
             Volver a Desafíos
           </a>
         </AlertDescription>
@@ -297,26 +297,16 @@ export function ContestTasksPage() {
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button asChild variant="outline">
-            <a href={`/competencias/editar?id=${contest.id}`}>
+            <a href={`/desafios/editar?id=${contest.id}`}>
               Ajustes del desafío
             </a>
           </Button>
           <Button type="button" disabled={!dirty || saving} onClick={save}>
             <SaveIcon data-icon="inline-start" />
-            {saving ? "Guardando..." : "Guardar preguntas"}
+            {saving ? "Guardando..." : "Guardar"}
           </Button>
         </div>
       </div>
-
-      {dirty && (
-        <Alert>
-          <AlertTitle>Tienes cambios sin guardar</AlertTitle>
-          <AlertDescription>
-            Los cambios se aplican al desafío recién cuando pulsas «Guardar
-            preguntas».
-          </AlertDescription>
-        </Alert>
-      )}
 
       <div className="grid min-w-0 gap-8 *:min-w-0 xl:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-3">

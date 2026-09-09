@@ -9,17 +9,13 @@ import {
   type ReactNode,
 } from "react";
 import {
-  CalendarIcon,
-  Clock8Icon,
+  ClockIcon,
   LoaderCircleIcon,
   PlayIcon,
   RotateCcwIcon,
   SaveIcon,
 } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import type { DateRange } from "react-day-picker";
 
 import {
   createContest,
@@ -45,12 +41,11 @@ import type { StoredTask } from "@/lib/task-schema";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateTimeField } from "@/components/datetime-field";
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -65,11 +60,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 type ContestFormPageProps = {
@@ -170,137 +160,6 @@ function parseDateTimeLocal(value: string) {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 }
 
-function toTimeValue(value: string) {
-  const date = parseDateTimeLocal(value);
-
-  if (!date) {
-    return "";
-  }
-
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-function updateDatePart(
-  currentValue: string,
-  nextDate: Date | undefined,
-  fallbackHour: number,
-) {
-  if (!nextDate) {
-    return currentValue;
-  }
-
-  const currentDate = parseDateTimeLocal(currentValue);
-  const nextValue = new Date(nextDate);
-
-  if (currentDate) {
-    nextValue.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
-  } else {
-    nextValue.setHours(fallbackHour, 0, 0, 0);
-  }
-
-  return toDatetimeLocalValue(nextValue.toISOString());
-}
-
-function updateDateRangeParts(
-  currentStartsAt: string,
-  currentEndsAt: string,
-  nextRange: DateRange | undefined,
-) {
-  return {
-    startsAt: updateDatePart(currentStartsAt, nextRange?.from, 8),
-    endsAt: updateDatePart(currentEndsAt, nextRange?.to, 18),
-  };
-}
-
-function updateTimePart(currentValue: string, nextTime: string) {
-  const currentDate = parseDateTimeLocal(currentValue) ?? new Date();
-  const [hours, minutes] = nextTime.split(":").map((part) => Number(part));
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return currentValue;
-  }
-
-  const nextValue = new Date(currentDate);
-  nextValue.setHours(hours, minutes, 0, 0);
-  return toDatetimeLocalValue(nextValue.toISOString());
-}
-
-function TimeInput({
-  label,
-  value,
-  invalid = false,
-  disabled = false,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  invalid?: boolean;
-  disabled?: boolean;
-  onChange: (nextValue: string) => void;
-}) {
-  const currentTime = toTimeValue(value);
-  const [draftValue, setDraftValue] = useState(currentTime);
-
-  useEffect(() => {
-    setDraftValue(currentTime);
-  }, [currentTime]);
-
-  return (
-    <div className="relative w-full sm:w-40">
-      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3 text-muted-foreground peer-disabled:opacity-50">
-        <Clock8Icon className="size-4" />
-        <span className="sr-only">{label} hora</span>
-      </div>
-      <Input
-        aria-invalid={invalid}
-        aria-label={`${label} hora`}
-        disabled={disabled}
-        className="peer appearance-none bg-background pl-9 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-        type="time"
-        value={draftValue}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          setDraftValue(nextValue);
-
-          if (nextValue) {
-            onChange(updateTimePart(value, nextValue));
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function formatDayLabel(date: Date) {
-  return format(date, "d 'de' MMMM 'de' yyyy", { locale: es });
-}
-
-/** "Del 4 al 11 de septiembre de 2026": no repite el mes ni el año si coinciden. */
-function formatRangeLabel(start: Date, end: Date) {
-  const sameYear = start.getFullYear() === end.getFullYear();
-  const sameMonth = sameYear && start.getMonth() === end.getMonth();
-
-  if (sameMonth) {
-    return `Del ${format(start, "d", { locale: es })} al ${formatDayLabel(end)}`;
-  }
-
-  if (sameYear) {
-    return `Del ${format(start, "d 'de' MMMM", { locale: es })} al ${formatDayLabel(end)}`;
-  }
-
-  return `Del ${formatDayLabel(start)} al ${formatDayLabel(end)}`;
-}
-
-function isSameCalendarDay(left: Date, right: Date) {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
-}
-
 /** Cuánto dura la ventana, en palabras. Devuelve null si todavía no es válida. */
 function formatWindowLength(startsAt: string, endsAt: string) {
   const start = parseDateTimeLocal(startsAt);
@@ -339,9 +198,9 @@ function formatWindowLength(startsAt: string, endsAt: string) {
 }
 
 /**
- * Ventana con día o rango de días, sus horas y el tiempo que durará. El
- * estimado se recalcula en cada cambio porque sale del propio estado del
- * formulario.
+ * Ventana con su inicio y su cierre. Cada extremo lleva su propio día y su
+ * hora, así que una ventana puede abarcar un día o varios sin cambiar de modo.
+ * El estimado se recalcula en cada cambio porque sale del estado del formulario.
  */
 function WindowField({
   id,
@@ -368,157 +227,56 @@ function WindowField({
 }) {
   const startDate = parseDateTimeLocal(startsAt);
   const endDate = parseDateTimeLocal(endsAt);
-  const [singleDay, setSingleDay] = useState(
-    () => !startDate || !endDate || isSameCalendarDay(startDate, endDate),
-  );
   const windowLength = formatWindowLength(startsAt, endsAt);
-  const blockedDays = [
-    ...(minDate ? [{ before: minDate }] : []),
-    ...(maxDate ? [{ after: maxDate }] : []),
-  ];
-  const selectedRange: DateRange | undefined = startDate
-    ? { from: startDate, to: endDate ?? undefined }
-    : undefined;
-  const dayLabel = startDate ? formatDayLabel(startDate) : "Elige el día";
-  const rangeLabel =
-    startDate && endDate
-      ? formatRangeLabel(startDate, endDate)
-      : "Elige el rango de días";
-
-  const applySameDay = (nextDate: Date | undefined) => {
-    if (!nextDate) {
-      return;
-    }
-
-    onChange(
-      updateDatePart(startsAt, nextDate, 8),
-      updateDatePart(endsAt, nextDate, 18),
-    );
-  };
 
   return (
     <Field data-invalid={invalid || undefined}>
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      {/* El «durará» va arriba a la derecha, en la misma línea del nombre de la
+          ventana: es el dato que se mira al ajustar las fechas. */}
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <LabelWithHint htmlFor={id} required hint={hint}>
           {label}
         </LabelWithHint>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="xs"
-            variant={singleDay ? "default" : "outline"}
-            aria-pressed={singleDay}
-            disabled={disabled}
-            onClick={() => {
-              setSingleDay(true);
-              applySameDay(startDate ?? undefined);
-            }}
-          >
-            Un día
-          </Button>
-          <Button
-            type="button"
-            size="xs"
-            variant={singleDay ? "outline" : "default"}
-            aria-pressed={!singleDay}
-            disabled={disabled}
-            onClick={() => setSingleDay(false)}
-          >
-            Varios días
-          </Button>
-        </div>
+        <Badge variant={windowLength ? "secondary" : "outline"}>
+          <ClockIcon data-icon="inline-start" />
+          {windowLength ? `Durará ${windowLength}` : "Sin definir"}
+        </Badge>
       </div>
-      <FieldContent>
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id={id}
-                type="button"
-                disabled={disabled}
-                variant="outline"
-                aria-invalid={invalid}
-                className={cn(
-                  "h-9 w-full min-w-0 justify-start overflow-hidden border-input bg-background px-3 py-1 text-left text-base font-normal transition-colors [box-shadow:var(--shadow-hard)] hover:bg-muted/60 hover:text-foreground focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-ring/50 focus-visible:[box-shadow:var(--focus-soft),var(--shadow-hard)] md:text-sm",
-                  (!startDate || (!singleDay && !endDate)) &&
-                    "text-muted-foreground",
-                )}
-              >
-                <CalendarIcon data-icon="inline-start" />
-                <span className="truncate">
-                  {singleDay ? dayLabel : rangeLabel}
-                </span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              data-calendar-popover
-              className="w-auto rounded-sm p-0"
-              align="start"
-            >
-              {singleDay ? (
-                <Calendar
-                  initialFocus
-                  mode="single"
-                  selected={startDate ?? undefined}
-                  defaultMonth={startDate ?? minDate ?? undefined}
-                  disabled={blockedDays}
-                  onSelect={applySameDay}
-                />
-              ) : (
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  selected={selectedRange}
-                  defaultMonth={startDate ?? minDate ?? undefined}
-                  disabled={blockedDays}
-                  onSelect={(nextRange) => {
-                    const nextValues = updateDateRangeParts(
-                      startsAt,
-                      endsAt,
-                      nextRange,
-                    );
-                    onChange(nextValues.startsAt, nextValues.endsAt);
-                  }}
-                />
-              )}
-            </PopoverContent>
-          </Popover>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <FieldLabel>Hora de inicio</FieldLabel>
-              <TimeInput
-                invalid={invalid}
-                disabled={disabled}
-                label={`${label}, hora de inicio`}
-                value={startsAt}
-                onChange={(nextValue) => onChange(nextValue, endsAt)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <FieldLabel>Hora de fin</FieldLabel>
-              <TimeInput
-                invalid={invalid}
-                disabled={disabled}
-                label={`${label}, hora de fin`}
-                value={endsAt}
-                onChange={(nextValue) => onChange(startsAt, nextValue)}
-              />
-            </div>
-          </div>
-          {/* Segunda fila de la rejilla: el calculo cae bajo las horas, que son
-              las que lo mueven, y no bajo el selector de dia. */}
-          <FieldDescription className="lg:col-start-2">
-            {windowLength
-              ? `Durará ${windowLength}.`
-              : "Elige los días y las horas para ver cuánto durará."}
-          </FieldDescription>
+      <FieldContent className="gap-3">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+          <FieldLabel htmlFor={id} className="sm:w-16">
+            Inicio
+          </FieldLabel>
+          <DateTimeField
+            id={id}
+            disabled={disabled}
+            invalid={invalid}
+            label={`${label}, inicio`}
+            maxDate={endDate ?? maxDate}
+            minDate={minDate}
+            value={startsAt}
+            onChange={(nextValue) => onChange(nextValue, endsAt)}
+          />
+          <FieldLabel htmlFor={`${id}-end`} className="sm:w-16">
+            Cierre
+          </FieldLabel>
+          <DateTimeField
+            fallbackHour={18}
+            id={`${id}-end`}
+            disabled={disabled}
+            invalid={invalid}
+            label={`${label}, cierre`}
+            maxDate={maxDate}
+            minDate={startDate ?? minDate}
+            value={endsAt}
+            onChange={(nextValue) => onChange(startsAt, nextValue)}
+          />
         </div>
       </FieldContent>
     </Field>
   );
 }
 
-/** Qué ve el equipo en cuanto entrega el desafío. */
 const RESULT_TOGGLES = [
   {
     key: "showTotalScore",
@@ -993,7 +751,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
 
       if (!resolvedContestId) {
         // Al listado, señalando el nuevo: de ahí se decide si se edita ahora.
-        window.location.href = `/competencias?creado=${savedContest.id}`;
+        window.location.href = `/desafios?creado=${savedContest.id}`;
         return;
       }
 
@@ -1459,7 +1217,7 @@ export function ContestFormPage({ contestId = null }: ContestFormPageProps) {
               variant="outline"
               className="w-full sm:w-auto"
             >
-              <a href={`/competencias/probar?id=${resolvedContestId}`}>
+              <a href={`/desafios/probar?id=${resolvedContestId}`}>
                 <PlayIcon data-icon="inline-start" />
                 Probar preguntas
               </a>

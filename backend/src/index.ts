@@ -441,8 +441,6 @@ function deserializeTask<
     answerKey?: unknown;
     answers: unknown;
     shortAnswer?: unknown;
-    rangeMin?: unknown;
-    rangeMax?: unknown;
     dragDropBackground?: unknown;
     dragDropItems?: unknown;
     multipleChoiceOrderMode?: unknown;
@@ -467,8 +465,6 @@ function deserializeTask<
     answerKey: parseJsonValue<Record<string, unknown>>(task.answerKey, {}),
     answers: parseJsonValue<PlayTask["answers"]>(task.answers, []),
     shortAnswer: String(task.shortAnswer ?? ""),
-    rangeMin: toFiniteNumber(task.rangeMin),
-    rangeMax: toFiniteNumber(task.rangeMax),
     dragDropBackground: parseJsonValue<unknown>(task.dragDropBackground, null),
     dragDropItems: dragDropConfig.items,
     dragDropTargets: dragDropConfig.targets,
@@ -2393,6 +2389,56 @@ app.post("/api/tasks", async (req, res) => {
 
 // Uses the same public projection and grader as play, including private drafts.
 // These routes inherit requireAdmin from /api/tasks.
+
+/** Lee una tarea que todavía no está en la base, tal como llega del editor. */
+function deserializeDraftBody(body: Record<string, unknown>) {
+  return deserializeTask({
+    ...parseTaskPayload(body),
+    id: readText(body.id) || "draft",
+  });
+}
+
+// El probador del editor prueba lo que hay en pantalla, no lo último guardado,
+// así que el borrador viaja en el cuerpo. Van antes que las rutas con :id para
+// que "draft" no se lea como un identificador de tarea.
+app.post("/api/tasks/draft/preview", (req, res) => {
+  try {
+    const task = deserializeDraftBody(
+      (req.body ?? {}) as Record<string, unknown>,
+    );
+    res.json(renderSafeTask({ position: 0 }, task));
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Tarea inválida.",
+    });
+  }
+});
+
+app.post("/api/tasks/draft/check", (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  let task;
+
+  try {
+    task = deserializeDraftBody((body.task ?? {}) as Record<string, unknown>);
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Tarea inválida.",
+    });
+    return;
+  }
+
+  const payload = body.payload;
+  const error = validateTaskAnswer(task, payload);
+  if (error) {
+    res.status(400).json({ message: error });
+    return;
+  }
+  res.json({
+    correct: answerIsCorrect(task, payload),
+    explanationBlocks: task.explanationBlocks,
+  });
+});
+
 app.get("/api/tasks/:id/preview", async (req, res) => {
   const raw = await prisma.taskDraft.findUnique({
     where: { id: req.params.id },
@@ -2766,6 +2812,7 @@ app.get("/api/contests/:id/preview", async (req, res) => {
     status: "pending",
     startedAt: null,
     endsAt: null,
+    finishedAt: null,
     suspendedAt: null,
     resultsPublished: false,
     showFeedback: contest.showFeedback,
@@ -5390,6 +5437,9 @@ const playAttemptHandler: express.RequestHandler = async (req, res) => {
     status: attempt.status,
     startedAt: attempt.startedAt?.toISOString() ?? null,
     endsAt: attempt.endsAt?.toISOString() ?? null,
+    // Igual a endsAt cuando el intento se cerró por tiempo, así la pantalla
+    // final puede decir si se entregó o se acabó el plazo.
+    finishedAt: attempt.finishedAt?.toISOString() ?? null,
     suspendedAt: contest.suspendedAt?.toISOString() ?? null,
     resultsPublished,
     showFeedback: resultsPublished && contest.showFeedback,

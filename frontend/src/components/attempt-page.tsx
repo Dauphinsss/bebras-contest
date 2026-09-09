@@ -283,7 +283,7 @@ export function AttemptPage({
   };
 
   /** Corrige con las reglas reales del desafío y deja la pantalla final. */
-  const finishPreview = async () => {
+  const finishPreview = async (outOfTime = false) => {
     if (!previewContestId) {
       return;
     }
@@ -298,6 +298,7 @@ export function AttemptPage({
         ? {
             ...current,
             status: "finished",
+            finishedAt: outOfTime ? current.endsAt : new Date().toISOString(),
             resultsPublished: true,
             tasks: current.tasks.map((task) => {
               const graded = summary.tasks.find(
@@ -332,7 +333,7 @@ export function AttemptPage({
         // The server enforces the deadline, so finalization must still continue.
       }
       if (preview) {
-        await finishPreview();
+        await finishPreview(true);
       } else {
         await submitAttempt();
         await load();
@@ -471,7 +472,7 @@ export function AttemptPage({
           aquí se guarda, y el tiempo corre solo para que puedas probarlo.
         </span>
         <Button asChild variant="outline" size="sm">
-          <a href={`/competencias/editar?id=${previewContestId}`}>
+          <a href={`/desafios/editar?id=${previewContestId}`}>
             <ArrowLeftIcon data-icon="inline-start" />
             Salir de la prueba
           </a>
@@ -580,16 +581,36 @@ export function AttemptPage({
   }
 
   if (attempt.status === "finished") {
+    // El intento que se cierra por plazo queda marcado con finishedAt igual a
+    // endsAt: el equipo merece saber que lo entregamos nosotros.
+    const finishedAtMs = attempt.finishedAt
+      ? new Date(attempt.finishedAt).getTime()
+      : 0;
+    const outOfTime =
+      finishedAtMs > 0 && endsAtMs > 0 && finishedAtMs >= endsAtMs;
+
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         {previewNotice}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
-            <CheckCircle2Icon className="size-8 text-primary" />
-            <h1 className="text-2xl font-semibold">¡Desafío terminado!</h1>
+            {outOfTime ? (
+              <ClockIcon className="size-8 text-muted-foreground" />
+            ) : (
+              <CheckCircle2Icon className="size-8 text-primary" />
+            )}
+            <h1 className="text-2xl font-semibold">
+              {outOfTime ? "Se acabó el tiempo" : "¡Desafío terminado!"}
+            </h1>
             <p className="text-sm text-muted-foreground">
               {attempt.contestTitle}
             </p>
+            {outOfTime && (
+              <p className="text-sm text-muted-foreground">
+                Entregamos tus respuestas tal como estaban. Ya no puedes
+                cambiarlas.
+              </p>
+            )}
             {attempt.result ? (
               <div className="flex flex-wrap justify-center gap-3 pt-2">
                 <Badge variant="secondary">

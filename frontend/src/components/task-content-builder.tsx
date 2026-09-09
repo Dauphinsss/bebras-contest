@@ -10,9 +10,11 @@ import { createPortal } from "react-dom";
 import type { Editor, JSONContent } from "@tiptap/react";
 import { TaskRichTextEditor } from "@/components/task-rich-text-editor";
 import { cn } from "@/lib/utils";
+import { hasTaskBlanks } from "@/lib/task-blank";
 import { type ContentBlock, type ContentBlockType } from "@/lib/task-schema";
 import { Button } from "@/components/ui/button";
 import { ImageUploadButton } from "@/components/image-upload-button";
+import { ImageWidthResizer } from "@/components/image-width-resizer";
 import { FieldHint } from "@/components/field-hint";
 import { Field, FieldContent, FieldGroup } from "@/components/ui/field";
 import {
@@ -46,6 +48,8 @@ type TaskContentBuilderProps = {
   allowRemovingBlocks?: boolean;
   allowReorderingBlocks?: boolean;
   allowCrossSectionDrag?: boolean;
+  allowBlanks?: boolean;
+  onSelectBlank?: (blankId: string) => void;
   /** Identifica esta lista, para saber si un bloque cambió de sección. */
   sectionId?: string;
   /** Soltar sobre otra sección: mover el bloque de una lista a la otra. */
@@ -72,6 +76,8 @@ export function TaskContentBuilder({
   allowRemovingBlocks = true,
   allowReorderingBlocks = true,
   allowCrossSectionDrag = false,
+  allowBlanks = false,
+  onSelectBlank,
   sectionId,
   onMoveBlockToSection,
 }: TaskContentBuilderProps) {
@@ -82,28 +88,16 @@ export function TaskContentBuilder({
     blockId: string;
     atEnd: boolean;
   } | null>(null);
-  const imageAreaRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const pendingImageBlockIdRef = useRef<string | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
     blockId: string;
-  } | null>(null);
-  const resizeStateRef = useRef<{
-    pointerId: number;
-    blockId: string;
-    side: "left" | "right";
-    startX: number;
-    startWidthPx: number;
-    containerWidth: number;
   } | null>(null);
   const [dropIndicator, setDropIndicator] = useState<{
     left: number;
     top: number;
     width: number;
   } | null>(null);
-  const [activeResizeBlockId, setActiveResizeBlockId] = useState<string | null>(
-    null,
-  );
   const [dragPreview, setDragPreview] = useState<{
     blockId: string;
     x: number;
@@ -266,68 +260,6 @@ export function TaskContentBuilder({
     onMoveBlock(dragState.blockId, target.blockId, target.position);
   };
 
-  const startResize = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-    block: ContentBlock,
-    side: "left" | "right",
-  ) => {
-    if (!event.isPrimary || event.button !== 0) {
-      return;
-    }
-
-    const imageArea = imageAreaRefs.current[block.id];
-    if (!imageArea) {
-      return;
-    }
-
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const containerWidth = imageArea.getBoundingClientRect().width;
-    resizeStateRef.current = {
-      pointerId: event.pointerId,
-      blockId: block.id,
-      side,
-      startX: event.clientX,
-      startWidthPx: (containerWidth * block.widthPercent) / 100,
-      containerWidth,
-    };
-    setActiveResizeBlockId(block.id);
-  };
-
-  const handleResizePointerMove = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) => {
-    const resizeState = resizeStateRef.current;
-    if (!resizeState || resizeState.pointerId !== event.pointerId) {
-      return;
-    }
-
-    event.preventDefault();
-    const deltaX = event.clientX - resizeState.startX;
-    const nextWidthPx =
-      resizeState.startWidthPx +
-      (resizeState.side === "right" ? deltaX * 2 : -deltaX * 2);
-    const nextWidthPercent = Math.max(
-      20,
-      Math.min(100, (nextWidthPx / resizeState.containerWidth) * 100),
-    );
-
-    onUpdateBlockWidth(resizeState.blockId, Math.round(nextWidthPercent));
-  };
-
-  const finishResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (resizeStateRef.current?.pointerId !== event.pointerId) {
-      return;
-    }
-
-    resizeStateRef.current = null;
-    setActiveResizeBlockId(null);
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
-
   return (
     <FieldGroup
       className="gap-2"
@@ -381,65 +313,14 @@ export function TaskContentBuilder({
                     </>
                   )}
                   {block.image && (
-                    <div
-                      className="group/image flex justify-center"
-                      ref={(node) => {
-                        imageAreaRefs.current[block.id] = node;
-                      }}
-                    >
-                      <div
-                        className="relative"
-                        style={{
-                          width: `${block.widthPercent}%`,
-                          maxWidth: "100%",
-                        }}
-                      >
-                        <img
-                          alt={block.image.name}
-                          className="block h-auto w-full"
-                          draggable={false}
-                          src={block.image.url}
-                        />
-                        <button
-                          aria-label="Reducir o ampliar imagen desde la izquierda"
-                          className={cn(
-                            "absolute top-1/2 left-0 h-12 w-6 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border bg-background/90 text-muted-foreground shadow-sm sm:w-4",
-                            activeResizeBlockId === block.id
-                              ? "flex"
-                              : "hidden group-hover/image:flex [@media(hover:none)]:flex",
-                          )}
-                          type="button"
-                          onPointerCancel={finishResize}
-                          onPointerDown={(event) =>
-                            startResize(event, block, "left")
-                          }
-                          onPointerMove={handleResizePointerMove}
-                          onPointerUp={finishResize}
-                        >
-                          <span className="block h-6 w-0.5 rounded-full bg-current" />
-                          <span className="ml-0.5 block h-6 w-0.5 rounded-full bg-current" />
-                        </button>
-                        <button
-                          aria-label="Reducir o ampliar imagen desde la derecha"
-                          className={cn(
-                            "absolute top-1/2 right-0 h-12 w-6 translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border bg-background/90 text-muted-foreground shadow-sm sm:w-4",
-                            activeResizeBlockId === block.id
-                              ? "flex"
-                              : "hidden group-hover/image:flex [@media(hover:none)]:flex",
-                          )}
-                          type="button"
-                          onPointerCancel={finishResize}
-                          onPointerDown={(event) =>
-                            startResize(event, block, "right")
-                          }
-                          onPointerMove={handleResizePointerMove}
-                          onPointerUp={finishResize}
-                        >
-                          <span className="block h-6 w-0.5 rounded-full bg-current" />
-                          <span className="ml-0.5 block h-6 w-0.5 rounded-full bg-current" />
-                        </button>
-                      </div>
-                    </div>
+                    <ImageWidthResizer
+                      alt={block.image.name}
+                      src={block.image.url}
+                      widthPercent={block.widthPercent}
+                      onChange={(widthPercent) =>
+                        onUpdateBlockWidth(block.id, widthPercent)
+                      }
+                    />
                   )}
                 </FieldContent>
               </Field>
@@ -448,11 +329,14 @@ export function TaskContentBuilder({
                 data-invalid={
                   showChallengeErrors &&
                   block.type === "challenge" &&
-                  block.content.trim().length === 0
+                  block.content.trim().length === 0 &&
+                  !hasTaskBlanks(block.richText)
                 }
               >
                 <FieldContent>
                   <TaskRichTextEditor
+                    allowBlanks={allowBlanks}
+                    onSelectBlank={onSelectBlank}
                     id={`block-content-${block.id}`}
                     content={block.content}
                     richText={block.richText}
@@ -464,7 +348,8 @@ export function TaskContentBuilder({
                     invalid={
                       showChallengeErrors &&
                       block.type === "challenge" &&
-                      !block.content.trim()
+                      !block.content.trim() &&
+                      !hasTaskBlanks(block.richText)
                     }
                     onReady={(editor) => {
                       editorRefs.current[block.id] = editor;

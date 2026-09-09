@@ -5,13 +5,21 @@ import {
 } from "../drag-drop-grading";
 import type { DragDropItem, DragDropTarget, DragDropConfig } from "./types";
 import { parseMcCorrectness } from "./multiple-choice";
+import { parseHotspotConfig, parseHotspotKey } from "./image-hotspot";
+import {
+  collectTaskBlankIds,
+  parseAssignmentConfig,
+  parseAssignmentKey,
+} from "./assignment-answers";
 
 const serializeJson = JSON.stringify;
 const TASK_ANSWER_TYPES = [
   "multiple_choice",
   "short_text",
-  "range",
   "drag_drop",
+  "image_hotspot",
+  "state_grid",
+  "text_cloze",
 ];
 
 type ContentBlockInput = {
@@ -26,7 +34,11 @@ function blockHasContent(block: unknown) {
 
   const typed = block as ContentBlockInput;
   const text = typeof typed.content === "string" ? typed.content.trim() : "";
-  return text.length > 0 || Boolean(typed.image);
+  return (
+    text.length > 0 ||
+    Boolean(typed.image) ||
+    collectTaskBlankIds([block]).length > 0
+  );
 }
 
 export function countFilledBlocks(value: unknown) {
@@ -35,17 +47,6 @@ export function countFilledBlocks(value: unknown) {
 
 function readText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function toFiniteNumber(value: unknown) {
-  // Number(null) y Number("") valen 0, no NaN: sin este filtro un rango vacío
-  // se leería como el intervalo 0 a 0 y daría por buena la respuesta "0".
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function readFiniteNumber(value: unknown) {
@@ -238,8 +239,81 @@ function reservedDocument(value: unknown, field: string) {
   return "{}";
 }
 
+/**
+ * La opción múltiple guarda en answerConfig cómo se muestran sus opciones.
+ * El resto de los tipos sigue con el documento reservado y vacío.
+ */
+function parseAnswerConfigDocument(value: unknown, answerType: string) {
+  if (answerType !== "multiple_choice") {
+    return reservedDocument(value, "answerConfig");
+  }
+
+  if (value === undefined) {
+    return serializeJson({ multipleChoiceLayout: "vertical" });
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("El campo answerConfig debe ser un objeto.");
+  }
+
+  const config = value as Record<string, unknown>;
+  const unknownKey = Object.keys(config).find(
+    (key) => key !== "multipleChoiceLayout",
+  );
+
+  if (unknownKey) {
+    throw new Error(
+      `El campo answerConfig no acepta "${unknownKey}" en una opción múltiple.`,
+    );
+  }
+
+  return serializeJson({
+    multipleChoiceLayout:
+      config.multipleChoiceLayout === "horizontal" ? "horizontal" : "vertical",
+  });
+}
+
+/** Disposición con la que se pintan las opciones; vertical es lo de siempre. */
+export function readMultipleChoiceLayout(config: unknown) {
+  return config &&
+    typeof config === "object" &&
+    (config as Record<string, unknown>).multipleChoiceLayout === "horizontal"
+    ? "horizontal"
+    : "vertical";
+}
+
 export function parseTaskAnswerConfig(body: Record<string, unknown>) {
   const answerType = readText(body.answerType) || "multiple_choice";
+
+  if (
+    answerType === "image_hotspot" ||
+    answerType === "state_grid" ||
+    answerType === "text_cloze"
+  ) {
+    const blocks = [
+      ...(Array.isArray(body.bodyBlocks) ? body.bodyBlocks : []),
+      ...(Array.isArray(body.challengeBlocks) ? body.challengeBlocks : []),
+    ];
+    const config =
+      answerType === "image_hotspot"
+        ? parseHotspotConfig(body.answerConfig)
+        : parseAssignmentConfig(answerType, body.answerConfig, blocks);
+    const key =
+      "regions" in config
+        ? parseHotspotKey(body.answerKey, config)
+        : parseAssignmentKey(body.answerKey, config);
+    return {
+      answerType,
+      answerConfig: serializeJson(config),
+      answerKey: serializeJson(key),
+      multipleChoiceOrderMode: "fixed",
+      answers: "[]",
+      correctAnswerId: "",
+      shortAnswer: "",
+      dragDropBackground: "null",
+      dragDropItems: "[]",
+    };
+  }
 
   if (!TASK_ANSWER_TYPES.includes(answerType)) {
     throw new Error("El tipo de respuesta no es válido.");
@@ -248,8 +322,6 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
   const answers = Array.isArray(body.answers) ? body.answers : [];
   const correctAnswerId = readText(body.correctAnswerId);
   const shortAnswer = readText(body.shortAnswer);
-  const rangeMin = toFiniteNumber(body.rangeMin);
-  const rangeMax = toFiniteNumber(body.rangeMax);
   const dragDropItems = Array.isArray(body.dragDropItems)
     ? body.dragDropItems
     : [];
@@ -307,16 +379,6 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
 
   if (answerType === "short_text" && !shortAnswer) {
     throw new Error("Debes definir la respuesta corta esperada.");
-  }
-
-  if (answerType === "range") {
-    if (rangeMin === null || rangeMax === null) {
-      throw new Error("Debes definir el mínimo y el máximo del rango válido.");
-    }
-
-    if (rangeMin > rangeMax) {
-      throw new Error("El mínimo no puede ser mayor que el máximo.");
-    }
   }
 
   if (answerType === "drag_drop") {
@@ -575,15 +637,13 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
     answers: serializeJson(answers),
     correctAnswerId,
     shortAnswer: answerType === "short_text" ? shortAnswer : "",
-    rangeMin: answerType === "range" ? rangeMin : null,
-    rangeMax: answerType === "range" ? rangeMax : null,
     dragDropBackground: serializeJson(
       answerType === "drag_drop" ? (body.dragDropBackground ?? null) : null,
     ),
     dragDropItems: serializeJson(
       answerType === "drag_drop" ? dragDropConfig : [],
     ),
-    answerConfig: reservedDocument(body.answerConfig, "answerConfig"),
+    answerConfig: parseAnswerConfigDocument(body.answerConfig, answerType),
     answerKey: reservedDocument(body.answerKey, "answerKey"),
   };
 }

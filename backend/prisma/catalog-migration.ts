@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { parseTaskAnswerConfig } from "../src/lib/task-answers/config";
 import path from "node:path";
 
 export const AGE_RANGES = [
@@ -566,10 +567,17 @@ export const CATEGORY_ALIASES: Readonly<Record<string, CanonicalCategory>> = {
   "Estrategia algorítmica": "Algoritmos y programación",
 };
 
+/**
+ * Las tareas que la migración no puede derivar del PDF: se importan como
+ * opción múltiple en cuarentena y después se redactan a mano con su tipo
+ * interactivo. El validador exige que en el catálogo ya estén redactadas, así
+ * que volver a generar sin reponerlas falla en vez de degradarlas en silencio.
+ */
 export const QUARANTINED_TASK_IDS = new Set([
   "bebras-2024-04-caminando-bosque",
   "bebras-2024-09-tubo-canicas",
   "bebras-2024-11-dibujando-barquitos",
+  "bebras-2024-19-dias-soleados",
   "bebras-2024-31-secuencia-pelotas",
   "bebras-2024-37-dias-soleados-2",
   "bebras-2024-40-explorando",
@@ -590,8 +598,16 @@ const TASK_ID_PATTERN = /^bebras-2024-(\d{2})-/;
 const ANSWER_TYPES = new Set([
   "multiple_choice",
   "short_text",
-  "range",
   "drag_drop",
+  "image_hotspot",
+  "state_grid",
+  "text_cloze",
+]);
+/** Los tipos que no se pueden derivar del PDF: se redactan a mano. */
+const INTERACTIVE_ANSWER_TYPES = new Set([
+  "image_hotspot",
+  "state_grid",
+  "text_cloze",
 ]);
 const BLOCK_TYPES = new Set(["text", "image", "challenge"]);
 const DIFFICULTIES = new Set(["", "easy", "medium", "hard"]);
@@ -612,8 +628,6 @@ const TASK_FIELDS = new Set([
   "answers",
   "correctAnswerId",
   "shortAnswer",
-  "rangeMin",
-  "rangeMax",
   "dragDropBackground",
   "dragDropItems",
   "dragDropTargets",
@@ -1366,13 +1380,16 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
       ) {
         fail(`${id} short_text answer fields are inconsistent`);
       }
-    } else if (task.answerType === "range") {
-      if (
-        typeof task.rangeMin !== "number" ||
-        typeof task.rangeMax !== "number" ||
-        task.rangeMin > task.rangeMax
-      ) {
-        fail(`${id} has an invalid range answer`);
+    } else if (INTERACTIVE_ANSWER_TYPES.has(String(task.answerType))) {
+      if (!QUARANTINED_TASK_IDS.has(id)) {
+        fail(`${id} is not one of the hand written interactive tasks`);
+      }
+      try {
+        parseTaskAnswerConfig(task);
+      } catch (error) {
+        fail(
+          `${id} has an invalid interactive answer: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     } else {
       validateDragDrop(task, id, imageIds);
@@ -1439,11 +1456,21 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
     fail("task numbers 1 through 43 must appear exactly once");
   }
   if (codes.size !== 43) fail("source task codes must be unique");
-  if (
-    quarantined.size !== QUARANTINED_TASK_IDS.size ||
-    [...QUARANTINED_TASK_IDS].some((id) => !quarantined.has(id))
-  ) {
-    fail("isPractice=false does not match the exact quarantine set");
+  // Cada tarea de la lista está en uno de dos estados y nunca en los dos: sigue
+  // importada como opción múltiple en cuarentena, o ya está redactada a mano
+  // con su tipo interactivo y disponible para practicar.
+  for (const id of quarantined) {
+    if (!QUARANTINED_TASK_IDS.has(id)) {
+      fail("isPractice=false does not match the exact quarantine set");
+    }
+  }
+  for (const id of QUARANTINED_TASK_IDS) {
+    const answerType = tasks.find((task) => task.id === id)?.answerType;
+    if (
+      INTERACTIVE_ANSWER_TYPES.has(String(answerType)) === quarantined.has(id)
+    ) {
+      fail("isPractice=false does not match the exact quarantine set");
+    }
   }
   if (solutionImageCount !== 25) {
     fail(

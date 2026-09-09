@@ -150,8 +150,6 @@ export const TaskDraftScalarFieldEnum = {
   answers: 'answers',
   correctAnswerId: 'correctAnswerId',
   shortAnswer: 'shortAnswer',
-  rangeMin: 'rangeMin',
-  rangeMax: 'rangeMax',
   dragDropBackground: 'dragDropBackground',
   dragDropItems: 'dragDropItems',
   explanationBlocks: 'explanationBlocks',

@@ -537,7 +537,7 @@ export function ContestsHome() {
                     variant="outline"
                     className="w-full justify-start"
                   >
-                    <a href={`/competencias/resultados?id=${contest.id}`}>
+                    <a href={`/desafios/resultados?id=${contest.id}`}>
                       <BarChart3Icon data-icon="inline-start" />
                       Resultados
                     </a>
@@ -590,7 +590,7 @@ export function ContestsHome() {
                   variant="outline"
                   className="w-full justify-start"
                 >
-                  <a href={`/competencias/preguntas?id=${contest.id}`}>
+                  <a href={`/desafios/preguntas?id=${contest.id}`}>
                     <ListChecksIcon data-icon="inline-start" />
                     Preguntas
                   </a>
@@ -601,7 +601,7 @@ export function ContestsHome() {
                   variant="outline"
                   className="w-full justify-start"
                 >
-                  <a href={`/competencias/editar?id=${contest.id}`}>
+                  <a href={`/desafios/editar?id=${contest.id}`}>
                     <FilePenLineIcon data-icon="inline-start" />
                     Ajustes
                   </a>

@@ -40,7 +40,7 @@ test("keeps contest and task card actions responsive and compact", async ({
     window.localStorage.setItem("bebras_user", JSON.stringify(user));
   }, session);
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto("/competencias");
+  await page.goto("/desafios");
 
   const contestRow = page
     .getByRole("heading", { name: listedContest.title, exact: true, level: 2 })

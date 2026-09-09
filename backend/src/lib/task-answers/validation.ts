@@ -1,4 +1,9 @@
 import type { PlayTask } from "./types";
+import { parseHotspotConfig, validateHotspotAnswer } from "./image-hotspot";
+import {
+  parseAssignmentConfig,
+  validateAssignmentAnswer,
+} from "./assignment-answers";
 
 type ParsedDragDropAnswer =
   | { kind: "targets"; placements: Record<string, string> }
@@ -85,6 +90,31 @@ export function validateTaskAnswer(
     return invalid;
   const response = payload as Record<string, unknown>;
   switch (task.answerType) {
+    case "state_grid":
+    case "text_cloze": {
+      try {
+        return validateAssignmentAnswer(
+          parseAssignmentConfig(task.answerType, task.answerConfig),
+          payload,
+        )
+          ? null
+          : invalid;
+      } catch {
+        return invalid;
+      }
+    }
+    case "image_hotspot": {
+      try {
+        return validateHotspotAnswer(
+          parseHotspotConfig(task.answerConfig),
+          payload,
+        )
+          ? null
+          : invalid;
+      } catch {
+        return invalid;
+      }
+    }
     case "multiple_choice": {
       const selected = response.selected;
       if (selected === undefined && Object.keys(response).length === 0)
@@ -103,15 +133,6 @@ export function validateTaskAnswer(
         Object.keys(response).length === 0
         ? null
         : invalid;
-    case "range": {
-      const value = response.value;
-      if (Object.keys(response).length === 0) return null;
-      return (typeof value === "string" && value.trim() === "") ||
-        ((typeof value === "string" || typeof value === "number") &&
-          Number.isFinite(Number(value)))
-        ? null
-        : invalid;
-    }
     case "drag_drop": {
       const answer = parseDragDropAnswer(task, payload);
       return answer && (answer.kind === "targets" || task.dragDropVersion === 1)

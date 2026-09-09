@@ -1,6 +1,7 @@
 import { Fragment, isValidElement, type ReactNode } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { renderInlineText } from "@/lib/rich-text";
+import { clampTaskIndent } from "@/lib/task-blank";
 
 const legacyMarks: Record<string, string> = {
   strong: "bold",
@@ -42,7 +43,10 @@ export function legacyTextToDocument(text: string): JSONContent {
 }
 
 /** Whitelist the supported inline marks; never render stored HTML or attributes. */
-export function renderRichTextDocument(document: JSONContent): ReactNode {
+export function renderRichTextDocument(
+  document: JSONContent,
+  options: { renderBlank?: (blankId: string) => ReactNode } = {},
+): ReactNode {
   function render(node: JSONContent, key: string, depth = 0): ReactNode {
     if (depth > 20) return null;
     if (node.type === "text") {
@@ -69,6 +73,19 @@ export function renderRichTextDocument(document: JSONContent): ReactNode {
       return <Fragment key={key}>{result}</Fragment>;
     }
     if (node.type === "hardBreak") return <br key={key} />;
+    if (node.type === "taskBlank") {
+      const id = node.attrs?.blankId;
+      if (typeof id !== "string") return null;
+      return (
+        <Fragment key={key}>
+          {options.renderBlank ? (
+            options.renderBlank(id)
+          ) : (
+            <span aria-label="Hueco">[ … ]</span>
+          )}
+        </Fragment>
+      );
+    }
     const children = (node.content ?? []).map((child, index) =>
       render(child, `${key}-${index}`, depth + 1),
     );
@@ -92,7 +109,14 @@ export function renderRichTextDocument(document: JSONContent): ReactNode {
       );
     if (node.type === "listItem") return <li key={key}>{children}</li>;
     return node.type === "paragraph" ? (
-      <p key={key}>{children.length ? children : <br />}</p>
+      <p
+        key={key}
+        style={{
+          paddingInlineStart: `${clampTaskIndent(node.attrs?.indent) * 1.5}em`,
+        }}
+      >
+        {children.length ? children : <br />}
+      </p>
     ) : (
       <Fragment key={key}>{children}</Fragment>
     );

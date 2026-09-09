@@ -5,7 +5,7 @@ import { ContestResults } from "../../components/contest-results";
 const title = "Resultados";
 ---
 
-<Layout title={title} heading="Resultados" backHref="/competencias" requireAuth>
+<Layout title={title} heading="Resultados" backHref="/desafios" requireAuth>
   <main class="mx-auto flex w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="flex w-full flex-col gap-6">
       <ContestResults client:only="react" />

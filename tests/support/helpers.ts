@@ -411,7 +411,7 @@ export const DRAG_DROP_CORRECT_PLACEMENTS = Object.fromEntries(
 export async function createPracticeTask(
   api: APIRequestContext,
   headers: Record<string, string>,
-  answerType: "multiple_choice" | "short_text" | "range" | "drag_drop",
+  answerType: "multiple_choice" | "short_text" | "drag_drop",
   overrides: Record<string, unknown> = {},
 ) {
   const suffix = `${answerType}-${Date.now()}`;
@@ -434,8 +434,6 @@ export async function createPracticeTask(
           : [],
       correctAnswerId: answerType === "multiple_choice" ? "single:B" : "",
       shortAnswer: answerType === "short_text" ? "Bebras" : "",
-      rangeMin: answerType === "range" ? 10 : null,
-      rangeMax: answerType === "range" ? 20 : null,
       dragDropBackground:
         answerType === "drag_drop" ? DRAG_DROP_BACKGROUND : null,
       dragDropItems: answerType === "drag_drop" ? DRAG_DROP_ITEMS : [],

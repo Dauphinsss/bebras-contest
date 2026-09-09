@@ -82,6 +82,44 @@ test("student starts, answers and submits without seeing the score", async ({
   await expect(siteFooter).toBeVisible();
 });
 
+test("finishes the attempt and says so when the time runs out", async ({
+  page,
+}) => {
+  const api = await request.newContext();
+  const headers = await loginAdmin(api);
+  const contest = await createContest(api, headers, { durationMinutes: 30 });
+  const { sessionToken } = await joinContestSession(
+    api,
+    headers,
+    contest.id,
+    contest.picked.grade,
+  );
+  await api.dispose();
+
+  await page.addInitScript((token) => {
+    window.localStorage.setItem("bebras_play_session", token);
+  }, sessionToken);
+  await page.goto("/rendir");
+  await page.getByRole("button", { name: /Empezar/i }).click();
+  await expect(page.getByText("Tarea 1", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+
+  // El reloj de pruebas pasa el cierre del intento: al volver a la pantalla, el
+  // servidor ya lo entregó y el equipo tiene que enterarse de por qué.
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date(Date.now() + 31 * 60000).toISOString(),
+  );
+  await page.goto("/rendir");
+
+  await expect(page.getByText("Se acabó el tiempo")).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(page.getByText(/Entregamos tus respuestas/)).toBeVisible();
+  await expect(page.getByText(/Desafío terminado/i)).toBeHidden();
+});
+
 test("keeps site chrome hidden while an active attempt loads on mobile", async ({
   page,
 }) => {

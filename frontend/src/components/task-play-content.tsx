@@ -3,12 +3,17 @@
 import { PlayTaskFields } from "@/components/play-task-fields";
 import { TaskContentRenderer } from "@/components/task-content-renderer";
 import type { PlayTask } from "@/lib/play-api";
+import {
+  TextClozePlayer,
+  readAssignments,
+} from "@/components/assignment-player";
+import type { ClozeConfig } from "@/lib/assignment-answers";
 
 const answerTitles: Record<string, string> = {
   multiple_choice: "Opciones de respuesta",
   short_text: "Respuesta corta",
-  range: "Respuesta por rangos",
   drag_drop: "Arrastrar y soltar",
+  image_hotspot: "Señala sobre la imagen",
 };
 
 /** Shared document/interaction boundary for the tester and the contest player. */
@@ -25,12 +30,25 @@ export function TaskPlayContent({
   disabled?: boolean;
   showHeadings?: boolean;
 }) {
+  if (task.answerType === "text_cloze" && task.answerConfig?.version === 1) {
+    return (
+      <TextClozePlayer
+        config={task.answerConfig as unknown as ClozeConfig}
+        blocks={[...task.bodyBlocks, ...task.challengeBlocks]}
+        value={readAssignments(value, "blanks")}
+        disabled={disabled}
+        onChange={(blanks) => onChange({ version: 1, blanks })}
+      />
+    );
+  }
+  const sectionHeadings =
+    showHeadings && !["image_hotspot", "state_grid"].includes(task.answerType);
   return (
     <div className="flex flex-col gap-5">
       <TaskContentRenderer blocks={task.bodyBlocks} className="gap-4" />
       {task.challengeBlocks.length > 0 && (
         <section className="flex flex-col gap-3">
-          {showHeadings && (
+          {sectionHeadings && (
             <h2 className="text-xl font-semibold sm:text-2xl">
               Pregunta o desafío
             </h2>
@@ -42,7 +60,7 @@ export function TaskPlayContent({
         </section>
       )}
       <section className="flex flex-col gap-4">
-        {showHeadings && (
+        {sectionHeadings && (
           <h2 className="text-xl font-semibold sm:text-2xl">
             {answerTitles[task.answerType] ?? "Tu respuesta"}
           </h2>

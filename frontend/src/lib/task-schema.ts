@@ -1,4 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
+import { hasTaskBlanks } from "@/lib/task-blank";
 export const categories = [
   "Algoritmos y programación",
   "Estructuras de datos y representaciones",
@@ -20,11 +21,14 @@ export const optionLabels = ["A", "B", "C", "D", "E", "F"] as const;
 export const answerTypes = [
   "multiple_choice",
   "short_text",
-  "range",
   "drag_drop",
+  "image_hotspot",
+  "state_grid",
+  "text_cloze",
 ] as const;
 export const multipleChoiceOrderModes = ["fixed", "random"] as const;
 export const multipleChoiceCorrectnessModes = ["single", "any", "all"] as const;
+export const multipleChoiceLayouts = ["vertical", "horizontal"] as const;
 export const DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT = 12;
 
 export type ContentBlockType = "text" | "image" | "challenge";
@@ -52,6 +56,16 @@ export type AnswerType = (typeof answerTypes)[number];
 export type MultipleChoiceOrderMode = (typeof multipleChoiceOrderModes)[number];
 export type MultipleChoiceCorrectnessMode =
   (typeof multipleChoiceCorrectnessModes)[number];
+export type MultipleChoiceLayout = (typeof multipleChoiceLayouts)[number];
+
+/** La disposición de las opciones viaja en answerConfig; vertical es lo de siempre. */
+export function readMultipleChoiceLayout(
+  answerConfig: Record<string, unknown> | undefined,
+): MultipleChoiceLayout {
+  return answerConfig?.multipleChoiceLayout === "horizontal"
+    ? "horizontal"
+    : "vertical";
+}
 
 export type StoredTaskAnswer = {
   id: OptionKey;
@@ -107,8 +121,6 @@ export type StoredTask = {
   correctAnswerId: string;
   shortAnswer: string;
   /** Único intervalo aceptado cuando la respuesta es un número. */
-  rangeMin: number | null;
-  rangeMax: number | null;
   dragDropBackground: ContentImage | null;
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];
@@ -172,7 +184,7 @@ export function getNonEmptyBlocks(blocks: ContentBlock[]) {
       return block.image !== null;
     }
 
-    return block.content.trim().length > 0;
+    return block.content.trim().length > 0 || hasTaskBlanks(block.richText);
   });
 }
 
