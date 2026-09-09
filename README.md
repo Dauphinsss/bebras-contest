@@ -38,20 +38,26 @@ bun run dev
 La base local (`backend/dev.db`) **no se versiona**. Se reconstruye con
 `prisma:push` mas `db:seed`.
 
-| Comando                    | Qué hace                                                                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run db:setup`         | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores. |
-| `bun run db:seed`          | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
-| `bun run db:tasks`         | Carga el banco de tareas Bebras desde `backend/prisma/seed/bebras-tasks.json`.                                                    |
-| `bun run db:schools:fetch` | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
-| `bun run db:admins`        | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
-| `bun run db:clear-teams`   | Borra equipos e intentos para volver a probar el flujo.                                                                           |
+| Comando                                      | Qué hace                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run db:setup`                           | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores.                                |
+| `bun run db:seed`                            | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
+| `bun run db:tasks`                           | Valida el banco Bebras e inserta solo las tareas que faltan; nunca sobrescribe tareas existentes.                                 |
+| `bun run db:tasks:replace --confirm-replace` | Respalda la base y reemplaza tareas, concursos, grupos, equipos, intentos y resultados por el catálogo oficial. Es destructivo.   |
+| `bun run db:schools:fetch`                   | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
+| `bun run db:admins`                          | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
+| `bun run db:clear-teams`                     | Borra equipos e intentos para volver a probar el flujo.                                                                           |
 
 Los recortes corregidos del banco se pueden regenerar con
 `uv run --with pymupdf python backend/scripts/recrop-task-images.py`.
 El script requiere el PDF original en `tareas-otono-2024/_referencia/`, conserva
 los identificadores de las imágenes y modifica únicamente la semilla JSON.
-`bun run db:tasks` carga el banco completo en la base configurada.
+`bun run db:tasks` carga las tareas oficiales que falten en la base configurada.
+Los tres fixtures sintéticos se cargan únicamente en la base temporal E2E.
+El reemplazo explícito conserva intactos colegios, usuarios y solicitudes de
+maestros. El respaldo verificado queda junto a la base como
+`*.db.backup-<fecha>`; también se puede indicar otra ubicación con
+`--backup <ruta>`. Detén el backend antes de ejecutarlo.
 
 ## Autoría de arrastre
 
@@ -164,8 +170,8 @@ guardar. Las funciones geométricas de cliente y servidor tienen pruebas comunes
 
 Para regenerar solo estas dos semillas desde el PDF privado:
 `uv run --with pymupdf --with shapely python backend/scripts/seed-hotspot-tasks.py`.
-Desde `backend/`, `bun x tsx scripts/install-hotspot-tasks.ts` incorpora solamente
-las que aún no existan, conservando todas las ediciones locales.
+Desde `backend/`, `bun run db:tasks` incorpora solamente las que aún no existan,
+conservando todas las ediciones locales.
 
 ## Estados por casilla y huecos en el texto: tareas 09, 19, 31, 37 y 40
 
@@ -206,11 +212,14 @@ pública.
 
 Para regenerar solo estas cinco semillas desde el PDF privado:
 `uv run --with pymupdf python backend/scripts/seed-assignment-tasks.py`.
-Desde `backend/`, `bun x tsx scripts/install-assignment-tasks.ts` incorpora
-solamente las que aún no existan, con respaldo previo de la base. La 19 conserva
-su versión de opción múltiple; la variante con hueco vive en
-`bebras-2024-19-dias-soleados-huecos`, con identificador propio, para no leer
-sus respuestas viejas como respuestas de hueco.
+Desde `backend/`, `bun run db:tasks` incorpora solamente las que aún no existan.
+La 19 pasó a ser de huecos sobre su mismo identificador: se comprobó antes que no
+tuviera ninguna respuesta registrada.
+
+Estas siete tareas son las que la migración del catálogo no puede derivar del PDF
+(`QUARANTINED_TASK_IDS`). El validador exige que en el catálogo lleven ya su tipo
+interactivo, así que volver a generar la migración sin reponerlas falla en vez de
+degradarlas a opción múltiple en silencio.
 
 ## Pruebas
 
@@ -218,7 +227,7 @@ sus respuestas viejas como respuestas de hueco.
 bun run test:e2e
 ```
 
-El comando crea una base temporal, carga las semillas, inicia backend y frontend
+El comando crea una base temporal, carga fixtures sintéticos aislados, inicia backend y frontend
 en puertos de prueba y elimina la base al terminar. No requiere procesos previos.
 Usa una clave de sesión exclusiva de las pruebas.
 

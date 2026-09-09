@@ -8,6 +8,7 @@ import {
   createContest,
   joinContest,
   createScoringTask,
+  openContest,
   taskBlock,
 } from "./support/helpers";
 
@@ -312,6 +313,7 @@ test("protects tasks and played contest records from deletion", async () => {
   expect(removeUsedTask.status()).toBe(409);
   expect((await removeUsedTask.json()).message).toContain("desafío");
 
+  openContest(contest);
   const start = await api.post(`${API}/api/play/start`, {
     data: { personalCode },
   });
@@ -403,14 +405,17 @@ test("enforces contest windows for publication and late starts", async () => {
     new Date(insufficientRemaining.endsAt).getTime(),
   );
 
+  const shortWindowNow = Date.now();
   const shortWindowResponse = await api.post(`${API}/api/contests`, {
     headers,
     data: {
-      title: `PW Short Window ${Date.now()}`,
+      title: `PW Short Window ${shortWindowNow}`,
       category: SEEDED_TASK.category,
       durationMinutes: 10,
-      startsAt: new Date(Date.now() + 60000).toISOString(),
-      endsAt: new Date(Date.now() + 6 * 60000).toISOString(),
+      registrationStartsAt: new Date(shortWindowNow - 2 * 60000).toISOString(),
+      registrationEndsAt: new Date(shortWindowNow - 60000).toISOString(),
+      startsAt: new Date(shortWindowNow + 60000).toISOString(),
+      endsAt: new Date(shortWindowNow + 6 * 60000).toISOString(),
       tasks: [{ taskId: SEEDED_TASK.taskId }],
     },
   });
@@ -430,6 +435,7 @@ test("freezes a contest once it is running", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const contest = await createContest(api, headers);
+  openContest(contest);
 
   const edit = await api.put(`${API}/api/contests/${contest.id}`, {
     headers,
@@ -531,12 +537,19 @@ test("gives the paused time back when the contest resumes", async () => {
     .then((r) => r.json());
   const deadlineBefore = new Date(before.endsAt).getTime();
 
-  await api.post(`${API}/api/contests/${contest.id}/suspend`, { headers });
+  const suspended = await api.post(
+    `${API}/api/contests/${contest.id}/suspend`,
+    { headers },
+  );
+  expect(suspended.ok(), await suspended.text()).toBe(true);
+  const suspendedContest = await suspended.json();
 
   const pauseMinutes = 10;
   writeFileSync(
     E2E_CLOCK_FILE,
-    new Date(Date.now() + pauseMinutes * 60000).toISOString(),
+    new Date(
+      new Date(suspendedContest.suspendedAt).getTime() + pauseMinutes * 60000,
+    ).toISOString(),
   );
 
   const resumed = await api.post(`${API}/api/contests/${contest.id}/resume`, {

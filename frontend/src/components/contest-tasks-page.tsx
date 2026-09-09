@@ -424,7 +424,11 @@ export function ContestTasksPage() {
               {preview?.title ?? ""}
             </DialogTitle>
             {preview && (
-              <TaskOrigin country={preview.country} year={preview.year} />
+              <TaskOrigin
+                country={preview.country}
+                year={preview.year}
+                sourceTaskCode={preview.sourceTaskCode}
+              />
             )}
             <DialogDescription>
               {preview

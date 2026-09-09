@@ -94,7 +94,7 @@ test("registers school and homeschool teachers with valid documents", async () =
   }
 });
 
-test("rejects incomplete, unsupported and oversized document uploads cleanly", async () => {
+test("rejects unsupported and oversized document uploads cleanly", async () => {
   const api = await request.newContext();
   const previousUploads = uploadedDocuments();
 
@@ -192,24 +192,22 @@ test("separates the manual school from teaching at home", async ({ page }) => {
     ),
   ).toBeVisible();
 
-  const documentBlock = (label: string) =>
+  const documentBlock = (input: string) =>
     page
-      .getByText(label, { exact: true })
+      .locator(input)
       .locator(
         'xpath=ancestor::div[contains(@class,"transition-[grid-template-rows]")][1]',
       );
-  const blockHeight = async (label: string) =>
-    (await documentBlock(label).boundingBox())?.height ?? 0;
+  const blockHeight = async (input: string) =>
+    (await documentBlock(input).boundingBox())?.height ?? 0;
 
   await manualOption.click();
   await page
     .getByPlaceholder("Nombre de tu unidad educativa")
     .fill("Colegio de Prueba");
   await expect(async () => {
-    expect(
-      await blockHeight("Carta de autorización del director"),
-    ).toBeGreaterThan(0);
-    expect(await blockHeight("Carnet — anverso")).toBe(0);
+    expect(await blockHeight("#reg-letter")).toBeGreaterThan(0);
+    expect(await blockHeight("#reg-id-front")).toBe(0);
   }).toPass({ timeout: 10000 });
 
   await page
@@ -218,8 +216,8 @@ test("separates the manual school from teaching at home", async ({ page }) => {
   await homeOption.click();
   await expect(page.getByText("Educación en casa")).toBeVisible();
   await expect(async () => {
-    expect(await blockHeight("Carnet — anverso")).toBeGreaterThan(0);
-    expect(await blockHeight("Carta de autorización del director")).toBe(0);
+    expect(await blockHeight("#reg-id-front")).toBeGreaterThan(0);
+    expect(await blockHeight("#reg-letter")).toBe(0);
   }).toPass({ timeout: 10000 });
 });
 
@@ -483,7 +481,8 @@ test("asks for another school that the admin approves on its own", async ({
 
   await api.dispose();
 
-  await page.addInitScript(
+  await page.goto("/");
+  await page.evaluate(
     ({ token, user }) => {
       window.localStorage.setItem("bebras_token", token);
       window.localStorage.setItem("bebras_user", JSON.stringify(user));
@@ -528,7 +527,7 @@ test("builds the authorization letter as a PDF", async () => {
   await api.dispose();
 });
 
-test("hides the panel sections until the teacher is approved", async ({
+test("enables group navigation after the teacher is approved", async ({
   page,
 }) => {
   const api = await request.newContext();
@@ -547,7 +546,8 @@ test("hides the panel sections until the teacher is approved", async ({
   });
   const teacher = await registered.json();
 
-  await page.addInitScript(
+  await page.goto("/");
+  await page.evaluate(
     ({ token, user }) => {
       window.localStorage.setItem("bebras_token", token);
       window.localStorage.setItem("bebras_user", JSON.stringify(user));
@@ -555,9 +555,13 @@ test("hides the panel sections until the teacher is approved", async ({
     { token: teacher.token, user: teacher.user },
   );
   await page.goto("/perfil");
-  await expect(page.getByText("MIS COLEGIOS")).toBeVisible({ timeout: 15000 });
+  await expect(
+    page.getByRole("heading", { name: "Mis colegios", exact: true }),
+  ).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("link", { name: "Grupos" })).toBeHidden();
-  await expect(page.getByRole("link", { name: "Práctica" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Práctica", exact: true }),
+  ).toBeVisible();
 
   const adminHeaders = await loginAdmin(api);
   const listed = await api
@@ -569,17 +573,11 @@ test("hides the panel sections until the teacher is approved", async ({
   });
   await api.dispose();
 
-  await page.addInitScript(
-    ({ token, user }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem(
-        "bebras_user",
-        JSON.stringify({ ...user, status: "approved" }),
-      );
-    },
-    { token: teacher.token, user: teacher.user },
-  );
-  await page.goto("/grupos");
+  await page.reload();
+  const groupsLink = page.getByRole("link", { name: "Ir a mis grupos" });
+  await expect(groupsLink).toBeVisible({ timeout: 15000 });
+  await groupsLink.click();
+  await expect(page).toHaveURL(/\/grupos$/);
   await expect(page.getByRole("link", { name: "Grupos" })).toBeVisible({
     timeout: 15000,
   });

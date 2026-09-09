@@ -484,6 +484,7 @@ function deserializeTaskSummary(task: {
   title: string;
   country: string | null;
   year: number | null;
+  sourceTaskCode: string | null;
   category: string;
   difficulties: string;
 }) {
@@ -492,6 +493,7 @@ function deserializeTaskSummary(task: {
     title: task.title,
     country: task.country,
     year: task.year,
+    sourceTaskCode: task.sourceTaskCode,
     categories: deserializeCategories(task.category),
     difficulties: normalizeTaskDifficulties(task.difficulties),
   };
@@ -618,6 +620,18 @@ function parseTaskPayload(body: Record<string, unknown>) {
     throw new Error("El año de la tarea no es válido.");
   }
 
+  const sourceTaskCode = readText(body.sourceTaskCode);
+
+  if (
+    sourceTaskCode &&
+    (sourceTaskCode.length > 64 ||
+      !/^\d{4}-[A-Z]{2}(?:-[A-Za-z0-9]+)+$/.test(sourceTaskCode))
+  ) {
+    throw new Error(
+      "El código original debe tener un formato como 2024-DE-04a y no superar 64 caracteres.",
+    );
+  }
+
   const categories = Array.isArray(body.categories)
     ? body.categories.filter((item): item is string => typeof item === "string")
     : typeof body.category === "string" && body.category
@@ -686,6 +700,7 @@ function parseTaskPayload(body: Record<string, unknown>) {
     title,
     country: country || null,
     year,
+    sourceTaskCode: sourceTaskCode || null,
     category: serializeJson(categories),
     difficulties: serializeJson(difficulties),
     bodyBlocks: serializeJson(body.bodyBlocks ?? []),
@@ -1116,6 +1131,7 @@ function deserializeContest(contest: {
       title: string;
       country: string | null;
       year: number | null;
+      sourceTaskCode: string | null;
       category: string;
       difficulties: string;
     };
@@ -3224,7 +3240,6 @@ function serializeGroup(group: {
   name: string;
   accessCode: string;
   contestId: string;
-  scheduledAt: Date | null;
   firstUsedAt: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
@@ -3250,7 +3265,6 @@ function serializeGroup(group: {
     contestTitle: group.contest?.title ?? "",
     contestCategory: group.contest?.category ?? "",
     contestAllowPairs: group.contest?.allowPairs ?? false,
-    scheduledAt: group.scheduledAt?.toISOString() ?? null,
     firstUsedAt: group.firstUsedAt?.toISOString() ?? null,
     expiresAt: group.expiresAt?.toISOString() ?? null,
     createdAt: group.createdAt.toISOString(),
@@ -3536,19 +3550,6 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
-  let scheduledAt: Date | null;
-  try {
-    scheduledAt = parseOptionalDateInput(req.body?.scheduledAt);
-  } catch (error) {
-    res.status(400).json({
-      message:
-        error instanceof Error ? error.message : "Fecha de sesión inválida.",
-      code: "GROUP_SCHEDULE_INVALID",
-      field: "scheduledAt",
-    });
-    return;
-  }
-
   const contest = await prisma.contest.findUnique({ where: { id: contestId } });
 
   if (!contest) {
@@ -3583,20 +3584,6 @@ app.post("/api/groups", async (req, res) => {
     return;
   }
 
-  if (
-    scheduledAt &&
-    contest.startsAt &&
-    contest.endsAt &&
-    (scheduledAt < contest.startsAt || scheduledAt > contest.endsAt)
-  ) {
-    res.status(400).json({
-      message: "La sesión debe estar dentro del horario del desafío.",
-      code: "GROUP_SCHEDULE_OUTSIDE_CONTEST",
-      field: "scheduledAt",
-    });
-    return;
-  }
-
   const accessCode = await generateUniqueAccessCode();
   const recoveryCode = generateCode(10);
 
@@ -3604,7 +3591,6 @@ app.post("/api/groups", async (req, res) => {
     data: {
       contestId,
       name,
-      scheduledAt,
       accessCode,
       recoveryCode,
       createdById: req.user?.id ?? null,

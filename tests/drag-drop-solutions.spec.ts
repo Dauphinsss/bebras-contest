@@ -552,36 +552,57 @@ test("edits destinations independently, repairs incomplete solutions and persist
   await page.screenshot({ path: "test-results/drag-editor-mobile.png" });
 });
 
-test("loads both new seed tasks and checks equivalent pieces in the actual tester", async ({ request, page }) => {
+test("checks equivalent pieces in the actual tester", async ({
+  request,
+  page,
+}) => {
   const { ADMIN } = await import("./support/helpers");
-  const session = await request.post(`${API}/api/auth/login`, { data: ADMIN }).then((r) => r.json());
+  const session = await request
+    .post(`${API}/api/auth/login`, { data: ADMIN })
+    .then((r) => r.json());
   const headers = { authorization: `Bearer ${session.token}` };
   await page.addInitScript(({ token, user }) => {
     localStorage.setItem("bebras_token", token);
     localStorage.setItem("bebras_user", JSON.stringify(user));
   }, session);
-  for (const [id, targetCount] of [["bebras-2024-14-camino-de-robot", 10], ["bebras-2024-34-puntos-por-letras", 12]] as const) {
-    const response = await request.get(`${API}/api/tasks/${id}`, { headers });
-    expect(response.ok(), await response.text()).toBe(true);
-    const task = await response.json();
-    expect(task.dragDropTargets).toHaveLength(targetCount);
-    expect(task.dragDropItems).toHaveLength(3);
-    const positions: Record<string, string> = Object.fromEntries(task.dragDropItems.map((item: {id:string;correctTargetId:string}) => [item.id, item.correctTargetId]));
-    const first = task.dragDropItems[0], second = task.dragDropItems[1];
-    [positions[first.id], positions[second.id]] = [positions[second.id], positions[first.id]];
-    await page.goto(`/tareas/probador?id=${id}`);
-    const stage = page.locator('[aria-label^="Escenario de la tarea."]');
-    await expect(stage).toBeVisible();
-    for (const item of task.dragDropItems) {
-      await page.getByRole("button", { name: item.label, exact: true }).click();
-      const target = task.dragDropTargets.find((t: {id:string}) => t.id === positions[item.id]);
-      const box = await stage.boundingBox();
-      await stage.click({ position: { x: box!.width * target.x / 100, y: box!.height * target.y / 100 } });
-    }
-    await page.getByRole("button", { name: "Probar", exact: true }).click();
-    await expect(page.getByText("Respuesta correcta", { exact: true }).first()).toBeVisible();
-    await stage.screenshot({ path: `test-results/${id}-tester.png` });
-    const checked = await request.post(`${API}/api/practice/tasks/${id}/check`, { data: { payload: { placements: positions } } });
-    expect(await checked.json()).toMatchObject({ correct: true });
+  const task = await createTask(request, headers);
+  const positions: Record<string, string> = Object.fromEntries(
+    task.dragDropItems.map((item: { id: string; correctTargetId: string }) => [
+      item.id,
+      item.correctTargetId,
+    ]),
+  );
+  const firstEquivalent = task.dragDropItems[1];
+  const secondEquivalent = task.dragDropItems[2];
+  [positions[firstEquivalent.id], positions[secondEquivalent.id]] = [
+    positions[secondEquivalent.id],
+    positions[firstEquivalent.id],
+  ];
+  await page.goto(`/tareas/probador?id=${task.id}`);
+  const stage = page.locator('[aria-label^="Escenario de la tarea."]');
+  await expect(stage).toBeVisible();
+  for (const item of task.dragDropItems) {
+    await page.getByRole("button", { name: item.label, exact: true }).click();
+    const target = task.dragDropTargets.find(
+      (candidate: { id: string }) => candidate.id === positions[item.id],
+    );
+    const box = await stage.boundingBox();
+    await stage.click({
+      position: {
+        x: (box!.width * target.x) / 100,
+        y: (box!.height * target.y) / 100,
+      },
+    });
   }
+  await page
+    .getByRole("button", { name: "Probar", exact: true })
+    .click();
+  await expect(
+    page.getByText("Respuesta correcta", { exact: true }).first(),
+  ).toBeVisible();
+  const checked = await request.post(
+    `${API}/api/practice/tasks/${task.id}/check`,
+    { data: { payload: { placements: positions } } },
+  );
+  expect(await checked.json()).toMatchObject({ correct: true });
 });

@@ -42,8 +42,8 @@ test("keeps contest and task card actions responsive and compact", async ({
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/desafios");
 
-  const contestCard = page
-    .getByText(listedContest.title, { exact: true })
+  const contestRow = page
+    .getByRole("heading", { name: listedContest.title, exact: true, level: 2 })
     .locator("xpath=ancestor::li[1]");
   // El listado ya no vive en una card: la comprobación de que no queda hueco
   // entre el encabezado de la página y la primera fila se mantiene igual.
@@ -64,25 +64,20 @@ test("keeps contest and task card actions responsive and compact", async ({
       (contestListHeaderBox!.y + contestListHeaderBox!.height),
   ).toBeLessThanOrEqual(56);
   const contestActions = [
-    contestCard.getByRole("link", { name: "Resultados" }),
-    contestCard.getByRole("button", { name: "Suspender" }),
-    contestCard.getByRole("link", { name: "Editar" }),
-    contestCard.getByRole("button", { name: "Eliminar" }),
+    contestRow.getByRole("link", { name: "Preguntas" }),
+    contestRow.getByRole("link", { name: "Ajustes" }),
+    contestRow.getByRole("button", { name: "Eliminar" }),
   ];
   const mobileContestActions = await Promise.all(
     contestActions.map((action) => action.boundingBox()),
   );
   expect(mobileContestActions[0]!.width).toBe(mobileContestActions[1]!.width);
   expect(mobileContestActions[1]!.width).toBe(mobileContestActions[2]!.width);
-  expect(mobileContestActions[2]!.width).toBe(mobileContestActions[3]!.width);
   expect(mobileContestActions[1]!.y).toBeGreaterThan(
     mobileContestActions[0]!.y,
   );
   expect(mobileContestActions[2]!.y).toBeGreaterThan(
     mobileContestActions[1]!.y,
-  );
-  expect(mobileContestActions[3]!.y).toBeGreaterThan(
-    mobileContestActions[2]!.y,
   );
 
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -92,7 +87,6 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[0]!.width).toBeLessThan(160);
   expect(desktopContestActions[0]!.width).toBe(desktopContestActions[1]!.width);
   expect(desktopContestActions[1]!.width).toBe(desktopContestActions[2]!.width);
-  expect(desktopContestActions[2]!.width).toBe(desktopContestActions[3]!.width);
   expect(desktopContestActions[1]!.y).toBe(desktopContestActions[0]!.y);
   expect(desktopContestActions[1]!.x).toBeGreaterThan(
     desktopContestActions[0]!.x,
@@ -100,21 +94,19 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopContestActions[2]!.y).toBeGreaterThan(
     desktopContestActions[0]!.y,
   );
-  expect(desktopContestActions[3]!.y).toBe(desktopContestActions[2]!.y);
-  expect(desktopContestActions[3]!.x).toBeGreaterThan(
-    desktopContestActions[2]!.x,
-  );
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/tareas");
-  const taskCard = page
-    .getByText(listedTask.title, { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const taskTitleLink = page.getByRole("link", {
+    name: listedTask.title,
+    exact: true,
+  });
+  const taskRow = taskTitleLink.locator("xpath=ancestor::li[1]");
   const taskActions = [
-    taskCard.getByRole("button", { name: /^(En práctica|Práctica)$/ }),
-    taskCard.getByRole("link", { name: "Editar" }),
-    taskCard.getByRole("link", { name: "Probar" }),
-    taskCard.getByRole("button", { name: "Eliminar" }),
+    taskRow.getByRole("button", { name: /^(En práctica|Práctica)$/ }),
+    taskRow.getByRole("link", { name: "Editar" }),
+    taskRow.getByRole("link", { name: "Probar" }),
+    taskRow.getByRole("button", { name: "Eliminar" }),
   ];
   const mobileTaskActions = await Promise.all(
     taskActions.map((action) => action.boundingBox()),
@@ -138,37 +130,33 @@ test("keeps contest and task card actions responsive and compact", async ({
   expect(desktopTaskActions[1]!.x).toBeGreaterThan(desktopTaskActions[0]!.x);
   expect(desktopTaskActions[2]!.y).toBeGreaterThan(desktopTaskActions[0]!.y);
   expect(desktopTaskActions[3]!.y).toBe(desktopTaskActions[2]!.y);
-  expect((await taskCard.boundingBox())!.height).toBeLessThan(260);
+  expect((await taskRow.boundingBox())!.height).toBeLessThan(260);
 
-  const taskCardLink = taskCard.getByRole("link", {
-    name: `Abrir edición de ${listedTask.title}`,
-    exact: true,
-  });
-  await expect(taskCardLink).toHaveAttribute(
+  await expect(taskTitleLink).toHaveAttribute(
     "href",
     `/tareas/editar?id=${listedTask.id}`,
   );
 
-  await taskCard.getByRole("link", { name: "Probar", exact: true }).click();
+  await taskRow.getByRole("link", { name: "Probar", exact: true }).click();
   await expect(page).toHaveURL(`/tareas/probador?id=${listedTask.id}`);
   await page.goBack();
-  await expect(taskCard).toBeVisible();
+  await expect(taskRow).toBeVisible();
 
-  const taskCardLinkBox = await taskCardLink.boundingBox();
-  expect(taskCardLinkBox).not.toBeNull();
-  await taskCardLink.click({
+  const taskTitleLinkBox = await taskTitleLink.boundingBox();
+  expect(taskTitleLinkBox).not.toBeNull();
+  await taskTitleLink.click({
     position: {
-      x: taskCardLinkBox!.width / 2,
-      y: taskCardLinkBox!.height - 16,
+      x: taskTitleLinkBox!.width / 2,
+      y: taskTitleLinkBox!.height / 2,
     },
   });
   await expect(page).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
 
   await page.goBack();
-  await expect(taskCard).toBeVisible();
-  await taskCardLink.focus();
-  await expect(taskCardLink).toBeFocused();
-  await taskCardLink.press("Enter");
+  await expect(taskRow).toBeVisible();
+  await taskTitleLink.focus();
+  await expect(taskTitleLink).toBeFocused();
+  await taskTitleLink.press("Enter");
   await expect(page).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
 
   const touchContext = await browser.newContext({
@@ -183,19 +171,16 @@ test("keeps contest and task card actions responsive and compact", async ({
       window.localStorage.setItem("bebras_user", JSON.stringify(user));
     }, session);
     await touchPage.goto("/tareas");
-    const touchTaskCard = touchPage
-      .getByText(listedTask.title, { exact: true })
-      .locator('xpath=ancestor::*[@data-slot="card"][1]');
-    const touchCardLink = touchTaskCard.getByRole("link", {
-      name: `Abrir edición de ${listedTask.title}`,
+    const touchTitleLink = touchPage.getByRole("link", {
+      name: listedTask.title,
       exact: true,
     });
-    const touchCardLinkBox = await touchCardLink.boundingBox();
-    expect(touchCardLinkBox).not.toBeNull();
-    await touchCardLink.tap({
+    const touchTitleLinkBox = await touchTitleLink.boundingBox();
+    expect(touchTitleLinkBox).not.toBeNull();
+    await touchTitleLink.tap({
       position: {
-        x: touchCardLinkBox!.width / 2,
-        y: touchCardLinkBox!.height - 16,
+        x: touchTitleLinkBox!.width / 2,
+        y: touchTitleLinkBox!.height / 2,
       },
     });
     await expect(touchPage).toHaveURL(`/tareas/editar?id=${listedTask.id}`);
@@ -236,22 +221,19 @@ test("confirms task deletion and keeps the task list compact", async ({
   }, session);
   await page.goto("/tareas");
 
-  const listTitle = page
-    .locator('[data-slot="card-title"]')
-    .filter({ hasText: /^Tareas$/ });
-  const listCard = listTitle.locator('xpath=ancestor::*[@data-slot="card"][1]');
-  const listHeader = listCard.locator(':scope > [data-slot="card-header"]');
-  const firstTaskCard = listCard
-    .locator(':scope > [data-slot="card-content"] > [data-slot="card"]')
-    .first();
-  const removableCard = page
-    .getByText(removableTask.title, { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
-  const protectedCard = page
-    .getByText(protectedTask.title, { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
-  await expect(removableCard).toBeVisible();
-  await expect(protectedCard).toBeVisible();
+  const listHeader = page
+    .getByRole("heading", { name: "Tareas", level: 1 })
+    .locator("xpath=ancestor::div[2]");
+  const removableRow = page
+    .getByRole("link", { name: removableTask.title, exact: true })
+    .locator("xpath=ancestor::li[1]");
+  const protectedRow = page
+    .getByRole("link", { name: protectedTask.title, exact: true })
+    .locator("xpath=ancestor::li[1]");
+  const taskList = removableRow.locator("xpath=parent::ul");
+  const firstTaskRow = taskList.locator(":scope > li").first();
+  await expect(removableRow).toBeVisible();
+  await expect(protectedRow).toBeVisible();
   await expect(
     page.getByText("Estas son las tareas registradas actualmente.", {
       exact: true,
@@ -259,15 +241,15 @@ test("confirms task deletion and keeps the task list compact", async ({
   ).toHaveCount(0);
   const [headerBox, firstTaskBox] = await Promise.all([
     listHeader.boundingBox(),
-    firstTaskCard.boundingBox(),
+    firstTaskRow.boundingBox(),
   ]);
   expect(headerBox).not.toBeNull();
   expect(firstTaskBox).not.toBeNull();
   expect(
     firstTaskBox!.y - (headerBox!.y + headerBox!.height),
-  ).toBeLessThanOrEqual(25);
+  ).toBeLessThanOrEqual(40);
 
-  await removableCard
+  await removableRow
     .getByRole("button", { name: "Eliminar", exact: true })
     .click();
   let dialog = page.getByRole("alertdialog");
@@ -275,7 +257,7 @@ test("confirms task deletion and keeps the task list compact", async ({
   await expect(dialog).toContainText(removableTask.title);
   await dialog.getByRole("button", { name: "Cancelar" }).click();
   await expect(dialog).toBeHidden();
-  await expect(removableCard).toBeVisible();
+  await expect(removableRow).toBeVisible();
 
   let releaseDelete: (() => void) | undefined;
   const deleteGate = new Promise<void>((resolve) => {
@@ -285,7 +267,7 @@ test("confirms task deletion and keeps the task list compact", async ({
     await deleteGate;
     await route.continue();
   });
-  await removableCard
+  await removableRow
     .getByRole("button", { name: "Eliminar", exact: true })
     .click();
   dialog = page.getByRole("alertdialog");
@@ -296,13 +278,13 @@ test("confirms task deletion and keeps the task list compact", async ({
   await expect(dialog.getByRole("button", { name: "Cancelar" })).toBeDisabled();
   await expect(dialog).toBeVisible();
   releaseDelete?.();
-  await expect(removableCard).toHaveCount(0);
+  await expect(removableRow).toHaveCount(0);
   await expect(dialog).toBeHidden();
   await expect(
     page.getByText("La tarea se eliminó correctamente.", { exact: true }),
   ).toBeVisible();
 
-  await protectedCard
+  await protectedRow
     .getByRole("button", { name: "Eliminar", exact: true })
     .click();
   dialog = page.getByRole("alertdialog");
@@ -315,7 +297,7 @@ test("confirms task deletion and keeps the task list compact", async ({
     dialog.getByRole("button", { name: "Eliminar", exact: true }),
   ).toBeEnabled();
   await dialog.getByRole("button", { name: "Cancelar" }).click();
-  await expect(protectedCard).toBeVisible();
+  await expect(protectedRow).toBeVisible();
   await api.dispose();
 });
 
@@ -357,7 +339,6 @@ test("keeps group and teacher cards responsive and compact", async ({
           contestTitle: "Desafío responsive",
           contestCategory: "Capibara",
           contestAllowPairs: true,
-          scheduledAt: now,
           firstUsedAt: null,
           expiresAt: null,
           createdAt: now,
@@ -408,21 +389,21 @@ test("keeps group and teacher cards responsive and compact", async ({
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/grupos");
-  const groupCard = page
-    .getByText("Grupo responsive", { exact: true })
-    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  const groupRow = page
+    .getByRole("heading", { name: "Grupo responsive", level: 3 })
+    .locator("xpath=ancestor::li[1]");
   const groupActions = [
-    groupCard.getByRole("button", { name: "Copiar enlace" }),
-    groupCard.getByRole("button", { name: "Eliminar", exact: true }),
+    groupRow.getByRole("button", { name: "Copiar enlace" }),
+    groupRow.getByRole("button", { name: "Eliminar", exact: true }),
   ];
   const mobileGroupActions = await Promise.all(
     groupActions.map((action) => action.boundingBox()),
   );
   expect(mobileGroupActions[0]!.width).toBe(mobileGroupActions[1]!.width);
   expect(mobileGroupActions[1]!.y).toBeGreaterThan(mobileGroupActions[0]!.y);
-  await groupCard.getByRole("button", { name: /1 equipo/ }).click();
+  await groupRow.getByRole("button", { name: /1 equipo/ }).click();
   await expect(
-    groupCard.getByRole("button", { name: "Editar participante" }),
+    groupRow.getByRole("button", { name: "Editar participante" }),
   ).toBeVisible();
   expect(
     await page.evaluate(

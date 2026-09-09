@@ -35,7 +35,18 @@ const testEnv = {
   SEED_ADMIN_PASSWORD: adminPassword,
   E2E_CLOCK_FILE: clockFile,
   E2E_REUSE_SERVERS: fast || serversOnly ? "1" : "0",
+  BEBRAS_E2E: "1",
 };
+
+/**
+ * Dos siembras: el catálogo verificado, que usan las pruebas de las tareas
+ * reales, y las fixtures sintéticas, que salieron del catálogo para no viajar
+ * en una siembra normal.
+ */
+async function seedTasks() {
+  await run(["bun", "run", "db:tasks"], backend);
+  await run(["bun", "run", "db:test-tasks"], backend);
+}
 
 function cleanupTestArtifacts() {
   for (const file of testArtifacts) {
@@ -68,7 +79,7 @@ async function startServers() {
   if (!existsSync(database)) {
     await run(["bun", "run", "prisma:push"], backend);
     await run(["bun", "run", "db:admins"], backend);
-    await run(["bun", "run", "db:tasks"], backend);
+    await seedTasks();
   }
 
   // Los mismos puertos y variables que usa playwright.config.ts al levantarlos.
@@ -105,7 +116,7 @@ async function main() {
     if (!fast || !existsSync(database)) {
       await run(["bun", "run", "prisma:push"], backend);
       await run(["bun", "run", "db:admins"], backend);
-      await run(["bun", "run", "db:tasks"], backend);
+      await seedTasks();
     }
 
     await run(["bun", "x", "playwright", "test", ...playwrightArgs], root);

@@ -68,6 +68,7 @@ model TaskDraft {
   title                   String
   country                 String?
   year                    Int?
+  sourceTaskCode          String?
   category                String
   difficulties            String
   bodyBlocks              String
@@ -148,7 +149,6 @@ model ContestGroup {
   contestId    String
   createdById  Int?
   name         String
-  scheduledAt  DateTime?
   accessCode   String    @unique
   recoveryCode String
   firstUsedAt  DateTime?

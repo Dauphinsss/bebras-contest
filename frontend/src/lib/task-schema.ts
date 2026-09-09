@@ -105,9 +105,10 @@ export type StoredTaskDragDropSolution = {
 export type StoredTask = {
   id: string;
   title: string;
-  /** País que propuso la tarea y año del desafío, según el cuadernillo. */
+  /** Procedencia oficial según el cuadernillo Bebras. */
   country: string | null;
   year: number | null;
+  sourceTaskCode: string | null;
   categories: CategoryItem[];
   difficulties: Record<DifficultyKey, string>;
   bodyBlocks: ContentBlock[];

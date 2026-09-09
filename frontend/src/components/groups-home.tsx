@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  CalendarClockIcon,
   ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
@@ -84,14 +83,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const sessionFormatter = new Intl.DateTimeFormat("es-BO", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 const ROSTER_ALLOWED_EXTENSIONS = new Set([".xlsx", ".csv"]);
 const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -130,10 +121,6 @@ function rosterIssues(error: unknown) {
       typeof detail.name === "string" &&
       typeof detail.reason === "string",
   );
-}
-
-function formatSession(value: string) {
-  return sessionFormatter.format(new Date(value));
 }
 
 type TeamField =
@@ -397,7 +384,6 @@ export function GroupsHome() {
       const group = await createGroup({
         contestId,
         name: name.trim(),
-        scheduledAt: null,
       });
       setGroups((current) => [group, ...current]);
       setName("");
@@ -1102,14 +1088,6 @@ export function GroupsHome() {
                         <h3 className="break-words text-lg font-semibold">
                           {group.name}
                         </h3>
-                        {group.scheduledAt && (
-                          <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
-                            <CalendarClockIcon className="mt-0.5 size-4 shrink-0" />
-                            <span>
-                              Sesión: {formatSession(group.scheduledAt)}
-                            </span>
-                          </div>
-                        )}
                       </div>
                       <div className="grid w-full shrink-0 gap-2 lg:w-72 lg:grid-cols-2">
                         <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 lg:col-span-2">

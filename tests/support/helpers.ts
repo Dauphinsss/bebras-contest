@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext } from "@playwright/test";
-import { readdirSync, rmSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const API = "http://localhost:3100";
@@ -54,43 +54,39 @@ export async function createContest(
   overrides: Record<string, unknown> = {},
 ) {
   const picked = SEEDED_TASK;
-  const data: Record<string, unknown> = {
-    title: "PW Eval " + Date.now(),
-    category: picked.category,
-    durationMinutes: 60,
-    startsAt: new Date(Date.now() - 3600000).toISOString(),
-    endsAt: new Date(Date.now() + 7200000).toISOString(),
-    allowPairs: false,
-    showFeedback: true,
-    showSolutions: true,
-    showTotalScore: true,
-    tasks: [{ taskId: picked.taskId }],
-    ...overrides,
-  };
-
-  // Publicar exige una ventana de inscripción y esa ventana tiene que cerrar
-  // antes de que empiece la rendición; crear grupos, en cambio, exige que la
-  // inscripción siga abierta. Un desafío ya publicado y sin ventana la
-  // mantiene abierta, así que la prueba publica con una inscripción abierta y
-  // una rendición futura, y en cuanto está publicado la quita y deja el
-  // horario que pidió cada prueba. Quien traiga su propia ventana de
-  // inscripción se queda con ella, porque justamente la está probando.
-  const bringsRegistration = Boolean(
-    overrides.registrationStartsAt || overrides.registrationEndsAt,
+  const now = Date.now();
+  const startsAt =
+    typeof overrides.startsAt === "string"
+      ? new Date(overrides.startsAt)
+      : new Date(now + 2 * 3600000);
+  const registrationEndsAt = new Date(
+    Math.min(now + 3600000, startsAt.getTime() - 60000),
   );
-  const runWindow = { startsAt: data.startsAt, endsAt: data.endsAt };
 
-  if (!bringsRegistration) {
-    const now = Date.now();
-    data.registrationStartsAt = new Date(now - 3600000).toISOString();
-    data.registrationEndsAt = new Date(now + 3600000).toISOString();
-    data.startsAt = new Date(now + 7200000).toISOString();
-    data.endsAt = new Date(now + 10800000).toISOString();
-  }
+  rmSync(E2E_CLOCK_FILE, { force: true });
 
-  const created = await api.post(`${API}/api/contests`, { headers, data });
+  const created = await api.post(`${API}/api/contests`, {
+    headers,
+    data: {
+      title: "PW Eval " + Date.now(),
+      category: picked.category,
+      durationMinutes: 60,
+      registrationStartsAt: new Date(
+        registrationEndsAt.getTime() - 2 * 3600000,
+      ).toISOString(),
+      registrationEndsAt: registrationEndsAt.toISOString(),
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 3 * 3600000).toISOString(),
+      allowPairs: false,
+      showFeedback: true,
+      showSolutions: true,
+      showTotalScore: true,
+      tasks: [{ taskId: picked.taskId }],
+      ...overrides,
+    },
+  });
   expect(created.ok(), await created.text()).toBe(true);
-  let contest = await created.json();
+  const contest = await created.json();
 
   const published = await api.post(
     `${API}/api/contests/${contest.id}/publish`,
@@ -98,21 +94,41 @@ export async function createContest(
   );
   expect(published.ok(), await published.text()).toBe(true);
 
-  if (!bringsRegistration) {
-    const scheduled = await api.put(`${API}/api/contests/${contest.id}`, {
-      headers,
-      data: {
-        ...data,
-        ...runWindow,
-        registrationStartsAt: "",
-        registrationEndsAt: "",
-      },
-    });
-    expect(scheduled.ok(), await scheduled.text()).toBe(true);
-    contest = await scheduled.json();
-  }
-
   return { ...contest, picked };
+}
+
+export function openContest(contest: { startsAt: string; endsAt: string }) {
+  const startsAt = new Date(contest.startsAt).getTime();
+  const endsAt = new Date(contest.endsAt).getTime();
+  const executionTime = Math.min(
+    Math.max(Date.now(), startsAt + 1000),
+    endsAt - 1000,
+  );
+  writeFileSync(E2E_CLOCK_FILE, new Date(executionTime).toISOString());
+}
+
+async function enterContestRegistration(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  contestId: string,
+) {
+  const response = await api.get(`${API}/api/contests/${contestId}`, {
+    headers,
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const contest = (await response.json()) as {
+    registrationStartsAt: string;
+    registrationEndsAt: string;
+    startsAt: string;
+    endsAt: string;
+  };
+  const registrationStartsAt = new Date(contest.registrationStartsAt).getTime();
+  const registrationEndsAt = new Date(contest.registrationEndsAt).getTime();
+  writeFileSync(
+    E2E_CLOCK_FILE,
+    new Date((registrationStartsAt + registrationEndsAt) / 2).toISOString(),
+  );
+  return contest;
 }
 
 export async function joinContest(
@@ -122,6 +138,7 @@ export async function joinContest(
   grade: string,
   firstName = "Playwright",
 ) {
+  const contest = await enterContestRegistration(api, headers, contestId);
   const group = await api
     .post(`${API}/api/groups`, {
       headers,
@@ -140,6 +157,7 @@ export async function joinContest(
   });
   expect(response.ok(), await response.text()).toBe(true);
   const join = await response.json();
+  openContest(contest);
 
   return join.personalCode as string;
 }
@@ -156,6 +174,7 @@ export async function joinContestSession(
   firstName = "Playwright",
   lastName = "Tester",
 ) {
+  const contest = await enterContestRegistration(api, headers, contestId);
   const group = await api
     .post(`${API}/api/groups`, {
       headers,
@@ -175,6 +194,7 @@ export async function joinContestSession(
   expect(join.ok(), await join.text()).toBe(true);
 
   const personalCode = (await join.json()).personalCode as string;
+  openContest(contest);
 
   // Rendir exige el codigo personal; el del grupo solo sirve para inscribirse.
   const session = await api.post(`${API}/api/play/session`, {

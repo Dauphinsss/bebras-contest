@@ -480,19 +480,19 @@ test("both assignment types recover partial answers, clear and reload, then scor
 // se lee de la API de administración; nunca se escribe en el archivo.
 const seeded = [
   {
-    id: "bebras-2024-09-tubo-de-canicas",
+    id: "bebras-2024-09-tubo-canicas",
     kind: "state_grid",
     slots: 3,
     bank: 2,
   },
   {
-    id: "bebras-2024-31-secuencia-de-pelotas",
+    id: "bebras-2024-31-secuencia-pelotas",
     kind: "state_grid",
     slots: 8,
     bank: 2,
   },
   {
-    id: "bebras-2024-19-dias-soleados-huecos",
+    id: "bebras-2024-19-dias-soleados",
     kind: "text_cloze",
     slots: 1,
     bank: 4,
@@ -624,16 +624,13 @@ const contests = [
   {
     category: "Titi",
     grade: "P5",
-    ids: [
-      "bebras-2024-09-tubo-de-canicas",
-      "bebras-2024-19-dias-soleados-huecos",
-    ],
+    ids: ["bebras-2024-09-tubo-canicas", "bebras-2024-19-dias-soleados"],
   },
   {
     category: "Kuntur",
     grade: "S5",
     ids: [
-      "bebras-2024-31-secuencia-de-pelotas",
+      "bebras-2024-31-secuencia-pelotas",
       "bebras-2024-37-dias-soleados-2",
       "bebras-2024-40-explorando",
     ],

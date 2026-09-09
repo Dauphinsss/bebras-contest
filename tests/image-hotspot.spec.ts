@@ -12,7 +12,7 @@ import {
 } from "./support/helpers";
 
 const ids = [
-  "bebras-2024-04-caminando-por-el-bosque",
+  "bebras-2024-04-caminando-bosque",
   "bebras-2024-11-dibujando-barquitos",
 ];
 test.use({ hasTouch: true });

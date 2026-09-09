@@ -131,7 +131,7 @@ def build():
         option("d", "el castor Michael no nadó para nada"),
     ]
     tasks.append(task(
-        19, "dias-soleados-huecos", "Días soleados: completa la frase", "Alemania",
+        19, "dias-soleados", "Días soleados", "Alemania",
         {"10–12": "medium", "12–14": "medium", "14–16": "easy"},
         "Algoritmos y programación", "text_cloze",
         [block("soleados-dialogo", sunny_body)],

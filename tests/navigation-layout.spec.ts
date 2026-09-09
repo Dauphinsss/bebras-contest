@@ -34,13 +34,27 @@ test("keeps the new contest form within a mobile viewport", async ({
   }, session);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/desafios");
+  await page.waitForFunction(
+    () => {
+      const island = document.querySelector(
+        'astro-island[component-url*="contests-home"]',
+      );
+      return island !== null && !island.hasAttribute("ssr");
+    },
+    null,
+    { timeout: 30000 },
+  );
 
   // Crear un desafío es un modal con dos campos: ni calendario ni tareas.
   await page.getByRole("button", { name: "Nuevo desafío" }).click();
   const createDialog = page.getByRole("dialog");
   await expect(createDialog).toBeVisible();
-  await expect(createDialog.getByText("Nombre")).toBeVisible();
-  await expect(createDialog.getByText("Categoría")).toBeVisible();
+  await expect(
+    createDialog.getByRole("textbox", { name: /Nombre/ }),
+  ).toBeVisible();
+  await expect(
+    createDialog.getByRole("combobox", { name: /Categoría/ }),
+  ).toBeVisible();
   await expect(createDialog.getByText("Ventana de inscripción")).toHaveCount(0);
   await expect(
     createDialog.getByText("Duración por equipo (minutos)"),
@@ -94,7 +108,8 @@ test("keeps the new contest form within a mobile viewport", async ({
       window as Window & { __bebrasClientNavigation?: boolean }
     ).__bebrasClientNavigation = true;
   });
-  await page.getByRole("link", { name: "Desafíos" }).first().click();
+  await page.getByRole("button", { name: "Abrir menú" }).click();
+  await mobileNavigation.getByRole("link", { name: "Desafíos" }).click();
   await expect(page).toHaveURL(/\/desafios\/?$/);
   expect(
     await page.evaluate(
