@@ -51,6 +51,8 @@ export type AttemptState = {
   status: "pending" | "in_progress" | "finished";
   startedAt: string | null;
   endsAt: string | null;
+  /** Coincide con `endsAt` cuando el intento se cerró porque se acabó el tiempo. */
+  finishedAt: string | null;
   suspendedAt: string | null;
   resultsPublished: boolean;
   showFeedback: boolean;

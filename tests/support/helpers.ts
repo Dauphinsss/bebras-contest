@@ -54,31 +54,63 @@ export async function createContest(
   overrides: Record<string, unknown> = {},
 ) {
   const picked = SEEDED_TASK;
+  const data: Record<string, unknown> = {
+    title: "PW Eval " + Date.now(),
+    category: picked.category,
+    durationMinutes: 60,
+    startsAt: new Date(Date.now() - 3600000).toISOString(),
+    endsAt: new Date(Date.now() + 7200000).toISOString(),
+    allowPairs: false,
+    showFeedback: true,
+    showSolutions: true,
+    showTotalScore: true,
+    tasks: [{ taskId: picked.taskId }],
+    ...overrides,
+  };
 
-  const created = await api.post(`${API}/api/contests`, {
-    headers,
-    data: {
-      title: "PW Eval " + Date.now(),
-      category: picked.category,
-      durationMinutes: 60,
-      startsAt: new Date(Date.now() - 3600000).toISOString(),
-      endsAt: new Date(Date.now() + 7200000).toISOString(),
-      allowPairs: false,
-      showFeedback: true,
-      showSolutions: true,
-      showTotalScore: true,
-      tasks: [{ taskId: picked.taskId }],
-      ...overrides,
-    },
-  });
+  // Publicar exige una ventana de inscripción y esa ventana tiene que cerrar
+  // antes de que empiece la rendición; crear grupos, en cambio, exige que la
+  // inscripción siga abierta. Un desafío ya publicado y sin ventana la
+  // mantiene abierta, así que la prueba publica con una inscripción abierta y
+  // una rendición futura, y en cuanto está publicado la quita y deja el
+  // horario que pidió cada prueba. Quien traiga su propia ventana de
+  // inscripción se queda con ella, porque justamente la está probando.
+  const bringsRegistration = Boolean(
+    overrides.registrationStartsAt || overrides.registrationEndsAt,
+  );
+  const runWindow = { startsAt: data.startsAt, endsAt: data.endsAt };
+
+  if (!bringsRegistration) {
+    const now = Date.now();
+    data.registrationStartsAt = new Date(now - 3600000).toISOString();
+    data.registrationEndsAt = new Date(now + 3600000).toISOString();
+    data.startsAt = new Date(now + 7200000).toISOString();
+    data.endsAt = new Date(now + 10800000).toISOString();
+  }
+
+  const created = await api.post(`${API}/api/contests`, { headers, data });
   expect(created.ok(), await created.text()).toBe(true);
-  const contest = await created.json();
+  let contest = await created.json();
 
   const published = await api.post(
     `${API}/api/contests/${contest.id}/publish`,
     { headers },
   );
   expect(published.ok(), await published.text()).toBe(true);
+
+  if (!bringsRegistration) {
+    const scheduled = await api.put(`${API}/api/contests/${contest.id}`, {
+      headers,
+      data: {
+        ...data,
+        ...runWindow,
+        registrationStartsAt: "",
+        registrationEndsAt: "",
+      },
+    });
+    expect(scheduled.ok(), await scheduled.text()).toBe(true);
+    contest = await scheduled.json();
+  }
 
   return { ...contest, picked };
 }

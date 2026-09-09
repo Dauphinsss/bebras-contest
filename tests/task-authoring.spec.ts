@@ -1568,25 +1568,25 @@ test("evaluates any and all criteria in the task tester", async ({ page }) => {
   await page.goto(`/tareas/probador?id=${anyTask.id}`);
   const resultAlert = page.locator("main").getByRole("alert");
   await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Correcto", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Reiniciar" }).click();
   await page.getByRole("button", { name: "Respuesta A", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Incorrecto", { exact: true }),
   ).toBeVisible();
 
   await page.goto(`/tareas/probador?id=${allTask.id}`);
   await page.getByRole("button", { name: "Respuesta B", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Incorrecto", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Respuesta C", exact: true }).click();
-  await page.getByRole("button", { name: "Probar respuesta" }).click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     resultAlert.getByText("Correcto", { exact: true }),
   ).toBeVisible();
@@ -1630,7 +1630,7 @@ test("labels tester controls for each answer type", async ({ page }) => {
     ).toHaveCount(0);
     await expect(page.getByText("Resuelve", { exact: true })).toHaveCount(1);
     await expect(
-      page.getByRole("button", { name: "Probar respuesta" }),
+      page.getByRole("button", { name: "Probar", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Reiniciar" })).toBeVisible();
 

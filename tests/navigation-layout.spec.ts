@@ -3,7 +3,7 @@ import { canAccessSiteNav } from "../frontend/src/lib/site-navigation";
 import { API, ADMIN, loginAdmin } from "./support/helpers";
 
 test("blocks the panel for users without a session", async ({ page }) => {
-  await page.goto("/competencias");
+  await page.goto("/desafios");
   await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
 });
 
@@ -33,7 +33,7 @@ test("keeps the new contest form within a mobile viewport", async ({
     window.localStorage.setItem("bebras_user", JSON.stringify(user));
   }, session);
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto("/competencias");
+  await page.goto("/desafios");
 
   // Crear un desafío es un modal con dos campos: ni calendario ni tareas.
   await page.getByRole("button", { name: "Nuevo desafío" }).click();
@@ -95,7 +95,7 @@ test("keeps the new contest form within a mobile viewport", async ({
     ).__bebrasClientNavigation = true;
   });
   await page.getByRole("link", { name: "Desafíos" }).first().click();
-  await expect(page).toHaveURL(/\/competencias\/?$/);
+  await expect(page).toHaveURL(/\/desafios\/?$/);
   expect(
     await page.evaluate(
       () =>
@@ -137,11 +137,13 @@ test("keeps the contest calendar within a mobile viewport", async ({
     window.localStorage.setItem("bebras_user", JSON.stringify(user));
   }, session);
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto(`/competencias/editar?id=${draft.id}`);
+  await page.goto(`/desafios/editar?id=${draft.id}`);
 
   await expect(page.getByText("Inscripción", { exact: true })).toBeVisible();
   await expect(page.getByText("Rendición", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Ventana de rendición/ }).click();
+  await page
+    .getByRole("button", { name: "Ventana de rendición, inicio, día" })
+    .click();
   const calendarBounds = await page
     .locator('[data-slot="calendar"]')
     .boundingBox();

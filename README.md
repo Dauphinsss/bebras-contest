@@ -70,9 +70,36 @@ Para piezas intercambiables, escribe el mismo grupo en **Piezas equivalentes**
 (por ejemplo, `B`), incluso si sus imágenes provienen de archivos distintos.
 Sin grupo explícito se conserva la equivalencia histórica por imagen.
 
+La bandeja de objetos conserva el hueco de cada pieza aunque esté colocada, así
+que su lugar de partida no se mueve. El hueco va vacío, con marco punteado: solo
+indica que ahí había algo, sin delatar cuál, porque las piezas se intercambian
+entre sí. Tocarlo devuelve la pieza que salió de ahí; con una pieza
+seleccionada, cualquier hueco la reclama para sí. Arrastrar una pieza fuera de
+la imagen también la devuelve a la bandeja, al lugar donde se suelte; soltarla
+dentro pero lejos de un destino la deja donde estaba.
+
+El estudiante acomoda la fila a su gusto: arrastrar una pieza sobre el lugar de
+otra intercambia sus posiciones. Tocar otra pieza solo mueve la selección, para
+no perder el gesto de elegir. El orden es solo visual: la respuesta viaja como
+`{ pieza: destino }` y no depende de la bandeja. Las instrucciones de
+arrastre ya no ocupan el enunciado: viven en el «?» que está sobre la bandeja.
+
 La semilla incluye las tareas 14 y 34. La segunda ruta ilustrada para la 14
 en la guía termina fuera del tablero; solo se acepta el recorrido que llega a
 la meta, incluyendo el intercambio de sus dos flechas iguales.
+
+## Fin del intento
+
+El equipo llega a la pantalla final por dos caminos y tiene que distinguirlos.
+Si entrega, ve «¡Desafío terminado!»; si se le acaba el plazo, ve «Se acabó el
+tiempo» y el aviso de que sus respuestas se entregaron tal como estaban. El
+servidor marca la diferencia con `finishedAt`, que al cerrar por plazo queda
+igual a `endsAt`, así que el mensaje sobrevive a recargar la página.
+
+El plazo del equipo es `min(inicio + duración, cierre de la rendición)`: cuando
+termina la ventana del desafío no queda ningún intento abierto. Puntaje,
+correcciones y soluciones solo aparecen si los resultados están publicados y el
+desafío los habilita, cada uno por su cuenta.
 
 ## Contrato de respuestas y probador
 
@@ -84,11 +111,23 @@ de administradores `GET /api/tasks/:id/preview` y `POST /api/tasks/:id/check`
 Cambiar o reiniciar una respuesta descarta su resultado y cualquier comprobación
 pendiente.
 
+«Probar» desde el editor prueba lo que hay en pantalla, guardado o no: el
+borrador viaja por `sessionStorage` y se corrige con `POST
+/api/tasks/draft/preview` y `POST /api/tasks/draft/check` (cuerpo
+`{ "task": ..., "payload": ... }`), que reciben la tarea entera y no tocan la
+base. Si al borrador le falta algo obligatorio, el probador muestra el mismo
+mensaje que daría al guardar. El probador vuelve al editor con «Volver a la
+edición».
+
 La configuración, validación, presencia de respuesta, corrección y proyección
 pública están en `backend/src/lib/task-answers/`. Para incorporar una familia,
-ampliar esos módulos y el reproductor compartido. Los campos JSON `answerConfig`
-y `answerKey` están reservados para las nuevas familias: los cuatro tipos
-actuales admiten `{}` y conservan sus campos históricos. Cada familia nueva debe
+ampliar esos módulos y el reproductor compartido. Las zonas activas usan
+configuración y solución versionadas, descritas abajo. En `answerConfig`, la opción
+múltiple guarda `multipleChoiceLayout` (`vertical` u `horizontal`, la única
+clave que acepta) para elegir si las opciones se ven una debajo de otra o una al
+lado de otra; texto, rangos y arrastre siguen con `{}` y sus campos históricos. Las
+opciones con imagen se achican y agrandan con los mismos tiradores que los
+bloques de contenido (`ImageWidthResizer`). Cada familia nueva debe
 validar su versión y proyectar explícitamente su configuración pública; nunca
 enviar `answerKey` al estudiante. Las reglas de presencia del cliente y del
 servidor se verifican con los mismos casos en las pruebas unitarias.
@@ -98,6 +137,80 @@ Para actualizar una base existente, respaldarla y ejecutar desde `backend/`
 parche aditivo `backend/prisma/patches/20260906-task-answer-contract.sql`, que se
 aplica una sola vez como alternativa a `prisma:push`. No hace falta recargar las
 semillas para incorporar las columnas; así se conservan las tareas editadas.
+
+## Zonas sobre la imagen: tareas 04 y 11
+
+Elige **Zonas sobre la imagen** en el tipo de respuesta. Sube la figura y usa
+**Añadir punto** o **Dibujar camino**. Todo se ajusta sobre la misma imagen:
+arrastra los centros o vértices, o usa las flechas del teclado. Cierra el camino
+tocando su primer vértice o con **Cerrar camino**. Al seleccionar una zona,
+puedes cambiar su nombre y marcar **Respuesta válida**. **Otro tramo** añade
+otra superficie al mismo camino. El editor avisa si dos zonas se superponen y
+no permite guardar una configuración ambigua.
+
+El estudiante toca la figura o usa Tab y Enter/Espacio. Una selección sustituye
+la anterior y **Borrar** la quita. Las tareas 04 y 11 están en la semilla y en
+la base local: cuatro caminos en 04 (B correcto) y nueve puntos en 11 (punta de
+la vela y centro superior del casco correctos). El centro compartido del bosque
+no pertenece a ningún camino seleccionable.
+
+`image_hotspot` guarda `{ version: 1, image, imageWidth, imageHeight, regions }`
+en `answerConfig`; cada región tiene `id`, `label` y `shapes` (círculos o
+polígonos). Las posiciones son porcentajes de la imagen; el radio se mide contra
+su lado menor. `answerKey` contiene `{ version: 1, acceptedRegionIds }` y nunca
+se envía al estudiante. La respuesta es `{ version: 1, regionId }`, con `null`
+al borrar. Se validan versiones, geometría, colisiones, IDs y solución antes de
+guardar. Las funciones geométricas de cliente y servidor tienen pruebas comunes.
+
+Para regenerar solo estas dos semillas desde el PDF privado:
+`uv run --with pymupdf --with shapely python backend/scripts/seed-hotspot-tasks.py`.
+Desde `backend/`, `bun x tsx scripts/install-hotspot-tasks.ts` incorpora solamente
+las que aún no existan, conservando todas las ediciones locales.
+
+## Estados por casilla y huecos en el texto: tareas 09, 19, 31, 37 y 40
+
+Dos tipos que comparten el mismo gesto: un banco de opciones arriba y posiciones
+que llenar abajo. Elige una opción y toca la posición, o arrástrala hasta ella.
+Con el teclado, las flechas cambian la opción de la posición enfocada y Supr la
+vacía; cada cambio se anuncia para lectores de pantalla. **Borrar** deja la
+selección vacía, y desde ahí tocar una posición la desocupa.
+
+**Estados por casilla** (`state_grid`) arma una rejilla de hasta 12 filas por 12
+columnas. Se define el rótulo de cada casilla y los estados disponibles, con
+imagen si hace falta. Sirve para construir una configuración final, como las
+tres canicas de la 09 o las ocho pelotas de la 31. Una casilla vacía no es un
+estado: si «blanca» es una respuesta posible, tiene que existir como estado.
+
+**Huecos en el texto** (`text_cloze`) mete la respuesta dentro del enunciado.
+En la barra del editor de texto, **Insertar hueco** deja un nodo con su propio
+identificador: copiarlo crea uno nuevo, moverlo conserva el suyo y deshacer lo
+restaura. Los botones de sangría mantienen la forma del pseudocódigo de la 40
+sin guardarlo como imagen. Cada hueco elige qué opciones del banco acepta, así
+la 37 y la 40 conservan sus dos grupos separados.
+
+En ambos, la casilla de cantidad limita cuántas veces se usa una opción (vacía
+es ilimitada) y se admiten varias soluciones completas: **Respuesta correcta**
+y las **Alternativas** que se agreguen. Solo una configuración completa puntúa;
+una a medias se guarda y se recupera, pero cuenta como incorrecta.
+
+`answerConfig` guarda `{ version: 1, rows, columns, cells, states }` o
+`{ version: 1, options, blanks }`; `answerKey`, `{ version: 1,
+acceptedAssignments }` con cada solución completa. La respuesta del estudiante
+es `{ version: 1, cells: { casilla: estado } }` o
+`{ version: 1, blanks: { hueco: opción } }`, y un objeto vacío la borra. El
+documento del enunciado es la única fuente de la posición de un hueco:
+`answerConfig` no guarda una segunda copia del texto y el nodo nunca lleva la
+solución. Se validan versión, identificadores, opciones permitidas, inventario
+y soluciones repetidas antes de guardar. `answerKey` no sale en la proyección
+pública.
+
+Para regenerar solo estas cinco semillas desde el PDF privado:
+`uv run --with pymupdf python backend/scripts/seed-assignment-tasks.py`.
+Desde `backend/`, `bun x tsx scripts/install-assignment-tasks.ts` incorpora
+solamente las que aún no existan, con respaldo previo de la base. La 19 conserva
+su versión de opción múltiple; la variante con hueco vive en
+`bebras-2024-19-dias-soleados-huecos`, con identificador propio, para no leer
+sus respuestas viejas como respuestas de hueco.
 
 ## Pruebas
 
@@ -109,8 +222,42 @@ El comando crea una base temporal, carga las semillas, inicia backend y frontend
 en puertos de prueba y elimina la base al terminar. No requiere procesos previos.
 Usa una clave de sesión exclusiva de las pruebas.
 
-La lógica del contrato puede comprobarse desde `backend/` con:
+### Por módulo
+
+La suite completa tarda unos diez minutos, así que está partida en módulos y se
+corre solo el que se está tocando:
 
 ```bash
-bun x tsx --test ../tests/task-answer-contract.unit.ts src/lib/drag-drop-grading.test.ts prisma/seed-drag-drop.test.ts
+bun run test:e2e:tareas     # autoría, probador, arrastre, zonas de imagen
+bun run test:e2e:desafios   # ciclo de vida, puntajes, publicación de resultados
+bun run test:e2e:grupos     # grupos, inscripción y entrada del estudiante
+bun run test:e2e:juego      # rendición: empezar, responder, entregar, cierre
+bun run test:e2e:practica   # prácticas del maestro y su reproductor
+bun run test:e2e:cuentas    # registro y acceso
+bun run test:e2e:interfaz   # navegación y tarjetas responsivas
+```
+
+Cada archivo de `tests/` pertenece a un módulo, declarado en
+`playwright.config.ts`. **Al agregar un archivo nuevo hay que listarlo ahí**, o
+no lo corre ningún proyecto.
+
+### Modo rápido
+
+```bash
+bun run test:e2e:servidores            # en otra terminal, se quedan arriba
+bun run test:e2e:rapido -- --project=juego
+```
+
+El modo rápido conserva la base sembrada entre corridas y aprovecha los
+servidores que ya estén escuchando; el reloj de pruebas sí se borra siempre,
+porque una hora vieja rompe cualquier ventana de desafío. Con los servidores
+arriba, un módulo baja de unos 40 s a unos 25 s. Para una verificación
+reproducible, y siempre antes de dar algo por terminado, va la corrida normal:
+base nueva, semillas nuevas y servidores nuevos.
+
+La lógica del contrato, la geometría de las zonas, los huecos del documento y
+las asignaciones se comprueban sin navegador:
+
+```bash
+bun run test:unidad
 ```

@@ -70,5 +70,5 @@ test("associates login errors and focuses the first invalid field", async ({
   await expect(credentialsError).toHaveCount(0);
   await submit.click();
 
-  await expect(page).toHaveURL(/\/competencias\/?$/, { timeout: 15000 });
+  await expect(page).toHaveURL(/\/desafios\/?$/, { timeout: 15000 });
 });

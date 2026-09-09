@@ -174,7 +174,7 @@ test("public task is an allowlist; private keys and author fields cannot escape"
   ])
     assert.equal(key in safe, false);
   assert.equal(JSON.stringify(safe).includes("SECRET"), false);
-  assert.deepEqual(safe.answerConfig, {});
+  assert.deepEqual(safe.answerConfig, { multipleChoiceLayout: "vertical" });
   assert.equal("isCorrect" in safe.answers[0], false);
 });
 
@@ -193,4 +193,38 @@ test("new storage fields default to empty objects and unsupported configs are re
     );
     assert.throws(() => parseTaskAnswerConfig({ ...input, answerKey: value }));
   }
+});
+
+test("multiple choice keeps its layout in answerConfig and rejects anything else", () => {
+  const input = {
+    answerType: "multiple_choice",
+    answers: [
+      { id: "A", blocks: [{ id: "a", type: "text", content: "Sí" }] },
+      { id: "B", blocks: [{ id: "b", type: "text", content: "No" }] },
+    ],
+    correctAnswerId: "single:B",
+  };
+  assert.equal(
+    parseTaskAnswerConfig(input).answerConfig,
+    JSON.stringify({ multipleChoiceLayout: "vertical" }),
+  );
+  assert.equal(
+    parseTaskAnswerConfig({
+      ...input,
+      answerConfig: { multipleChoiceLayout: "horizontal" },
+    }).answerConfig,
+    JSON.stringify({ multipleChoiceLayout: "horizontal" }),
+  );
+  for (const value of [null, [], "{}", { secret: "solution" }]) {
+    assert.throws(() =>
+      parseTaskAnswerConfig({ ...input, answerConfig: value }),
+    );
+  }
+  assert.deepEqual(
+    renderSafeTask(
+      { position: 1 },
+      { ...base, answerConfig: { multipleChoiceLayout: "horizontal" } },
+    ).answerConfig,
+    { multipleChoiceLayout: "horizontal" },
+  );
 });

@@ -10,6 +10,7 @@ import {
 } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { markInputRule } from "@tiptap/core";
+import { NodeSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import Bold from "@tiptap/extension-bold";
 import Italic from "@tiptap/extension-italic";
@@ -22,7 +23,10 @@ import {
   StrikethroughIcon,
   ListIcon,
   ListOrderedIcon,
+  IndentIncreaseIcon,
+  IndentDecreaseIcon,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
@@ -31,8 +35,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { legacyTextToDocument } from "@/lib/rich-text-document";
+import { hasTaskBlanks } from "@/lib/task-blank";
+import {
+  TaskBlank,
+  TaskParagraphIndent,
+  changeTaskIndent,
+} from "@/lib/task-blank-extension";
 
 const extensions = [
+  TaskBlank,
+  TaskParagraphIndent,
   StarterKit.configure({
     heading: false,
     blockquote: false,
@@ -130,6 +142,8 @@ export function TaskRichTextEditor({
   onReady,
   onEnter,
   onRemoveEmpty,
+  allowBlanks = false,
+  onSelectBlank,
 }: {
   id: string;
   content: string;
@@ -140,6 +154,8 @@ export function TaskRichTextEditor({
   onReady: (editor: Editor | null) => void;
   onEnter?: () => void;
   onRemoveEmpty?: () => boolean;
+  allowBlanks?: boolean;
+  onSelectBlank?: (blankId: string) => void;
 }) {
   const previousValue = useRef({ content, richText });
   const editor = useEditor({
@@ -180,7 +196,8 @@ export function TaskRichTextEditor({
           !event.shiftKey &&
           !event.ctrlKey &&
           !event.metaKey &&
-          onEnter
+          onEnter &&
+          !allowBlanks
         ) {
           onEnter();
           return true;
@@ -190,7 +207,8 @@ export function TaskRichTextEditor({
           !event.ctrlKey &&
           !event.metaKey &&
           !event.altKey &&
-          !view.state.doc.textContent.trim()
+          !view.state.doc.textContent.trim() &&
+          !hasTaskBlanks(view.state.doc.toJSON())
         ) {
           return onRemoveEmpty?.() ?? false;
         }
@@ -201,6 +219,15 @@ export function TaskRichTextEditor({
       onChange(current.getText({ blockSeparator: "\n" }), current.getJSON());
       if (current.isEmpty && current.state.storedMarks?.length) {
         current.commands.unsetAllMarks();
+      }
+    },
+    onSelectionUpdate({ editor: current }) {
+      const selection = current.state.selection;
+      if (
+        selection instanceof NodeSelection &&
+        selection.node.type.name === "taskBlank"
+      ) {
+        onSelectBlank?.(selection.node.attrs.blankId);
       }
     },
   });
@@ -221,7 +248,11 @@ export function TaskRichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
-    if (previousValue.current.content === content && previousValue.current.richText === richText) return;
+    if (
+      previousValue.current.content === content &&
+      previousValue.current.richText === richText
+    )
+      return;
     previousValue.current = { content, richText };
     // Parent updates from this editor must not reset selection or undo history.
     const next = richText ?? legacyTextToDocument(content);
@@ -232,6 +263,54 @@ export function TaskRichTextEditor({
 
   return (
     <>
+      {allowBlanks && editor && (
+        <div
+          className="flex flex-wrap items-center gap-1"
+          role="group"
+          aria-label="Huecos y sangría"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() =>
+              editor
+                .chain()
+                .focus()
+                .insertContent({
+                  type: "taskBlank",
+                  attrs: { blankId: crypto.randomUUID() },
+                })
+                .run()
+            }
+          >
+            Insertar hueco
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Reducir sangría"
+            title="Reducir sangría"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => changeTaskIndent(editor, -1)}
+          >
+            <IndentDecreaseIcon />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Aumentar sangría"
+            title="Aumentar sangría"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => changeTaskIndent(editor, 1)}
+          >
+            <IndentIncreaseIcon />
+          </Button>
+        </div>
+      )}
       <EditorContent editor={editor} />
       {editor && (
         <BubbleMenu

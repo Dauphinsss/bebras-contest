@@ -3,7 +3,7 @@ export type SiteNavRole = "public" | "admin" | "staff" | "maestro";
 export const SITE_NAV_ITEMS = [
   { href: "/practica", label: "Práctica", role: "public" },
   { href: "/tareas", label: "Tareas", role: "admin" },
-  { href: "/competencias", label: "Desafíos", role: "admin" },
+  { href: "/desafios", label: "Desafíos", role: "admin" },
   { href: "/perfil", label: "Mi panel", role: "maestro" },
   { href: "/grupos", label: "Grupos", role: "staff" },
   { href: "/mis-practicas", label: "Mis prácticas", role: "maestro" },

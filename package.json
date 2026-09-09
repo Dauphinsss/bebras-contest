@@ -14,7 +14,17 @@
     "db:schools:fetch": "bun run --cwd backend db:schools:fetch",
     "db:clear-teams": "bun run --cwd backend db:clear-teams",
     "db:setup": "bun run db:generate && bun run db:push && bun run db:seed && bun run db:tasks && bun run db:admins",
+    "test:unidad": "bun test ./tests/*.unit.ts ./tests/*.test.ts ./backend/prisma/*.test.ts ./backend/src/lib/*.test.ts ./backend/src/lib/task-answers/*.test.ts",
     "test:e2e": "bun ./tests/run-e2e.ts",
+    "test:e2e:rapido": "bun ./tests/run-e2e.ts --rapido",
+    "test:e2e:servidores": "bun ./tests/run-e2e.ts --servidores",
+    "test:e2e:tareas": "bun ./tests/run-e2e.ts --project=tareas",
+    "test:e2e:desafios": "bun ./tests/run-e2e.ts --project=desafios",
+    "test:e2e:grupos": "bun ./tests/run-e2e.ts --project=grupos",
+    "test:e2e:juego": "bun ./tests/run-e2e.ts --project=juego",
+    "test:e2e:practica": "bun ./tests/run-e2e.ts --project=practica",
+    "test:e2e:cuentas": "bun ./tests/run-e2e.ts --project=cuentas",
+    "test:e2e:interfaz": "bun ./tests/run-e2e.ts --project=interfaz",
     "test:e2e:list": "bun x playwright test --list"
   },
   "devDependencies": {

@@ -5,6 +5,12 @@ import {
 } from "../drag-drop-grading";
 import type { DragDropItem, DragDropTarget, DragDropConfig } from "./types";
 import { parseMcCorrectness } from "./multiple-choice";
+import { parseHotspotConfig, parseHotspotKey } from "./image-hotspot";
+import {
+  collectTaskBlankIds,
+  parseAssignmentConfig,
+  parseAssignmentKey,
+} from "./assignment-answers";
 
 const serializeJson = JSON.stringify;
 const TASK_ANSWER_TYPES = [
@@ -12,6 +18,9 @@ const TASK_ANSWER_TYPES = [
   "short_text",
   "range",
   "drag_drop",
+  "image_hotspot",
+  "state_grid",
+  "text_cloze",
 ];
 
 type ContentBlockInput = {
@@ -26,7 +35,11 @@ function blockHasContent(block: unknown) {
 
   const typed = block as ContentBlockInput;
   const text = typeof typed.content === "string" ? typed.content.trim() : "";
-  return text.length > 0 || Boolean(typed.image);
+  return (
+    text.length > 0 ||
+    Boolean(typed.image) ||
+    collectTaskBlankIds([block]).length > 0
+  );
 }
 
 export function countFilledBlocks(value: unknown) {
@@ -238,8 +251,83 @@ function reservedDocument(value: unknown, field: string) {
   return "{}";
 }
 
+/**
+ * La opción múltiple guarda en answerConfig cómo se muestran sus opciones.
+ * El resto de los tipos sigue con el documento reservado y vacío.
+ */
+function parseAnswerConfigDocument(value: unknown, answerType: string) {
+  if (answerType !== "multiple_choice") {
+    return reservedDocument(value, "answerConfig");
+  }
+
+  if (value === undefined) {
+    return serializeJson({ multipleChoiceLayout: "vertical" });
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("El campo answerConfig debe ser un objeto.");
+  }
+
+  const config = value as Record<string, unknown>;
+  const unknownKey = Object.keys(config).find(
+    (key) => key !== "multipleChoiceLayout",
+  );
+
+  if (unknownKey) {
+    throw new Error(
+      `El campo answerConfig no acepta "${unknownKey}" en una opción múltiple.`,
+    );
+  }
+
+  return serializeJson({
+    multipleChoiceLayout:
+      config.multipleChoiceLayout === "horizontal" ? "horizontal" : "vertical",
+  });
+}
+
+/** Disposición con la que se pintan las opciones; vertical es lo de siempre. */
+export function readMultipleChoiceLayout(config: unknown) {
+  return config &&
+    typeof config === "object" &&
+    (config as Record<string, unknown>).multipleChoiceLayout === "horizontal"
+    ? "horizontal"
+    : "vertical";
+}
+
 export function parseTaskAnswerConfig(body: Record<string, unknown>) {
   const answerType = readText(body.answerType) || "multiple_choice";
+
+  if (
+    answerType === "image_hotspot" ||
+    answerType === "state_grid" ||
+    answerType === "text_cloze"
+  ) {
+    const blocks = [
+      ...(Array.isArray(body.bodyBlocks) ? body.bodyBlocks : []),
+      ...(Array.isArray(body.challengeBlocks) ? body.challengeBlocks : []),
+    ];
+    const config =
+      answerType === "image_hotspot"
+        ? parseHotspotConfig(body.answerConfig)
+        : parseAssignmentConfig(answerType, body.answerConfig, blocks);
+    const key =
+      "regions" in config
+        ? parseHotspotKey(body.answerKey, config)
+        : parseAssignmentKey(body.answerKey, config);
+    return {
+      answerType,
+      answerConfig: serializeJson(config),
+      answerKey: serializeJson(key),
+      multipleChoiceOrderMode: "fixed",
+      answers: "[]",
+      correctAnswerId: "",
+      shortAnswer: "",
+      rangeMin: null,
+      rangeMax: null,
+      dragDropBackground: "null",
+      dragDropItems: "[]",
+    };
+  }
 
   if (!TASK_ANSWER_TYPES.includes(answerType)) {
     throw new Error("El tipo de respuesta no es válido.");
@@ -583,7 +671,7 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
     dragDropItems: serializeJson(
       answerType === "drag_drop" ? dragDropConfig : [],
     ),
-    answerConfig: reservedDocument(body.answerConfig, "answerConfig"),
+    answerConfig: parseAnswerConfigDocument(body.answerConfig, answerType),
     answerKey: reservedDocument(body.answerKey, "answerKey"),
   };
 }

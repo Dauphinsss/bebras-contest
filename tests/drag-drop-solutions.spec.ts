@@ -578,7 +578,7 @@ test("loads both new seed tasks and checks equivalent pieces in the actual teste
       const box = await stage.boundingBox();
       await stage.click({ position: { x: box!.width * target.x / 100, y: box!.height * target.y / 100 } });
     }
-    await page.getByRole("button", { name: "Probar respuesta", exact: true }).click();
+    await page.getByRole("button", { name: "Probar", exact: true }).click();
     await expect(page.getByText("Respuesta correcta", { exact: true }).first()).toBeVisible();
     await stage.screenshot({ path: `test-results/${id}-tester.png` });
     const checked = await request.post(`${API}/api/practice/tasks/${id}/check`, { data: { payload: { placements: positions } } });

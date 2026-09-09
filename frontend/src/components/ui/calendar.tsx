@@ -1,8 +1,10 @@
 import * as React from "react";
-import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { DayPicker } from "react-day-picker";
+import {
+  DayPicker,
+  formatCaption as defaultFormatCaption,
+} from "react-day-picker";
 
 import { cn } from "@/lib/utils";
 
@@ -28,7 +30,7 @@ function Calendar({
         formatCaption: (month, options, dateLib) => {
           const caption =
             formatters?.formatCaption?.(month, options, dateLib) ??
-            format(month, "LLLL yyyy", { locale });
+            defaultFormatCaption(month, { ...options, locale }, dateLib);
 
           return caption.charAt(0).toUpperCase() + caption.slice(1);
         },

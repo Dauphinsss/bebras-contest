@@ -125,7 +125,7 @@ test("results appear only after consolidating and publishing", async ({
     },
     { token: headers.authorization.replace("Bearer ", "") },
   );
-  await page.goto(`/competencias/resultados?id=${contest.id}`);
+  await page.goto(`/desafios/resultados?id=${contest.id}`);
   await expect(page.getByText("Consolidado", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Publicar resultados" }).click();
   await page
@@ -174,7 +174,7 @@ test("results appear only after consolidating and publishing", async ({
     ).toBeVisible();
   }
 
-  await page.goto(`/competencias/resultados?id=${contest.id}`);
+  await page.goto(`/desafios/resultados?id=${contest.id}`);
   await expect(
     page.getByRole("button", { name: "Ocultar resultados" }),
   ).toBeVisible();

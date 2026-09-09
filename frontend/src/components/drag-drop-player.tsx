@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HelpCircleIcon } from "lucide-react";
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type {
   StoredTaskDragDropItem,
@@ -131,6 +137,23 @@ export function DragDropPlayer({
     null,
   );
   const [keyboardMode, setKeyboardMode] = useState(false);
+  // La bandeja se ordena a gusto: cada posición guarda qué pieza le toca, y una
+  // pieza colocada deja su hueco en la posición donde estaba.
+  const [trayOrder, setTrayOrder] = useState(() =>
+    items.map((item) => item.id),
+  );
+
+  useEffect(() => {
+    setTrayOrder((current) => {
+      const ids = items.map((item) => item.id);
+      const kept = current.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !kept.includes(id));
+
+      return kept.length === current.length && added.length === 0
+        ? current
+        : [...kept, ...added];
+    });
+  }, [items]);
 
   const targetById = useMemo(
     () => new Map(targets.map((target) => [target.id, target])),
@@ -140,9 +163,14 @@ export function DragDropPlayer({
     () => items.filter((item) => targetById.has(placements[item.id] ?? "")),
     [items, placements, targetById],
   );
+  /** Las piezas en el orden que tenga la bandeja, con su posición. */
   const trayItems = useMemo(
-    () => items.filter((item) => !targetById.has(placements[item.id] ?? "")),
-    [items, placements, targetById],
+    () =>
+      trayOrder.flatMap((itemId, slotIndex) => {
+        const item = items.find((candidate) => candidate.id === itemId);
+        return item ? [{ item, slotIndex }] : [];
+      }),
+    [items, trayOrder],
   );
   const previewItem = dragPreview
     ? items.find((item) => item.id === dragPreview.itemId)
@@ -267,6 +295,65 @@ export function DragDropPlayer({
     return true;
   };
 
+  /** Devuelve una pieza a su hueco en la bandeja, sin tocar a las demás. */
+  const returnItem = (itemId: string) => {
+    if (disabled || !targetById.has(placements[itemId] ?? "")) {
+      return false;
+    }
+
+    onChange(
+      Object.fromEntries(
+        items.flatMap((item) => {
+          const targetId = placements[item.id];
+          return item.id !== itemId && targetById.has(targetId ?? "")
+            ? [[item.id, targetId]]
+            : [];
+        }),
+      ),
+    );
+    clearSelection();
+    return true;
+  };
+
+  /** Lleva una pieza a una posición de la bandeja, cambiándola por la que esté. */
+  const moveToSlot = (itemId: string, slotIndex: number) => {
+    if (disabled) {
+      return false;
+    }
+
+    let moved = false;
+    setTrayOrder((current) => {
+      const from = current.indexOf(itemId);
+
+      if (from === -1 || from === slotIndex || slotIndex >= current.length) {
+        return current;
+      }
+
+      moved = true;
+      const next = current.slice();
+      [next[from], next[slotIndex]] = [next[slotIndex], next[from]];
+      return next;
+    });
+
+    return moved;
+  };
+
+  const isOutsideStage = (clientX: number, clientY: number) => {
+    const stageElement = stageRef.current;
+
+    if (!stageElement) {
+      return false;
+    }
+
+    const stage = getStageBounds(stageElement);
+    return (
+      clientX < stage.left ||
+      clientX > stage.left + stage.width ||
+      clientY < stage.top ||
+      clientY > stage.top + stage.height
+    );
+  };
+
   const placeItemAtPoint = (
     itemId: string,
     clientX: number,
@@ -281,6 +368,15 @@ export function DragDropPlayer({
     const stage = getStageBounds(stageElement);
     const target = findTargetAtPoint(clientX, clientY, stage, targets);
     return target ? placeItem(itemId, target.id) : false;
+  };
+
+  /** Qué posición de la bandeja está bajo el puntero, si es que hay alguna. */
+  const traySlotAtPoint = (clientX: number, clientY: number) => {
+    const slot = document
+      .elementFromPoint(clientX, clientY)
+      ?.closest<HTMLElement>("[data-tray-slot]");
+    const index = Number(slot?.dataset.traySlot);
+    return Number.isInteger(index) ? index : null;
   };
 
   const handlePointerDown = (
@@ -348,7 +444,22 @@ export function DragDropPlayer({
           suppressClickItemIdRef.current = null;
         }
       }, 0);
-      placeItemAtPoint(drag.itemId, event.clientX, event.clientY);
+      // Soltar fuera del escenario devuelve la pieza a la bandeja, en la
+      // posición donde caiga; soltar dentro pero lejos de un destino la deja
+      // donde estaba.
+      if (
+        !placeItemAtPoint(drag.itemId, event.clientX, event.clientY) &&
+        isOutsideStage(event.clientX, event.clientY)
+      ) {
+        const slotIndex = traySlotAtPoint(event.clientX, event.clientY);
+
+        if (slotIndex !== null) {
+          moveToSlot(drag.itemId, slotIndex);
+        }
+
+        returnItem(drag.itemId);
+        clearSelection();
+      }
     }
   };
 
@@ -362,6 +473,26 @@ export function DragDropPlayer({
     pointerDragRef.current = null;
     setDragPreview(null);
   };
+
+  /** La bandeja pinta la pieza igual esté puesta o no, para que el hueco no se mueva. */
+  const itemVisual = (item: PublicDragDropItem) =>
+    item.image ? (
+      <img
+        alt=""
+        className="block h-auto w-full"
+        draggable={false}
+        src={item.image.url}
+      />
+    ) : (
+      <span className="block px-2 py-6 text-center text-sm font-medium">
+        {item.label || "Objeto"}
+      </span>
+    );
+
+  const slotStyle = (item: PublicDragDropItem) =>
+    stageWidth
+      ? { width: `${Math.max(40, (itemWidth(item) / 100) * stageWidth)}px` }
+      : undefined;
 
   const itemButtonProps = (item: PublicDragDropItem) => ({
     "aria-label": item.label || "Objeto",
@@ -391,6 +522,8 @@ export function DragDropPlayer({
         return;
       }
 
+      // Tocar otra pieza de la bandeja solo mueve la selección; para
+      // reordenarlas se arrastra una sobre el lugar de la otra.
       if (selectedItemId) {
         if (swapItemLocations(selectedItemId, item.id)) {
           focusItem(item.id);
@@ -593,46 +726,93 @@ export function DragDropPlayer({
       </div>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Arrastra un objeto, o selecciónalo y toca el escenario para colocarlo.
-          Con teclado, usa las flechas para moverlo, Shift para avanzar más y
-          Enter para intentar encajarlo.
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-muted-foreground">Objetos</p>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                aria-label="Cómo responder esta pregunta"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                type="button"
+              >
+                <HelpCircleIcon className="size-5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="max-w-80 leading-5">
+              <p className="font-medium">Cómo responder</p>
+              <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4 text-muted-foreground">
+                <li>
+                  Arrastra un objeto hasta su lugar en la imagen, o tócalo y
+                  luego toca la imagen.
+                </li>
+                <li>
+                  Con el teclado: Enter para tomarlo, las flechas para moverlo
+                  (Shift avanza más rápido) y Enter otra vez para soltarlo.
+                </li>
+                <li>
+                  Para devolverlo, arrástralo fuera de la imagen o toca un hueco
+                  de esta fila.
+                </li>
+                <li>
+                  Los objetos de la fila se acomodan a tu gusto: arrastra uno
+                  sobre el lugar de otro para intercambiarlos.
+                </li>
+              </ul>
+            </PopoverContent>
+          </Popover>
+        </div>
         <div className="flex flex-wrap justify-center gap-2">
-          {trayItems.map((item) => (
-            <button
-              key={item.id}
-              {...itemButtonProps(item)}
-              className={cn(
-                "flex touch-none cursor-grab items-center justify-center rounded-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-70",
-                selectedItemId === item.id
-                  ? "ring-2 ring-primary"
-                  : "hover:bg-muted/60",
-                dragPreview?.itemId === item.id && "opacity-50",
-              )}
-              style={
-                stageWidth
-                  ? {
-                      width: `${Math.max(40, (itemWidth(item) / 100) * stageWidth)}px`,
-                    }
-                  : undefined
-              }
-              type="button"
-            >
-              {item.image ? (
-                <img
-                  alt=""
-                  className="block h-auto w-full"
-                  draggable={false}
-                  src={item.image.url}
-                />
-              ) : (
-                <span className="px-2 py-6 text-center text-sm font-medium">
-                  {item.label || "Objeto"}
+          {trayItems.map(({ item, slotIndex }) =>
+            targetById.has(placements[item.id] ?? "") ? (
+              <button
+                key={item.id}
+                aria-label={`Lugar ${slotIndex + 1} de la bandeja, vacío`}
+                className="flex items-center justify-center rounded-sm border-2 border-dashed border-muted-foreground/40 bg-muted/40 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-muted/40"
+                data-tray-slot={slotIndex}
+                disabled={disabled}
+                style={slotStyle(item)}
+                type="button"
+                onClick={() => {
+                  // Con una pieza seleccionada, este lugar es su destino: la del
+                  // escenario vuelve aquí y la de la bandeja se muda aquí. Sin
+                  // selección, vuelve la que salió de este lugar.
+                  if (selectedItemId) {
+                    moveToSlot(selectedItemId, slotIndex);
+                    returnItem(selectedItemId);
+                    clearSelection();
+                    focusItem(selectedItemId);
+                    return;
+                  }
+
+                  returnItem(item.id);
+                }}
+              >
+                {/* La pieza va invisible: reserva el tamaño del hueco sin
+                    delatar cuál estaba ahí, que da igual porque se pueden
+                    intercambiar. */}
+                <span aria-hidden="true" className="invisible block w-full">
+                  {itemVisual(item)}
                 </span>
-              )}
-            </button>
-          ))}
+              </button>
+            ) : (
+              <button
+                key={item.id}
+                {...itemButtonProps(item)}
+                className={cn(
+                  "flex touch-none cursor-grab items-center justify-center rounded-sm border-2 border-transparent transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-70",
+                  selectedItemId === item.id
+                    ? "ring-2 ring-primary"
+                    : "hover:bg-muted/60",
+                  dragPreview?.itemId === item.id && "opacity-50",
+                )}
+                data-tray-slot={slotIndex}
+                style={slotStyle(item)}
+                type="button"
+              >
+                {itemVisual(item)}
+              </button>
+            ),
+          )}
         </div>
       </div>
 

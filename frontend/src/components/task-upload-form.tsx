@@ -1,6 +1,28 @@
 "use client";
+import {
+  AssignmentEditor,
+  initialGrid,
+  initialCloze,
+  activeCloze,
+  activeKey,
+} from "@/components/assignment-editor";
+import {
+  parseAssignmentConfig,
+  parseAssignmentKey,
+  type GridConfig,
+  type ClozeConfig,
+  type AssignmentKey,
+} from "@/lib/assignment-answers";
+import { ImageHotspotEditor } from "@/components/image-hotspot-editor";
+import {
+  parseHotspotConfig,
+  parseHotspotKey,
+  type HotspotConfig,
+  type HotspotKey,
+} from "@/lib/image-hotspot";
 
 import {
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -62,6 +84,12 @@ import {
   dragDropSignature,
 } from "@/lib/drag-drop-grading";
 import { createTask, updateTask } from "@/lib/tasks-api";
+import {
+  clearTaskDraftForTest,
+  readTaskDraftForTest,
+  storeTaskDraftForTest,
+} from "@/lib/task-draft-test";
+import { ImageWidthResizer } from "@/components/image-width-resizer";
 import { categoryForAgeRange } from "@/lib/contest-schema";
 import {
   ageRanges,
@@ -82,7 +110,9 @@ import {
   type ContentBlockType,
   type DifficultyKey,
   type MultipleChoiceCorrectnessMode,
+  type MultipleChoiceLayout,
   type MultipleChoiceOrderMode,
+  readMultipleChoiceLayout,
   type OptionKey,
   type StoredTaskDragDropItem,
   type StoredTaskDragDropSolution,
@@ -109,7 +139,14 @@ type FormState = {
   bodyBlocks: ContentBlock[];
   challengeBlocks: ContentBlock[];
   answerType: AnswerType;
+  hotspotConfig: HotspotConfig | null;
+  hotspotKey: HotspotKey;
+  gridConfig: GridConfig;
+  clozeConfig: ClozeConfig;
+  gridKey: AssignmentKey;
+  clozeKey: AssignmentKey;
   multipleChoiceOrderMode: MultipleChoiceOrderMode;
+  multipleChoiceLayout: MultipleChoiceLayout;
   answerCount: number;
   answerOrder: OptionKey[];
   multipleChoiceContentType: "text" | "image";
@@ -197,7 +234,14 @@ const createInitialState = (
       { ...createContentBlock("text"), id: `${idPrefix}-challenge` },
     ],
     answerType: "multiple_choice",
+    hotspotConfig: null,
+    gridConfig: initialGrid(),
+    clozeConfig: initialCloze(),
+    gridKey: { version: 1, acceptedAssignments: [{}] },
+    clozeKey: { version: 1, acceptedAssignments: [{}] },
+    hotspotKey: { version: 1, acceptedRegionIds: [] },
     multipleChoiceOrderMode: "fixed",
+    multipleChoiceLayout: "vertical",
     answerCount: minimumAnswerCount,
     answerOrder: [...optionLabels],
     multipleChoiceContentType: "text",
@@ -258,7 +302,32 @@ function createStateFromTask(task: StoredTask): FormState {
     bodyBlocks: task.bodyBlocks,
     challengeBlocks: task.challengeBlocks,
     answerType: task.answerType ?? "multiple_choice",
+    gridConfig:
+      task.answerType === "state_grid"
+        ? (task.answerConfig as unknown as GridConfig)
+        : initialGrid(),
+    clozeConfig:
+      task.answerType === "text_cloze"
+        ? (task.answerConfig as unknown as ClozeConfig)
+        : initialCloze(),
+    gridKey:
+      task.answerType === "state_grid"
+        ? (task.answerKey as unknown as AssignmentKey)
+        : { version: 1, acceptedAssignments: [{}] },
+    clozeKey:
+      task.answerType === "text_cloze"
+        ? (task.answerKey as unknown as AssignmentKey)
+        : { version: 1, acceptedAssignments: [{}] },
+    hotspotConfig:
+      task.answerType === "image_hotspot" && task.answerConfig?.version === 1
+        ? (task.answerConfig as unknown as HotspotConfig)
+        : null,
+    hotspotKey:
+      task.answerType === "image_hotspot" && task.answerKey?.version === 1
+        ? (task.answerKey as unknown as HotspotKey)
+        : { version: 1, acceptedRegionIds: [] },
     multipleChoiceOrderMode: task.multipleChoiceOrderMode ?? "fixed",
+    multipleChoiceLayout: readMultipleChoiceLayout(task.answerConfig),
     answerCount:
       task.answerType === "multiple_choice"
         ? Math.max(task.answers.length, minimumAnswerCount)
@@ -372,7 +441,39 @@ function validateForm(state: FormState) {
     errors.push("Debes definir la respuesta corta esperada.");
   }
 
+  if (state.answerType === "image_hotspot") {
+    try {
+      parseHotspotKey(
+        state.hotspotKey,
+        parseHotspotConfig(state.hotspotConfig),
+      );
+    } catch (error) {
+      errors.push(
+        error instanceof Error
+          ? error.message
+          : "Revisa las zonas de la imagen.",
+      );
+    }
+  }
+
   const year = state.year.trim();
+  if (state.answerType === "state_grid" || state.answerType === "text_cloze") {
+    try {
+      const task = buildStoredTask(state);
+      const config = parseAssignmentConfig(
+        state.answerType,
+        task.answerConfig,
+        [...state.bodyBlocks, ...state.challengeBlocks],
+      );
+      parseAssignmentKey(task.answerKey, config);
+    } catch (error) {
+      errors.push(
+        error instanceof Error
+          ? error.message
+          : "Completa la configuración y la respuesta correcta.",
+      );
+    }
+  }
 
   if (year && !/^\d{4}$/.test(year)) {
     errors.push("El año del desafío debe tener cuatro cifras.");
@@ -560,6 +661,36 @@ function buildStoredTask(
     bodyBlocks: state.bodyBlocks,
     challengeBlocks: state.challengeBlocks,
     answerType: state.answerType,
+    answerConfig:
+      state.answerType === "state_grid"
+        ? state.gridConfig
+        : state.answerType === "text_cloze"
+          ? activeCloze(state.clozeConfig, [
+              ...state.bodyBlocks,
+              ...state.challengeBlocks,
+            ])
+          : state.answerType === "image_hotspot"
+            ? (state.hotspotConfig ?? {})
+            : state.answerType === "multiple_choice"
+              ? { multipleChoiceLayout: state.multipleChoiceLayout }
+              : {},
+    answerKey:
+      state.answerType === "state_grid"
+        ? activeKey(
+            state.gridKey,
+            state.gridConfig.cells.map((cell) => cell.id),
+          )
+        : state.answerType === "text_cloze"
+          ? activeKey(
+              state.clozeKey,
+              activeCloze(state.clozeConfig, [
+                ...state.bodyBlocks,
+                ...state.challengeBlocks,
+              ]).blanks.map((blank) => blank.id),
+            )
+          : state.answerType === "image_hotspot"
+            ? state.hotspotKey
+            : {},
     multipleChoiceOrderMode:
       state.answerType === "multiple_choice"
         ? state.multipleChoiceOrderMode
@@ -627,6 +758,23 @@ export function TaskUploadForm({
     [activeOptionLabels, form.options],
   );
 
+  // Volver del probador no debe costar los cambios: si el probador marca que
+  // trae un borrador de esta misma tarea, se recupera tal cual quedó.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get("borrador")) {
+      return;
+    }
+
+    const stored = readTaskDraftForTest();
+
+    if (!stored || stored.taskId !== (loadedTask?.id ?? null)) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Restaurar el borrador del navegador después de la hidratación.
+    setForm(createStateFromTask(stored.task as StoredTask));
+  }, [loadedTask]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -640,6 +788,7 @@ export function TaskUploadForm({
 
     const draft = buildStoredTask(form, loadedTask?.id);
     const task = loadedTask ? await updateTask(draft) : await createTask(draft);
+    clearTaskDraftForTest();
 
     onSubmitted?.(task);
     toast.success(
@@ -654,7 +803,30 @@ export function TaskUploadForm({
     window.location.assign(returnTo ?? "/tareas");
   };
 
+  // El probador vive en otra página: el borrador va por sessionStorage para
+  // que se pruebe lo que hay en pantalla y no la última versión guardada.
+  const handleTestDraft = () => {
+    const draft = {
+      taskId: loadedTask?.id ?? null,
+      task: buildStoredTask(form, loadedTask?.id),
+    };
+
+    if (!storeTaskDraftForTest(draft)) {
+      toast.error(
+        "No se pudo llevar el borrador al probador. Guarda los cambios y vuelve a intentarlo.",
+      );
+      return;
+    }
+
+    window.location.assign(
+      `/tareas/probador?borrador=1&volver=${encodeURIComponent(
+        window.location.pathname + window.location.search,
+      )}`,
+    );
+  };
+
   const handleClearForm = () => {
+    clearTaskDraftForTest();
     setForm(createInitialState());
     setErrors([]);
     setClearDialogOpen(false);
@@ -844,6 +1016,17 @@ export function TaskUploadForm({
       ...block,
       image: nextImage,
       widthPercent: block.widthPercent || 100,
+    }));
+  };
+
+  const updateOptionBlockWidth = (
+    optionKey: OptionKey,
+    blockId: string,
+    widthPercent: number,
+  ) => {
+    updateOptionBlocks(optionKey, blockId, (block) => ({
+      ...block,
+      widthPercent,
     }));
   };
 
@@ -1206,6 +1389,7 @@ export function TaskUploadForm({
         <TaskContentBuilder
           allowedBlockTypes={["text", "image"]}
           blocks={form.bodyBlocks}
+          allowBlanks={form.answerType === "text_cloze"}
           allowCrossSectionDrag
           sectionId="bodyBlocks"
           onMoveBlockToSection={(blockId, toSectionId, toBlockId, position) =>
@@ -1244,6 +1428,7 @@ export function TaskUploadForm({
         <TaskContentBuilder
           allowedBlockTypes={["text", "image"]}
           blocks={form.challengeBlocks}
+          allowBlanks={form.answerType === "text_cloze"}
           allowCrossSectionDrag
           sectionId="challengeBlocks"
           onMoveBlockToSection={(blockId, toSectionId, toBlockId, position) =>
@@ -1337,9 +1522,67 @@ export function TaskUploadForm({
                   Arrastrar y soltar
                 </FieldLabel>
               </Field>
+              <Field orientation="horizontal">
+                <RadioGroupItem
+                  id="answer-type-image-hotspot"
+                  value="image_hotspot"
+                />
+                <FieldLabel htmlFor="answer-type-image-hotspot">
+                  Zonas sobre la imagen
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <RadioGroupItem
+                  id="answer-type-state-grid"
+                  value="state_grid"
+                />
+                <FieldLabel htmlFor="answer-type-state-grid">
+                  Estados por casilla
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <RadioGroupItem
+                  id="answer-type-text-cloze"
+                  value="text_cloze"
+                />
+                <FieldLabel htmlFor="answer-type-text-cloze">
+                  Huecos en el texto
+                </FieldLabel>
+              </Field>
             </RadioGroup>
           </FieldSet>
 
+          {(form.answerType === "state_grid" ||
+            form.answerType === "text_cloze") && (
+            <AssignmentEditor
+              key={form.answerType}
+              kind={form.answerType}
+              config={
+                form.answerType === "state_grid"
+                  ? form.gridConfig
+                  : form.clozeConfig
+              }
+              answerKey={
+                form.answerType === "state_grid" ? form.gridKey : form.clozeKey
+              }
+              blocks={[...form.bodyBlocks, ...form.challengeBlocks]}
+              onChange={(config, key) =>
+                setForm((current) =>
+                  current.answerType === "state_grid"
+                    ? {
+                        ...current,
+                        gridConfig: config as GridConfig,
+                        gridKey: key,
+                      }
+                    : {
+                        ...current,
+                        clozeConfig: config as ClozeConfig,
+                        clozeKey: key,
+                      },
+                )
+              }
+            />
+          )}
           {form.answerType === "multiple_choice" && (
             <FieldSet className="gap-4!">
               <FieldLegend className="mb-0" variant="label">
@@ -1436,6 +1679,41 @@ export function TaskUploadForm({
                         />
                         <FieldLabel htmlFor="multiple-choice-order-random">
                           Mostrar en orden aleatorio
+                        </FieldLabel>
+                      </Field>
+                    </RadioGroup>
+                  </FieldSet>
+                </div>
+                <div className="bg-card p-4">
+                  <FieldSet className="gap-4">
+                    <FieldLegend className="mb-0" variant="label">
+                      Disposición
+                    </FieldLegend>
+                    <RadioGroup
+                      value={form.multipleChoiceLayout}
+                      onValueChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          multipleChoiceLayout: value as MultipleChoiceLayout,
+                        }))
+                      }
+                    >
+                      <Field orientation="horizontal">
+                        <RadioGroupItem
+                          id="multiple-choice-layout-vertical"
+                          value="vertical"
+                        />
+                        <FieldLabel htmlFor="multiple-choice-layout-vertical">
+                          Una debajo de otra
+                        </FieldLabel>
+                      </Field>
+                      <Field orientation="horizontal">
+                        <RadioGroupItem
+                          id="multiple-choice-layout-horizontal"
+                          value="horizontal"
+                        />
+                        <FieldLabel htmlFor="multiple-choice-layout-horizontal">
+                          Una al lado de otra
                         </FieldLabel>
                       </Field>
                     </RadioGroup>
@@ -1643,13 +1921,19 @@ export function TaskUploadForm({
                               )}
                               {optionBlock.image && (
                                 <div className="flex flex-col gap-4">
-                                  <div className="flex justify-center">
-                                    <img
-                                      alt={optionBlock.image.name}
-                                      className="block h-auto max-h-72 max-w-full rounded-lg"
-                                      src={optionBlock.image.url}
-                                    />
-                                  </div>
+                                  <ImageWidthResizer
+                                    alt={optionBlock.image.name}
+                                    src={optionBlock.image.url}
+                                    widthPercent={optionBlock.widthPercent}
+                                    minPercent={10}
+                                    onChange={(widthPercent) =>
+                                      updateOptionBlockWidth(
+                                        label,
+                                        optionBlock.id,
+                                        widthPercent,
+                                      )
+                                    }
+                                  />
                                   <div className="flex justify-start">
                                     <label>
                                       <input
@@ -1777,6 +2061,19 @@ export function TaskUploadForm({
             </FieldSet>
           )}
 
+          {form.answerType === "image_hotspot" && (
+            <ImageHotspotEditor
+              config={form.hotspotConfig}
+              answerKey={form.hotspotKey}
+              onChange={(hotspotConfig, hotspotKey) =>
+                setForm((current) => ({
+                  ...current,
+                  hotspotConfig,
+                  hotspotKey,
+                }))
+              }
+            />
+          )}
           {form.answerType === "drag_drop" && (
             <FieldSet className="gap-4">
               <FieldLegend className="mb-0" variant="label">
@@ -1969,23 +2266,13 @@ export function TaskUploadForm({
 
       <div className="flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Probar solo tiene sentido sobre una tarea guardada: el probador la
-              lee del servidor. En una tarea nueva sigue estando Limpiar, que es
-              lo único útil ahí. */}
-          {loadedTask ? (
-            <Button asChild type="button" variant="outline">
-              <a
-                href={`/tareas/probador?id=${encodeURIComponent(loadedTask.id)}&volver=${encodeURIComponent(
-                  typeof window === "undefined"
-                    ? "/tareas"
-                    : window.location.pathname + window.location.search,
-                )}`}
-              >
-                <PlayIcon data-icon="inline-start" />
-                Probar
-              </a>
-            </Button>
-          ) : (
+          {/* Probar lleva lo que hay en pantalla, guardado o no: el probador
+              recibe el borrador entero y lo corrige sin tocar la base. */}
+          <Button type="button" variant="outline" onClick={handleTestDraft}>
+            <PlayIcon data-icon="inline-start" />
+            Probar
+          </Button>
+          {!loadedTask && (
             <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
               <DialogTrigger asChild>
                 <Button type="button" variant="outline">

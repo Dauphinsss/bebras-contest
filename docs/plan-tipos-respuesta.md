@@ -1,6 +1,6 @@
 # Plan de ampliación de respuestas interactivas
 
-Fecha: 2026-09-06. Estado: fases 1 y 2 implementadas; la siguiente entrega es zonas activas.
+Fecha: 2026-09-08. Estado: las seis entregas están implementadas y verificadas.
 
 Actualización de fase 1: destinos independientes, soluciones sobre subconjuntos, equivalencia explícita y persistencia de semillas completados. Se incorporaron las tareas 14 (3 piezas/10 destinos) y 34 (3 piezas/12 destinos). Pasaron seis pruebas unitarias y once de navegador.
 
@@ -12,7 +12,25 @@ Se añadieron `answerConfig` y `answerKey` con valor `{}` y un parche SQL aditiv
 
 Verificación de fase 2: 13 pruebas unitarias y 16 de navegador/API aprobadas, incluyendo los cuatro tipos actuales, tareas reales 14/34, permisos, respuestas pendientes, errores de red, guardado/recuperación y puntuación. Build y lint de ambos proyectos correctos. El typecheck global del frontend conserva el error previo de `calendar.tsx:31` sobre `locale` parcial (con `--ignoreDeprecations 5.0`); no se modificó ese componente.
 
-Las secciones siguientes conservan el diagnóstico previo como contexto de la propuesta; las fases 1 y 2 ya están resueltas.
+Actualización de fase 3: `image_hotspot` está implementado de editor a concurso. El editor compacto permite círculos y polígonos sobre una sola imagen, con vértices movibles, varios tramos por zona y validación de solapamientos. El estudiante selecciona directamente con ratón, toque o teclado. El probador evita títulos y avisos duplicados para estas tareas. Se incorporaron 04 (cuatro caminos, B correcto) y 11 (nueve puntos, dos inicios válidos), con figuras originales recortadas, enunciados editables y soluciones privadas. La base local tiene 26 tareas; las 24 anteriores se conservaron con respaldo previo.
+
+Verificación de fase 3: 19 pruebas unitarias y 9 pruebas de navegador/API aprobadas (cinco de zonas y cuatro de regresión de práctica). Incluyen borradores, guardado/reapertura, recuperación tras recarga, borrado, payload inválido, puntuación, solo lectura y ratón/teclado/táctil. Se revisaron capturas de móvil/escritorio. Ambos builds pasan; lint de backend y archivos de zonas correcto. El lint global del frontend señala `drag-drop-player.tsx:147` (efecto de orden de bandeja ajeno a esta entrega); el typecheck conserva el error previo de `calendar.tsx:31`.
+
+Actualización de fase 4: `state_grid` está implementado de editor a concurso. La rejilla admite hasta 12 filas por 12 columnas, con rótulo por casilla y un banco de estados con etiqueta, imagen opcional y disponibilidad ilimitada o finita. El estudiante elige un estado y toca la casilla, o lo arrastra; con el teclado, las flechas cambian el estado de la casilla enfocada y Supr la vacía, y cada cambio se anuncia. Una casilla vacía es distinta de un estado blanco. Se incorporaron 09 (fila de tres canicas) y 31 (fila de ocho pelotas con las etiquetas del código sobre cada posición).
+
+Actualización de fase 5: `text_cloze` vive dentro del documento de texto enriquecido. `taskBlank` es un nodo inline atómico con identificador propio: copiarlo genera uno nuevo, moverlo conserva el suyo, un identificador repetido se regenera y deshacer restaura el nodo. `TaskParagraphIndent` guarda la sangría del pseudocódigo como atributo validado, sin imágenes ni espacios que se pierdan. `getNonEmptyBlocks` y `TaskContentRenderer` ya no descartan un bloque que solo contiene huecos. Cada hueco declara sus opciones permitidas, así que 37 y 40 conservan sus dos grupos separados. Se incorporaron 19 (variante con hueco, identificador nuevo), 37 y 40.
+
+Los dos tipos comparten contrato y superficie: `backend/src/lib/task-answers/assignment-answers.ts`, con copia idéntica en `frontend/src/lib/assignment-answers.ts`, y los componentes `assignment-editor.tsx` y `assignment-player.tsx`. La solución es una lista de configuraciones completas; una respuesta parcial se guarda y se recupera, pero no puntúa.
+
+Actualización de fase 6: la semilla llega a 28 tareas y cubre los nueve casos objetivo (04, 09, 11, 14, 19, 31, 34, 37 y 40). `install-assignment-tasks.ts` incorpora solo las cinco nuevas, con respaldo `VACUUM INTO`, huella de las tareas anteriores y verificación de los conteos de intentos y respuestas. La base de trabajo local quedó en 31 tareas, con la 19 de opción múltiple intacta y el intento y las dos respuestas anteriores conservados. Las cinco tareas se recorren además en desafíos reales: como cada categoría Bebras tiene su rango de edad y un desafío solo admite tareas con dificultad para ese rango, hacen falta dos, Titi (09 y 19 con hueco) y Kuntur (31, 37 y 40).
+
+Verificación de fases 4 a 6: 31 pruebas unitarias (`bun run test:unidad`) y 11 de navegador/API en `tests/assignment-answers.spec.ts`, que recorren guardado y reapertura, ausencia de claves privadas, actualizaciones inválidas, permisos, ratón, toque, teclado, borrado, recuperación tras recarga, bloqueo de la práctica, y una rendición real con puntaje de respuesta completa, parcial y borrada. Cuatro de esas pruebas son sobre las cinco tareas del cuadernillo: corrección de todos los casos, resolución a 1100 px y a 390 px sin desbordes ni imágenes rotas, y una entrega real de desafío con su fila de resultados. La solución se lee de la API de administración y no se escribe en el archivo de pruebas.
+
+Detalle que apareció al probar la entrega: una tarea de un solo hueco no admite respuesta a medias, porque dejarla incompleta es dejarla vacía, y el desafío la cuenta como no respondida. Es el comportamiento correcto; lo que estaba mal era la expectativa de la prueba. Las 28 semillas pasan por `parseTaskAnswerConfig`. El typecheck del backend está limpio y el del frontend conserva el error previo de `calendar.tsx`; el lint del backend está limpio y el del frontend conserva el aviso previo de `drag-drop-player.tsx:147`.
+
+Fuera de esta entrega: los cuatro fallos de `tests/task-authoring.spec.ts` son anteriores y vienen del rediseño del formulario en el commit `92b42`. Esas pruebas esperan las tarjetas (`data-slot="card"`), los textos descriptivos de cada sección y el rótulo «Arrastrar para reordenar bloque», que el rediseño eliminó. Repararlas es decidir el contrato de la interfaz nueva, no cambiar un localizador.
+
+Las secciones siguientes conservan el diagnóstico previo como contexto de la propuesta; las fases 1, 2 y 3 ya están resueltas.
 
 ## 1. Alcance y diagnóstico comprobado
 
