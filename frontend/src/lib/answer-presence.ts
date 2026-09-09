@@ -31,14 +31,6 @@ export function answerHasResponse(
       return (
         typeof response.text === "string" && response.text.trim().length > 0
       );
-    case "range": {
-      const value = response.value;
-      return (
-        (typeof value === "string" || typeof value === "number") &&
-        String(value).trim() !== "" &&
-        Number.isFinite(Number(value))
-      );
-    }
     case "drag_drop":
       return (
         Boolean(response.placements) &&

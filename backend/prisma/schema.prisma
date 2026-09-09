@@ -80,8 +80,6 @@ model TaskDraft {
   answers                 String
   correctAnswerId         String
   shortAnswer             String          @default("")
-  rangeMin                Float?
-  rangeMax                Float?
   dragDropBackground      String          @default("null")
   dragDropItems           String          @default("[]")
   explanationBlocks       String          @default("[]")

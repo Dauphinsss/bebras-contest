@@ -30,6 +30,8 @@ Detalle que apareció al probar la entrega: una tarea de un solo hueco no admite
 
 Fuera de esta entrega: los cuatro fallos de `tests/task-authoring.spec.ts` son anteriores y vienen del rediseño del formulario en el commit `92b42`. Esas pruebas esperan las tarjetas (`data-slot="card"`), los textos descriptivos de cada sección y el rótulo «Arrastrar para reordenar bloque», que el rediseño eliminó. Repararlas es decidir el contrato de la interfaz nueva, no cambiar un localizador.
 
+Retiro de «respuesta por rangos»: el tipo `range` se eliminó del sistema. Estaba implementado y probado, pero ninguna de las 43 tareas del cuadernillo lo usa: ninguna pide un número dentro de un intervalo. Se fueron el tipo, las columnas `rangeMin`/`rangeMax`, su rama en el validador del catálogo y sus pruebas. Si aparece una pregunta que lo necesite habrá que rehacerlo; el contrato versionado de `answerConfig`/`answerKey` deja el camino abierto.
+
 Las secciones siguientes conservan el diagnóstico previo como contexto de la propuesta; las fases 1, 2 y 3 ya están resueltas.
 
 ## 1. Alcance y diagnóstico comprobado

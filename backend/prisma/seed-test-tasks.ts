@@ -79,8 +79,6 @@ function testTaskData(
     ),
     correctAnswerId: task.correctAnswerId,
     shortAnswer: "",
-    rangeMin: null,
-    rangeMax: null,
     dragDropBackground: "null",
     dragDropItems: "[]",
     explanationBlocks: JSON.stringify([

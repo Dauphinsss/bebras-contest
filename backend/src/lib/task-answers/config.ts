@@ -16,7 +16,6 @@ const serializeJson = JSON.stringify;
 const TASK_ANSWER_TYPES = [
   "multiple_choice",
   "short_text",
-  "range",
   "drag_drop",
   "image_hotspot",
   "state_grid",
@@ -48,17 +47,6 @@ export function countFilledBlocks(value: unknown) {
 
 function readText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function toFiniteNumber(value: unknown) {
-  // Number(null) y Number("") valen 0, no NaN: sin este filtro un rango vacío
-  // se leería como el intervalo 0 a 0 y daría por buena la respuesta "0".
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function readFiniteNumber(value: unknown) {
@@ -322,8 +310,6 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
       answers: "[]",
       correctAnswerId: "",
       shortAnswer: "",
-      rangeMin: null,
-      rangeMax: null,
       dragDropBackground: "null",
       dragDropItems: "[]",
     };
@@ -336,8 +322,6 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
   const answers = Array.isArray(body.answers) ? body.answers : [];
   const correctAnswerId = readText(body.correctAnswerId);
   const shortAnswer = readText(body.shortAnswer);
-  const rangeMin = toFiniteNumber(body.rangeMin);
-  const rangeMax = toFiniteNumber(body.rangeMax);
   const dragDropItems = Array.isArray(body.dragDropItems)
     ? body.dragDropItems
     : [];
@@ -395,16 +379,6 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
 
   if (answerType === "short_text" && !shortAnswer) {
     throw new Error("Debes definir la respuesta corta esperada.");
-  }
-
-  if (answerType === "range") {
-    if (rangeMin === null || rangeMax === null) {
-      throw new Error("Debes definir el mínimo y el máximo del rango válido.");
-    }
-
-    if (rangeMin > rangeMax) {
-      throw new Error("El mínimo no puede ser mayor que el máximo.");
-    }
   }
 
   if (answerType === "drag_drop") {
@@ -663,8 +637,6 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
     answers: serializeJson(answers),
     correctAnswerId,
     shortAnswer: answerType === "short_text" ? shortAnswer : "",
-    rangeMin: answerType === "range" ? rangeMin : null,
-    rangeMax: answerType === "range" ? rangeMax : null,
     dragDropBackground: serializeJson(
       answerType === "drag_drop" ? (body.dragDropBackground ?? null) : null,
     ),

@@ -22,8 +22,6 @@ type CatalogTask = {
   answers?: unknown[];
   correctAnswerId?: string;
   shortAnswer?: string;
-  rangeMin?: number | null;
-  rangeMax?: number | null;
   dragDropBackground?: unknown;
   dragDropItems?: unknown;
   dragDropTargets?: unknown[];
@@ -56,8 +54,6 @@ export function catalogTaskData(task: CatalogTask): CatalogTaskData {
     answers: JSON.stringify(task.answers ?? []),
     correctAnswerId: task.correctAnswerId ?? "",
     shortAnswer: task.shortAnswer ?? "",
-    rangeMin: task.rangeMin ?? null,
-    rangeMax: task.rangeMax ?? null,
     dragDropBackground: JSON.stringify(task.dragDropBackground ?? null),
     dragDropItems: JSON.stringify(seedDragDropConfig(task)),
     explanationBlocks: JSON.stringify(task.explanationBlocks ?? []),

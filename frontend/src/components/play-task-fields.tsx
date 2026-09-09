@@ -236,17 +236,6 @@ export function PlayTaskFields({
         />
       )}
 
-      {task.answerType === "range" && (
-        <Input
-          aria-label="Tu respuesta numérica"
-          type="number"
-          placeholder="Escribe un número"
-          disabled={disabled}
-          value={String(response.value ?? "")}
-          onChange={(event) => onChange({ value: event.target.value })}
-        />
-      )}
-
       {task.answerType === "drag_drop" && !task.dragDropBackground && (
         <Alert variant="destructive">
           <AlertTitle>Esta tarea no se puede responder</AlertTitle>

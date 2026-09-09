@@ -441,8 +441,6 @@ function deserializeTask<
     answerKey?: unknown;
     answers: unknown;
     shortAnswer?: unknown;
-    rangeMin?: unknown;
-    rangeMax?: unknown;
     dragDropBackground?: unknown;
     dragDropItems?: unknown;
     multipleChoiceOrderMode?: unknown;
@@ -467,8 +465,6 @@ function deserializeTask<
     answerKey: parseJsonValue<Record<string, unknown>>(task.answerKey, {}),
     answers: parseJsonValue<PlayTask["answers"]>(task.answers, []),
     shortAnswer: String(task.shortAnswer ?? ""),
-    rangeMin: toFiniteNumber(task.rangeMin),
-    rangeMax: toFiniteNumber(task.rangeMax),
     dragDropBackground: parseJsonValue<unknown>(task.dragDropBackground, null),
     dragDropItems: dragDropConfig.items,
     dragDropTargets: dragDropConfig.targets,

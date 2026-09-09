@@ -52,11 +52,11 @@ test("allows practice updates through CORS", async () => {
   await api.dispose();
 });
 
-test("serves and checks all four public practice answer types", async () => {
+test("serves and checks every public practice answer type", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const tasks = await Promise.all(
-    (["multiple_choice", "short_text", "range", "drag_drop"] as const).map(
+    (["multiple_choice", "short_text", "drag_drop"] as const).map(
       (answerType) => createPracticeTask(api, headers, answerType),
     ),
   );
@@ -85,7 +85,7 @@ test("serves and checks all four public practice answer types", async () => {
   expect(createdTasks).toHaveLength(tasks.length);
   expect(
     createdTasks.map((task: { answerType: string }) => task.answerType).sort(),
-  ).toEqual(["drag_drop", "multiple_choice", "range", "short_text"]);
+  ).toEqual(["drag_drop", "multiple_choice", "short_text"]);
 
   const cases = [
     {
@@ -97,11 +97,6 @@ test("serves and checks all four public practice answer types", async () => {
       task: tasks.find((task) => task.answerType === "short_text"),
       correct: { text: " bebras " },
       incorrect: { text: "castor" },
-    },
-    {
-      task: tasks.find((task) => task.answerType === "range"),
-      correct: { value: 15 },
-      incorrect: { value: 21 },
     },
     {
       task: dragDropTask,
@@ -124,8 +119,6 @@ test("serves and checks all four public practice answer types", async () => {
     expect(detail.answerType).toBe(practiceCase.task.answerType);
     expect(detail).not.toHaveProperty("correctAnswerId");
     expect(detail).not.toHaveProperty("shortAnswer");
-    expect(detail).not.toHaveProperty("rangeMin");
-    expect(detail).not.toHaveProperty("rangeMax");
     expect(detail).not.toHaveProperty("explanationBlocks");
     if (detail.answerType === "drag_drop") {
       expect(detail.dragDropTargets).toHaveLength(DRAG_DROP_TARGETS.length);

@@ -628,8 +628,6 @@ const TASK_FIELDS = new Set([
   "answers",
   "correctAnswerId",
   "shortAnswer",
-  "rangeMin",
-  "rangeMax",
   "dragDropBackground",
   "dragDropItems",
   "dragDropTargets",

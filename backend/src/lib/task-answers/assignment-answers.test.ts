@@ -79,8 +79,6 @@ function task(answerType = "state_grid"): PlayTask {
     answers: [],
     correctAnswerId: "",
     shortAnswer: "",
-    rangeMin: null,
-    rangeMax: null,
     dragDropBackground: null,
     dragDropItems: [],
     dragDropTargets: [],

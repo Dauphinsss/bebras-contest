@@ -517,21 +517,10 @@ test("names written answer fields for assistive technology", async ({
   const shortTextTask = await createPracticeTask(api, headers, "short_text", {
     title: "Campo accesible de texto",
   });
-  const rangeTask = await createPracticeTask(api, headers, "range", {
-    title: "Campo accesible numérico",
-  });
   await api.dispose();
 
   await page.goto(`/practica/tarea?id=${shortTextTask.id}&nombre=Titi`);
   await expect(
     page.getByRole("textbox", { name: "Tu respuesta", exact: true }),
-  ).toBeVisible();
-
-  await page.goto(`/practica/tarea?id=${rangeTask.id}&nombre=Titi`);
-  await expect(
-    page.getByRole("spinbutton", {
-      name: "Tu respuesta numérica",
-      exact: true,
-    }),
   ).toBeVisible();
 });

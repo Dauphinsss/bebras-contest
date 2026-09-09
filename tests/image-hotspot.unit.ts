@@ -64,8 +64,6 @@ const task: PlayTask = {
   multipleChoiceOrderMode: "fixed",
   correctAnswerId: "",
   shortAnswer: "",
-  rangeMin: null,
-  rangeMax: null,
   dragDropBackground: null,
   dragDropItems: [],
   dragDropTargets: [],

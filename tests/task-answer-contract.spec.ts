@@ -71,8 +71,6 @@ test("private drafts use authenticated preview/check, preserve the storage contr
     "answerKey",
     "correctAnswerId",
     "shortAnswer",
-    "rangeMin",
-    "rangeMax",
     "dragDropSolutions",
   ])
     expect(safe).not.toHaveProperty(key);
@@ -231,7 +229,7 @@ test("tester discards stale checks, clears feedback on changes/reset and retries
   });
 });
 
-test("existing text, range and choice answers survive invalid saves and score identically in preview and contest", async ({
+test("existing text and choice answers survive invalid saves and score identically in preview and contest", async ({
   request,
 }) => {
   const headers = await loginAdmin(request);
@@ -248,19 +246,11 @@ test("existing text, range and choice answers survive invalid saves and score id
       invalid: { text: [] },
       empty: { text: " " },
     },
-    {
-      type: "range",
-      valid: { value: "0" },
-      invalid: { value: null },
-      empty: { value: "" },
-    },
   ] as const;
   const tasks = [];
   for (const entry of cases)
     tasks.push(
       await createPracticeTask(request, headers, entry.type, {
-        rangeMin: 0,
-        rangeMax: 10,
         difficulties: { "8–10": "easy" },
       }),
     );

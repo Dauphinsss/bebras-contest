@@ -36,8 +36,6 @@ export type PlayTask = {
   answers: Array<{ id: unknown; blocks: unknown }>;
   correctAnswerId: string;
   shortAnswer: unknown;
-  rangeMin: number | null;
-  rangeMax: number | null;
   dragDropBackground: unknown;
   dragDropItems: DragDropItem[];
   dragDropTargets: DragDropTarget[];

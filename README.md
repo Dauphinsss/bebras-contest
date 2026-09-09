@@ -131,7 +131,7 @@ ampliar esos módulos y el reproductor compartido. Las zonas activas usan
 configuración y solución versionadas, descritas abajo. En `answerConfig`, la opción
 múltiple guarda `multipleChoiceLayout` (`vertical` u `horizontal`, la única
 clave que acepta) para elegir si las opciones se ven una debajo de otra o una al
-lado de otra; texto, rangos y arrastre siguen con `{}` y sus campos históricos. Las
+lado de otra; texto y arrastre siguen con `{}` y sus campos históricos. Las
 opciones con imagen se achican y agrandan con los mismos tiradores que los
 bloques de contenido (`ImageWidthResizer`). Cada familia nueva debe
 validar su versión y proyectar explícitamente su configuración pública; nunca

@@ -66,16 +66,6 @@ export function answerIsCorrect(task: PlayTask, payload: unknown) {
         .toLowerCase()
     );
   }
-  if (type === "range") {
-    const value = Number(response.value);
-    if (Number.isNaN(value)) {
-      return false;
-    }
-    if (task.rangeMin === null || task.rangeMax === null) {
-      return false;
-    }
-    return value >= task.rangeMin && value <= task.rangeMax;
-  }
   if (type === "drag_drop") {
     const items = task.dragDropItems;
     if (items.length === 0) {

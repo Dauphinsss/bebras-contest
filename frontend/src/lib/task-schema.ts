@@ -21,7 +21,6 @@ export const optionLabels = ["A", "B", "C", "D", "E", "F"] as const;
 export const answerTypes = [
   "multiple_choice",
   "short_text",
-  "range",
   "drag_drop",
   "image_hotspot",
   "state_grid",
@@ -122,8 +121,6 @@ export type StoredTask = {
   correctAnswerId: string;
   shortAnswer: string;
   /** Único intervalo aceptado cuando la respuesta es un número. */
-  rangeMin: number | null;
-  rangeMax: number | null;
   dragDropBackground: ContentImage | null;
   dragDropItems: StoredTaskDragDropItem[];
   dragDropTargets: StoredTaskDragDropTarget[];

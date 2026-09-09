@@ -133,15 +133,6 @@ export function validateTaskAnswer(
         Object.keys(response).length === 0
         ? null
         : invalid;
-    case "range": {
-      const value = response.value;
-      if (Object.keys(response).length === 0) return null;
-      return (typeof value === "string" && value.trim() === "") ||
-        ((typeof value === "string" || typeof value === "number") &&
-          Number.isFinite(Number(value)))
-        ? null
-        : invalid;
-    }
     case "drag_drop": {
       const answer = parseDragDropAnswer(task, payload);
       return answer && (answer.kind === "targets" || task.dragDropVersion === 1)

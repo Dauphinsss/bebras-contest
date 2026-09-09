@@ -594,9 +594,7 @@ test("checks equivalent pieces in the actual tester", async ({
       },
     });
   }
-  await page
-    .getByRole("button", { name: "Probar", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Probar", exact: true }).click();
   await expect(
     page.getByText("Respuesta correcta", { exact: true }).first(),
   ).toBeVisible();

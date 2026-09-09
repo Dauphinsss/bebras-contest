@@ -12,7 +12,6 @@ import type { ClozeConfig } from "@/lib/assignment-answers";
 const answerTitles: Record<string, string> = {
   multiple_choice: "Opciones de respuesta",
   short_text: "Respuesta corta",
-  range: "Respuesta por rangos",
   drag_drop: "Arrastrar y soltar",
   image_hotspot: "Señala sobre la imagen",
 };

@@ -24,8 +24,6 @@ const base: PlayTask = {
   ],
   correctAnswerId: "single:B",
   shortAnswer: "Bebras",
-  rangeMin: 0,
-  rangeMax: 10,
   dragDropBackground: null,
   dragDropItems: [],
   dragDropTargets: [],
@@ -40,20 +38,12 @@ test("client and server agree about absent, partial and started responses", () =
     ["multiple_choice", { selected: ["B"] }, true],
     ["short_text", { text: "   " }, false],
     ["short_text", { text: " A " }, true],
-    ["range", { value: 0 }, true],
-    ["range", { value: "0" }, true],
-    ["range", { value: " " }, false],
-    ["range", { value: null }, false],
-    ["range", { value: false }, false],
-    ["range", { value: Infinity }, false],
-    ["range", { value: [] }, false],
-    ["range", { value: "abc" }, false],
     ["drag_drop", { placements: {} }, false],
     ["drag_drop", { placements: [] }, false],
     ["drag_drop", { placements: { a: "one" } }, true],
     ["future_type", {}, false],
   ];
-  for (const type of ["multiple_choice", "short_text", "range", "drag_drop"]) {
+  for (const type of ["multiple_choice", "short_text", "drag_drop"]) {
     for (const payload of [null, undefined, [], "value"])
       cases.push([type, payload, false]);
   }
@@ -61,25 +51,6 @@ test("client and server agree about absent, partial and started responses", () =
     assert.equal(answerHasResponse(type, payload), expected);
     assert.equal(clientPresence(type, payload), expected);
   }
-});
-
-test("empty or coerced numeric answers never count as zero; actual zero does", () => {
-  const task = { ...base, answerType: "range" };
-  for (const payload of [
-    null,
-    {},
-    { value: "" },
-    { value: " " },
-    { value: null },
-    { value: false },
-    { value: [] },
-    { value: Infinity },
-  ]) {
-    assert.equal(answerIsCorrect(task, payload), false);
-  }
-  for (const value of [0, "0", " 10 "])
-    assert.equal(answerIsCorrect(task, { value }), true);
-  assert.equal(answerIsCorrect(task, { value: 11 }), false);
 });
 
 test("existing single/any/all and text correction stay consistent", () => {
@@ -168,8 +139,6 @@ test("public task is an allowlist; private keys and author fields cannot escape"
     "answerKey",
     "correctAnswerId",
     "shortAnswer",
-    "rangeMin",
-    "rangeMax",
     "dragDropSolutions",
   ])
     assert.equal(key in safe, false);

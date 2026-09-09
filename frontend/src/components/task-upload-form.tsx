@@ -163,8 +163,6 @@ type FormState = {
   multipleChoiceCorrectnessMode: MultipleChoiceCorrectnessMode;
   correctOptions: OptionKey[];
   shortAnswer: string;
-  rangeMin: number;
-  rangeMax: number;
   dragDropBackground: {
     id: string;
     name: string;
@@ -259,8 +257,6 @@ const createInitialState = (
     multipleChoiceCorrectnessMode: "single",
     correctOptions: [],
     shortAnswer: "",
-    rangeMin: 0,
-    rangeMax: 10,
     dragDropBackground: null,
     dragDropItems: [dragDropEntry.item],
     dragDropTargets: [dragDropEntry.target],
@@ -354,8 +350,6 @@ function createStateFromTask(task: StoredTask): FormState {
     multipleChoiceCorrectnessMode: parsedCorrectness.mode,
     correctOptions: correctOptionIds,
     shortAnswer: task.shortAnswer ?? "",
-    rangeMin: task.rangeMin ?? 0,
-    rangeMax: task.rangeMax ?? 10,
     dragDropBackground: task.dragDropBackground ?? null,
     dragDropItems: hasDragDropConfiguration
       ? task.dragDropItems.map((item) => ({
@@ -496,14 +490,6 @@ function validateForm(state: FormState) {
     errors.push(
       "El código original debe tener un formato como 2024-DE-04a y no superar 64 caracteres.",
     );
-  }
-
-  if (state.answerType === "range") {
-    if (!Number.isFinite(state.rangeMin) || !Number.isFinite(state.rangeMax)) {
-      errors.push("El rango debe tener valores numéricos válidos.");
-    } else if (state.rangeMin > state.rangeMax) {
-      errors.push("El mínimo no puede ser mayor que el máximo.");
-    }
   }
 
   if (state.answerType === "drag_drop") {
@@ -732,8 +718,6 @@ function buildStoredTask(
         : "",
     shortAnswer:
       state.answerType === "short_text" ? state.shortAnswer.trim() : "",
-    rangeMin: state.answerType === "range" ? state.rangeMin : null,
-    rangeMax: state.answerType === "range" ? state.rangeMax : null,
     dragDropBackground:
       state.answerType === "drag_drop" ? state.dragDropBackground : null,
     dragDropItems:
@@ -1559,12 +1543,6 @@ export function TaskUploadForm({
                 </FieldLabel>
               </Field>
               <Field orientation="horizontal">
-                <RadioGroupItem id="answer-type-range" value="range" />
-                <FieldLabel htmlFor="answer-type-range">
-                  Respuesta por rangos
-                </FieldLabel>
-              </Field>
-              <Field orientation="horizontal">
                 <RadioGroupItem id="answer-type-drag-drop" value="drag_drop" />
                 <FieldLabel htmlFor="answer-type-drag-drop">
                   Arrastrar y soltar
@@ -2061,52 +2039,6 @@ export function TaskUploadForm({
                 </FieldDescription>
               </FieldContent>
             </Field>
-          )}
-
-          {form.answerType === "range" && (
-            <FieldSet className="gap-4">
-              <FieldLegend className="mb-0" variant="label">
-                Rango válido
-              </FieldLegend>
-              <FieldDescription>
-                La respuesta será correcta si el número cae dentro de este
-                intervalo, extremos incluidos.
-              </FieldDescription>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="range-min">Mínimo</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      id="range-min"
-                      type="number"
-                      value={String(form.rangeMin)}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          rangeMin: Number(event.target.value || 0),
-                        }))
-                      }
-                    />
-                  </FieldContent>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="range-max">Máximo</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      id="range-max"
-                      type="number"
-                      value={String(form.rangeMax)}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          rangeMax: Number(event.target.value || 0),
-                        }))
-                      }
-                    />
-                  </FieldContent>
-                </Field>
-              </div>
-            </FieldSet>
           )}
 
           {form.answerType === "image_hotspot" && (
