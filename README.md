@@ -168,10 +168,8 @@ se envía al estudiante. La respuesta es `{ version: 1, regionId }`, con `null`
 al borrar. Se validan versiones, geometría, colisiones, IDs y solución antes de
 guardar. Las funciones geométricas de cliente y servidor tienen pruebas comunes.
 
-Para regenerar solo estas dos semillas desde el PDF privado:
-`uv run --with pymupdf --with shapely python backend/scripts/seed-hotspot-tasks.py`.
-Desde `backend/`, `bun run db:tasks` incorpora solamente las que aún no existan,
-conservando todas las ediciones locales.
+Las versiones finales de estas dos tareas se mantienen en el JSON canónico;
+no se regeneran desde el PDF. El flujo de actualización se describe abajo.
 
 ## Estados por casilla y huecos en el texto: tareas 09, 19, 31, 37 y 40
 
@@ -210,16 +208,45 @@ solución. Se validan versión, identificadores, opciones permitidas, inventario
 y soluciones repetidas antes de guardar. `answerKey` no sale en la proyección
 pública.
 
-Para regenerar solo estas cinco semillas desde el PDF privado:
-`uv run --with pymupdf python backend/scripts/seed-assignment-tasks.py`.
-Desde `backend/`, `bun run db:tasks` incorpora solamente las que aún no existan.
-La 19 pasó a ser de huecos sobre su mismo identificador: se comprobó antes que no
-tuviera ninguna respuesta registrada.
+La 19 usa huecos sobre su mismo identificador, nunca una variante adicional.
 
-Estas siete tareas son las que la migración del catálogo no puede derivar del PDF
-(`QUARANTINED_TASK_IDS`). El validador exige que en el catálogo lleven ya su tipo
-interactivo, así que volver a generar la migración sin reponerlas falla en vez de
-degradarlas a opción múltiple en silencio.
+## Catálogo canónico
+
+La fuente final es `backend/prisma/seed/bebras-tasks.json`: exactamente 43 tareas
+en orden de cuadernillo, todas habilitadas para práctica. Las siete conversiones
+manuales son 04/11 `image_hotspot`, 09/31 `state_grid` y 19/37/40 `text_cloze`.
+Las 14/34 siguen siendo de arrastre. El validador rechaza IDs alternativos,
+tareas adicionales, tipos incorrectos y cualquier tarea en cuarentena.
+
+Se retiraron `seed-hotspot-tasks.py` y `seed-assignment-tasks.py`: sus plantillas
+anteriores añadían IDs no canónicos y reemplazaban tareas enteras, perdiendo
+metadatos, explicaciones e imágenes de solución revisadas. Mantener otra copia
+de la autoría en Python no aporta una regeneración segura.
+
+1. Edita el JSON canónico conservando IDs, metadatos verificados, explicaciones y
+   las 25 imágenes de solución. Las imágenes van embebidas como
+   `data:image/png;base64,...`, también en `answerConfig`; no dependen de rutas
+   locales ni del PDF privado. Revisa visualmente cualquier imagen nueva.
+2. Desde `backend/`, ejecuta `bun run catalog:validate` para validar la semilla,
+   o `bun run catalog:validate -- <ruta-json>` para revisar una candidata sin
+   escribir archivos ni conectar a la base. Ejecuta `bun run test:catalog`.
+3. Desde la raíz, `bun run db:tasks` valida e inserta solo IDs faltantes. No
+   actualiza tareas existentes ni elimina variantes antiguas o ediciones locales.
+4. Solo si quieres descartar esos datos, detén el backend y ejecuta explícitamente
+   `bun run db:tasks:replace --confirm-replace`, opcionalmente con
+   `--backup <ruta-nueva>`. Crea un respaldo SQLite verificado antes del reemplazo;
+   no sobrescribe respaldos existentes. Borra tareas y el grafo de concursos
+   (incluidas respuestas y resultados), conservando colegios, usuarios y
+   solicitudes. No es el flujo habitual de edición.
+
+`catalog:migrate <legacy-json> <current-json> <output-json>` conserva el contrato
+histórico de argumentos. Si el catálogo actual tiene 43 tareas, lo valida y
+copia íntegro, sin reconstruir ninguna tarea `non-master` ni sustituir imágenes
+con las del legado. El archivo legado debe ser JSON legible, pero su contenido
+no se usa en ese caso. Un catálogo final inválido falla antes de escribir: no
+hay recuperación silenciosa mediante placeholders. La importación antigua de
+21 tareas no basta para publicar el catálogo final sin las siete autorías
+interactivas. `--check` nunca escribe el archivo de salida.
 
 ## Pruebas
 

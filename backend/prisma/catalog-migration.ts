@@ -567,21 +567,16 @@ export const CATEGORY_ALIASES: Readonly<Record<string, CanonicalCategory>> = {
   "Estrategia algorítmica": "Algoritmos y programación",
 };
 
-/**
- * Las tareas que la migración no puede derivar del PDF: se importan como
- * opción múltiple en cuarentena y después se redactan a mano con su tipo
- * interactivo. El validador exige que en el catálogo ya estén redactadas, así
- * que volver a generar sin reponerlas falla en vez de degradarlas en silencio.
- */
-export const QUARANTINED_TASK_IDS = new Set([
-  "bebras-2024-04-caminando-bosque",
-  "bebras-2024-09-tubo-canicas",
-  "bebras-2024-11-dibujando-barquitos",
-  "bebras-2024-19-dias-soleados",
-  "bebras-2024-31-secuencia-pelotas",
-  "bebras-2024-37-dias-soleados-2",
-  "bebras-2024-40-explorando",
-]);
+// Hand-authored final contracts; legacy PDF placeholders are never publishable.
+export const INTERACTIVE_TASK_TYPES: Readonly<Record<string, string>> = {
+  "bebras-2024-04-caminando-bosque": "image_hotspot",
+  "bebras-2024-09-tubo-canicas": "state_grid",
+  "bebras-2024-11-dibujando-barquitos": "image_hotspot",
+  "bebras-2024-19-dias-soleados": "text_cloze",
+  "bebras-2024-31-secuencia-pelotas": "state_grid",
+  "bebras-2024-37-dias-soleados-2": "text_cloze",
+  "bebras-2024-40-explorando": "text_cloze",
+};
 
 export const SOLUTION_IMAGE_TASK_IDS = new Set(
   TASK_METADATA.filter((task) => task.hasSolutionImage).map((task) => task.id),
@@ -855,7 +850,7 @@ function normalizeLegacyTask(task: JsonObject, metadata: TaskMetadata) {
         task.multipleChoiceOrderMode === "random" ? "random" : "fixed",
       answers,
       correctAnswerId,
-      isPractice: !QUARANTINED_TASK_IDS.has(taskId),
+      isPractice: !Object.hasOwn(INTERACTIVE_TASK_TYPES, taskId),
       explanationBlocks,
     };
   }
@@ -867,7 +862,7 @@ function normalizeLegacyTask(task: JsonObject, metadata: TaskMetadata) {
       shortAnswer: stringValue(task.shortAnswer, `${taskId}.shortAnswer`),
       answers: [],
       correctAnswerId: "",
-      isPractice: !QUARANTINED_TASK_IDS.has(taskId),
+      isPractice: !Object.hasOwn(INTERACTIVE_TASK_TYPES, taskId),
       explanationBlocks,
     };
   }
@@ -951,12 +946,17 @@ function indexMasterTasks(tasks: JsonObject[]) {
 }
 
 export function migrateCatalog(legacyValue: unknown, currentValue: unknown) {
+  const current = parseTaskArray(currentValue, "current catalog");
+  if (current.length === TASK_METADATA.length) {
+    // The reviewed final JSON is authoritative, including non-master edits and
+    // embedded solution images. Never reconstruct it from older PDF exports.
+    validateCatalog(current);
+    return structuredClone(current);
+  }
   const legacyById = indexLegacyTasks(
     parseTaskArray(legacyValue, "legacy catalog"),
   );
-  const masterById = indexMasterTasks(
-    parseTaskArray(currentValue, "current catalog"),
-  );
+  const masterById = indexMasterTasks(current);
 
   const catalog = TASK_METADATA.map((metadata) => {
     const legacy = legacyById.get(metadata.id)!;
@@ -1286,7 +1286,6 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
   const categories = new Set<string>(CANONICAL_CATEGORIES);
   const blockIds = new Set<string>();
   const imageIds = new Set<string>();
-  const quarantined = new Set<string>();
   let solutionImageCount = 0;
 
   for (let index = 0; index < tasks.length; index += 1) {
@@ -1370,6 +1369,12 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
     ) {
       fail(`${id}.answerType is invalid`);
     }
+    if (
+      Object.hasOwn(INTERACTIVE_TASK_TYPES, id) &&
+      task.answerType !== INTERACTIVE_TASK_TYPES[id]
+    ) {
+      fail(`${id} must remain ${INTERACTIVE_TASK_TYPES[id]}`);
+    }
     if (task.answerType === "multiple_choice") {
       validateAnswers(task, id, blockIds, imageIds);
     } else if (task.answerType === "short_text") {
@@ -1381,7 +1386,7 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
         fail(`${id} short_text answer fields are inconsistent`);
       }
     } else if (INTERACTIVE_ANSWER_TYPES.has(String(task.answerType))) {
-      if (!QUARANTINED_TASK_IDS.has(id)) {
+      if (!Object.hasOwn(INTERACTIVE_TASK_TYPES, id)) {
         fail(`${id} is not one of the hand written interactive tasks`);
       }
       try {
@@ -1395,9 +1400,10 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
       validateDragDrop(task, id, imageIds);
     }
 
-    if (typeof task.isPractice !== "boolean")
-      fail(`${id}.isPractice must be boolean`);
-    if (!task.isPractice) quarantined.add(id);
+    if (task.isPractice !== true)
+      fail(
+        `${id}.isPractice must be true; final catalog cannot contain quarantine`,
+      );
 
     const expectedSolutionBlockId = `${id}-solution-image-block`;
     const imageExplanationBlocks = explanationBlocks.filter(
@@ -1456,22 +1462,6 @@ export function validateCatalog(value: unknown): asserts value is JsonObject[] {
     fail("task numbers 1 through 43 must appear exactly once");
   }
   if (codes.size !== 43) fail("source task codes must be unique");
-  // Cada tarea de la lista está en uno de dos estados y nunca en los dos: sigue
-  // importada como opción múltiple en cuarentena, o ya está redactada a mano
-  // con su tipo interactivo y disponible para practicar.
-  for (const id of quarantined) {
-    if (!QUARANTINED_TASK_IDS.has(id)) {
-      fail("isPractice=false does not match the exact quarantine set");
-    }
-  }
-  for (const id of QUARANTINED_TASK_IDS) {
-    const answerType = tasks.find((task) => task.id === id)?.answerType;
-    if (
-      INTERACTIVE_ANSWER_TYPES.has(String(answerType)) === quarantined.has(id)
-    ) {
-      fail("isPractice=false does not match the exact quarantine set");
-    }
-  }
   if (solutionImageCount !== 25) {
     fail(
       `expected exactly 25 deterministic solution image blocks, found ${solutionImageCount}`,

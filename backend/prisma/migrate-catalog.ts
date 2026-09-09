@@ -1,5 +1,6 @@
+import fs from "node:fs";
 import path from "node:path";
-import { migrateCatalogFiles } from "./catalog-migration";
+import { migrateCatalogFiles, validateCatalog } from "./catalog-migration";
 
 const rawArguments = process.argv
   .slice(2)
@@ -9,9 +10,24 @@ const argumentsWithoutFlags = rawArguments.filter(
   (argument) => argument !== "--check",
 );
 
+if (checkOnly && argumentsWithoutFlags.length <= 1) {
+  try {
+    const catalogPath = argumentsWithoutFlags[0]
+      ? path.resolve(argumentsWithoutFlags[0])
+      : path.resolve(__dirname, "seed/bebras-tasks.json");
+    const catalog: unknown = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    validateCatalog(catalog);
+    console.log(`Validated ${catalog.length} tasks; no file was written.`);
+    process.exit(0);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
 if (argumentsWithoutFlags.length !== 3) {
   console.error(
-    "Usage: migrate-catalog [--check] <legacy-json> <current-json> <output-json>",
+    "Usage: migrate-catalog --check [catalog-json] | [--check] <legacy-json> <current-json> <output-json>",
   );
   process.exit(1);
 }

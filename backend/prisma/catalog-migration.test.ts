@@ -8,22 +8,31 @@ import {
   AGE_RANGES,
   CATEGORY_ALIASES,
   MASTER_TASK_IDS,
-  QUARANTINED_TASK_IDS,
+  INTERACTIVE_TASK_TYPES,
   SOLUTION_IMAGE_TASK_IDS,
   TASK_METADATA,
   createSolutionImageBlock,
+  migrateCatalog,
+  migrateCatalogFiles,
   serializeCatalog,
   validateCatalog,
 } from "./catalog-migration";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
+const currentPath = path.resolve(__dirname, "seed/bebras-tasks.json");
+const finalCatalog = JSON.parse(fs.readFileSync(currentPath, "utf8")) as Array<
+  Record<string, unknown>
+>;
 
 function textBlock(id: string, content = "Content") {
   return { id, type: "text", content, image: null, widthPercent: 100 };
 }
 
-function syntheticCatalog() {
+function syntheticCatalog(): Array<Record<string, unknown>> {
   return TASK_METADATA.map((metadata) => {
+    if (Object.hasOwn(INTERACTIVE_TASK_TYPES, metadata.id)) {
+      return structuredClone(finalCatalog[metadata.number - 1]);
+    }
     const explanationBlocks: unknown[] = [
       textBlock(
         metadata.master
@@ -55,7 +64,7 @@ function syntheticCatalog() {
         },
       ],
       explanationBlocks,
-      isPractice: !QUARANTINED_TASK_IDS.has(metadata.id),
+      isPractice: true,
     };
 
     if (metadata.number === 14 || metadata.number === 34) {
@@ -201,7 +210,7 @@ test("validator rejects unknown categories and unsupported fields", () => {
   );
 });
 
-test("validator rejects duplicate numbering and a wrong quarantine set", () => {
+test("validator rejects duplicate numbering and quarantine", () => {
   const duplicate = structuredClone(syntheticCatalog()) as Array<
     Record<string, unknown>
   >;
@@ -214,8 +223,138 @@ test("validator rejects duplicate numbering and a wrong quarantine set", () => {
   const quarantine = structuredClone(syntheticCatalog()) as Array<
     Record<string, unknown>
   >;
-  taskByNumber(quarantine, 4).isPractice = true;
-  assert.throws(() => validateCatalog(quarantine), /exact quarantine set/);
+  taskByNumber(quarantine, 4).isPractice = false;
+  assert.throws(() => validateCatalog(quarantine), /cannot contain quarantine/);
+});
+
+test("final migration preserves all canonical fields and is idempotent without legacy data", () => {
+  const original = structuredClone(finalCatalog);
+  // A later reviewed non-master edit must win over both legacy and seed data.
+  const explanation = original[15].explanationBlocks as Array<
+    Record<string, unknown>
+  >;
+  explanation[0].content = "Explicación final revisada por el usuario.";
+  const snapshot = structuredClone(original);
+  const migrated = migrateCatalog(null, original);
+  assert.deepEqual(migrated, original);
+  assert.deepEqual(migrateCatalog([], migrated), original);
+  assert.notEqual(migrated, original);
+  for (let index = 0; index < original.length; index += 1) {
+    assert.notEqual(
+      migrated[index].explanationBlocks,
+      original[index].explanationBlocks,
+    );
+  }
+  assert.deepEqual(original, snapshot);
+  assert.deepEqual(
+    migrated
+      .filter((task) => Object.hasOwn(INTERACTIVE_TASK_TYPES, String(task.id)))
+      .map((task) => [String(task.id).split("-")[2], task.answerType]),
+    [
+      ["04", "image_hotspot"],
+      ["09", "state_grid"],
+      ["11", "image_hotspot"],
+      ["19", "text_cloze"],
+      ["31", "state_grid"],
+      ["37", "text_cloze"],
+      ["40", "text_cloze"],
+    ],
+  );
+});
+
+test("validator and migration reject every interactive downgrade, wrong family and quarantine", () => {
+  for (const [id, answerType] of Object.entries(INTERACTIVE_TASK_TYPES)) {
+    for (const replacement of [
+      "multiple_choice",
+      "short_text",
+      "drag_drop",
+      "image_hotspot",
+      "state_grid",
+      "text_cloze",
+    ]) {
+      if (replacement === answerType) continue;
+      const catalog = structuredClone(finalCatalog);
+      catalog.find((task) => task.id === id)!.answerType = replacement;
+      assert.throws(() => validateCatalog(catalog), /must remain/);
+      assert.throws(() => migrateCatalog(null, catalog), /must remain/);
+    }
+  }
+  for (const task of finalCatalog) {
+    const catalog = structuredClone(finalCatalog);
+    catalog.find((candidate) => candidate.id === task.id)!.isPractice = false;
+    assert.throws(() => validateCatalog(catalog), /cannot contain quarantine/);
+  }
+});
+
+test("validator rejects generator variants and extra placeholder tasks", () => {
+  for (const [number, slug] of [
+    [4, "caminando-por-el-bosque"],
+    [9, "tubo-de-canicas"],
+    [31, "secuencia-de-pelotas"],
+  ] as const) {
+    const catalog = structuredClone(finalCatalog);
+    catalog[number - 1].id =
+      `bebras-2024-${String(number).padStart(2, "0")}-${slug}`;
+    assert.throws(() => migrateCatalog(null, catalog), /unknown task id/);
+  }
+  assert.throws(
+    () => validateCatalog([...finalCatalog, finalCatalog[18]]),
+    /exactly 43/,
+  );
+});
+
+test("file migration preserves final JSON and never writes an invalid catalog", () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "bebras-catalog-final-"),
+  );
+  const legacyPath = path.join(directory, "legacy.json");
+  const inputPath = path.join(directory, "current.json");
+  const outputPath = path.join(directory, "output.json");
+  try {
+    fs.writeFileSync(legacyPath, "[]");
+    const checked = migrateCatalogFiles(legacyPath, currentPath, outputPath, {
+      write: false,
+    });
+    assert.equal(fs.existsSync(outputPath), false);
+    const written = migrateCatalogFiles(legacyPath, currentPath, outputPath);
+    assert.equal(written.json, checked.json);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(outputPath, "utf8")),
+      finalCatalog,
+    );
+    const invalid = structuredClone(finalCatalog);
+    invalid[3].answerType = "multiple_choice";
+    invalid[3].isPractice = false;
+    fs.writeFileSync(inputPath, JSON.stringify(invalid));
+    assert.throws(
+      () => migrateCatalogFiles(legacyPath, inputPath, outputPath),
+      /must remain/,
+    );
+    assert.equal(fs.readFileSync(outputPath, "utf8"), written.json);
+
+    for (const [args, status] of [
+      [[], 0],
+      [[currentPath], 0],
+      [[inputPath], 1],
+    ] as const) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          path.resolve(__dirname, "migrate-catalog.ts"),
+          "--check",
+          ...args,
+        ],
+        { cwd: path.resolve(__dirname, ".."), encoding: "utf8" },
+      );
+      assert.equal(result.status, status, result.stderr);
+      if (status === 0)
+        assert.match(result.stdout, /Validated 43 tasks; no file was written/);
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("validator rejects invalid PNG data and solution image identifiers", () => {
