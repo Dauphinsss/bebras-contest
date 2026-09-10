@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  API,
   ADMIN,
+  registrationFields,
   removeNewUploads,
   uploadedDocuments,
   VALID_JPG,
@@ -34,6 +36,128 @@ async function fillAccountFields(
   await page
     .getByLabel("Confirmar contraseña", { exact: true })
     .fill("segura123");
+}
+
+test("validates phone numbers on the API and stores their international form", async ({
+  request,
+}) => {
+  const email = `phone-api-${Date.now()}@example.com`;
+  for (const phone of [
+    "",
+    "abcdef",
+    "7abc1234",
+    "1",
+    "12345678",
+    "+99971234567",
+    "59171234567",
+  ]) {
+    const response = await request.post(`${API}/api/auth/register`, {
+      multipart: { ...registrationFields(email, "school"), phone },
+    });
+    expect(response.status(), await response.text()).toBe(400);
+    expect(await response.json()).toMatchObject({
+      field: "phone",
+      message: expect.any(String),
+    });
+  }
+
+  // Reusing the rejected email also proves no account was created by invalid requests.
+  for (const [index, [phone, normalized]] of [
+    ["(7123) 45-67", "+59171234567"],
+    ["22123456", "+59122123456"],
+    ["+54 (11) 2345-6789", "+541123456789"],
+  ].entries()) {
+    const response = await request.post(`${API}/api/auth/register`, {
+      multipart: {
+        ...registrationFields(
+          index === 0 ? email : `phone-${index}-${email}`,
+          "school",
+        ),
+        phone,
+      },
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    const { token } = await response.json();
+    const profile = await request.get(`${API}/api/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(profile.ok()).toBe(true);
+    expect((await profile.json()).phone).toBe(normalized);
+  }
+});
+
+for (const width of [390, 1280]) {
+  test(`phone validation, normalization and recovery at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openRegistration(page);
+    await fillAccountFields(
+      page,
+      `phone-ui-${width}-${Date.now()}@example.com`,
+    );
+    await page.getByRole("button", { name: "Enseño en casa" }).click();
+    const phone = page.getByLabel("Teléfono", { exact: true });
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.evaluate(() => navigator.clipboard.writeText("7abc1234"));
+    await phone.focus();
+    await phone.press("ControlOrMeta+A");
+    await phone.press("ControlOrMeta+V");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(phone).toBeFocused();
+    await expect(phone).toHaveValue("7abc1234");
+    await expect(phone).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#reg-phone-error")).toContainText("letras");
+    await expect(phone).toHaveAttribute("aria-describedby", "reg-phone-error");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+
+    await phone.fill("+54 (11) 2345-6789");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(
+      page.locator("dd").filter({ hasText: "+541123456789" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Editar", exact: true }).click();
+    await expect(phone).toHaveValue("+541123456789");
+    await page.getByRole("button", { name: "Continuar" }).click();
+
+    await page.route("**/api/auth/register", (route) =>
+      route.fulfill({
+        status: 400,
+        json: { field: "phone", message: "Revisa el número de contacto." },
+      }),
+    );
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(phone).toBeFocused();
+    await expect(page.locator("#reg-phone-error")).toHaveText(
+      "Revisa el número de contacto.",
+    );
+    await expect(phone).toHaveValue("+541123456789");
+    await page.unroute("**/api/auth/register");
+    await phone.fill("7123-4567");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(
+      page.getByText("Cuenta creada", { exact: true }),
+    ).toBeVisible();
+    const token = await page.evaluate(() =>
+      localStorage.getItem("bebras_token"),
+    );
+    const profile = await page.request.get(`${API}/api/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(profile.ok()).toBe(true);
+    expect((await profile.json()).phone).toBe("+59171234567");
+  });
 }
 
 test("shows field errors and associates an existing email with its input", async ({
