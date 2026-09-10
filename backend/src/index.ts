@@ -12,6 +12,7 @@ import { resolve, extname } from "node:path";
 import { prisma } from "./lib/prisma";
 import type { Prisma } from "./generated/prisma/client";
 import { formatPersonName } from "./lib/person-name";
+import { validatePhone } from "./lib/phone";
 import {
   countFilledBlocks,
   normalizeDragDropConfig,
@@ -1684,11 +1685,13 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  if (!phone) {
+  const validatedPhone = validatePhone(phone);
+  if (validatedPhone.error) {
     await cleanupFiles(...allFiles);
-    res
-      .status(400)
-      .json({ message: "El teléfono de contacto es obligatorio." });
+    res.status(400).json({
+      message: validatedPhone.error,
+      field: "phone",
+    });
     return;
   }
 
@@ -1728,7 +1731,7 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
         schoolCodUe,
         schoolName,
         institutionType,
-        phone,
+        phone: validatedPhone.number,
         letterFilename: isSchool ? (letterFile?.filename ?? null) : null,
         idFrontFilename: isSchool ? null : (idFrontFile?.filename ?? null),
         idBackFilename: isSchool ? null : (idBackFile?.filename ?? null),

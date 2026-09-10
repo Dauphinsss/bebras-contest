@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
 import { cn } from "@/lib/utils";
 import { formatPersonName } from "@/lib/person-name";
+import { validatePhone } from "@/lib/phone";
 import { API_BASE_URL } from "@/lib/api-client";
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
@@ -87,7 +88,9 @@ export function RegisterForm() {
   const idFrontRef = useRef<HTMLInputElement>(null);
   const idBackRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
-  const pendingResponseFocusRef = useRef<"email" | DocumentField | null>(null);
+  const pendingResponseFocusRef = useRef<
+    "email" | "phone" | DocumentField | null
+  >(null);
 
   const isSchool = school.institutionType === "school";
   const hasSchoolChoice = Boolean(school.name.trim());
@@ -128,6 +131,7 @@ export function RegisterForm() {
 
     const refs = {
       email: emailRef,
+      phone: phoneRef,
       letter: letterRef,
       idFront: idFrontRef,
       idBack: idBackRef,
@@ -141,6 +145,7 @@ export function RegisterForm() {
 
     const emailInvalid =
       Boolean(email.trim()) && Boolean(emailRef.current?.validity.typeMismatch);
+    const validatedPhone = validatePhone(phone);
     const nextErrors: RegisterErrors = {
       firstName: firstName.trim() ? undefined : "Ingresa tus nombres.",
       lastName: lastName.trim() ? undefined : "Ingresa tus apellidos.",
@@ -149,7 +154,7 @@ export function RegisterForm() {
         : emailInvalid
           ? "Ingresa un correo válido."
           : undefined,
-      phone: phone.trim() ? undefined : "Ingresa tu teléfono de contacto.",
+      phone: validatedPhone.error,
       password: !password
         ? "Ingresa una contraseña."
         : password.length < 6
@@ -200,6 +205,7 @@ export function RegisterForm() {
       return;
     }
 
+    setPhone(validatedPhone.number!);
     setErrors({});
     setStep("confirm");
   };
@@ -245,7 +251,7 @@ export function RegisterForm() {
         message?: string;
         token?: string;
         user?: AuthUser;
-        field?: "email" | DocumentField;
+        field?: "email" | "phone" | DocumentField;
       };
 
       if (!response.ok) {
@@ -476,6 +482,7 @@ export function RegisterForm() {
                   ref={phoneRef}
                   id="reg-phone"
                   type="tel"
+                  autoComplete="tel"
                   value={phone}
                   onChange={(event) => {
                     setPhone(event.target.value);

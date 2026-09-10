@@ -452,7 +452,7 @@ test("asks for another school that the admin approves on its own", async ({
   const profile = await api
     .get(`${API}/api/auth/me`, { headers })
     .then((r) => r.json());
-  expect(profile.phone).toBe("70000004");
+  expect(profile.phone).toBe("+59170000004");
   expect(profile.schoolName).toBe("Colegio Principal");
   expect(profile.schools).toHaveLength(1);
   expect(profile.schools[0].schoolName).toBe("Colegio Segundo");
