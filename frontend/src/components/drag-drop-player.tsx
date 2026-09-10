@@ -14,6 +14,12 @@ import type {
   StoredTaskDragDropTarget,
 } from "@/lib/task-schema";
 import { DEFAULT_DRAG_DROP_ITEM_WIDTH_PERCENT } from "@/lib/task-schema";
+import {
+  findTargetAtPoint,
+  getSnapCircleStyle,
+  isPointOutsideStage,
+  type StageBounds,
+} from "./drag-drop-player-geometry";
 
 export type DragDropPlacements = Record<string, string>;
 
@@ -53,8 +59,6 @@ type DragDropPlayerProps = {
   onChange: (placements: DragDropPlacements) => void;
 };
 
-type StageBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
-
 function getStageBounds(stage: HTMLDivElement): StageBounds {
   const rect = stage.getBoundingClientRect();
   return {
@@ -63,39 +67,6 @@ function getStageBounds(stage: HTMLDivElement): StageBounds {
     width: stage.clientWidth,
     height: stage.clientHeight,
   };
-}
-
-function compareIds(left: string, right: string) {
-  if (left === right) {
-    return 0;
-  }
-
-  return left < right ? -1 : 1;
-}
-
-function findTargetAtPoint(
-  clientX: number,
-  clientY: number,
-  stage: StageBounds,
-  targets: StoredTaskDragDropTarget[],
-) {
-  const stageSize = Math.min(stage.width, stage.height);
-
-  return targets
-    .map((target) => {
-      const radius = (target.snapRadius / 100) * stageSize;
-      const x = stage.left + (target.x / 100) * stage.width;
-      const y = stage.top + (target.y / 100) * stage.height;
-      const distance = Math.hypot(clientX - x, clientY - y);
-
-      return { target, radius, distance };
-    })
-    .filter(({ radius, distance }) => radius > 0 && distance <= radius)
-    .sort(
-      (left, right) =>
-        left.distance / left.radius - right.distance / right.radius ||
-        compareIds(left.target.id, right.target.id),
-    )[0]?.target;
 }
 
 export function DragDropPlayer({
@@ -143,17 +114,16 @@ export function DragDropPlayer({
     items.map((item) => item.id),
   );
 
-  useEffect(() => {
-    setTrayOrder((current) => {
-      const ids = items.map((item) => item.id);
-      const kept = current.filter((id) => ids.includes(id));
-      const added = ids.filter((id) => !kept.includes(id));
-
-      return kept.length === current.length && added.length === 0
-        ? current
-        : [...kept, ...added];
-    });
-  }, [items]);
+  // Reconcile changed draft IDs before rendering children. Placements (including
+  // reset) and fresh item objects must not reset the user's tray order.
+  const itemIds = new Set(items.map((item) => item.id));
+  const keptTrayIds = trayOrder.filter((id) => itemIds.has(id));
+  const addedTrayIds = items
+    .map((item) => item.id)
+    .filter((id) => !trayOrder.includes(id));
+  if (keptTrayIds.length !== trayOrder.length || addedTrayIds.length > 0) {
+    setTrayOrder([...keptTrayIds, ...addedTrayIds]);
+  }
 
   const targetById = useMemo(
     () => new Map(targets.map((target) => [target.id, target])),
@@ -346,12 +316,7 @@ export function DragDropPlayer({
     }
 
     const stage = getStageBounds(stageElement);
-    return (
-      clientX < stage.left ||
-      clientX > stage.left + stage.width ||
-      clientY < stage.top ||
-      clientY > stage.top + stage.height
-    );
+    return isPointOutsideStage(clientX, clientY, stage);
   };
 
   const placeItemAtPoint = (
@@ -447,10 +412,7 @@ export function DragDropPlayer({
       // Soltar fuera del escenario devuelve la pieza a la bandeja, en la
       // posición donde caiga; soltar dentro pero lejos de un destino la deja
       // donde estaba.
-      if (
-        !placeItemAtPoint(drag.itemId, event.clientX, event.clientY) &&
-        isOutsideStage(event.clientX, event.clientY)
-      ) {
+      if (isOutsideStage(event.clientX, event.clientY)) {
         const slotIndex = traySlotAtPoint(event.clientX, event.clientY);
 
         if (slotIndex !== null) {
@@ -459,6 +421,8 @@ export function DragDropPlayer({
 
         returnItem(drag.itemId);
         clearSelection();
+      } else {
+        placeItemAtPoint(drag.itemId, event.clientX, event.clientY);
       }
     }
   };
@@ -647,14 +611,10 @@ export function DragDropPlayer({
               style={{
                 left: `${target.x}%`,
                 top: `${target.y}%`,
-                width: Math.max(
-                  24,
-                  (target.snapRadius / 50) * Math.min(stageWidth, stageHeight),
-                ),
-                height: Math.max(
-                  24,
-                  (target.snapRadius / 50) * Math.min(stageWidth, stageHeight),
-                ),
+                ...getSnapCircleStyle(target.snapRadius, {
+                  width: stageWidth,
+                  height: stageHeight,
+                }),
               }}
             >
               {index + 1}
