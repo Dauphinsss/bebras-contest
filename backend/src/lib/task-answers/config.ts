@@ -49,6 +49,39 @@ function readText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function validDragDropImage(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const image = value as Record<string, unknown>;
+  if (
+    !readText(image.id) ||
+    !readText(image.name) ||
+    typeof image.url !== "string" ||
+    image.url !== image.url.trim()
+  )
+    return false;
+  if (/^\/(?!\/)[^\s\\]+$/.test(image.url)) return true;
+  if (/^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/]+={0,2}$/i.test(image.url))
+    return true;
+  const svg = /^data:image\/svg\+xml(?:;charset=utf-8)?,(.+)$/i.exec(image.url);
+  if (svg) {
+    try {
+      return decodeURIComponent(svg[1]).trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const url = new URL(image.url);
+    return (
+      ["https:", "http:"].includes(url.protocol) &&
+      Boolean(url.hostname) &&
+      !/\s/.test(image.url)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function readFiniteNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -382,7 +415,7 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
   }
 
   if (answerType === "drag_drop") {
-    if (!body.dragDropBackground) {
+    if (!validDragDropImage(body.dragDropBackground)) {
       throw new Error(
         "Debes agregar la imagen de fondo para arrastrar y soltar.",
       );
@@ -437,7 +470,7 @@ export function parseTaskAnswerConfig(body: Record<string, unknown>) {
         throw new Error("Cada objeto arrastrable debe tener un nombre.");
       }
 
-      if (!item.image) {
+      if (!validDragDropImage(item.image)) {
         throw new Error("Cada objeto arrastrable debe tener una imagen.");
       }
 

@@ -289,6 +289,19 @@ test("existing text and choice answers survive invalid saves and score identical
       });
     expect((await save(entry.valid)).status()).toBe(204);
     expect((await save(entry.invalid)).status()).toBe(400);
+    for (const [url, checkHeaders] of [
+      [`${API}/api/practice/tasks/${taskId}/check`, {}],
+      [`${API}/api/tasks/${taskId}/check`, headers],
+    ] as const) {
+      const invalidCheck = await request.post(url, {
+        headers: checkHeaders,
+        data: { payload: entry.invalid },
+      });
+      expect(invalidCheck.status()).toBe(400);
+      const error = await invalidCheck.json();
+      expect(error.message).toEqual(expect.any(String));
+      expect(error).not.toHaveProperty("explanationBlocks");
+    }
     const recovered = await request
       .get(`${API}/api/play/attempt`, { headers: studentHeaders })
       .then((r) => r.json());
@@ -315,7 +328,10 @@ test("existing text and choice answers survive invalid saves and score identical
       data: { answers },
     })
     .then((r) => r.json());
-  expect(preview).toMatchObject({ correctCount: 3, answeredCount: 3 });
+  expect(preview).toMatchObject({
+    correctCount: cases.length,
+    answeredCount: cases.length,
+  });
   expect(
     (
       await request.post(`${API}/api/play/submit`, {
@@ -330,8 +346,8 @@ test("existing text and choice answers survive invalid saves and score identical
   expect(results.rows).toContainEqual(
     expect.objectContaining({
       memberOneFirstName: "Contrato",
-      correctCount: 3,
-      answeredCount: 3,
+      correctCount: cases.length,
+      answeredCount: cases.length,
       totalScore: preview.totalScore,
     }),
   );

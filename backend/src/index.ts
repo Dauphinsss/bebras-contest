@@ -2047,7 +2047,13 @@ app.post("/api/practice/tasks/:id/check", async (req, res) => {
   }
 
   const task = deserializeTask(raw);
-  const correct = answerIsCorrect(task, req.body?.payload);
+  const payload = req.body?.payload;
+  const error = validateTaskAnswer(task, payload);
+  if (error) {
+    res.status(400).json({ message: error });
+    return;
+  }
+  const correct = answerIsCorrect(task, payload);
 
   res.json({
     correct,

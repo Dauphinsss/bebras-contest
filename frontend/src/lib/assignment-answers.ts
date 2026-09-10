@@ -124,21 +124,64 @@ export function parseGridConfig(value: unknown): GridConfig {
   };
 }
 
-/** Only rich-text document nodes define positions; metadata is not traversed. */
+/** Local renderer/editor contract, mirrored in backend task-answers.
+ * Only visible text/challenge documents define positions; metadata is not traversed.
+ * Depth starts at the doc (0), as in renderRichTextDocument.
+ */
 export function collectTaskBlankIds(blocks: unknown): string[] {
   const ids: string[] = [];
-  function visit(node: unknown) {
-    if (!object(node)) return;
+  function visit(node: unknown, parent: string, depth: number) {
+    const children: Record<string, string[]> = {
+      root: ["doc"],
+      doc: ["paragraph", "bulletList", "orderedList"],
+      paragraph: ["text", "hardBreak", "taskBlank"],
+      bulletList: ["listItem"],
+      orderedList: ["listItem"],
+      listItem: ["paragraph", "bulletList", "orderedList"],
+    };
+    if (
+      depth > 20 ||
+      !object(node) ||
+      typeof node.type !== "string" ||
+      !children[parent]?.includes(node.type) ||
+      (node.content !== undefined && !Array.isArray(node.content)) ||
+      (node.type === "text" && typeof node.text !== "string") ||
+      (node.marks !== undefined &&
+        (!Array.isArray(node.marks) ||
+          node.marks.some(
+            (mark) => !object(mark) || typeof mark.type !== "string",
+          )))
+    )
+      throw new Error(
+        "El documento de huecos no es compatible con el renderer (profundidad máxima: 20).",
+      );
     if (node.type === "taskBlank") {
       if (!object(node.attrs))
         throw new Error("El hueco del texto necesita un ID.");
       ids.push(id(node.attrs.blankId));
-      return;
     }
-    if (Array.isArray(node.content)) node.content.forEach(visit);
+    if (Array.isArray(node.content))
+      node.content.forEach((child) =>
+        visit(child, node.type as string, depth + 1),
+      );
   }
   if (Array.isArray(blocks)) {
-    for (const block of blocks) if (object(block)) visit(block.richText);
+    for (const block of blocks) {
+      if (
+        !object(block) ||
+        block.richText === undefined ||
+        block.richText === null
+      )
+        continue;
+      if (
+        !["text", "challenge"].includes(block.type as string) ||
+        typeof block.content !== "string"
+      )
+        throw new Error(
+          "Los huecos deben estar en bloques de texto renderizables.",
+        );
+      visit(block.richText, "root", 0);
+    }
   }
   return ids;
 }

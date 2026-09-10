@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   assignmentAnswerIsCorrect,
   collectTaskBlankIds,
@@ -39,6 +41,7 @@ const blanks = ["first", "second"].map((id) => ({
 }));
 const document = [
   {
+    type: "text",
     content: "",
     richText: {
       type: "doc",
@@ -341,4 +344,472 @@ test("public rich text preserves indent and strips answer metadata from inline b
     },
   ]);
   assert.equal(richText.content[0].content[0].attrs.correctOptionId, "secret");
+});
+
+test("cloze rejects hidden, malformed and over-depth documents before saving", () => {
+  const block = document[0];
+  for (const change of [
+    { type: "image", image: { url: "/image.png" } },
+    { type: "unknown" },
+    { type: undefined },
+    { content: null },
+    { richText: [] },
+    { richText: { type: "paragraph", content: block.richText.content } },
+    { richText: { type: "doc", content: "invalid" } },
+    { richText: { type: "doc", content: [null] } },
+    {
+      richText: {
+        type: "doc",
+        content: [{ type: "unknown", content: block.richText.content }],
+      },
+    },
+    {
+      richText: {
+        type: "doc",
+        content: [
+          { type: "text", text: "hidden", content: block.richText.content },
+        ],
+      },
+    },
+    {
+      richText: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "x", marks: [null] }],
+          },
+        ],
+      },
+    },
+  ])
+    assert.throws(() => parseClozeConfig(cloze, [{ ...block, ...change }]));
+
+  // Root is depth 0, matching renderRichTextDocument.
+  let nested: unknown = block.richText.content[0];
+  for (let i = 0; i < 6; i++)
+    nested = {
+      type: "bulletList",
+      content: [{ type: "listItem", content: [nested] }],
+    };
+  // Each list adds two levels: add three more to reach depth 20.
+  for (let i = 0; i < 3; i++)
+    nested = {
+      type: "orderedList",
+      content: [{ type: "listItem", content: [nested] }],
+    };
+  const atLimit = { ...block, richText: { type: "doc", content: [nested] } };
+  assert.deepEqual(collectTaskBlankIds([atLimit]), ["first", "second"]);
+  assert.throws(() =>
+    collectTaskBlankIds([
+      {
+        ...block,
+        richText: {
+          type: "doc",
+          content: [
+            {
+              type: "bulletList",
+              content: [{ type: "listItem", content: [nested] }],
+            },
+          ],
+        },
+      },
+    ]),
+  );
+  assert.deepEqual(
+    collectTaskBlankIds([
+      { type: "image", content: "", image: { url: "/x.png" } },
+    ]),
+    [],
+  );
+});
+
+test("public documents whitelist metadata at every level without mutating rich content", () => {
+  const secret = {
+    answerKey: "PRIVATE_SENTINEL",
+    correctOptionId: "PRIVATE_SENTINEL",
+  };
+  const richText = {
+    type: "doc",
+    ...secret,
+    attrs: secret,
+    content: [
+      {
+        type: "paragraph",
+        ...secret,
+        attrs: { indent: 3, ...secret },
+        content: [
+          {
+            type: "text",
+            text: "Visible",
+            ...secret,
+            attrs: secret,
+            marks: [
+              ...["bold", "italic", "underline", "strike", "code"].map(
+                (type) => ({ type, ...secret, attrs: secret }),
+              ),
+              {
+                type: "link",
+                ...secret,
+                attrs: {
+                  href: "https://example.org",
+                  target: "_blank",
+                  rel: "noopener",
+                  title: "Link",
+                  ...secret,
+                },
+              },
+              { type: "private", attrs: secret },
+            ],
+          },
+          { type: "hardBreak", ...secret },
+          {
+            type: "image",
+            attrs: { src: "/image.png", alt: "Image", width: 120, ...secret },
+            ...secret,
+          },
+        ],
+      },
+      {
+        type: "orderedList",
+        attrs: { start: 4, ...secret },
+        content: [{ type: "listItem", content: [{ type: "paragraph" }] }],
+      },
+      {
+        type: "table",
+        attrs: secret,
+        content: [
+          {
+            type: "tableRow",
+            content: [
+              {
+                type: "tableCell",
+                attrs: {
+                  colspan: 2,
+                  rowspan: 1,
+                  colwidth: [100, 120],
+                  ...secret,
+                },
+                content: [{ type: "paragraph" }],
+              },
+            ],
+          },
+        ],
+      },
+      { type: "private", text: "PRIVATE_SENTINEL" },
+    ],
+  };
+  const blocks = [{ type: "text", content: "Visible", richText }];
+  const safe = renderSafeTask(
+    { position: 1 },
+    {
+      ...task(),
+      bodyBlocks: blocks,
+      challengeBlocks: blocks,
+      answers: [{ id: "A", blocks }],
+    },
+  );
+  const json = JSON.stringify(safe);
+  assert.equal(json.includes("PRIVATE_SENTINEL"), false);
+  for (const expected of [
+    "Visible",
+    "https://example.org",
+    "/image.png",
+    '"colwidth":[100,120]',
+    '"start":4',
+    '"indent":3',
+    '"type":"bold"',
+    '"type":"table"',
+  ])
+    assert.ok(json.includes(expected), expected);
+  assert.ok(JSON.stringify(richText).includes("PRIVATE_SENTINEL"));
+});
+
+test("drag-drop authoring requires real image records for both background and pieces", () => {
+  const image = { id: "image", name: "Image", url: "/uploads/image.png" };
+  const item = {
+    id: "piece",
+    label: "Piece",
+    image,
+    correctTargetId: "target",
+    widthPercent: 12,
+  };
+  const body = {
+    answerType: "drag_drop",
+    dragDropBackground: image,
+    dragDropItems: [item],
+    dragDropTargets: [{ id: "target", x: 50, y: 50, snapRadius: 10 }],
+  };
+  for (const invalid of [
+    null,
+    {},
+    [],
+    true,
+    "text",
+    { ...image, id: "" },
+    { ...image, name: 1 },
+    { ...image, url: "" },
+    { ...image, url: "not a URL" },
+    { ...image, url: "javascript:alert(1)" },
+    { ...image, url: "data:text/html;base64,WA==" },
+    { ...image, url: "//evil.example/x" },
+  ]) {
+    assert.throws(() =>
+      parseTaskAnswerConfig({ ...body, dragDropBackground: invalid }),
+    );
+    assert.throws(() =>
+      parseTaskAnswerConfig({
+        ...body,
+        dragDropItems: [{ ...item, image: invalid }],
+      }),
+    );
+  }
+  for (const url of [
+    image.url,
+    "https://example.org/image.png",
+    "http://localhost:3001/image.png",
+    "data:image/png;base64,aGVsbG8=",
+  ])
+    assert.doesNotThrow(() =>
+      parseTaskAnswerConfig({
+        ...body,
+        dragDropBackground: { ...image, url },
+        dragDropItems: [{ ...item, image: { ...image, url } }],
+      }),
+    );
+});
+
+test("drag-drop accepts percent-encoded SVG fixtures and preserves their public URLs", () => {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="60"><rect width="80" height="60" fill="#ef4444"/></svg>';
+  const urls = [
+    `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%23ef4444'/%3E%3C/svg%3E",
+    `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+    "https://example.org/image%20name.svg?size=80&color=%23ef4444",
+    "/uploads/image%20name.svg",
+  ];
+  for (const url of urls) {
+    const image = { id: "image", name: "Image", url };
+    const item = {
+      id: "piece",
+      label: "Piece",
+      image,
+      widthPercent: 12,
+      correctTargetId: "target",
+    };
+    const body = {
+      answerType: "drag_drop",
+      dragDropBackground: image,
+      dragDropItems: [item],
+      dragDropTargets: [{ id: "target", x: 50, y: 50, snapRadius: 10 }],
+    };
+    const parsed = parseTaskAnswerConfig(body);
+    assert.deepEqual(JSON.parse(parsed.dragDropBackground), image);
+    assert.deepEqual(JSON.parse(parsed.dragDropItems).items[0].image, image);
+    const safe = renderSafeTask(
+      { position: 1 },
+      {
+        ...task("drag_drop"),
+        answerConfig: {},
+        dragDropBackground: { ...image, answerKey: "PRIVATE_SENTINEL" },
+        dragDropItems: [
+          { ...item, image: { ...image, answerKey: "PRIVATE_SENTINEL" } },
+        ],
+      },
+    );
+    assert.deepEqual(safe.dragDropBackground, image);
+    assert.deepEqual(safe.dragDropItems[0].image, image);
+    assert.equal(JSON.stringify(safe).includes("PRIVATE_SENTINEL"), false);
+    for (const invalid of [
+      {},
+      { ...image, id: "" },
+      { ...image, name: "" },
+      { ...image, url: "data:image/svg+xml," },
+      { ...image, url: "data:image/svg+xml,%ZZ" },
+      { ...image, url: "data:image/svg+xml,%20" },
+      { ...image, url: "data:text/html,%3Csvg/%3E" },
+      { ...image, url: "javascript:alert(1)" },
+    ]) {
+      assert.throws(() =>
+        parseTaskAnswerConfig({ ...body, dragDropBackground: invalid }),
+      );
+      assert.throws(() =>
+        parseTaskAnswerConfig({
+          ...body,
+          dragDropItems: [{ ...item, image: invalid }],
+        }),
+      );
+    }
+  }
+});
+
+test("public blocks and image records cannot carry private metadata", () => {
+  const image = { id: "image", name: "Image", url: "/image.png" };
+  const privateImage = { ...image, answerKey: "PRIVATE_SENTINEL" };
+  const block = {
+    id: "block",
+    type: "image",
+    content: "",
+    widthPercent: 75,
+    image: privateImage,
+    acceptedAssignments: "PRIVATE_SENTINEL",
+  };
+  const safe = renderSafeTask(
+    { position: 1 },
+    {
+      ...task(),
+      bodyBlocks: [block],
+      challengeBlocks: [block],
+      answers: [{ id: "A", blocks: [block] }],
+      dragDropBackground: privateImage,
+      dragDropItems: [
+        {
+          id: "piece",
+          label: "Piece",
+          widthPercent: 12,
+          image: privateImage,
+          correctTargetId: "PRIVATE_SENTINEL",
+          equivalenceKey: "PRIVATE_SENTINEL",
+        },
+      ],
+    },
+  );
+  assert.equal(JSON.stringify(safe).includes("PRIVATE_SENTINEL"), false);
+  assert.deepEqual(safe.bodyBlocks, [
+    { id: "block", type: "image", content: "", widthPercent: 75, image },
+  ]);
+  assert.deepEqual(safe.dragDropBackground, image);
+  assert.deepEqual(safe.dragDropItems[0].image, image);
+});
+
+test("public projection stops at renderer depth and discards malformed nodes and marks", () => {
+  let nested: unknown = { type: "text", text: "PRIVATE_SENTINEL" };
+  for (let i = 0; i < 21; i++)
+    nested = { type: "paragraph", content: [nested] };
+  const safe = renderSafeTask(
+    { position: 1 },
+    {
+      ...task(),
+      bodyBlocks: [
+        {
+          richText: {
+            type: "doc",
+            content: [
+              nested,
+              null,
+              [],
+              "PRIVATE_SENTINEL",
+              {
+                type: "text",
+                text: "Visible",
+                marks: [
+                  null,
+                  [],
+                  "PRIVATE_SENTINEL",
+                  { type: "bold", attrs: { answer: "PRIVATE_SENTINEL" } },
+                ],
+              },
+              {
+                type: "orderedList",
+                attrs: { start: { answer: "PRIVATE_SENTINEL" } },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  );
+  assert.equal(JSON.stringify(safe).includes("PRIVATE_SENTINEL"), false);
+  assert.ok(JSON.stringify(safe).includes("Visible"));
+});
+
+test("public practice route rejects invalid payloads with 400 before grading or explanations", async () => {
+  // Exercise the actual route without booting the application, database or a server.
+  const source = readFileSync(resolve(__dirname, "../../index.ts"), "utf8");
+  const route = source.slice(
+    source.indexOf('app.post("/api/practice/tasks/:id/check"'),
+    source.indexOf("// Banco de tareas, desafíos"),
+  );
+  type Response = {
+    status: (code: number) => Response;
+    json: (body: unknown) => void;
+  };
+  let handler!: (req: unknown, res: Response) => Promise<void>;
+  let graded = 0;
+  let found = true;
+  new Function(
+    "app",
+    "prisma",
+    "deserializeTask",
+    "validateTaskAnswer",
+    "answerIsCorrect",
+    route,
+  )(
+    {
+      post: (_path: string, callback: typeof handler) => {
+        handler = callback;
+      },
+    },
+    { taskDraft: { findFirst: async () => (found ? task() : null) } },
+    (value: unknown) => value,
+    validateTaskAnswer,
+    (value: PlayTask, payload: unknown) => {
+      graded++;
+      return answerIsCorrect(value, payload);
+    },
+  );
+  for (const payload of [
+    undefined,
+    null,
+    [],
+    { version: 2, cells: {} },
+    { version: 1, cells: { unknown: "white" } },
+  ]) {
+    let status = 200;
+    let body: unknown;
+    const res: Response = {
+      status: (code) => {
+        status = code;
+        return res;
+      },
+      json: (value) => {
+        body = value;
+      },
+    };
+    await handler({ params: { id: "constructed" }, body: { payload } }, res);
+    assert.equal(status, 400);
+    assert.deepEqual(body, { message: validateTaskAnswer(task(), payload) });
+  }
+  assert.equal(graded, 0);
+  for (const payload of [
+    {},
+    { version: 1, cells: { a: "white" } },
+    { version: 1, cells: gridKey.acceptedAssignments[0] },
+  ]) {
+    const res: Response = {
+      status: () => {
+        assert.fail("Expected 200");
+      },
+      json: (value) => {
+        assert.equal(
+          (value as { correct: boolean }).correct,
+          answerIsCorrect(task(), payload),
+        );
+      },
+    };
+    await handler({ params: { id: "constructed" }, body: { payload } }, res);
+  }
+  assert.equal(graded, 3);
+  found = false;
+  const res: Response = {
+    status: (code) => {
+      assert.equal(code, 404);
+      return res;
+    },
+    json: () => {},
+  };
+  await handler({ params: { id: "missing" }, body: {} }, res);
+  assert.equal(graded, 3);
 });
