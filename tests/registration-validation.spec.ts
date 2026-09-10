@@ -40,6 +40,237 @@ async function fillAccountFields(
     .fill("segura123");
 }
 
+test("rejects invalid registration passwords without keeping accounts or uploads", async ({
+  request,
+}) => {
+  const before = uploadedDocuments();
+  const headers = await loginAdmin(request);
+  const emails: string[] = [];
+  try {
+    for (const password of [
+      "      ",
+      " clave",
+      "clave ",
+      "clave con espacios",
+      "",
+      "12345",
+      "\u00a0".repeat(6),
+      "a".repeat(73),
+      "é".repeat(37),
+      "😀".repeat(19),
+    ]) {
+      const email = `password-invalid-${Date.now()}-${emails.length}@example.com`;
+      emails.push(email);
+      const response = await request.post(`${API}/api/auth/register`, {
+        multipart: {
+          ...registrationFields(email, "school"),
+          password,
+          letter: VALID_PDF,
+        },
+      });
+      expect(response.status()).toBe(400);
+      expect(await response.json()).toMatchObject({
+        field: "password",
+        message: expect.any(String),
+      });
+      expect(uploadedDocuments()).toEqual(before);
+    }
+    const response = await request.get(`${API}/api/users/maestros`, {
+      headers,
+    });
+    expect(response.ok()).toBe(true);
+    const teachers = (await response.json()) as Array<{ email: string }>;
+    expect(teachers.some((teacher) => emails.includes(teacher.email))).toBe(
+      false,
+    );
+  } finally {
+    removeNewUploads(before);
+  }
+});
+
+test("registers exact password boundaries and preserves Unicode for login", async ({
+  request,
+}) => {
+  let index = 0;
+  for (const password of [
+    "123456",
+    "a".repeat(72),
+    "é".repeat(36),
+    "😀".repeat(18),
+    "clave-sin-espacios",
+    "e\u0301abcd",
+  ]) {
+    const email = `password-valid-${Date.now()}-${index++}@example.com`;
+    const response = await request.post(`${API}/api/auth/register`, {
+      multipart: { ...registrationFields(email, "school"), password },
+    });
+    expect(response.status()).toBe(201);
+    const login = await request.post(`${API}/api/auth/login`, {
+      data: { email, password },
+    });
+    expect(login.ok()).toBe(true);
+    const altered =
+      password.normalize("NFC") !== password
+        ? password.normalize("NFC")
+        : `X${password.slice(1)}`;
+    const wrong = await request.post(`${API}/api/auth/login`, {
+      data: { email, password: altered },
+    });
+    expect(wrong.status()).toBe(401);
+  }
+});
+
+for (const width of [390, 1280]) {
+  test(`live password errors and accessible independent revelation at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openRegistration(page);
+    const password = page.getByLabel("Contraseña", { exact: true });
+    const confirmation = page.getByLabel("Confirmar contraseña", {
+      exact: true,
+    });
+    const reveal = page.getByRole("button", {
+      name: "Mostrar contraseña",
+      exact: true,
+    });
+    const revealConfirmation = page.getByRole("button", {
+      name: "Mostrar confirmación de contraseña",
+      exact: true,
+    });
+    const error = page.locator("#reg-password-error");
+    const confirmationError = page.locator("#reg-confirm-error");
+    await expect(
+      page.locator('[data-slot="field"]').filter({ has: password }),
+    ).toHaveText("Contraseña");
+    await expect(
+      page.locator('[data-slot="field"]').filter({ has: confirmation }),
+    ).toHaveText("Confirmar contraseña");
+    await expect(password).toHaveAttribute("autocomplete", "new-password");
+    await expect(confirmation).toHaveAttribute("autocomplete", "new-password");
+    for (const [value, message] of [
+      ["12345", "La contraseña debe tener al menos 6 caracteres."],
+      ["      ", "La contraseña no puede contener espacios."],
+      ["é".repeat(37), "La contraseña es muy larga."],
+      ["😀".repeat(19), "La contraseña es muy larga."],
+      ["", "Ingresa una contraseña."],
+    ]) {
+      await password.fill(value);
+      await expect(error).toHaveText(message);
+      await expect(error).toHaveAttribute("role", "alert");
+      await expect(password).toBeFocused();
+      await expect(password).toHaveAttribute("aria-invalid", "true");
+      await expect(password).toHaveAttribute(
+        "aria-describedby",
+        "reg-password-error",
+      );
+      await expect(password).toHaveValue(value);
+      await expect(confirmationError).toHaveCount(0);
+    }
+    await password.fill("123456");
+    await expect(error).toHaveCount(0);
+    await expect(password).toHaveAttribute("aria-invalid", "false");
+    await confirmation.fill("12345x");
+    await expect(confirmationError).toHaveText("Las contraseñas no coinciden.");
+    await confirmation.fill("123456");
+    await expect(confirmationError).toHaveCount(0);
+    await password.fill("1234567");
+    await expect(confirmationError).toHaveText("Las contraseñas no coinciden.");
+    await confirmation.fill("");
+    await expect(confirmationError).toHaveText("Confirma tu contraseña.");
+    await confirmation.fill("1234567");
+    await expect(confirmationError).toHaveCount(0);
+
+    await password.focus();
+    await page.keyboard.press("Tab");
+    await expect(reveal).toBeFocused();
+    expect(
+      await reveal.evaluate((button) => button.matches(":focus-visible")),
+    ).toBe(true);
+    await expect(reveal).toHaveAttribute("aria-controls", "reg-password");
+    await expect(reveal).toHaveAttribute("aria-pressed", "false");
+    await page.keyboard.press("Enter");
+    await expect(reveal).toBeFocused();
+    await expect(reveal).toHaveAttribute("aria-pressed", "true");
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(confirmation).toHaveAttribute("type", "password");
+    await page.keyboard.press("Tab");
+    await expect(confirmation).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(revealConfirmation).toBeFocused();
+    await expect(revealConfirmation).toHaveAttribute(
+      "aria-controls",
+      "reg-confirm",
+    );
+    await page.keyboard.press("Space");
+    await expect(revealConfirmation).toHaveAttribute("aria-pressed", "true");
+    await expect(confirmation).toHaveAttribute("type", "text");
+    await reveal.click();
+    await expect(password).toHaveAttribute("type", "password");
+    await expect(confirmation).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue("1234567");
+    await expect(confirmation).toHaveValue("1234567");
+    await revealConfirmation.click();
+    for (const button of [reveal, revealConfirmation]) {
+      const box = await button.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(24);
+      expect(box!.height).toBeGreaterThanOrEqual(24);
+    }
+
+    await fillAccountFields(
+      page,
+      `password-ui-${width}-${Date.now()}@example.com`,
+    );
+    await page.getByRole("button", { name: "Enseño en casa" }).click();
+    await password.fill("a".repeat(73));
+    await confirmation.fill("a".repeat(73));
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(password).toBeFocused();
+    await expect(error).toHaveText("La contraseña es muy larga.");
+    await page.screenshot({
+      path: test.info().outputPath("password-validation.png"),
+      fullPage: true,
+    });
+    const secret = "é".repeat(36);
+    await password.fill(secret);
+    await confirmation.fill(secret);
+    await reveal.click();
+    await revealConfirmation.click();
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page.getByRole("button", { name: "Editar", exact: true }).click();
+    await expect(password).toHaveAttribute("type", "password");
+    await expect(confirmation).toHaveAttribute("type", "password");
+    await expect(password).toHaveValue(secret);
+    await page.route(
+      "**/api/auth/register",
+      (route) =>
+        route.fulfill({
+          status: 400,
+          json: { field: "password", message: "La contraseña es muy larga." },
+        }),
+      { times: 1 },
+    );
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(password).toBeFocused();
+    await expect(error).toHaveText("La contraseña es muy larga.");
+    await expect(password).toHaveAttribute("type", "password");
+    await password.fill("clave-sin-espacios");
+    await expect(error).toHaveCount(0);
+    await expect(confirmationError).toHaveText("Las contraseñas no coinciden.");
+    await confirmation.fill("clave-sin-espacios");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(
+      page.getByText("Cuenta creada", { exact: true }),
+    ).toBeVisible();
+  });
+}
+
 test("rejects invalid registration names and manual school text without retaining uploads", async ({
   request,
 }) => {
