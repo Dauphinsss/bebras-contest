@@ -15,6 +15,7 @@ import { formatPersonName } from "./lib/person-name";
 import { validatePhone } from "./lib/phone";
 import { validateEmail } from "./lib/email";
 import { validateRegistrationText } from "./lib/registration-text";
+import { registrationPasswordError } from "./lib/registration-password";
 import {
   countFilledBlocks,
   normalizeDragDropConfig,
@@ -1697,7 +1698,14 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  if (!firstName || !lastName || !password) {
+  const passwordError = registrationPasswordError(password);
+  if (passwordError) {
+    await cleanupFiles(...allFiles);
+    res.status(400).json({ message: passwordError, field: "password" });
+    return;
+  }
+
+  if (!firstName || !lastName) {
     await cleanupFiles(...allFiles);
     res.status(400).json({
       message: "Nombres, apellidos, correo y contraseña son obligatorios.",
@@ -1720,14 +1728,6 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
       message: validatedPhone.error,
       field: "phone",
     });
-    return;
-  }
-
-  if (password.length < 6) {
-    await cleanupFiles(...allFiles);
-    res
-      .status(400)
-      .json({ message: "La contraseña debe tener al menos 6 caracteres." });
     return;
   }
 

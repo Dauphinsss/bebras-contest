@@ -17,15 +17,23 @@ import {
   Field,
   FieldContent,
   FieldError,
+  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
 import { cn } from "@/lib/utils";
 import { formatPersonName } from "@/lib/person-name";
 import { validatePhone } from "@/lib/phone";
 import { validateEmail } from "@/lib/email";
 import { validateRegistrationText } from "@/lib/registration-text";
+import { registrationPasswordError } from "@/lib/registration-password";
 import { API_BASE_URL } from "@/lib/api-client";
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
@@ -59,6 +67,13 @@ function documentError(file: File) {
   return undefined;
 }
 
+function confirmationError(password: string, confirmation: string) {
+  if (!confirmation) return "Confirma tu contraseña.";
+  return password === confirmation
+    ? undefined
+    : "Las contraseñas no coinciden.";
+}
+
 export function RegisterForm() {
   const [step, setStep] = useState<"form" | "confirm" | "done">("form");
   const [firstName, setFirstName] = useState("");
@@ -76,6 +91,8 @@ export function RegisterForm() {
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
   const [idBackFile, setIdBackFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const confirmPasswordTouchedRef = useRef(false);
   const [sentDocuments, setSentDocuments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<RegisterErrors>({});
@@ -96,6 +113,7 @@ export function RegisterForm() {
     | "school"
     | "email"
     | "phone"
+    | "password"
     | DocumentField
     | null
   >(null);
@@ -143,6 +161,7 @@ export function RegisterForm() {
       school: schoolRef,
       email: emailRef,
       phone: phoneRef,
+      password: passwordRef,
       letter: letterRef,
       idFront: idFrontRef,
       idBack: idBackRef,
@@ -153,6 +172,7 @@ export function RegisterForm() {
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    confirmPasswordTouchedRef.current = true;
 
     const validatedEmail = validateEmail(email);
     const validatedPhone = validatePhone(phone);
@@ -167,16 +187,8 @@ export function RegisterForm() {
       lastName: validatedLastName.error,
       email: validatedEmail.error,
       phone: validatedPhone.error,
-      password: !password
-        ? "Ingresa una contraseña."
-        : password.length < 6
-          ? "La contraseña debe tener al menos 6 caracteres."
-          : undefined,
-      confirmPassword: !confirmPassword
-        ? "Confirma tu contraseña."
-        : password !== confirmPassword
-          ? "Las contraseñas no coinciden."
-          : undefined,
+      password: registrationPasswordError(password),
+      confirmPassword: confirmationError(password, confirmPassword),
       school: hasSchoolChoice
         ? validatedSchool.error
         : "Indica tu colegio o selecciona educación en casa.",
@@ -223,6 +235,8 @@ export function RegisterForm() {
     setLastName(validatedLastName.value!);
     setSchool({ ...school, name: validatedSchool.value! });
     setErrors({});
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setStep("confirm");
   };
 
@@ -273,6 +287,7 @@ export function RegisterForm() {
           | "schoolName"
           | "email"
           | "phone"
+          | "password"
           | DocumentField;
       };
 
@@ -523,48 +538,51 @@ export function RegisterForm() {
               </FieldContent>
             </Field>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={Boolean(errors.password) || undefined}>
               <FieldLabel htmlFor="reg-password">Contraseña</FieldLabel>
               <FieldContent>
-                <div className="relative">
-                  <Input
+                <InputGroup>
+                  <InputGroupInput
                     ref={passwordRef}
                     id="reg-password"
                     type={showPassword ? "text" : "password"}
-                    className="pr-10"
+                    autoComplete="new-password"
+                    name="password"
                     value={password}
                     onChange={(event) => {
-                      setPassword(event.target.value);
-                      if (
-                        errors.confirmPassword ===
-                        "Las contraseñas no coinciden."
-                      ) {
-                        clearErrors("password", "confirmPassword");
-                      } else if (errors.password) {
-                        clearErrors("password");
-                      }
+                      const next = event.target.value;
+                      setPassword(next);
+                      setErrors((current) => ({
+                        ...current,
+                        form: undefined,
+                        password: registrationPasswordError(next),
+                        confirmPassword: confirmPasswordTouchedRef.current
+                          ? confirmationError(next, confirmPassword)
+                          : undefined,
+                      }));
                     }}
                     aria-invalid={Boolean(errors.password)}
                     aria-describedby={
                       errors.password ? "reg-password-error" : undefined
                     }
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((current) => !current)}
-                    aria-label={
-                      showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                    }
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOffIcon className="size-4" />
-                    ) : (
-                      <EyeIcon className="size-4" />
-                    )}
-                  </button>
-                </div>
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="icon-sm"
+                      onClick={() => setShowPassword((current) => !current)}
+                      aria-label="Mostrar contraseña"
+                      aria-pressed={showPassword}
+                      aria-controls="reg-password"
+                    >
+                      {showPassword ? (
+                        <EyeOffIcon aria-hidden="true" />
+                      ) : (
+                        <EyeIcon aria-hidden="true" />
+                      )}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
                 <FieldError id="reg-password-error">
                   {errors.password}
                 </FieldError>
@@ -575,45 +593,53 @@ export function RegisterForm() {
                 Confirmar contraseña
               </FieldLabel>
               <FieldContent>
-                <div className="relative">
-                  <Input
+                <InputGroup>
+                  <InputGroupInput
                     ref={confirmPasswordRef}
                     id="reg-confirm"
-                    type={showPassword ? "text" : "password"}
-                    className="pr-10"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    name="confirmPassword"
                     value={confirmPassword}
                     onChange={(event) => {
-                      setConfirmPassword(event.target.value);
-                      if (errors.confirmPassword) {
-                        clearErrors("confirmPassword");
-                      }
+                      const next = event.target.value;
+                      confirmPasswordTouchedRef.current = true;
+                      setConfirmPassword(next);
+                      setErrors((current) => ({
+                        ...current,
+                        form: undefined,
+                        confirmPassword: confirmationError(password, next),
+                      }));
                     }}
                     aria-invalid={Boolean(errors.confirmPassword)}
                     aria-describedby={
                       errors.confirmPassword ? "reg-confirm-error" : undefined
                     }
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((current) => !current)}
-                    aria-label={
-                      showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                    }
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground transition hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOffIcon className="size-4" />
-                    ) : (
-                      <EyeIcon className="size-4" />
-                    )}
-                  </button>
-                </div>
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="icon-sm"
+                      onClick={() =>
+                        setShowConfirmPassword((current) => !current)
+                      }
+                      aria-label="Mostrar confirmación de contraseña"
+                      aria-pressed={showConfirmPassword}
+                      aria-controls="reg-confirm"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOffIcon aria-hidden="true" />
+                      ) : (
+                        <EyeIcon aria-hidden="true" />
+                      )}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
                 <FieldError id="reg-confirm-error">
                   {errors.confirmPassword}
                 </FieldError>
               </FieldContent>
             </Field>
-          </div>
+          </FieldGroup>
           <Field data-invalid={Boolean(errors.school) || undefined}>
             <FieldLabel htmlFor="school-search">¿Dónde enseñas?</FieldLabel>
             <FieldContent>
