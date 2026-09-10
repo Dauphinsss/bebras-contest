@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { formatPersonName } from "@/lib/person-name";
 import { validatePhone } from "@/lib/phone";
 import { validateEmail } from "@/lib/email";
+import { validateRegistrationText } from "@/lib/registration-text";
 import { API_BASE_URL } from "@/lib/api-client";
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
@@ -90,7 +91,13 @@ export function RegisterForm() {
   const idBackRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
   const pendingResponseFocusRef = useRef<
-    "email" | "phone" | DocumentField | null
+    | "firstName"
+    | "lastName"
+    | "school"
+    | "email"
+    | "phone"
+    | DocumentField
+    | null
   >(null);
 
   const isSchool = school.institutionType === "school";
@@ -131,6 +138,9 @@ export function RegisterForm() {
     }
 
     const refs = {
+      firstName: firstNameRef,
+      lastName: lastNameRef,
+      school: schoolRef,
       email: emailRef,
       phone: phoneRef,
       letter: letterRef,
@@ -146,9 +156,15 @@ export function RegisterForm() {
 
     const validatedEmail = validateEmail(email);
     const validatedPhone = validatePhone(phone);
+    const validatedFirstName = validateRegistrationText(firstName, "firstName");
+    const validatedLastName = validateRegistrationText(lastName, "lastName");
+    const validatedSchool =
+      isSchool && !school.codUe
+        ? validateRegistrationText(school.name, "schoolName")
+        : { value: school.name, error: undefined };
     const nextErrors: RegisterErrors = {
-      firstName: firstName.trim() ? undefined : "Ingresa tus nombres.",
-      lastName: lastName.trim() ? undefined : "Ingresa tus apellidos.",
+      firstName: validatedFirstName.error,
+      lastName: validatedLastName.error,
       email: validatedEmail.error,
       phone: validatedPhone.error,
       password: !password
@@ -162,7 +178,7 @@ export function RegisterForm() {
           ? "Las contraseñas no coinciden."
           : undefined,
       school: hasSchoolChoice
-        ? undefined
+        ? validatedSchool.error
         : "Indica tu colegio o selecciona educación en casa.",
       // Los documentos son opcionales al registrarse: la carta necesita la
       // firma del director y casi nadie la tiene a mano. Solo se revisa el
@@ -203,6 +219,9 @@ export function RegisterForm() {
 
     setPhone(validatedPhone.number!);
     setEmail(validatedEmail.email!);
+    setFirstName(validatedFirstName.value!);
+    setLastName(validatedLastName.value!);
+    setSchool({ ...school, name: validatedSchool.value! });
     setErrors({});
     setStep("confirm");
   };
@@ -248,15 +267,22 @@ export function RegisterForm() {
         message?: string;
         token?: string;
         user?: AuthUser;
-        field?: "email" | "phone" | DocumentField;
+        field?:
+          | "firstName"
+          | "lastName"
+          | "schoolName"
+          | "email"
+          | "phone"
+          | DocumentField;
       };
 
       if (!response.ok) {
         const message = data.message ?? "No se pudo crear la cuenta.";
         toast.error(message);
         if (data.field) {
-          setErrors({ [data.field]: message });
-          pendingResponseFocusRef.current = data.field;
+          const field = data.field === "schoolName" ? "school" : data.field;
+          setErrors({ [field]: message });
+          pendingResponseFocusRef.current = field;
           setStep("form");
         } else {
           setErrors({ form: message });

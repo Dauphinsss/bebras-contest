@@ -14,6 +14,7 @@ import type { Prisma } from "./generated/prisma/client";
 import { formatPersonName } from "./lib/person-name";
 import { validatePhone } from "./lib/phone";
 import { validateEmail } from "./lib/email";
+import { validateRegistrationText } from "./lib/registration-text";
 import {
   countFilledBlocks,
   normalizeDragDropConfig,
@@ -1635,14 +1636,16 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   const idBackFile = pickUploaded(req, "idBack");
   const allFiles = [letterFile, idFrontFile, idBackFile];
 
-  const firstName =
-    typeof req.body?.firstName === "string"
-      ? formatPersonName(req.body.firstName)
-      : "";
-  const lastName =
-    typeof req.body?.lastName === "string"
-      ? formatPersonName(req.body.lastName)
-      : "";
+  const validatedFirstName = validateRegistrationText(
+    typeof req.body?.firstName === "string" ? req.body.firstName : "",
+    "firstName",
+  );
+  const validatedLastName = validateRegistrationText(
+    typeof req.body?.lastName === "string" ? req.body.lastName : "",
+    "lastName",
+  );
+  const firstName = validatedFirstName.value;
+  const lastName = validatedLastName.value;
   const email =
     typeof req.body?.email === "string"
       ? req.body.email.trim().toLowerCase()
@@ -1653,14 +1656,31 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     typeof req.body?.schoolCodUe === "string" && req.body.schoolCodUe.trim()
       ? req.body.schoolCodUe.trim()
       : null;
-  const schoolName =
-    typeof req.body?.schoolName === "string" ? req.body.schoolName.trim() : "";
+  const rawSchoolName =
+    typeof req.body?.schoolName === "string" ? req.body.schoolName : "";
   const institutionType =
     req.body?.institutionType === "homeschool" ? "homeschool" : "school";
   const phone =
     typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
 
   const isSchool = institutionType === "school";
+  const validatedSchool =
+    isSchool && !schoolCodUe
+      ? validateRegistrationText(rawSchoolName, "schoolName")
+      : { value: rawSchoolName.trim(), error: undefined };
+  const schoolName = validatedSchool.value;
+
+  for (const [field, error] of [
+    ["firstName", validatedFirstName.error],
+    ["lastName", validatedLastName.error],
+    ["schoolName", validatedSchool.error],
+  ]) {
+    if (error) {
+      await cleanupFiles(...allFiles);
+      res.status(400).json({ message: error, field });
+      return;
+    }
+  }
 
   if (institutionType === "homeschool" && schoolCodUe) {
     await cleanupFiles(...allFiles);

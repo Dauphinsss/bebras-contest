@@ -145,7 +145,8 @@ test("rejects unsupported and oversized document uploads cleanly", async () => {
         firstName: "",
         letter: VALID_PDF,
       },
-      "son obligatorios",
+      "Ingresa tus nombres.",
+      "firstName",
     );
     await assertRejectedWithoutUploads(
       {
