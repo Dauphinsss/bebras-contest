@@ -29,6 +29,8 @@ const modules = {
     "drag-drop-solutions.spec.ts",
     "image-hotspot.spec.ts",
     "assignment-answers.spec.ts",
+    "authoring-refinement.spec.ts",
+    "drag-drop-player-refinement.spec.ts",
   ],
   desafios: [
     "contest-lifecycle.spec.ts",

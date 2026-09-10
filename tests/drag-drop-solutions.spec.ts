@@ -243,14 +243,19 @@ test("rejects malformed practice placements", async ({ request }) => {
     { ...primary, "b-two": "position-2" },
     { ...primary, stranger: "position-4" },
   ]) {
-    const response = await request.post(
-      `${API}/api/practice/tasks/${task.id}/check`,
-      {
+    for (const path of [
+      `/api/practice/tasks/${task.id}/check`,
+      `/api/tasks/${task.id}/check`,
+    ]) {
+      const response = await request.post(`${API}${path}`, {
+        headers,
         data: { payload: { placements } },
-      },
-    );
-    expect(response.status(), await response.text()).toBe(200);
-    expect(await response.json()).toMatchObject({ correct: false });
+      });
+      expect(response.status(), await response.text()).toBe(400);
+      expect(await response.json()).toMatchObject({
+        message: "La respuesta de arrastrar y soltar no es válida.",
+      });
+    }
   }
 });
 
@@ -468,6 +473,11 @@ test("edits destinations independently, repairs incomplete solutions and persist
   await page.getByLabel("Horizontal (%)", { exact: true }).fill("15");
   await page
     .getByRole("button", { name: "Quitar destino 1", exact: true })
+    .click();
+  await expect(page.getByRole("alertdialog")).toContainText("Principal");
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Eliminar", exact: true })
     .click();
   await expect(
     page.getByText(/Soluciones incompletas: Principal/),

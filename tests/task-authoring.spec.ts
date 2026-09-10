@@ -169,10 +169,15 @@ test("keeps task authoring controls responsive in the current layout", async ({
   expect(desktopStateGridTypeField!.y).toBeGreaterThan(
     desktopMultipleChoiceTypeField!.y,
   );
-  expect(desktopDragDropTypeField!.y).toBe(desktopStateGridTypeField!.y);
-  expect(desktopDragDropTypeField!.x).toBeGreaterThan(
-    desktopStateGridTypeField!.x,
+  // Six answer types: drag/drop is in row two, state-grid in row three.
+  // Both belong to the first column of the desktop layout.
+  expect(desktopDragDropTypeField!.y).toBeGreaterThan(
+    desktopMultipleChoiceTypeField!.y + desktopMultipleChoiceTypeField!.height,
   );
+  expect(desktopStateGridTypeField!.y).toBeGreaterThan(
+    desktopDragDropTypeField!.y + desktopDragDropTypeField!.height,
+  );
+  expect(desktopDragDropTypeField!.x).toBe(desktopStateGridTypeField!.x);
 
   const marker = answersSection.getByRole("button", {
     name: "Mover destino 1",
@@ -347,7 +352,10 @@ test("keeps task authoring controls responsive in the current layout", async ({
     mobileShortTextTypeField!.y + mobileShortTextTypeField!.height,
   );
   expect(mobileDragDropTypeField!.y).toBeGreaterThan(
-    mobileStateGridTypeField!.y + mobileStateGridTypeField!.height,
+    mobileShortTextTypeField!.y + mobileShortTextTypeField!.height,
+  );
+  expect(mobileStateGridTypeField!.y).toBeGreaterThan(
+    mobileDragDropTypeField!.y + mobileDragDropTypeField!.height,
   );
   expect(mobileVertical!.y).toBeGreaterThan(
     mobileHorizontal!.y + mobileHorizontal!.height,
