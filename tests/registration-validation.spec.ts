@@ -3,10 +3,12 @@ import { expect, test } from "@playwright/test";
 import {
   API,
   ADMIN,
+  loginAdmin,
   registrationFields,
   removeNewUploads,
   uploadedDocuments,
   VALID_JPG,
+  VALID_PDF,
   VALID_PNG,
 } from "./support/helpers";
 
@@ -36,6 +38,165 @@ async function fillAccountFields(
   await page
     .getByLabel("Confirmar contraseña", { exact: true })
     .fill("segura123");
+}
+
+test("rejects invalid email formats on the API without keeping accounts or uploads", async ({
+  request,
+}) => {
+  const before = uploadedDocuments();
+  const headers = await loginAdmin(request);
+  const stamp = Date.now();
+  const invalidEmails = [
+    `sin-arroba-${stamp}`,
+    "",
+    "   ",
+    `maestro-${stamp}@`,
+    "@example.com",
+    `maestro-${stamp}@colegio`,
+    `mae stro-${stamp}@example.com`,
+    `maestro-${stamp}@exa mple.com`,
+    `.maestro-${stamp}@example.com`,
+    `maestro..${stamp}@example.com`,
+    `maestro-${stamp}.@example.com`,
+    `maestro-${stamp}@-example.com`,
+    `maestro-${stamp}@example..com`,
+    `maestro-${stamp}@@example.com`,
+    `${"m".repeat(65)}@example.com`,
+  ];
+  try {
+    for (const email of invalidEmails) {
+      const response = await request.post(`${API}/api/auth/register`, {
+        multipart: {
+          ...registrationFields(email, "school"),
+          letter: VALID_PDF,
+        },
+      });
+      expect(response.status(), `${email}: ${await response.text()}`).toBe(400);
+      expect(await response.json()).toMatchObject({
+        field: "email",
+        message: expect.any(String),
+      });
+      expect(uploadedDocuments()).toEqual(before);
+    }
+    const teachersResponse = await request.get(`${API}/api/users/maestros`, {
+      headers,
+    });
+    expect(teachersResponse.ok()).toBe(true);
+    const teachers = (await teachersResponse.json()) as Array<{
+      email: string;
+    }>;
+    for (const email of invalidEmails) {
+      expect(
+        teachers.some(
+          (teacher) => teacher.email === email.trim().toLowerCase(),
+        ),
+      ).toBe(false);
+    }
+  } finally {
+    removeNewUploads(before);
+  }
+});
+
+test("normalizes email aliases and subdomains for registration, duplicates and login", async ({
+  request,
+}) => {
+  const email = `Maestra.${Date.now()}+Colegio@Docentes.Example.COM`;
+  const normalized = email.toLowerCase();
+  const registered = await request.post(`${API}/api/auth/register`, {
+    multipart: registrationFields(`  ${email}  `, "school"),
+  });
+  expect(registered.status(), await registered.text()).toBe(201);
+  const created = await registered.json();
+  expect(created.user.email).toBe(normalized);
+  const profile = await request.get(`${API}/api/auth/me`, {
+    headers: { authorization: `Bearer ${created.token}` },
+  });
+  expect(profile.ok()).toBe(true);
+  expect((await profile.json()).email).toBe(normalized);
+
+  for (const duplicateEmail of [normalized, `  ${email.toUpperCase()}  `]) {
+    const duplicate = await request.post(`${API}/api/auth/register`, {
+      multipart: registrationFields(duplicateEmail, "school"),
+    });
+    expect(duplicate.status()).toBe(409);
+    expect(await duplicate.json()).toMatchObject({
+      field: "email",
+      message: "Ya existe una cuenta con ese correo.",
+    });
+  }
+  const login = await request.post(`${API}/api/auth/login`, {
+    data: {
+      email: ` ${email} `,
+      password: registrationFields(email, "school").password,
+    },
+  });
+  expect(login.ok(), await login.text()).toBe(true);
+  expect((await login.json()).user.email).toBe(normalized);
+});
+
+for (const width of [390, 1280]) {
+  test(`email validation and normalized confirmation at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openRegistration(page);
+    await fillAccountFields(page, "maestra@example.com");
+    await page.getByRole("button", { name: "Enseño en casa" }).click();
+    const email = page.getByLabel("Correo", { exact: true });
+    for (const invalid of [
+      "maestra@colegio",
+      ".maestra@example.com",
+      "mae stra@example.com",
+    ]) {
+      await email.fill(invalid);
+      await page.getByRole("button", { name: "Continuar" }).click();
+      await expect(email).toBeFocused();
+      await expect(email).toHaveAttribute("aria-invalid", "true");
+      await expect(email).toHaveAttribute(
+        "aria-describedby",
+        "reg-email-error",
+      );
+      await expect(page.locator("#reg-email-error")).toHaveText(
+        "Ingresa un correo válido.",
+      );
+      await expect(email).toHaveValue(invalid);
+    }
+
+    // A duplicate after normalization returns from confirmation to the email field.
+    await email.fill(` ${ADMIN.email.toUpperCase()} `);
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(
+      page.locator("dd").filter({ hasText: ADMIN.email.toLowerCase() }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(email).toBeFocused();
+    await expect(page.locator("#reg-email-error")).toHaveText(
+      "Ya existe una cuenta con ese correo.",
+    );
+
+    const address = `Maestra.${width}.${Date.now()}+Grupo@Docentes.Example.COM`;
+    await email.fill(` ${address} `);
+    await expect(page.locator("#reg-email-error")).toHaveCount(0);
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(
+      page.locator("dd").filter({ hasText: address.toLowerCase() }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Editar", exact: true }).click();
+    await expect(email).toHaveValue(address.toLowerCase());
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(
+      page.getByText("Cuenta creada", { exact: true }),
+    ).toBeVisible();
+    const user = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("bebras_user") ?? "null"),
+    );
+    expect(user.email).toBe(address.toLowerCase());
+  });
 }
 
 test("validates phone numbers on the API and stores their international form", async ({
