@@ -40,6 +40,179 @@ async function fillAccountFields(
     .fill("segura123");
 }
 
+test("rejects invalid registration names and manual school text without retaining uploads", async ({
+  request,
+}) => {
+  const before = uploadedDocuments();
+  const headers = await loginAdmin(request);
+  const emails: string[] = [];
+  try {
+    for (const [field, value] of [
+      ["firstName", "123"],
+      ["lastName", "---"],
+      ["firstName", "a".repeat(101)],
+      ["lastName", "ñ".repeat(101)],
+      ["firstName", "Ana\tMaría"],
+      ["lastName", "Pérez\n"],
+      ["firstName", "Ana😀"],
+      ["lastName", ""],
+      ["schoolName", "x".repeat(201)],
+      ["schoolName", "---"],
+      ["schoolName", "Colegio\tUno"],
+      ["schoolName", ""],
+    ]) {
+      const email = `text-${Date.now()}-${emails.length}@example.com`;
+      emails.push(email);
+      const response = await request.post(`${API}/api/auth/register`, {
+        multipart: {
+          ...registrationFields(email, "school"),
+          [field]: value,
+          letter: VALID_PDF,
+        },
+      });
+      expect(response.status(), `${field}: ${await response.text()}`).toBe(400);
+      expect(await response.json()).toMatchObject({
+        field,
+        message: expect.any(String),
+      });
+      expect(uploadedDocuments()).toEqual(before);
+    }
+    const response = await request.get(`${API}/api/users/maestros`, {
+      headers,
+    });
+    expect(response.ok()).toBe(true);
+    const teachers = (await response.json()) as Array<{ email: string }>;
+    expect(teachers.some((teacher) => emails.includes(teacher.email))).toBe(
+      false,
+    );
+  } finally {
+    removeNewUploads(before);
+  }
+});
+
+test("persists normalized Unicode names and manual schools at registration limits", async ({
+  request,
+}) => {
+  for (const fields of [
+    {
+      firstName: "  ana\u00a0  mari\u0301a ",
+      lastName: " o’connor-pérez ",
+      schoolName: "  U.E.  “6 de Agosto” N.º 2  ",
+    },
+    {
+      firstName: "𠮷".repeat(100),
+      lastName: "ñ".repeat(100),
+      schoolName: "C".repeat(200),
+    },
+  ]) {
+    const response = await request.post(`${API}/api/auth/register`, {
+      multipart: {
+        ...registrationFields(`valid-text-${Date.now()}@example.com`, "school"),
+        ...fields,
+      },
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    const { token } = await response.json();
+    const profile = await request.get(`${API}/api/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(profile.ok()).toBe(true);
+    const user = await profile.json();
+    if (fields.firstName.includes("ana")) {
+      expect(user).toMatchObject({
+        firstName: "Ana María",
+        lastName: "O’Connor-Pérez",
+        schoolName: "U.E. “6 de Agosto” N.º 2",
+      });
+    } else {
+      expect(user).toMatchObject({
+        firstName: fields.firstName,
+        lastName: `Ñ${"ñ".repeat(99)}`,
+        schoolName: fields.schoolName,
+      });
+    }
+  }
+});
+
+for (const width of [390, 1280]) {
+  test(`registration text errors and recovery at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openRegistration(page);
+    await fillAccountFields(page, `text-ui-${width}-${Date.now()}@example.com`);
+    await page
+      .getByRole("button", { name: "Mi colegio no está en la lista" })
+      .click();
+    const first = page.getByLabel("Nombres", { exact: true });
+    const last = page.getByLabel("Apellidos", { exact: true });
+    const school = page.getByPlaceholder("Nombre de tu unidad educativa");
+    await school.fill("Colegio 2");
+    for (const [input, value, id] of [
+      [first, "123", "reg-first-error"],
+      [first, "a".repeat(101), "reg-first-error"],
+      [last, "---", "reg-last-error"],
+      [last, "ñ".repeat(101), "reg-last-error"],
+      [school, "-", "reg-school-error"],
+      [school, "C".repeat(201), "reg-school-error"],
+    ] as const) {
+      await input.fill(value);
+      await page.getByRole("button", { name: "Continuar" }).click();
+      await expect(input).toBeFocused();
+      await expect(input).toHaveAttribute("aria-invalid", "true");
+      await expect(input).toHaveAttribute("aria-describedby", id);
+      await expect(page.locator(`#${id}`)).toBeVisible();
+      await expect(input).toHaveValue(value);
+      await input.fill(input === school ? "Colegio 2" : "María");
+      await expect(page.locator(`#${id}`)).toHaveCount(0);
+    }
+    await first.fill("  ana   mari\u0301a ");
+    await last.fill(" o’connor-pérez ");
+    await school.fill("  U.E.  “6 de Agosto” N.º 2  ");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(
+      page.locator("dd").filter({ hasText: "Ana María" }),
+    ).toBeVisible();
+    await expect(
+      page.locator("dd").filter({ hasText: "U.E. “6 de Agosto” N.º 2" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Editar", exact: true }).click();
+    await expect(first).toHaveValue("Ana María");
+    await expect(last).toHaveValue("O’Connor-Pérez");
+    await expect(school).toHaveValue("U.E. “6 de Agosto” N.º 2");
+    // Verify server errors route back to each new field after confirmation.
+    for (const [field, input] of [
+      ["firstName", first],
+      ["lastName", last],
+      ["schoolName", school],
+    ] as const) {
+      await page.route(
+        "**/api/auth/register",
+        (route) =>
+          route.fulfill({
+            status: 400,
+            json: { field, message: "Revisa este dato." },
+          }),
+        { times: 1 },
+      );
+      await page.getByRole("button", { name: "Continuar" }).click();
+      await page
+        .getByRole("button", { name: "Confirmar y crear cuenta" })
+        .click();
+      await expect(input).toBeFocused();
+      await expect(input).toHaveAttribute("aria-invalid", "true");
+      await input.fill(await input.inputValue());
+    }
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(
+      page.getByText("Cuenta creada", { exact: true }),
+    ).toBeVisible();
+  });
+}
+
 test("rejects invalid email formats on the API without keeping accounts or uploads", async ({
   request,
 }) => {
