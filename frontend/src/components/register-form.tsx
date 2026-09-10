@@ -34,6 +34,11 @@ import { validatePhone } from "@/lib/phone";
 import { validateEmail } from "@/lib/email";
 import { validateRegistrationText } from "@/lib/registration-text";
 import { registrationPasswordError } from "@/lib/registration-password";
+import {
+  registrationInputError,
+  registrationInputGuards,
+  type RestrictedRegistrationField,
+} from "@/lib/registration-input";
 import { API_BASE_URL } from "@/lib/api-client";
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
@@ -129,6 +134,25 @@ export function RegisterForm() {
       });
       return next;
     });
+  };
+
+  const rejectCharacters = (
+    field: RestrictedRegistrationField,
+    message: string,
+  ) => {
+    setErrors((current) => ({ ...current, [field]: message, form: undefined }));
+  };
+  const inputGuards = (field: RestrictedRegistrationField) =>
+    registrationInputGuards(field, (message) =>
+      rejectCharacters(field, message),
+    );
+  const acceptCharacters = (
+    field: RestrictedRegistrationField,
+    value: string,
+  ) => {
+    const error = registrationInputError(field, value);
+    if (error) rejectCharacters(field, error);
+    return !error;
   };
 
   const updateDocument = (
@@ -452,8 +476,11 @@ export function RegisterForm() {
                 <Input
                   ref={firstNameRef}
                   id="reg-first"
+                  {...inputGuards("firstName")}
                   value={firstName}
                   onChange={(event) => {
+                    if (!acceptCharacters("firstName", event.target.value))
+                      return;
                     setFirstName(event.target.value);
                     if (errors.firstName) {
                       clearErrors("firstName");
@@ -473,8 +500,11 @@ export function RegisterForm() {
                 <Input
                   ref={lastNameRef}
                   id="reg-last"
+                  {...inputGuards("lastName")}
                   value={lastName}
                   onChange={(event) => {
+                    if (!acceptCharacters("lastName", event.target.value))
+                      return;
                     setLastName(event.target.value);
                     if (errors.lastName) {
                       clearErrors("lastName");
@@ -519,10 +549,13 @@ export function RegisterForm() {
                 <Input
                   ref={phoneRef}
                   id="reg-phone"
+                  {...inputGuards("phone")}
                   type="tel"
+                  inputMode="tel"
                   autoComplete="tel"
                   value={phone}
                   onChange={(event) => {
+                    if (!acceptCharacters("phone", event.target.value)) return;
                     setPhone(event.target.value);
                     if (errors.phone) {
                       clearErrors("phone");
@@ -546,12 +579,15 @@ export function RegisterForm() {
                   <InputGroupInput
                     ref={passwordRef}
                     id="reg-password"
+                    {...inputGuards("password")}
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
                     name="password"
+                    minLength={6}
                     value={password}
                     onChange={(event) => {
                       const next = event.target.value;
+                      if (!acceptCharacters("password", next)) return;
                       setPassword(next);
                       setErrors((current) => ({
                         ...current,
@@ -597,12 +633,15 @@ export function RegisterForm() {
                   <InputGroupInput
                     ref={confirmPasswordRef}
                     id="reg-confirm"
+                    {...inputGuards("confirmPassword")}
                     type={showConfirmPassword ? "text" : "password"}
                     autoComplete="new-password"
                     name="confirmPassword"
+                    minLength={6}
                     value={confirmPassword}
                     onChange={(event) => {
                       const next = event.target.value;
+                      if (!acceptCharacters("confirmPassword", next)) return;
                       confirmPasswordTouchedRef.current = true;
                       setConfirmPassword(next);
                       setErrors((current) => ({

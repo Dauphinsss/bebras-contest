@@ -40,6 +40,102 @@ async function fillAccountFields(
     .fill("segura123");
 }
 
+for (const width of [390, 1280]) {
+  test(`blocks forbidden registration characters when typing and pasting at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openRegistration(page);
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    for (const [label, valid, key, pasted, id] of [
+      ["Nombres", "Ana María", "1", "Ana123", "reg-first-error"],
+      ["Apellidos", "O’Connor-Pérez", "9", "Pérez😀", "reg-last-error"],
+      ["Teléfono", "+591 7123-4567", "a", "Tel: 71234567", "reg-phone-error"],
+      [
+        "Contraseña",
+        "segura123",
+        " ",
+        "clave con espacios",
+        "reg-password-error",
+      ],
+      [
+        "Confirmar contraseña",
+        "segura123",
+        " ",
+        "segura123 ",
+        "reg-confirm-error",
+      ],
+    ]) {
+      const input = page.getByLabel(label, { exact: true });
+      await input.fill(valid);
+      await input.press("End");
+      await input.pressSequentially(key);
+      await expect(input).toHaveValue(valid);
+      await expect(input).toBeFocused();
+      await expect(page.locator(`#${id}`)).toBeVisible();
+      await expect(input).toHaveAttribute("aria-describedby", id);
+      await page.evaluate(
+        (text) => navigator.clipboard.writeText(text),
+        pasted,
+      );
+      await input.press("ControlOrMeta+A");
+      await input.press("ControlOrMeta+V");
+      await expect(input).toHaveValue(valid);
+      if (label !== "Teléfono") {
+        await page.evaluate(
+          (text) => navigator.clipboard.writeText(`${text}Otro\n`),
+          valid,
+        );
+        await input.press("ControlOrMeta+V");
+        await expect(input).toHaveValue(valid);
+        await expect(page.locator(`#${id}`)).toBeVisible();
+      }
+      // Programmatic input/autofill events are checked as well as keyboard/paste.
+      await input.fill(pasted);
+      await expect(input).toHaveValue(valid);
+      // Native HTML pattern works independently of React and remains Unicode-safe.
+      const native = await input.evaluate((element, invalid) => {
+        const control = element as HTMLInputElement;
+        const original = control.value;
+        const acceptsValid = !control.validity.patternMismatch;
+        control.value = invalid;
+        const rejectsInvalid = control.validity.patternMismatch;
+        control.value = original;
+        return { acceptsValid, rejectsInvalid, required: control.required };
+      }, pasted);
+      expect(native).toEqual({
+        acceptsValid: true,
+        rejectsInvalid: true,
+        required: true,
+      });
+      await input.fill("");
+      await page.evaluate((text) => navigator.clipboard.writeText(text), valid);
+      await input.press("ControlOrMeta+V");
+      await expect(input).toHaveValue(valid);
+      await expect(page.locator(`#${id}`)).toHaveCount(0);
+    }
+    const first = page.getByLabel("Nombres", { exact: true });
+    await first.fill("李 Mari\u0301a");
+    await expect(first).toHaveValue("李 Mari\u0301a");
+    const phone = page.getByLabel("Teléfono", { exact: true });
+    await expect(phone).toHaveAttribute("type", "tel");
+    await expect(phone).toHaveAttribute("inputmode", "tel");
+    await page
+      .getByLabel("Correo", { exact: true })
+      .fill(`guard-${width}-${Date.now()}@example.com`);
+    await page.getByRole("button", { name: "Enseño en casa" }).click();
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page
+      .getByRole("button", { name: "Confirmar y crear cuenta" })
+      .click();
+    await expect(
+      page.getByText("Cuenta creada", { exact: true }),
+    ).toBeVisible();
+  });
+}
+
 test("rejects invalid registration passwords without keeping accounts or uploads", async ({
   request,
 }) => {
@@ -150,7 +246,6 @@ for (const width of [390, 1280]) {
     await expect(confirmation).toHaveAttribute("autocomplete", "new-password");
     for (const [value, message] of [
       ["12345", "La contraseña debe tener al menos 6 caracteres."],
-      ["      ", "La contraseña no puede contener espacios."],
       ["é".repeat(37), "La contraseña es muy larga."],
       ["😀".repeat(19), "La contraseña es muy larga."],
       ["", "Ingresa una contraseña."],
@@ -380,7 +475,6 @@ for (const width of [390, 1280]) {
     const school = page.getByPlaceholder("Nombre de tu unidad educativa");
     await school.fill("Colegio 2");
     for (const [input, value, id] of [
-      [first, "123", "reg-first-error"],
       [first, "a".repeat(101), "reg-first-error"],
       [last, "---", "reg-last-error"],
       [last, "ñ".repeat(101), "reg-last-error"],
@@ -670,9 +764,8 @@ for (const width of [390, 1280]) {
     await phone.focus();
     await phone.press("ControlOrMeta+A");
     await phone.press("ControlOrMeta+V");
-    await page.getByRole("button", { name: "Continuar" }).click();
     await expect(phone).toBeFocused();
-    await expect(phone).toHaveValue("7abc1234");
+    await expect(phone).toHaveValue("70000010");
     await expect(phone).toHaveAttribute("aria-invalid", "true");
     await expect(page.locator("#reg-phone-error")).toContainText("letras");
     await expect(phone).toHaveAttribute("aria-describedby", "reg-phone-error");
