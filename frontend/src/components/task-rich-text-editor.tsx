@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AuthoringDeleteDialog } from "@/components/authoring-delete-dialog";
+import { blankGuard, blankGuardKey } from "@/lib/authoring-blank-guard";
 import {
   EditorContent,
   useEditor,
@@ -144,6 +146,7 @@ export function TaskRichTextEditor({
   onRemoveEmpty,
   allowBlanks = false,
   onSelectBlank,
+  blankRemovalDescription,
 }: {
   id: string;
   content: string;
@@ -156,8 +159,17 @@ export function TaskRichTextEditor({
   onRemoveEmpty?: () => boolean;
   allowBlanks?: boolean;
   onSelectBlank?: (blankId: string) => void;
+  blankRemovalDescription?: (ids: string[]) => string | null;
 }) {
   const previousValue = useRef({ content, richText });
+  const [pendingDelete, setPendingDelete] = useState<{
+    description: string;
+    confirm: () => void;
+  } | null>(null);
+  const descriptionRef = useRef(blankRemovalDescription);
+  useEffect(() => {
+    descriptionRef.current = blankRemovalDescription;
+  }, [blankRemovalDescription]);
   const editor = useEditor({
     immediatelyRender: false,
     extensions,
@@ -232,6 +244,34 @@ export function TaskRichTextEditor({
     },
   });
 
+  useEffect(() => {
+    if (!editor || !allowBlanks) return;
+    editor.registerPlugin(
+      blankGuard((ids, transaction) => {
+        const description = descriptionRef.current?.(ids);
+        if (!description) return false;
+        queueMicrotask(() =>
+          setPendingDelete({
+            description: `${description} Puedes deshacer en el editor de texto.`,
+            confirm: () => {
+              if (
+                !editor.isDestroyed &&
+                editor.state.doc.eq(transaction.before)
+              ) {
+                editor.view.dispatch(transaction.setMeta(blankGuardKey, true));
+                editor.commands.focus();
+              }
+            },
+          }),
+        );
+        return true;
+      }),
+    );
+    return () => {
+      editor.unregisterPlugin(blankGuardKey);
+    };
+  }, [editor, allowBlanks]);
+
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -263,6 +303,10 @@ export function TaskRichTextEditor({
 
   return (
     <>
+      <AuthoringDeleteDialog
+        pending={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
       {allowBlanks && editor && (
         <div
           className="flex flex-wrap items-center gap-1"

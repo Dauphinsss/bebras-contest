@@ -3,6 +3,17 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { DragDropPlayer } from "@/components/drag-drop-player";
 import { ImageUploadButton } from "@/components/image-upload-button";
+import { AuthoringDeleteDialog } from "@/components/authoring-delete-dialog";
+import {
+  dragRemovalImpact,
+  duplicateSolutions,
+  editingSolutions,
+  intersectingTargets,
+  pieceGeometryWarnings,
+  summarizeAuthoringWarnings,
+  targetSizeWarnings,
+} from "@/lib/authoring";
+import { useAuthoringImageSizes } from "@/lib/authoring-image-sizes";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +31,6 @@ import {
 } from "@/components/ui/native-select";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { dragDropPrimaryPlacements } from "@/lib/drag-drop-grading";
 import type {
   StoredTaskDragDropItem,
   StoredTaskDragDropSolution,
@@ -49,8 +59,7 @@ type Props = {
     id: string,
     patch: Partial<Pick<StoredTaskDragDropTarget, "x" | "y" | "snapRadius">>,
   ) => void;
-  onUpdatePrimary: (placements: Record<string, string>) => void;
-  onAddSolution: () => string;
+  onAddSolution: (placements: Record<string, string>) => string;
   onRemoveSolution: (id: string) => void;
   onUpdateSolution: (id: string, placements: Record<string, string>) => void;
 };
@@ -62,6 +71,21 @@ export function DragDropEditor(p: Props) {
   const [mode, setMode] = useState("positions");
   const [targetId, setTargetId] = useState<string | null>(null);
   const [solutionId, setSolutionId] = useState("primary");
+  const [pendingDelete, setPendingDelete] = useState<{
+    description: string;
+    confirm: () => void;
+  } | null>(null);
+  const [backgroundReview, setBackgroundReview] = useState({
+    url: backgroundUrl,
+    changed: false,
+  });
+  if (backgroundReview.url !== backgroundUrl) {
+    setBackgroundReview({
+      url: backgroundUrl,
+      changed: backgroundReview.changed || Boolean(backgroundReview.url),
+    });
+  }
+  const backgroundChanged = backgroundReview.changed;
   const stageRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; pointerId: number } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -77,21 +101,43 @@ export function DragDropEditor(p: Props) {
   }, [backgroundUrl, mode]);
   const selected = targets.find((t) => t.id === targetId) ?? targets[0];
   const selectedIndex = targets.findIndex((t) => t.id === selected?.id);
-  const alternative = solutions.find((s) => s.id === solutionId);
-  const placements =
-    alternative?.placements ?? dragDropPrimaryPlacements(items);
+  const allSolutions = editingSolutions(items, solutions);
+  const currentSolution =
+    allSolutions.find((s) => s.id === solutionId) ?? allSolutions[0];
+  const placements = currentSolution.placements;
+  const imageSizes = useAuthoringImageSizes([
+    ...(backgroundUrl ? [backgroundUrl] : []),
+    ...items.flatMap((item) => (item.image ? [item.image.url] : [])),
+  ]);
+  const geometry = pieceGeometryWarnings(
+    items,
+    targets,
+    placements,
+    backgroundUrl ? imageSizes[backgroundUrl] : undefined,
+    imageSizes,
+  );
   const change = (next: Record<string, string>) =>
-    alternative
-      ? p.onUpdateSolution(alternative.id, next)
-      : p.onUpdatePrimary(next);
+    p.onUpdateSolution(currentSolution.id, next);
+  const duplicates = duplicateSolutions(items, allSolutions);
+  const intersections = intersectingTargets(targets, size.width, size.height);
+  const sizeWarnings = targetSizeWarnings(targets, size.width, size.height);
+  const problematicItems = items.some(
+    (item) =>
+      (size.width > 0 && (item.widthPercent * size.width) / 100 < 24) ||
+      item.widthPercent > 50,
+  );
+  const remove = (kind: "pieza" | "destino", id: string) => {
+    const impacted = dragRemovalImpact(allSolutions, kind, id);
+    const confirm = () =>
+      kind === "pieza" ? p.onRemoveItem(id) : p.onRemoveTarget(id);
+    if (!impacted.length) return confirm();
+    setPendingDelete({
+      description: `Se eliminará ${kind === "pieza" ? "la pieza" : "el destino"} y sus asignaciones en: ${impacted.map((s) => s.name).join(", ")}. ${kind === "destino" ? "Las piezas afectadas quedarán sin colocar." : "Se quitará de todas las soluciones."} Revisa las soluciones resultantes. No se puede deshacer.`,
+      confirm,
+    });
+  };
   const targetIds = new Set(targets.map((t) => t.id));
-  const incomplete = [
-    { name: "Principal", placements: dragDropPrimaryPlacements(items) },
-    ...solutions.map((s, i) => ({
-      name: `Alterna ${i + 1}`,
-      placements: s.placements,
-    })),
-  ].filter((s) => {
+  const incomplete = allSolutions.filter((s) => {
     const assigned = items.map((item) => s.placements[item.id]);
     return (
       assigned.some((id) => !targetIds.has(id)) ||
@@ -131,6 +177,10 @@ export function DragDropEditor(p: Props) {
   };
   return (
     <FieldGroup>
+      <AuthoringDeleteDialog
+        pending={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ToggleGroup
           type="single"
@@ -153,6 +203,57 @@ export function DragDropEditor(p: Props) {
       <p className="text-sm text-muted-foreground">
         {items.length} piezas · {targets.length} destinos
       </p>
+      {backgroundChanged && (
+        <Alert>
+          <AlertDescription>
+            Se cambió el fondo. Se conservaron las posiciones y radios; revisa
+            su ajuste a la nueva imagen.
+          </AlertDescription>
+        </Alert>
+      )}
+      {duplicates.length > 0 && (
+        <Alert>
+          <AlertDescription>
+            Soluciones repetidas: {duplicates.join("; ")}. Modifica la copia o
+            quítala antes de guardar.
+          </AlertDescription>
+        </Alert>
+      )}
+      {mode === "positions" && intersections.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Radios de encaje superpuestos:{" "}
+          {summarizeAuthoringWarnings(intersections)}. Revisa si permiten
+          distinguir los destinos.
+        </p>
+      )}
+      {mode === "positions" && sizeWarnings.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {summarizeAuthoringWarnings(sizeWarnings)}. Revisa el ajuste en la
+          vista previa.
+        </p>
+      )}
+      {problematicItems && (
+        <p className="text-sm text-muted-foreground">
+          Hay piezas muy pequeñas o grandes para esta pantalla. Revisa su tamaño
+          en la vista previa.
+        </p>
+      )}
+      {geometry.warnings.length > 0 && (
+        <p
+          className="text-sm text-muted-foreground"
+          data-authoring-piece-geometry
+        >
+          Revisar {currentSolution.name}:{" "}
+          {summarizeAuthoringWarnings(geometry.warnings)}. Se consideran los
+          rectángulos de las imágenes, incluidas sus zonas transparentes.
+        </p>
+      )}
+      {geometry.unmeasured > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Geometría pendiente de {geometry.unmeasured} piezas colocadas: faltan
+          dimensiones de imagen cargadas.
+        </p>
+      )}
       {incomplete.length > 0 && (
         <Alert>
           <AlertDescription>
@@ -167,7 +268,9 @@ export function DragDropEditor(p: Props) {
           <FieldDescription>
             Marca todos los lugares donde se puede colocar una pieza, incluidos
             los que pueden quedar vacíos. Arrastra un destino o ajústalo con las
-            flechas; Shift permite un ajuste fino.
+            flechas; Shift permite un ajuste fino. El círculo punteado muestra
+            el radio real sobre la dimensión menor del fondo; el asa central de
+            24 px sirve solo para editar.
           </FieldDescription>
           <Button
             type="button"
@@ -191,10 +294,8 @@ export function DragDropEditor(p: Props) {
                 draggable={false}
               />
               {targets.map((t, i) => {
-                const diameter = Math.max(
-                  24,
-                  (t.snapRadius / 50) * Math.min(size.width, size.height),
-                );
+                const diameter =
+                  (t.snapRadius / 50) * Math.min(size.width, size.height);
                 return (
                   <button
                     key={t.id}
@@ -202,7 +303,7 @@ export function DragDropEditor(p: Props) {
                     aria-label={`Mover destino ${i + 1}`}
                     aria-pressed={selected?.id === t.id}
                     className={cn(
-                      "absolute flex -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border-2 border-dashed bg-background/80 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "absolute flex size-6 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full bg-background/80 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       selected?.id === t.id
                         ? "border-primary text-primary"
                         : "border-muted-foreground text-foreground",
@@ -210,8 +311,6 @@ export function DragDropEditor(p: Props) {
                     style={{
                       left: `${t.x}%`,
                       top: `${t.y}%`,
-                      width: diameter,
-                      height: diameter,
                     }}
                     onClick={() => setTargetId(t.id)}
                     onPointerDown={(e) => {
@@ -243,7 +342,20 @@ export function DragDropEditor(p: Props) {
                       });
                     }}
                   >
-                    {i + 1}
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute rounded-full border-2 border-dashed border-current"
+                      style={{ width: diameter, height: diameter }}
+                    />
+                    <span
+                      className={cn(
+                        "pointer-events-none relative rounded-sm bg-background px-0.5",
+                        diameter < 24 && "absolute bottom-full mb-0.5",
+                      )}
+                      data-authoring-target-label
+                    >
+                      {i + 1}
+                    </span>
                   </button>
                 );
               })}
@@ -305,7 +417,7 @@ export function DragDropEditor(p: Props) {
                 variant="outline"
                 size="sm"
                 aria-label={`Quitar destino ${selectedIndex + 1}`}
-                onClick={() => p.onRemoveTarget(selected.id)}
+                onClick={() => remove("destino", selected.id)}
               >
                 <XIcon data-icon="inline-start" />
                 Quitar destino {selectedIndex + 1}
@@ -321,15 +433,12 @@ export function DragDropEditor(p: Props) {
               <FieldLabel htmlFor="drag-solution">Solución válida</FieldLabel>
               <NativeSelect
                 id="drag-solution"
-                value={alternative?.id ?? "primary"}
+                value={currentSolution.id}
                 onChange={(e) => setSolutionId(e.target.value)}
               >
-                <NativeSelectOption value="primary">
-                  Principal
-                </NativeSelectOption>
-                {solutions.map((s, i) => (
+                {allSolutions.map((s) => (
                   <NativeSelectOption key={s.id} value={s.id}>
-                    Alterna {i + 1}
+                    {s.name}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
@@ -338,18 +447,18 @@ export function DragDropEditor(p: Props) {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setSolutionId(p.onAddSolution())}
+              onClick={() => setSolutionId(p.onAddSolution(placements))}
             >
               <PlusIcon data-icon="inline-start" />
-              Otra solución
+              Duplicar {currentSolution.name}
             </Button>
-            {alternative && (
+            {currentSolution.id !== "primary" && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  p.onRemoveSolution(alternative.id);
+                  p.onRemoveSolution(currentSolution.id);
                   setSolutionId("primary");
                 }}
               >
@@ -364,7 +473,7 @@ export function DragDropEditor(p: Props) {
           </FieldDescription>
           {backgroundUrl && (
             <DragDropPlayer
-              key={alternative?.id ?? "primary"}
+              key={currentSolution.id}
               backgroundUrl={backgroundUrl}
               items={items}
               targets={targets}
@@ -410,7 +519,7 @@ export function DragDropEditor(p: Props) {
                   size="icon-sm"
                   variant="outline"
                   aria-label={`Quitar pieza ${i + 1}`}
-                  onClick={() => p.onRemoveItem(item.id)}
+                  onClick={() => remove("pieza", item.id)}
                 >
                   <XIcon />
                 </Button>

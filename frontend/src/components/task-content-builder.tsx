@@ -10,7 +10,8 @@ import { createPortal } from "react-dom";
 import type { Editor, JSONContent } from "@tiptap/react";
 import { TaskRichTextEditor } from "@/components/task-rich-text-editor";
 import { cn } from "@/lib/utils";
-import { hasTaskBlanks } from "@/lib/task-blank";
+import { getTaskBlankIds, hasTaskBlanks } from "@/lib/task-blank";
+import { AuthoringDeleteDialog } from "@/components/authoring-delete-dialog";
 import { type ContentBlock, type ContentBlockType } from "@/lib/task-schema";
 import { Button } from "@/components/ui/button";
 import { ImageUploadButton } from "@/components/image-upload-button";
@@ -50,6 +51,7 @@ type TaskContentBuilderProps = {
   allowCrossSectionDrag?: boolean;
   allowBlanks?: boolean;
   onSelectBlank?: (blankId: string) => void;
+  blankRemovalDescription?: (ids: string[]) => string | null;
   /** Identifica esta lista, para saber si un bloque cambió de sección. */
   sectionId?: string;
   /** Soltar sobre otra sección: mover el bloque de una lista a la otra. */
@@ -78,10 +80,15 @@ export function TaskContentBuilder({
   allowCrossSectionDrag = false,
   allowBlanks = false,
   onSelectBlank,
+  blankRemovalDescription,
   sectionId,
   onMoveBlockToSection,
 }: TaskContentBuilderProps) {
   const builderRef = useRef<HTMLDivElement | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    description: string;
+    confirm: () => void;
+  } | null>(null);
   const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const editorRefs = useRef<Record<string, Editor | null>>({});
   const pendingFocusRef = useRef<{
@@ -135,6 +142,16 @@ export function TaskContentBuilder({
 
   const removeBlock = (blockId: string) => {
     const block = blocks.find((item) => item.id === blockId);
+    const description = blankRemovalDescription?.(
+      getTaskBlankIds(block?.richText),
+    );
+    if (description) {
+      setPendingDelete({
+        description: `${description} Eliminar el bloque completo no se puede deshacer.`,
+        confirm: () => onRemoveBlock(blockId),
+      });
+      return;
+    }
     const previous = previousTextBlock(blockId);
     if (block && !block.content.trim() && !block.image && previous) {
       pendingFocusRef.current = { blockId: previous.id, atEnd: true };
@@ -268,6 +285,10 @@ export function TaskContentBuilder({
       data-block-section={sectionId}
       data-cross-section-drag={allowCrossSectionDrag}
     >
+      <AuthoringDeleteDialog
+        pending={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
       {blocks.map((block) => (
         <div
           key={block.id}
@@ -337,6 +358,7 @@ export function TaskContentBuilder({
                   <TaskRichTextEditor
                     allowBlanks={allowBlanks}
                     onSelectBlank={onSelectBlank}
+                    blankRemovalDescription={blankRemovalDescription}
                     id={`block-content-${block.id}`}
                     content={block.content}
                     richText={block.richText}

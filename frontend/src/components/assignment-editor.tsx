@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -83,15 +83,24 @@ export function AssignmentEditor({
   answerKey,
   blocks,
   onChange,
+  selectedBlank = "",
+  onSelectBlank,
 }: {
   kind: "state_grid" | "text_cloze";
   config: GridConfig | ClozeConfig;
   answerKey: AssignmentKey;
   blocks: ContentBlock[];
   onChange: (config: GridConfig | ClozeConfig, key: AssignmentKey) => void;
+  selectedBlank?: string;
+  onSelectBlank?: (id: string) => void;
 }) {
   const [solutionIndex, setSolutionIndex] = useState(0);
-  const [selectedBlank, setSelectedBlank] = useState("");
+  const blankPanelRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (kind === "text_cloze" && selectedBlank && blankPanelRef.current) {
+      blankPanelRef.current.open = true;
+    }
+  }, [kind, selectedBlank]);
   const grid = kind === "state_grid" ? (config as GridConfig) : null;
   const cloze =
     kind === "text_cloze" ? activeCloze(config as ClozeConfig, blocks) : null;
@@ -316,7 +325,7 @@ export function AssignmentEditor({
       >
         Añadir {grid ? "estado" : "opción"}
       </Button>
-      <details className="text-sm">
+      <details ref={blankPanelRef} className="text-sm">
         <summary className="cursor-pointer">
           {grid ? "Etiquetas de las casillas" : "Opciones permitidas por hueco"}
         </summary>
@@ -353,7 +362,7 @@ export function AssignmentEditor({
               <NativeSelect
                 aria-label="Configurar hueco"
                 value={blank.id}
-                onChange={(event) => setSelectedBlank(event.target.value)}
+                onChange={(event) => onSelectBlank?.(event.target.value)}
               >
                 {cloze!.blanks.map((entry, i) => (
                   <option key={entry.id} value={entry.id}>

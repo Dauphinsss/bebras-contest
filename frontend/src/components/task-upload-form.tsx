@@ -77,6 +77,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DragDropEditor } from "@/components/drag-drop-editor";
+import { blankRemovalImpact, nextTargetPosition } from "@/lib/authoring";
 import { TaskContentBuilder } from "@/components/task-content-builder";
 import { FormSection } from "@/components/form-section";
 import {
@@ -752,6 +753,13 @@ export function TaskUploadForm({
   // Ya no cambia en vivo: al guardar se sale de la pantalla.
   const loadedTask = initialTask;
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [selectedBlank, setSelectedBlank] = useState("");
+  const blankRemovalDescription = (ids: string[]) => {
+    const impact = blankRemovalImpact(ids, form.clozeKey.acceptedAssignments);
+    return impact.length
+      ? `Se quitarán ${ids.length} huecos del texto y sus respuestas de las soluciones ${impact.join(", ")}.`
+      : null;
+  };
   const activeOptionLabels = form.answerOrder.slice(0, form.answerCount);
 
   const completedOptionsCount = useMemo(
@@ -1422,6 +1430,8 @@ export function TaskUploadForm({
           allowedBlockTypes={["text", "image"]}
           blocks={form.bodyBlocks}
           allowBlanks={form.answerType === "text_cloze"}
+          onSelectBlank={setSelectedBlank}
+          blankRemovalDescription={blankRemovalDescription}
           allowCrossSectionDrag
           sectionId="bodyBlocks"
           onMoveBlockToSection={(blockId, toSectionId, toBlockId, position) =>
@@ -1461,6 +1471,8 @@ export function TaskUploadForm({
           allowedBlockTypes={["text", "image"]}
           blocks={form.challengeBlocks}
           allowBlanks={form.answerType === "text_cloze"}
+          onSelectBlank={setSelectedBlank}
+          blankRemovalDescription={blankRemovalDescription}
           allowCrossSectionDrag
           sectionId="challengeBlocks"
           onMoveBlockToSection={(blockId, toSectionId, toBlockId, position) =>
@@ -1581,6 +1593,8 @@ export function TaskUploadForm({
           {(form.answerType === "state_grid" ||
             form.answerType === "text_cloze") && (
             <AssignmentEditor
+              selectedBlank={selectedBlank}
+              onSelectBlank={setSelectedBlank}
               key={form.answerType}
               kind={form.answerType}
               config={
@@ -2116,8 +2130,7 @@ export function TaskUploadForm({
                       ...current.dragDropTargets,
                       {
                         id: targetId,
-                        x: 50,
-                        y: 50,
+                        ...nextTargetPosition(current.dragDropTargets),
                         snapRadius:
                           current.dragDropTargets[0]?.snapRadius ?? 10,
                       },
@@ -2148,19 +2161,10 @@ export function TaskUploadForm({
                     ),
                   }))
                 }
-                onUpdatePrimary={(placements) =>
-                  setForm((current) => ({
-                    ...current,
-                    dragDropItems: current.dragDropItems.map((item) => ({
-                      ...item,
-                      correctTargetId: placements[item.id] ?? "",
-                    })),
-                  }))
-                }
                 onUpdateItem={updateDragDropItem}
                 onUpdateTarget={updateDragDropTarget}
                 solutions={form.dragDropSolutions}
-                onAddSolution={() => {
+                onAddSolution={(placements) => {
                   const solutionId = crypto.randomUUID();
 
                   setForm((current) => ({
@@ -2169,9 +2173,7 @@ export function TaskUploadForm({
                       ...current.dragDropSolutions,
                       {
                         id: solutionId,
-                        placements: dragDropPrimaryPlacements(
-                          current.dragDropItems,
-                        ),
+                        placements: { ...placements },
                       },
                     ],
                   }));
@@ -2189,6 +2191,13 @@ export function TaskUploadForm({
                 onUpdateSolution={(solutionId, placements) =>
                   setForm((current) => ({
                     ...current,
+                    dragDropItems:
+                      solutionId === "primary"
+                        ? current.dragDropItems.map((item) => ({
+                            ...item,
+                            correctTargetId: placements[item.id] ?? "",
+                          }))
+                        : current.dragDropItems,
                     dragDropSolutions: current.dragDropSolutions.map(
                       (solution) =>
                         solution.id === solutionId
