@@ -31,6 +31,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "concurrently": "^9.2.1",
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "wrangler": "^4.131.0"
   }
 }
