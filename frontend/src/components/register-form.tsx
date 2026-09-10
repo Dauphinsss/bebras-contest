@@ -24,6 +24,7 @@ import { SchoolPicker, type SchoolValue } from "@/components/school-picker";
 import { cn } from "@/lib/utils";
 import { formatPersonName } from "@/lib/person-name";
 import { validatePhone } from "@/lib/phone";
+import { validateEmail } from "@/lib/email";
 import { API_BASE_URL } from "@/lib/api-client";
 import { setToken, setUser, type AuthUser } from "@/lib/auth";
 
@@ -143,17 +144,12 @@ export function RegisterForm() {
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const emailInvalid =
-      Boolean(email.trim()) && Boolean(emailRef.current?.validity.typeMismatch);
+    const validatedEmail = validateEmail(email);
     const validatedPhone = validatePhone(phone);
     const nextErrors: RegisterErrors = {
       firstName: firstName.trim() ? undefined : "Ingresa tus nombres.",
       lastName: lastName.trim() ? undefined : "Ingresa tus apellidos.",
-      email: !email.trim()
-        ? "Ingresa tu correo."
-        : emailInvalid
-          ? "Ingresa un correo válido."
-          : undefined,
+      email: validatedEmail.error,
       phone: validatedPhone.error,
       password: !password
         ? "Ingresa una contraseña."
@@ -206,6 +202,7 @@ export function RegisterForm() {
     }
 
     setPhone(validatedPhone.number!);
+    setEmail(validatedEmail.email!);
     setErrors({});
     setStep("confirm");
   };

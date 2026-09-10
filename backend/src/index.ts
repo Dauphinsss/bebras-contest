@@ -13,6 +13,7 @@ import { prisma } from "./lib/prisma";
 import type { Prisma } from "./generated/prisma/client";
 import { formatPersonName } from "./lib/person-name";
 import { validatePhone } from "./lib/phone";
+import { validateEmail } from "./lib/email";
 import {
   countFilledBlocks,
   normalizeDragDropConfig,
@@ -1669,7 +1670,14 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  if (!firstName || !lastName || !email || !password) {
+  const emailError = validateEmail(email).error;
+  if (emailError) {
+    await cleanupFiles(...allFiles);
+    res.status(400).json({ message: emailError, field: "email" });
+    return;
+  }
+
+  if (!firstName || !lastName || !password) {
     await cleanupFiles(...allFiles);
     res.status(400).json({
       message: "Nombres, apellidos, correo y contraseña son obligatorios.",
