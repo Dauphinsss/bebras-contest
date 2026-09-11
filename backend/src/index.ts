@@ -1,14 +1,14 @@
-import "dotenv/config";
+import { env } from "cloudflare:workers";
+import { httpServerHandler } from "cloudflare:node";
 import express from "express";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "./lib/password-service";
+export { PasswordService } from "./lib/password-service";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
-import PDFDocument from "pdfkit";
-import { readFileSync } from "node:fs";
+import { createAuthorizationLetter } from "./lib/documents-pdf";
 import { Readable } from "node:stream";
-import { mkdir, open, unlink } from "node:fs/promises";
-import { resolve, extname } from "node:path";
+import { extname } from "node:path";
 import { prisma } from "./lib/prisma";
 import type { Prisma } from "./generated/prisma/client";
 import { formatPersonName } from "./lib/person-name";
@@ -29,16 +29,11 @@ import type { PlayTask } from "./lib/task-answers/types";
 import { requireAdmin, requireAuth, signToken } from "./lib/auth";
 
 const app = express();
-const port = Number(process.env.PORT) || 3000;
-const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:4321";
-
-const UPLOADS_DIR = resolve(__dirname, "..", "uploads", "letters");
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
 const ROSTER_ALLOWED_EXT = new Set([".xlsx", ".csv"]);
 const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
 const activeRosterContests = new Set<string>();
-const E2E_CLOCK_FILE = process.env.E2E_CLOCK_FILE;
 
 function documentUploadField(value: unknown) {
   return value === "letter" || value === "idFront" || value === "idBack"
@@ -47,17 +42,6 @@ function documentUploadField(value: unknown) {
 }
 
 function currentDate() {
-  if (E2E_CLOCK_FILE) {
-    try {
-      const date = new Date(readFileSync(E2E_CLOCK_FILE, "utf8").trim());
-      if (!Number.isNaN(date.getTime())) {
-        return date;
-      }
-    } catch {
-      // An absent test clock means the real clock is active.
-    }
-  }
-
   return new Date();
 }
 
@@ -71,46 +55,31 @@ function uploadedFiles(req: express.Request) {
 }
 
 async function hasValidDocumentSignature(file: Express.Multer.File) {
-  const handle = await open(file.path, "r");
-  const signature = Buffer.alloc(8);
+  const bytes = file.buffer.subarray(0, 8);
+  const extension = extname(file.originalname).toLowerCase();
 
-  try {
-    const { bytesRead } = await handle.read(signature, 0, signature.length, 0);
-    const bytes = signature.subarray(0, bytesRead);
-    const extension = extname(file.originalname).toLowerCase();
-
-    if (extension === ".pdf") {
-      return bytes.subarray(0, 5).equals(Buffer.from("%PDF-"));
-    }
-    if (extension === ".jpg" || extension === ".jpeg") {
-      return (
-        bytes.length >= 3 &&
-        bytes[0] === 0xff &&
-        bytes[1] === 0xd8 &&
-        bytes[2] === 0xff
-      );
-    }
-    if (extension === ".png") {
-      return bytes.equals(
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      );
-    }
-
-    return false;
-  } finally {
-    await handle.close();
+  if (extension === ".pdf") {
+    return bytes.subarray(0, 5).equals(Buffer.from("%PDF-"));
   }
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return (
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff
+    );
+  }
+  if (extension === ".png") {
+    return bytes.equals(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+  }
+
+  return false;
 }
 
 const uploadDocs = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-    filename: (_req, file, cb) =>
-      cb(
-        null,
-        `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
-      ),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: DOC_MAX_BYTES, files: 3 },
   fileFilter: (_req, file, cb) => {
     if (!DOC_ALLOWED_EXT.has(extname(file.originalname).toLowerCase())) {
@@ -254,6 +223,20 @@ function registerUploadMiddleware(
           (check) => check.status === "rejected" || !check.value,
         );
         if (invalidIndex === -1) {
+          try {
+            for (const file of files) {
+              file.filename = `${randomUUID()}${extname(file.originalname).toLowerCase()}`;
+              // Record the key before put: a failed response may still have stored it.
+              file.path = file.filename;
+              await env.UPLOADS.put(file.filename, file.buffer, {
+                httpMetadata: { contentType: documentContentType(file.filename) },
+              });
+            }
+          } catch (error) {
+            await cleanupFiles(...files);
+            next(error);
+            return;
+          }
           next();
           return;
         }
@@ -268,7 +251,7 @@ function registerUploadMiddleware(
           field: documentUploadField(files[invalidIndex]?.fieldname),
         });
       },
-    );
+    ).catch(next);
   });
 }
 
@@ -276,12 +259,48 @@ async function cleanupFiles(...files: Array<Express.Multer.File | undefined>) {
   for (const file of files) {
     if (file?.path) {
       try {
-        await unlink(file.path);
-      } catch {
-        // el archivo ya no existe o no se pudo borrar; se ignora
+        await env.UPLOADS.delete(file.path);
+        file.path = "";
+      } catch (error) {
+        console.error("No se pudo compensar el documento R2", file.path, error);
       }
     }
   }
+}
+
+function documentContentType(name: string) {
+  const extension = extname(name).toLowerCase();
+  return extension === ".pdf" ? "application/pdf"
+    : extension === ".png" ? "image/png"
+    : extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
+    : "application/octet-stream";
+}
+
+async function cleanupDocumentKeys(...keys: Array<string | null>) {
+  for (const key of keys) {
+    if (!key) continue;
+    try {
+      await env.UPLOADS.delete(key);
+    } catch (error) {
+      console.error("No se pudo borrar el documento R2 anterior", key, error);
+    }
+  }
+}
+
+async function sendPrivateDocument(res: express.Response, key: string) {
+  const object = await env.UPLOADS.get(key);
+  if (!object) {
+    res.status(404).json({ message: "Archivo no encontrado." });
+    return;
+  }
+  res.setHeader("Content-Type", documentContentType(key));
+  res.setHeader("Content-Length", object.size);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Disposition", `inline; filename="${key.replace(/[^a-zA-Z0-9._-]/g, "_")}"`);
+  // Documents are capped at 5 MiB. Buffering avoids the Node HTTP bridge's
+  // premature-close behavior when pipeline() writes a Web/R2 stream to res.
+  res.send(Buffer.from(await object.arrayBuffer()));
 }
 
 function serializeTeacherSchool(school: {
@@ -1290,7 +1309,7 @@ app.use((req, res, next) => {
 
   res.header(
     "Access-Control-Allow-Origin",
-    req.headers.origin ?? frontendOrigin,
+    req.headers.origin ?? "*",
   );
   res.header("Vary", "Origin");
   res.header(
@@ -1310,7 +1329,30 @@ app.use((req, res, next) => {
   next();
 });
 
+// Fetch/HTTP2 bodies can reach the Node bridge without either HTTP/1 framing
+// header. Express and Multer use these headers to decide whether to read them.
+app.use((req, _res, next) => {
+  if (req.headers["content-type"] &&
+      req.headers["content-length"] === undefined &&
+      req.headers["transfer-encoding"] === undefined) {
+    req.headers["transfer-encoding"] = "chunked";
+  }
+  next();
+});
+
 app.use(express.json({ limit: "10mb" }));
+
+app.use(
+  ["/api/groups", "/api/teams", "/api/practices", "/api/practice",
+    "/api/play", "/api/public-contests", "/api/published-contests"],
+  (req, res, next) => {
+    if (String(env.REGISTRATION_ONLY) === "true") {
+      requireAdmin(req, res, next);
+      return;
+    }
+    next();
+  },
+);
 
 app.get("/", (_req, res) => {
   res.json({
@@ -1347,7 +1389,7 @@ app.post("/api/auth/login", async (req, res) => {
     return;
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  const valid = await verifyPassword(password, user.passwordHash);
 
   if (!valid) {
     res.status(401).json({ message: "Credenciales inválidas." });
@@ -1480,6 +1522,7 @@ app.post(
       },
     });
 
+    res.locals.documentsCommitted = true;
     res.status(201).json(serializeTeacherSchool(created));
   },
 );
@@ -1532,6 +1575,8 @@ app.post(
       data: { letterFilename: letterFile.filename, status: "pending" },
     });
 
+    res.locals.documentsCommitted = true;
+    await cleanupDocumentKeys(school.letterFilename);
     res.json(serializeTeacherSchool(updated));
   },
 );
@@ -1555,6 +1600,7 @@ app.delete("/api/auth/me/schools/:id", requireAuth, async (req, res) => {
   }
 
   await prisma.teacherSchool.delete({ where: { id: school.id } });
+  await cleanupDocumentKeys(school.letterFilename);
   res.status(204).end();
 });
 
@@ -1624,6 +1670,12 @@ app.post(
       },
     });
 
+    res.locals.documentsCommitted = true;
+    await cleanupDocumentKeys(
+      letterFile ? user.letterFilename : null,
+      idFrontFile ? user.idFrontFilename : null,
+      idBackFile ? user.idBackFilename : null,
+    );
     res.json({
       status: updated.status,
       documents: describeUserDocuments(updated),
@@ -1745,7 +1797,7 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   let created;
 
   try {
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
 
     created = await prisma.user.create({
       data: {
@@ -1771,6 +1823,8 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
+  res.locals.documentsCommitted = true;
+  await cleanupFiles(...(isSchool ? [idFrontFile, idBackFile] : [letterFile]));
   const pendingDocuments = isSchool ? !letterFile : !idFrontFile || !idBackFile;
   const token = signToken({
     id: created.id,
@@ -1794,7 +1848,7 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   });
 });
 
-app.post("/api/letter/pdf", (req, res) => {
+app.post("/api/letter/pdf", async (req, res) => {
   const field = (name: string, fallback = "") => {
     const value = req.body?.[name];
     const text = typeof value === "string" ? value.trim() : "";
@@ -1812,110 +1866,14 @@ app.post("/api/letter/pdf", (req, res) => {
   const director = field("director", blank);
   const schoolSign = field("colegioFirma", school);
 
-  const doc = new PDFDocument({
-    size: "A4",
-    margins: { top: 62, bottom: 62, left: 68, right: 68 },
-    info: {
-      Title: "Carta de autorización — Desafío Bebras Bolivia",
-      Author: director,
-    },
-  });
+  const pdf = await createAuthorizationLetter({ city, day, month, year, school, teacher, id, director, schoolSign });
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader(
     "Content-Disposition",
     'attachment; filename="carta-autorizacion-bebras.pdf"',
   );
-  doc.pipe(res);
-
-  doc.font("Times-Roman").fontSize(12);
-
-  const writeSegments = (segments: Array<[string, boolean]>) => {
-    segments.forEach(([text, bold], index) => {
-      doc
-        .font(bold ? "Times-Bold" : "Times-Roman")
-        .text(text, { continued: index < segments.length - 1, lineGap: 4 });
-    });
-  };
-
-  const dateSegments: Array<[string, boolean]> = [
-    [city, true],
-    [", ", false],
-    [day, true],
-    [" de ", false],
-    [month, true],
-    [" de ", false],
-    [year, true],
-  ];
-  const dateWidth = dateSegments.reduce(
-    (total, [text, bold]) =>
-      total + doc.font(bold ? "Times-Bold" : "Times-Roman").widthOfString(text),
-    0,
-  );
-  doc.x = doc.page.width - doc.page.margins.right - dateWidth;
-  writeSegments(dateSegments);
-  doc.x = doc.page.margins.left;
-  doc.moveDown(1.5);
-
-  doc.font("Times-Bold").text("Señores");
-  doc.font("Times-Roman").text("Comité Organizador del Desafío Bebras Bolivia");
-  doc.text("Presente.—");
-  doc.moveDown(1);
-
-  doc
-    .font("Times-Bold")
-    .text("Ref.: Autorización para participar como maestro", {
-      align: "right",
-      underline: true,
-    });
-  doc.moveDown(1);
-
-  doc.font("Times-Roman").text("De mi mayor consideración:");
-  doc.moveDown(1);
-
-  writeSegments([
-    [
-      "Por medio de la presente, en mi calidad de director(a) de la unidad educativa ",
-      false,
-    ],
-    [school, true],
-    [", autorizo al/a la maestro(a) ", false],
-    [teacher, true],
-    [", con cédula de identidad ", false],
-    [id, true],
-    [
-      ", a representar a nuestra unidad educativa en el Desafío Bebras Bolivia.",
-      false,
-    ],
-  ]);
-  doc.moveDown(1);
-
-  doc.text(
-    "En esa condición podrá registrar a nuestros estudiantes, organizar los grupos de participación y acompañarlos durante el desafío, en las fechas que el comité organizador establezca.",
-    { lineGap: 4 },
-  );
-  doc.moveDown(1);
-
-  doc.text(
-    "Sin otro particular, saludo a ustedes con las consideraciones más distinguidas.",
-    { lineGap: 4 },
-  );
-
-  doc.moveDown(9);
-  const lineY = doc.y;
-  doc
-    .moveTo(doc.page.margins.left, lineY)
-    .lineTo(doc.page.margins.left + 240, lineY)
-    .lineWidth(0.8)
-    .stroke();
-  doc.moveDown(0.6);
-  doc.font("Times-Bold").text(director);
-  writeSegments([
-    ["Director(a) de ", false],
-    [schoolSign, true],
-  ]);
-
-  doc.end();
+  res.send(Buffer.from(pdf));
 });
 
 app.get("/api/schools", async (req, res) => {
@@ -2763,47 +2721,36 @@ app.put("/api/contests/:id", async (req, res) => {
     return;
   }
 
-  const contest = await prisma.$transaction(async (transaction) => {
-    await transaction.contestTask.deleteMany({
-      where: {
-        contestId: req.params.id,
-      },
-    });
-
-    return transaction.contest.update({
-      where: {
-        id: req.params.id,
-      },
-      data: {
-        title: payload.title,
-        category: payload.category,
-        durationMinutes: payload.durationMinutes,
-        registrationStartsAt: payload.registrationStartsAt,
-        registrationEndsAt: payload.registrationEndsAt,
-        startsAt: payload.startsAt,
-        endsAt: payload.endsAt,
-        initialScore: computeInitialScore(taskWrites),
-        scoring: JSON.stringify(payload.scoring),
-        questionDisplayMode: payload.questionDisplayMode,
-        allowPairs: payload.allowPairs,
-        showFeedback: payload.showFeedback,
-        showSolutions: payload.showSolutions,
-        showTotalScore: payload.showTotalScore,
-        tasks: {
-          create: taskWrites,
-        },
-      },
-      include: {
-        tasks: {
-          orderBy: {
-            position: "asc",
-          },
-          include: {
-            taskDraft: true,
-          },
-        },
-      },
-    });
+  const contestId = String(req.params.id);
+  const now = currentDate().toISOString();
+  // D1 batches roll back every statement if any task insert fails.
+  // UUIDs supply the IDs otherwise generated by Prisma's client-side cuid().
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM "ContestTask" WHERE "contestId" = ?').bind(contestId),
+    env.DB.prepare(`UPDATE "Contest" SET
+      "title" = ?, "category" = ?, "durationMinutes" = ?,
+      "registrationStartsAt" = ?, "registrationEndsAt" = ?, "startsAt" = ?, "endsAt" = ?,
+      "initialScore" = ?, "scoring" = ?, "questionDisplayMode" = ?,
+      "allowPairs" = ?, "showFeedback" = ?, "showSolutions" = ?, "showTotalScore" = ?,
+      "updatedAt" = ? WHERE "id" = ?`).bind(
+      payload.title, payload.category, payload.durationMinutes,
+      payload.registrationStartsAt?.toISOString() ?? null,
+      payload.registrationEndsAt?.toISOString() ?? null,
+      payload.startsAt?.toISOString() ?? null, payload.endsAt?.toISOString() ?? null,
+      computeInitialScore(taskWrites), JSON.stringify(payload.scoring), payload.questionDisplayMode,
+      Number(payload.allowPairs), Number(payload.showFeedback), Number(payload.showSolutions),
+      Number(payload.showTotalScore), now, contestId,
+    ),
+    ...taskWrites.map((task) => env.DB.prepare(`INSERT INTO "ContestTask"
+      ("id", "contestId", "taskDraftId", "position", "difficulty", "minScore", "noAnswerScore", "maxScore", "options", "createdAt")
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?)`).bind(
+      randomUUID(), contestId, task.taskDraftId, task.position, task.difficulty,
+      task.minScore, task.noAnswerScore, task.maxScore, now,
+    )),
+  ]);
+  const contest = await prisma.contest.findUniqueOrThrow({
+    where: { id: contestId },
+    include: { tasks: { orderBy: { position: "asc" }, include: { taskDraft: true } } },
   });
 
   res.json(deserializeContest(contest));
@@ -3087,18 +3034,20 @@ app.post("/api/contests/:id/resume", async (req, res) => {
     select: { id: true, endsAt: true },
   });
 
-  await prisma.$transaction(
-    pausedAttempts.map((attempt) =>
-      prisma.attempt.update({
-        where: { id: attempt.id },
-        data: { endsAt: new Date(attempt.endsAt!.getTime() + pausedMs) },
-      }),
+  const resumedAt = currentDate().toISOString();
+  await env.DB.batch([
+    ...pausedAttempts.map((attempt) =>
+      env.DB.prepare(`UPDATE "Attempt" SET "endsAt" = ?, "updatedAt" = ?
+        WHERE "id" = ? AND "status" = 'in_progress'
+        AND EXISTS (SELECT 1 FROM "Contest" WHERE "id" = ? AND "suspendedAt" IS NOT NULL)`)
+        .bind(new Date(attempt.endsAt!.getTime() + pausedMs).toISOString(), resumedAt, attempt.id, contest.id),
     ),
-  );
+    env.DB.prepare('UPDATE "Contest" SET "suspendedAt" = NULL, "updatedAt" = ? WHERE "id" = ?')
+      .bind(resumedAt, contest.id),
+  ]);
 
-  const resumed = await prisma.contest.update({
+  const resumed = await prisma.contest.findUniqueOrThrow({
     where: { id: contest.id },
-    data: { suspendedAt: null },
     include: contestWithTasks,
   });
 
@@ -3426,7 +3375,7 @@ app.get("/api/users/schools/:schoolId/letter", async (req, res) => {
     return;
   }
 
-  res.sendFile(resolve(UPLOADS_DIR, school.letterFilename));
+  await sendPrivateDocument(res, school.letterFilename);
 });
 
 app.post("/api/users/:id/suspend", async (req, res) => {
@@ -3472,23 +3421,7 @@ app.get("/api/users/:id/documents/:doc", async (req, res) => {
     return;
   }
 
-  const ext = extname(name).toLowerCase();
-  const contentType =
-    ext === ".pdf"
-      ? "application/pdf"
-      : ext === ".png"
-        ? "image/png"
-        : ext === ".jpg" || ext === ".jpeg"
-          ? "image/jpeg"
-          : "application/octet-stream";
-
-  res.type(contentType);
-  res.setHeader("Content-Disposition", `inline; filename="${name}"`);
-  res.sendFile(resolve(UPLOADS_DIR, name), (err) => {
-    if (err && !res.headersSent) {
-      res.status(404).json({ message: "Archivo no encontrado." });
-    }
-  });
+  await sendPrivateDocument(res, name);
 });
 
 // ---- Desafíos publicados para armar grupos (admin y maestro) ----
@@ -4364,23 +4297,21 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
       prepared.push({ ...draft, personalCode });
     }
 
-    await prisma.$transaction(
-      prepared.map((draft) =>
-        prisma.team.create({
-          data: {
-            groupId: group.id,
-            participationMode: draft.participationMode,
-            grade: draft.grade,
-            memberOneFirstName: draft.oneFirst,
-            memberOneLastName: draft.oneLast,
-            memberTwoFirstName: draft.twoFirst,
-            memberTwoLastName: draft.twoLast,
-            personalCode: draft.personalCode,
-            attempt: { create: { status: "pending" } },
-          },
-        }),
-      ),
-    );
+    const importedAt = currentDate().toISOString();
+    await env.DB.batch(prepared.flatMap((draft) => {
+      const teamId = randomUUID();
+      return [
+        env.DB.prepare(`INSERT INTO "Team"
+          ("id", "groupId", "participationMode", "grade", "memberOneFirstName", "memberOneLastName",
+           "memberTwoFirstName", "memberTwoLastName", "personalCode", "status", "createdAt", "updatedAt")
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', ?, ?)`).bind(
+          teamId, group.id, draft.participationMode, draft.grade, draft.oneFirst, draft.oneLast,
+          draft.twoFirst, draft.twoLast, draft.personalCode, importedAt, importedAt,
+        ),
+        env.DB.prepare(`INSERT INTO "Attempt" ("id", "teamId", "status", "createdAt", "updatedAt")
+          VALUES (?, ?, 'pending', ?, ?)`).bind(randomUUID(), teamId, importedAt, importedAt),
+      ];
+    }));
 
     res.status(201).json({
       created: prepared.map((draft) => ({
@@ -5727,18 +5658,20 @@ async function migrateLegacyDragDropConfigs() {
   }
 }
 
-const startServer = async () => {
-  await prisma.$connect();
-  await migrateLegacyDragDropConfigs();
-  await mkdir(UPLOADS_DIR, { recursive: true });
+// Exported for an explicit migration job; Workers cannot perform startup I/O.
+export { migrateLegacyDragDropConfigs };
 
-  app.listen(port, () => {
-    console.log(`Server listening on http://localhost:${port}`);
-  });
-};
-
-startServer().catch(async (error) => {
-  console.error("Failed to start server", error);
-  await prisma.$disconnect();
-  process.exit(1);
+app.use(async (error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!res.locals.documentsCommitted) {
+    await cleanupFiles(...uploadedFiles(req));
+  }
+  console.error("API request failed", error);
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+  res.status(500).json({ message: "No se pudo completar la solicitud." });
 });
+
+app.listen(3000);
+export default httpServerHandler({ port: 3000 });

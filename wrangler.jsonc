@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bebras-contest-local",
+  "main": "backend/src/index.ts",
+  "account_id": "a9ca7f3bfd5ff492721f722856ac79b6",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": { "port": 3000 },
+  "durable_objects": { "bindings": [{ "name": "PASSWORDS", "class_name": "PasswordService" }] },
+  "migrations": [{ "tag": "v1-password-service", "new_sqlite_classes": ["PasswordService"] }],
+  "assets": {
+    "directory": "frontend/dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "404-page"
+  },
+  "vars": { "REGISTRATION_ONLY": "false", "FRONTEND_ORIGIN": "http://localhost:4321" },
+  "d1_databases": [{ "binding": "DB", "database_name": "bebras-local", "database_id": "local", "migrations_dir": "backend/migrations" }],
+  "r2_buckets": [{ "binding": "UPLOADS", "bucket_name": "bebras-uploads-local" }],
+  "env": {
+    "staging": {
+      "name": "bebras-contest-staging",
+      "durable_objects": { "bindings": [{ "name": "PASSWORDS", "class_name": "PasswordService" }] },
+      "vars": { "REGISTRATION_ONLY": "false", "FRONTEND_ORIGIN": "" },
+      "d1_databases": [{ "binding": "DB", "database_name": "bebras-staging", "database_id": "767cab4c-1445-4dbb-9e24-b93512d684f9", "migrations_dir": "backend/migrations" }],
+      "r2_buckets": [{ "binding": "UPLOADS", "bucket_name": "bebras-uploads-staging" }]
+    },
+    "production": {
+      "name": "bebras-contest",
+      "durable_objects": { "bindings": [{ "name": "PASSWORDS", "class_name": "PasswordService" }] },
+      "vars": { "REGISTRATION_ONLY": "true", "FRONTEND_ORIGIN": "" },
+      "d1_databases": [{ "binding": "DB", "database_name": "bebras-prod", "database_id": "0fcbe3a5-ce81-47a0-a559-a5ccd22bf4b8", "migrations_dir": "backend/migrations" }],
+      "r2_buckets": [{ "binding": "UPLOADS", "bucket_name": "bebras-uploads-prod" }]
+    }
+  }
+}

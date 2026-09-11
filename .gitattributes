@@ -1,4 +1,3 @@
-* text=auto eol=lf
-
-*.gz binary
-*.png binary
+# Generated upstream files retain the generator's formatting.
+backend/src/generated/prisma/** linguist-generated=true whitespace=-blank-at-eol
+backend/src/worker-configuration.d.ts linguist-generated=true whitespace=-blank-at-eol

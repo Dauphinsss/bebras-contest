@@ -1,7 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { env } from "cloudflare:workers";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
+function jwtSecret() {
+  if (!env.JWT_SECRET) throw new Error("JWT_SECRET is required");
+  return env.JWT_SECRET;
+}
 const TOKEN_TTL = "7d";
 
 export interface AuthUser {
@@ -22,7 +26,7 @@ declare global {
 export function signToken(user: AuthUser) {
   return jwt.sign(
     { sub: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
+    jwtSecret(),
     { expiresIn: TOKEN_TTL },
   );
 }
@@ -37,7 +41,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
+    const payload = jwt.verify(token, jwtSecret(), { algorithms: ["HS256"] }) as jwt.JwtPayload;
     req.user = {
       id: Number(payload.sub),
       email: String(payload.email ?? ""),
