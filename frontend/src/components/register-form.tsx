@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { CheckCircle2Icon, EyeIcon, EyeOffIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -40,7 +40,7 @@ import {
   type RestrictedRegistrationField,
 } from "@/lib/registration-input";
 import { API_BASE_URL } from "@/lib/api-client";
-import { setToken, setUser, type AuthUser } from "@/lib/auth";
+import { setSession, type AuthUser } from "@/lib/auth";
 
 type RegisterErrors = {
   firstName?: string;
@@ -80,7 +80,7 @@ function confirmationError(password: string, confirmation: string) {
 }
 
 export function RegisterForm() {
-  const [step, setStep] = useState<"form" | "confirm" | "done">("form");
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -98,7 +98,6 @@ export function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const confirmPasswordTouchedRef = useRef(false);
-  const [sentDocuments, setSentDocuments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<RegisterErrors>({});
   const firstNameRef = useRef<HTMLInputElement>(null);
@@ -294,8 +293,6 @@ export function RegisterForm() {
         }
       }
 
-      setSentDocuments(attached.every(([, file]) => file !== null));
-
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         body: form,
@@ -329,45 +326,20 @@ export function RegisterForm() {
         return;
       }
 
-      if (data.token && data.user) {
-        setToken(data.token);
-        setUser(data.user);
+      if (!data.token || !data.user) {
+        setErrors({
+          form: "No se pudo iniciar tu sesión. Ingresa desde Iniciar sesión.",
+        });
+        return;
       }
-
-      setStep("done");
+      setSession(data.token, data.user);
+      window.location.replace("/perfil");
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {
       setSubmitting(false);
     }
   };
-
-  if (step === "done") {
-    return (
-      <Card className="mx-auto w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <CheckCircle2Icon className="size-5 text-primary" />
-            <CardTitle>Cuenta creada</CardTitle>
-          </div>
-          <CardDescription>
-            Ya entraste con tu cuenta. Queda{" "}
-            <strong>pendiente de aprobación</strong>
-            {sentDocuments
-              ? ": el administrador revisará tus documentos."
-              : " hasta que subas tus documentos."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild className="w-full">
-            <a href="/perfil">
-              {sentDocuments ? "Ir a mi perfil" : "Subir mis documentos"}
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (step === "confirm") {
     return (

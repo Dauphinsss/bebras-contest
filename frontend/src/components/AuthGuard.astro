@@ -2,38 +2,50 @@
 interface Props {
   allowMaestro?: boolean;
 }
-
 const { allowMaestro = false } = Astro.props;
-const protectedPath = Astro.url.pathname;
 ---
 
-<script is:inline define:vars={{ allowMaestro, protectedPath }}>
-  function bebrasAuthGuard() {
-    // Las transiciones conservan los listeners de páginas anteriores.
-    // Este guard solo corresponde a la página protegida que lo creó.
-    if (
-      window.location.pathname.replace(/\/+$/, "") !==
-      protectedPath.replace(/\/+$/, "")
-    )
-      return;
-    const raw = localStorage.getItem("bebras_user");
-    const user = raw ? JSON.parse(raw) : null;
-    if (!localStorage.getItem("bebras_token") || !user) {
+<span hidden data-auth-guard data-allow-maestro={String(allowMaestro)}></span>
+
+<script>
+  import { getToken, getUser, subscribeSession } from "../lib/auth";
+
+  let previousToken = getToken();
+  function guard() {
+    const marker = document.querySelector<HTMLElement>("[data-auth-guard]");
+    if (!marker) return;
+    const user = getUser();
+    if (!user) {
       window.location.replace("/login");
       return;
     }
-    const ok =
-      user.role === "admin" || (allowMaestro && user.role === "maestro");
-    if (!ok) {
+    if (
+      user.role !== "admin" &&
+      !(marker.dataset.allowMaestro === "true" && user.role === "maestro")
+    ) {
       window.location.replace("/");
       return;
     }
-    const approved = (user.status || "approved") === "approved";
-    if (!approved && window.location.pathname !== "/perfil") {
+    if (
+      user.status !== "approved" &&
+      window.location.pathname.replace(/\/+$/, "") !== "/perfil"
+    ) {
       window.location.replace("/perfil");
     }
   }
-
-  bebrasAuthGuard();
-  document.addEventListener("astro:page-load", bebrasAuthGuard, { once: true });
+  guard();
+  document.addEventListener("astro:page-load", guard);
+  subscribeSession(() => {
+    const token = getToken();
+    guard();
+    if (
+      token &&
+      previousToken &&
+      token !== previousToken &&
+      document.querySelector("[data-auth-guard]")
+    ) {
+      window.location.reload();
+    }
+    previousToken = token;
+  });
 </script>

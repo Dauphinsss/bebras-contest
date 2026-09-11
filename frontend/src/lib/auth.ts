@@ -2,6 +2,9 @@ import { formatPersonName } from "./person-name";
 
 const TOKEN_KEY = "bebras_token";
 const USER_KEY = "bebras_user";
+const SESSION_EVENT = "bebras:session-change";
+let cachedKey: string | null = null;
+let cachedUser: AuthUser | null = null;
 
 export interface AuthUser {
   id: number;
@@ -12,44 +15,75 @@ export interface AuthUser {
 }
 
 export function isApproved(user: AuthUser | null) {
-  return Boolean(user) && (user!.status ?? "approved") === "approved";
+  return user?.status === "approved";
 }
 
 export function getToken(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
-  return window.localStorage.getItem(TOKEN_KEY);
+  try {
+    return window.localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-export function setToken(token: string) {
-  window.localStorage.setItem(TOKEN_KEY, token);
+function notifySession() {
+  window.dispatchEvent(new Event(SESSION_EVENT));
+}
+
+function validUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== "object") return false;
+  const user = value as AuthUser;
+  return (
+    Number.isInteger(user.id) &&
+    user.id > 0 &&
+    typeof user.email === "string" &&
+    Boolean(user.email) &&
+    (user.name === null || typeof user.name === "string") &&
+    (user.role === "admin" || user.role === "maestro") &&
+    (user.status === undefined || typeof user.status === "string")
+  );
+}
+
+export function setSession(token: string, user: AuthUser) {
+  if (!token?.trim() || !validUser(user)) throw new Error("Sesión inválida.");
+  try {
+    window.localStorage.setItem(TOKEN_KEY, token);
+    window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch (error) {
+    clearToken();
+    throw error;
+  }
+  notifySession();
 }
 
 export function setUser(user: AuthUser) {
-  window.localStorage.setItem(
-    USER_KEY,
-    JSON.stringify({
-      ...user,
-      name: user.name === null ? null : formatPersonName(user.name),
-    }),
-  );
+  if (!getToken() || !validUser(user)) return;
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  notifySession();
 }
 
 export function getUser(): AuthUser | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const raw = window.localStorage.getItem(USER_KEY);
-  if (!raw) {
-    return null;
-  }
   try {
-    const user = JSON.parse(raw) as AuthUser;
-    return {
-      ...user,
-      name: user.name == null ? null : formatPersonName(user.name),
-    };
+    const token = getToken();
+    const raw = window.localStorage.getItem(USER_KEY);
+    if (!token || !raw) return null;
+    const key = JSON.stringify([token, raw]);
+    if (key === cachedKey) return cachedUser;
+    const user: unknown = JSON.parse(raw);
+    cachedUser = validUser(user)
+      ? {
+          ...user,
+          name: user.name === null ? null : formatPersonName(user.name),
+        }
+      : null;
+    cachedKey = key;
+    return cachedUser;
   } catch {
     return null;
   }
@@ -57,9 +91,31 @@ export function getUser(): AuthUser | null {
 
 export function clearToken() {
   if (typeof window !== "undefined") {
-    window.localStorage.removeItem(TOKEN_KEY);
-    window.localStorage.removeItem(USER_KEY);
+    try {
+      window.localStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(USER_KEY);
+    } finally {
+      cachedKey = null;
+      cachedUser = null;
+      notifySession();
+    }
   }
+}
+
+export function subscribeSession(listener: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (
+      event.storageArea === window.localStorage &&
+      (event.key === null || event.key === TOKEN_KEY || event.key === USER_KEY)
+    )
+      listener();
+  };
+  window.addEventListener(SESSION_EVENT, listener);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(SESSION_EVENT, listener);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 export function authHeaders(): Record<string, string> {

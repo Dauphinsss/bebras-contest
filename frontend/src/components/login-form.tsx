@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { setToken, setUser, type AuthUser } from "@/lib/auth";
+import { setSession, type AuthUser } from "@/lib/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,15 +84,11 @@ export function LoginForm() {
         return;
       }
 
-      setToken(data.token);
-      setUser(data.user);
+      setSession(data.token, data.user);
       toast.success("Sesión iniciada.");
-      window.location.href =
-        data.user.status && data.user.status !== "approved"
-          ? "/perfil"
-          : data.user.role === "admin"
-            ? "/desafios"
-            : "/perfil";
+      window.location.replace(
+        data.user.role === "admin" ? "/desafios" : "/perfil",
+      );
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowRightIcon,
   LoaderCircleIcon,
@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 
 import { API_BASE_URL, apiRequest } from "@/lib/api-client";
-import { authHeaders, getUser, setUser } from "@/lib/auth";
+import { authHeaders, getToken, getUser, setUser } from "@/lib/auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,34 +105,44 @@ export function ProfilePage() {
   const hasNewSchool =
     newSchool.institutionType === "school" && Boolean(newSchool.name.trim());
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    const token = getToken();
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: authHeaders(),
       });
 
+      if (getToken() !== token) return;
       if (!response.ok) {
         toast.error("No se pudo cargar tu perfil.");
         return;
       }
 
       const data = (await response.json()) as Profile;
+      if (getToken() !== token || getUser()?.id !== data.id) return;
       setProfile(data);
-
-      const stored = getUser();
-      if (stored && stored.status !== data.status) {
-        setUser({ ...stored, status: data.status });
-      }
+      setUser({
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+        status: data.status,
+      });
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [load]);
 
   const send = async (path: string, form: FormData, done: string) => {
     setBusy(true);
