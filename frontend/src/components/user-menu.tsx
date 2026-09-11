@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
 import { ChevronDownIcon, LogOutIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { clearToken, getUser, type AuthUser } from "@/lib/auth";
+import { clearToken, type AuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/lib/use-auth-user";
+import { Button } from "@/components/ui/button";
 
 function getInitials(user: AuthUser) {
   const source = (user.name && user.name.trim()) || user.email;
@@ -30,7 +32,7 @@ function firstName(user: AuthUser) {
 }
 
 export function UserMenu() {
-  const [user] = useState<AuthUser | null>(() => getUser());
+  const user = useAuthUser();
 
   if (!user) {
     return (
@@ -47,6 +49,33 @@ export function UserMenu() {
     clearToken();
     window.location.href = "/";
   };
+
+  if (user.role === "maestro") {
+    return (
+      <div className="flex items-center gap-1">
+        <a
+          href="/perfil"
+          aria-label="Mi cuenta"
+          className="flex items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <Avatar>
+            <AvatarFallback>{getInitials(user)}</AvatarFallback>
+          </Avatar>
+          <span className="hidden max-w-40 truncate text-sm font-medium sm:inline">
+            {firstName(user)}
+          </span>
+        </a>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={handleLogout}
+          aria-label="Cerrar sesión"
+        >
+          <LogOutIcon />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu modal={false}>
@@ -84,16 +113,18 @@ export function UserMenu() {
           </div>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <a href="/perfil">
-            {user.role === "maestro" ? "Mi panel" : "Mi perfil"}
-          </a>
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <a href="/perfil">Mi perfil</a>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={handleLogout}>
-          <LogOutIcon />
-          Salir
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem variant="destructive" onSelect={handleLogout}>
+            <LogOutIcon />
+            Salir
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

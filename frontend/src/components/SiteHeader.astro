@@ -128,26 +128,6 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
 </header>
 
 <script is:inline>
-  function bebrasRevealNav() {
-    const raw = localStorage.getItem("bebras_user");
-    const user = raw ? JSON.parse(raw) : null;
-    if (!user) return;
-
-    document.querySelectorAll("[data-nav-role]").forEach(function (el) {
-      const role = el.getAttribute("data-nav-role");
-      const show =
-        role === "maestro"
-          ? user.role === "maestro"
-          : (user.status || "approved") === "approved" &&
-            (user.role === "admin"
-              ? role === "admin" || role === "staff"
-              : user.role === "maestro" && role === "staff");
-      if (show) {
-        el.classList.remove("hidden");
-      }
-    });
-  }
-
   // Solo los dos rótulos que el pill roza —el que deja y el que ocupa— se
   // capturan aparte para quedar por encima de él. Nombrarlos todos hacía que
   // cada palabra pasara a su propia capa y perdiera el suavizado subpíxel:
@@ -197,16 +177,35 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
     bebrasNameLabels([bebrasPreviousPath, target ? target.pathname : null]);
   });
 
-  bebrasRevealNav();
   // En after-swap todavía se está dentro de la transición de vista: revelar y
   // nombrar aquí deja el pill y los dos rótulos listos en la foto nueva, que es
   // lo que el navegador necesita para deslizarlo. En page-load ya sería tarde.
   document.addEventListener("astro:after-swap", function () {
-    bebrasRevealNav();
     bebrasNameLabels([bebrasPreviousPath, window.location.pathname]);
     bebrasNavSwapStart();
   });
-  document.addEventListener("astro:page-load", bebrasRevealNav);
+</script>
+
+<script>
+  import { getUser, subscribeSession } from "../lib/auth";
+  import { canAccessSiteNav, type SiteNavRole } from "../lib/site-navigation";
+
+  function syncNavigation() {
+    const user = getUser();
+    document
+      .querySelectorAll<HTMLElement>("[data-nav-role]")
+      .forEach((link) => {
+        const role = link.dataset.navRole as SiteNavRole;
+        link.classList.toggle(
+          "hidden",
+          !canAccessSiteNav(role, user?.role, user?.status),
+        );
+      });
+  }
+  syncNavigation();
+  subscribeSession(syncNavigation);
+  document.addEventListener("astro:after-swap", syncNavigation);
+  document.addEventListener("astro:page-load", syncNavigation);
 </script>
 
 <script>

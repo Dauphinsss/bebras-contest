@@ -1,12 +1,17 @@
-export type SiteNavRole = "public" | "admin" | "staff" | "maestro";
+export type SiteNavRole =
+  | "public"
+  | "admin"
+  | "staff"
+  | "maestro"
+  | "approved-maestro";
 
 export const SITE_NAV_ITEMS = [
   { href: "/practica", label: "Práctica", role: "public" },
   { href: "/tareas", label: "Tareas", role: "admin" },
   { href: "/desafios", label: "Desafíos", role: "admin" },
-  { href: "/perfil", label: "Mi panel", role: "maestro" },
+  { href: "/perfil", label: "Mi cuenta", role: "maestro" },
   { href: "/grupos", label: "Grupos", role: "staff" },
-  { href: "/mis-practicas", label: "Mis prácticas", role: "maestro" },
+  { href: "/mis-practicas", label: "Mis prácticas", role: "approved-maestro" },
   { href: "/maestros", label: "Maestros", role: "admin" },
 ] as const satisfies ReadonlyArray<{
   href: string;
@@ -24,7 +29,10 @@ export function canAccessSiteNav(
   }
   if (itemRole === "maestro") return userRole === "maestro";
 
-  if ((userStatus ?? "approved") !== "approved") {
+  if (itemRole === "approved-maestro")
+    return userRole === "maestro" && userStatus === "approved";
+
+  if (userStatus !== "approved") {
     return false;
   }
 

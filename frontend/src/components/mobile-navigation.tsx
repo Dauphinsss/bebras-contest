@@ -9,7 +9,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { getUser } from "@/lib/auth";
+import { useAuthUser } from "@/lib/use-auth-user";
 import { canAccessSiteNav, SITE_NAV_ITEMS } from "@/lib/site-navigation";
 
 type MobileNavigationProps = {
@@ -18,7 +18,7 @@ type MobileNavigationProps = {
 
 export function MobileNavigation({ pathname }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
-  const [user] = useState(getUser);
+  const user = useAuthUser();
   const links = SITE_NAV_ITEMS.filter((item) =>
     canAccessSiteNav(item.role, user?.role, user?.status),
   );
