@@ -4,9 +4,15 @@ Plataforma del **Desafío Bebras Bolivia**: gestión de tareas, competencias,
 grupos, participantes y evaluación.
 
 - `frontend/`: Astro 5 + React 19 + Tailwind + Shadcn/ui
-- `backend/`: Express 5 + TypeScript + Prisma + SQLite
+- `backend/`: Express 5 + TypeScript en Cloudflare Workers, Prisma con D1,
+  documentos privados en R2 y `PasswordService` en Durable Objects SQLite.
 
-Gestor de paquetes: **Bun**.
+Gestor de paquetes: **Bun 1.3.5** (`packageManager`); Node.js **22.12 o posterior**
+para el CLI instalado de Wrangler. Hay tres paquetes independientes (raíz,
+`backend`, `frontend`), sin workspaces, cada uno con su `bun.lock` versionado.
+`bun run setup` instala los tres con `--frozen-lockfile`, también en CI: falla si
+un manifiesto no coincide con su lockfile. Para actualizar dependencias, ejecuta
+`bun install` en el paquete afectado y versiona juntos manifiesto y lockfile.
 
 ## Puesta en marcha
 
@@ -18,13 +24,21 @@ bun run env:setup
 ```
 
 `env:setup` crea `backend/.env` y `frontend/.env` a partir de sus ejemplos sin
-sobrescribir archivos existentes. Revisa sus valores y cambia
-`SEED_ADMIN_PASSWORD` antes de crear las cuentas de administración.
+sobrescribir archivos existentes. **No crea `.dev.vars`**: Wrangler requiere ese
+archivo en la raíz, junto a `wrangler.jsonc`, con un `JWT_SECRET` aleatorio y
+propio del entorno; `.dev.vars.example` indica el nombre requerido. Ejecuta
+`bun scripts/cloudflare-credentials.ts local prepare` para generarlo sin sobrescribir
+credenciales existentes. Este paso no forma parte de `env:setup`. No usar el placeholder
+del ejemplo. `.dev.vars` no se versiona ni se sube automáticamente al Worker.
 
 Prepara Prisma, la base de datos y los datos iniciales:
 
 ```bash
-bun run db:setup
+bun run db:generate
+bun x --no-install wrangler d1 migrations apply DB --local
+bun scripts/cloudflare-credentials.ts local seed
+bun run db:tasks -- --target local
+bun run build:local
 ```
 
 Levanta backend y frontend juntos:
@@ -35,28 +49,35 @@ bun run dev
 
 ## Base de datos
 
-La base local (`backend/dev.db`) **no se versiona**. Se reconstruye con
-`prisma:push` mas `db:seed`.
+La base activa es el binding **DB de D1**. En local Wrangler persiste en
+`.wrangler/state/v3`; `backend/dev.db` pertenece al flujo SQLite legado y
+`DATABASE_URL` ya no selecciona la base del Worker ni de las semillas adaptadas.
+El esquema se aplica con migraciones de `backend/migrations/`, no con Prisma db push.
 
 | Comando                                      | Qué hace                                                                                                                          |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run db:setup`                           | Genera el cliente Prisma, sincroniza el esquema y carga colegios, tareas Bebras y administradores.                                |
-| `bun run db:seed`                            | Carga los colegios desde `backend/prisma/seed/schools.ndjson.gz`. No hace nada si ya hay datos; usa `--force` para reemplazarlos. |
-| `bun run db:tasks`                           | Valida el banco Bebras e inserta solo las tareas que faltan; nunca sobrescribe tareas existentes.                                 |
-| `bun run db:tasks:replace --confirm-replace` | Respalda la base y reemplaza tareas, concursos, grupos, equipos, intentos y resultados por el catálogo oficial. Es destructivo.   |
+| `bun run db:push` | Aplica migraciones D1 locales mediante Wrangler. |
+| `bun run db:seed -- --target local` | Carga colegios; omite si coincide el conteo. Una carga incompleta o `--force` reemplaza el snapshot. |
+| `bun run db:tasks -- --target local` | Valida e inserta solo las tareas faltantes. |
+| `bun run db:tasks:replace -- --target local --confirm-replace` | Exporta y verifica un respaldo SQL D1 antes del reemplazo destructivo del catálogo y grafo de concursos. |
 | `bun run db:schools:fetch`                   | Vuelve a descargar las unidades educativas del MINEDU y regenera el snapshot. Solo hace falta cuando el listado oficial cambia.   |
-| `bun run db:admins`                          | Crea las cuentas de administración. La contraseña sale de `SEED_ADMIN_PASSWORD`.                                                  |
-| `bun run db:clear-teams`                     | Borra equipos e intentos para volver a probar el flujo.                                                                           |
+| `bun run db:admins -- --target local` | Crea o restablece los tres admins con `SEED_ADMIN_PASSWORD`; para conservar cuentas existentes usa el bootstrap aditivo. |
+| `bun run db:clear-teams -- --target local` | Borra equipos, intentos, respuestas y resultados. |
+
+`db:setup` ejecuta migraciones y semillas exclusivamente locales y requiere
+`SEED_ADMIN_PASSWORD`. Detalles de semillas,
+respaldo y comandos remotos en [la guía D1](docs/cloudflare-bootstrap.md).
 
 Los recortes corregidos del banco se pueden regenerar con
 `uv run --with pymupdf python backend/scripts/recrop-task-images.py`.
 El script requiere el PDF original en `tareas-otono-2024/_referencia/`, conserva
 los identificadores de las imágenes y modifica únicamente la semilla JSON.
-`bun run db:tasks` carga las tareas oficiales que falten en la base configurada.
-Los tres fixtures sintéticos se cargan únicamente en la base temporal E2E.
+`bun run db:tasks -- --target local` carga las tareas oficiales que falten en D1 local.
+Los tres fixtures sintéticos están reservados a pruebas (`BEBRAS_E2E=1`) y
+requieren una configuración D1 aislada explícita.
 El reemplazo explícito conserva intactos colegios, usuarios y solicitudes de
-maestros. El respaldo verificado queda junto a la base como
-`*.db.backup-<fecha>`; también se puede indicar otra ubicación con
+maestros. El respaldo verificado queda en `.wrangler/backup-*/database.sql`;
+también se puede indicar otra ubicación con
 `--backup <ruta>`. Detén el backend antes de ejecutarlo.
 
 ## Autoría de arrastre
@@ -138,11 +159,11 @@ validar su versión y proyectar explícitamente su configuración pública; nunc
 enviar `answerKey` al estudiante. Las reglas de presencia del cliente y del
 servidor se verifican con los mismos casos en las pruebas unitarias.
 
-Para actualizar una base existente, respaldarla y ejecutar desde `backend/`
-`bun run prisma:generate` y `bun run prisma:push`. También está disponible el
-parche aditivo `backend/prisma/patches/20260906-task-answer-contract.sql`, que se
-aplica una sola vez como alternativa a `prisma:push`. No hace falta recargar las
-semillas para incorporar las columnas; así se conservan las tareas editadas.
+Para actualizar D1, respaldar la base y ejecutar desde la raíz `bun run db:generate`
+y `bun x --no-install wrangler d1 migrations apply DB --local` (remoto: seleccionar
+`--env staging|production --remote`). El parche
+`backend/prisma/patches/20260906-task-answer-contract.sql` es una referencia del
+flujo SQLite legado, no una alternativa al historial de migraciones D1.
 
 ## Zonas sobre la imagen: tareas 04 y 11
 
@@ -230,11 +251,11 @@ de la autoría en Python no aporta una regeneración segura.
 2. Desde `backend/`, ejecuta `bun run catalog:validate` para validar la semilla,
    o `bun run catalog:validate -- <ruta-json>` para revisar una candidata sin
    escribir archivos ni conectar a la base. Ejecuta `bun run test:catalog`.
-3. Desde la raíz, `bun run db:tasks` valida e inserta solo IDs faltantes. No
+3. Desde la raíz, `bun run db:tasks -- --target local` valida e inserta solo IDs faltantes. No
    actualiza tareas existentes ni elimina variantes antiguas o ediciones locales.
 4. Solo si quieres descartar esos datos, detén el backend y ejecuta explícitamente
-   `bun run db:tasks:replace --confirm-replace`, opcionalmente con
-   `--backup <ruta-nueva>`. Crea un respaldo SQLite verificado antes del reemplazo;
+   `bun run db:tasks:replace -- --target local --confirm-replace`, opcionalmente con
+   `--backup <ruta-nueva.sql>`. Crea un export SQL D1 verificado antes del reemplazo;
    no sobrescribe respaldos existentes. Borra tareas y el grafo de concursos
    (incluidas respuestas y resultados), conservando colegios, usuarios y
    solicitudes. No es el flujo habitual de edición.
@@ -250,13 +271,36 @@ interactivas. `--check` nunca escribe el archivo de salida.
 
 ## Pruebas
 
+### Smoke Cloudflare local: 10/10 grupos
+
+```bash
+bun scripts/cloudflare-smoke.test.mts
+```
+
+Comprueba empaquetado Wrangler, builds Astro en ambos modos, login bcrypt/JWT,
+PDF, registros school/homeschool, permisos, documentos R2, colegios adicionales,
+restricciones de API, login hidratado en navegador y persistencia tras reiniciar
+workerd. Usa D1/R2/DO locales y estado temporal aislado. **10/10 smoke no significa
+que toda la suite pase ni valida un despliegue remoto.**
+
+### E2E legado: adaptación pendiente
+
 ```bash
 bun run test:e2e
 ```
 
-El comando crea una base temporal, carga fixtures sintéticos aislados, inicia backend y frontend
-en puertos de prueba y elimina la base al terminar. No requiere procesos previos.
-Usa una clave de sesión exclusiva de las pruebas.
+Los comandos E2E siguientes describen la organización histórica; aún no son un
+runner D1 validado. `tests/run-e2e.ts` y `playwright.config.ts` seleccionan
+`file:./test.db` con `DATABASE_URL` y limpian archivos SQLite. Ese mecanismo,
+heredado del desarrollo con `dev.db`, ya no aísla D1: `prisma:push` apunta al
+estado Wrangler local y las semillas exigen `--target local`, que el runner omite.
+Además, `PORT=3100` no sustituye el puerto 3000 configurado en Wrangler, y el
+secreto de pruebas debe llegar como binding. `tests/practice-api.spec.ts` abre
+directamente `backend/test.db` con `better-sqlite3`.
+
+Hace falta adaptar configuración/persistencia temporal D1, semillas, limpieza,
+puertos, secretos, reloj y acceso directo a datos antes de ejecutar estos E2E
+como verificación del Worker. No se ha validado aquí la suite E2E completa.
 
 ### Por módulo
 
@@ -284,12 +328,12 @@ bun run test:e2e:servidores            # en otra terminal, se quedan arriba
 bun run test:e2e:rapido -- --project=juego
 ```
 
-El modo rápido conserva la base sembrada entre corridas y aprovecha los
+En el runner legado, el modo rápido conserva la base sembrada entre corridas y aprovecha los
 servidores que ya estén escuchando; el reloj de pruebas sí se borra siempre,
 porque una hora vieja rompe cualquier ventana de desafío. Con los servidores
 arriba, un módulo baja de unos 40 s a unos 25 s. Para una verificación
-reproducible, y siempre antes de dar algo por terminado, va la corrida normal:
-base nueva, semillas nuevas y servidores nuevos.
+reproducible sobre Cloudflare falta implementar la corrida con D1 temporal,
+semillas y servidores aislados.
 
 La lógica del contrato, la geometría de las zonas, los huecos del documento y
 las asignaciones se comprueban sin navegador:
@@ -297,3 +341,95 @@ las asignaciones se comprueban sin navegador:
 ```bash
 bun run test:unidad
 ```
+
+El comando agregado todavía no incluye `scripts/cloudflare-smoke.test.mts` ni
+`scripts/cloudflare-seed.test.ts`; las pruebas D1 tienen su comando explícito en
+la guía de bootstrap. No se declara aprobada toda la suite unitaria.
+
+## Operación Cloudflare
+
+| Entorno | Rama local | Build | Flags de registro (build / runtime) |
+| --- | --- | --- | --- |
+| Local | `develop` | `bun run build:local` | `PUBLIC_REGISTRATION_ONLY=false` / `REGISTRATION_ONLY=false` |
+| Staging | `staging` | `bun run build:staging` | `false` / `false` |
+| Producción | `master` | `bun run build:production` | `true` / `true` |
+
+Todos los builds fijan `PUBLIC_API_BASE_URL=""` (API en el mismo origen). El flag
+`PUBLIC_REGISTRATION_ONLY` se incorpora al build; cambiar sólo la variable runtime
+no reconstruye los assets. Preparar y empaquetar cada entorno consecutivamente,
+porque comparten `frontend/dist`:
+
+```bash
+bun run build:staging
+bun x --no-install wrangler deploy --env staging --dry-run
+bun run build:production
+bun x --no-install wrangler deploy --env production --dry-run
+```
+
+Con recursos y secretos remotos provisionados, `bun run deploy:staging` y
+`bun run deploy:production` reconstruyen el modo correcto y despliegan con su
+`--env`. Para migraciones remotas, antes del bootstrap correspondiente:
+
+```bash
+bun x --no-install wrangler d1 migrations apply DB --env staging --remote
+bun scripts/cloudflare-seed.ts --target staging
+bun x --no-install wrangler d1 migrations apply DB --env production --remote
+bun scripts/cloudflare-seed.ts --target production
+```
+
+`SEED_ADMIN_PASSWORD` es obligatorio en el entorno del script; véase su entrada
+privada en la [guía](docs/cloudflare-bootstrap.md#bootstrap-de-admins-y-colegios).
+`JWT_SECRET` debe provisionarse como secreto de cada Worker; `.dev.vars` sólo
+sirve en local ([documentación de secretos](https://developers.cloudflare.com/workers/configuration/secrets/)).
+
+### Configuración reproducible de Workers Builds
+
+Usa la raíz del repositorio (`/`) como **Root directory**. La instalación
+automática del paquete raíz no instala `backend` ni `frontend`:
+
+| Worker / rama | Build command | Deploy command |
+| --- | --- | --- |
+| Staging / `staging` | `bun run setup && bun run build:staging` | `bun x --no-install wrangler deploy --env staging` |
+| Producción / `master` | `bun run setup && bun run build:production` | `bun x --no-install wrangler deploy --env production` |
+
+Fija `BUN_VERSION=1.3.5`, `NODE_VERSION=22` y `SKIP_DEPENDENCY_INSTALL=1`
+en el entorno de build para que `setup` controle la instalación completa. Los tres
+lockfiles deben estar en el checkout. El build genera Prisma antes de Astro y
+fija sus variables públicas por entorno; no necesita archivos `.env` personales.
+Las migraciones y el bootstrap se ejecutan explícitamente por el operador, fuera
+del build/deploy. Los secretos runtime se provisionan por Worker y no se guardan
+en el repositorio ni se necesitan para compilar. La conexión GitHub y los ajustes
+remotos de Builds son independientes de estos comandos locales.
+
+Referencia: [configuración de Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+
+### Estado y pendientes (2026-09-11)
+
+- Las ramas `develop`, `staging` y `master` comparten la configuración versionada;
+  el entorno de despliegue determina las funcionalidades habilitadas.
+- **Workers Builds**: la app GitHub está instalada. La conexión por API está
+  bloqueada por el permiso `Workers CI → Edit` (403 con el OAuth de Wrangler).
+  Configuración exacta y verificación en [Workers Builds](docs/workers-builds.md).
+- **Desplegados**: [producción](https://bebras-contest.bebrasbolivia.workers.dev) y
+  [staging](https://bebras-contest-staging.bebrasbolivia.workers.dev), con bases D1 y
+  buckets R2 Standard privados separados. Ambas bases tienen 3 administradores,
+  16.099 colegios, 0 maestros y 0 tareas al finalizar el bootstrap.
+- Credenciales iniciales en `.wrangler/credentials/production.json` y
+  `.wrangler/credentials/staging.json`, excluidas de Git. `SEED_ADMIN_PASSWORD`
+  corresponde a los tres admins (`marko@bebras.bo`, `steven@bebras.bo`, `vladimir@bebras.bo`).
+  El bootstrap es aditivo y no restablece contraseñas existentes.
+  Desde otro equipo, recuperar esas credenciales mediante un respaldo privado;
+  no regenerar ni subir un JWT nuevo al Worker existente. Los comandos normales
+  de build/deploy no necesitan los archivos privados locales.
+- `bun scripts/cloudflare-check.ts` verificó páginas, login de administrador,
+  perfil, API administrativa y restricción pública en ambos Workers remotos.
+- `PasswordService` ya usa el binding `PASSWORDS` de DO SQLite para hash y
+  verificación **bcrypt coste 10**, conservando hashes existentes. Traslada ese
+  cómputo fuera del Worker HTTP principal para preservar su presupuesto CPU Free;
+  el login alojado está verificado; la atribución CPU y el consumo sostenido
+  aún requieren medición remota.
+  Véase la [investigación y estado de integración](docs/passwords-workers-free-investigation.md).
+- Runtime: Prisma usa `@prisma/adapter-d1` y los PDF usan `pdf-lib`. Se retiraron
+  `@prisma/adapter-better-sqlite3`, `pdfkit` y `@types/pdfkit` mediante `bun remove`.
+  `better-sqlite3` queda explícitamente en desarrollo por la prueba E2E legada.
+  El lockfile activo es `backend/bun.lock`; `backend/package-lock.json` es legado.

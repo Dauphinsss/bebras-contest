@@ -1,6 +1,5 @@
-import "dotenv/config";
 import type { Prisma } from "../src/generated/prisma/client";
-import { prisma } from "../src/lib/prisma";
+import { executeStatements, insert, parseOptions, prismaDate, isScriptMain } from "../../scripts/cloudflare-seed";
 
 const AGE_RANGES = ["5–8", "8–10", "10–12", "12–14", "14–16", "17–18"];
 
@@ -88,28 +87,20 @@ function testTaskData(
   };
 }
 
-async function main() {
+export async function main(args = process.argv.slice(2)) {
+  const options = parseOptions(args, true);
   if (process.env.BEBRAS_E2E !== "1") {
     throw new Error("db:test-tasks solo puede ejecutarse desde el entorno E2E");
   }
 
   const tasks = TEST_TASKS.map(testTaskData);
-  await prisma.$transaction(async (tx) => {
-    for (const task of tasks) {
-      await tx.taskDraft.upsert({
-        where: { id: task.id },
-        update: task,
-        create: task,
-      });
-    }
-  });
+  const date = prismaDate();
+  await executeStatements(options, tasks.map(task => insert("TaskDraft", "id", { ...task, createdAt: date, updatedAt: date }, [...Object.keys(task).filter(key => key !== "id"), "updatedAt"])));
   console.log(`Fixtures E2E: ${tasks.length} tareas listas.`);
 }
 
-main()
-  .then(() => prisma.$disconnect())
+if (isScriptMain("backend/prisma/seed-test-tasks.ts")) main()
   .catch(async (error) => {
     console.error("Error en el seed de tareas E2E:", error);
-    await prisma.$disconnect();
     process.exit(1);
   });

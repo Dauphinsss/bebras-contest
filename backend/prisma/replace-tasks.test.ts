@@ -1,254 +1,95 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient } from "../src/generated/prisma/client";
+import { join } from "node:path";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { replacementOptions, createVerifiedBackup, databaseSnapshot, replaceTasks, main } from "./replace-tasks";
+import { privateDirectory } from "../../scripts/cloudflare-cli";
+import { withLocalD1, runStatements, type LocalD1 } from "../../scripts/cloudflare-local-d1";
+import { catalogStatements } from "../../scripts/cloudflare-seed-tasks";
 
-const backendDirectory = path.resolve(__dirname, "..");
+test("reemplazo requiere confirmación, target local y argumentos válidos", () => {
+  for (const args of [[], ["--target", "local"], ["--confirm-replace", "--target", "production"], ["--confirm-replace", "--target", "local", "--backup"], ["--confirm-replace", "--confirm-replace", "--target", "local"]]) assert.throws(() => replacementOptions(args));
+});
 
-function databaseClient(databasePath: string) {
-  return new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: databasePath }),
-  });
+async function fixture(db: LocalD1) {
+  const { statements } = catalogStatements();
+  const columns = statements[0].sql.match(/\((.*?)\) VALUES/)![1];
+  const sql = [
+    'CREATE TABLE School (codUe TEXT PRIMARY KEY, name TEXT)',
+    'CREATE TABLE User (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT, passwordHash TEXT)',
+    'CREATE TABLE TeacherSchool (id TEXT PRIMARY KEY, userId INTEGER REFERENCES User(id), schoolName TEXT)',
+    `CREATE TABLE TaskDraft (${columns.split(",").map(c => `${c} ${c === '"id"' ? "TEXT PRIMARY KEY" : ""}`).join(",")})`,
+    'CREATE TABLE Contest (id TEXT PRIMARY KEY, isPractice INTEGER, createdById INTEGER REFERENCES User(id))',
+    'CREATE TABLE ContestTask (id TEXT PRIMARY KEY, contestId TEXT REFERENCES Contest(id), taskDraftId TEXT REFERENCES TaskDraft(id))',
+    'CREATE TABLE ContestGroup (id TEXT PRIMARY KEY, contestId TEXT REFERENCES Contest(id))',
+    'CREATE TABLE Team (id TEXT PRIMARY KEY, groupId TEXT REFERENCES ContestGroup(id))',
+    'CREATE TABLE Attempt (id TEXT PRIMARY KEY, teamId TEXT REFERENCES Team(id))',
+    'CREATE TABLE AttemptAnswer (id TEXT PRIMARY KEY, attemptId TEXT REFERENCES Attempt(id), taskDraftId TEXT REFERENCES TaskDraft(id))',
+    'CREATE TABLE Result (id TEXT PRIMARY KEY, attemptId TEXT REFERENCES Attempt(id))',
+    "INSERT INTO School VALUES ('001', 'School')",
+    "INSERT INTO User VALUES (1, 'admin@example.test', 'original-hash')",
+    "INSERT INTO TeacherSchool VALUES ('request', 1, 'School')",
+    "INSERT INTO Contest VALUES ('contest', 0, 1)",
+    "INSERT INTO ContestGroup VALUES ('group', 'contest')",
+    "INSERT INTO Team VALUES ('team', 'group')",
+    "INSERT INTO Attempt VALUES ('attempt', 'team')",
+    "INSERT INTO Result VALUES ('result', 'attempt')",
+  ];
+  await runStatements(db, sql.map(sql => ({ sql, params: [] })));
+  // Export must also handle the real large image rows, not just tiny fixtures.
+  await runStatements(db, statements);
+  await db.prepare('INSERT INTO TaskDraft (id, title) VALUES (?, ?)').bind("custom-task", "Preserve in backup").run();
+  await db.prepare('INSERT INTO ContestTask VALUES (?, ?, ?)').bind("ct", "contest", statements[0].params[0]).run();
+  await db.prepare('INSERT INTO AttemptAnswer VALUES (?, ?, ?)').bind("answer", "attempt", statements[0].params[0]).run();
 }
 
-function runNode(args: string[], databaseUrl: string) {
-  return spawnSync(process.execPath, args, {
-    cwd: backendDirectory,
-    env: { ...process.env, DATABASE_URL: databaseUrl },
-    encoding: "utf8",
-  });
-}
-
-test(
-  "task seeds preserve edits while replacement backs up and clears the contest graph",
-  { timeout: 120_000 },
-  async () => {
-    const temporaryDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "bebras-replace-test-"),
-    );
-    const databasePath = path.join(temporaryDirectory, "catalog.db");
-    const backupPath = path.join(temporaryDirectory, "catalog.db.backup-test");
-    const databaseUrl = `file:${databasePath.replaceAll("\\", "/")}`;
-    let client: PrismaClient | undefined;
-
-    try {
-      const push = runNode(
-        [
-          path.resolve(backendDirectory, "node_modules/prisma/build/index.js"),
-          "db",
-          "push",
-        ],
-        databaseUrl,
-      );
-      assert.equal(push.status, 0, push.stderr);
-
-      client = databaseClient(databasePath);
-      const school = await client.school.create({
-        data: {
-          codUe: "TEST-001",
-          name: "Unidad Educativa de prueba",
-          dep: "La Paz",
-          pro: "Murillo",
-          sec: "La Paz",
-          dis: "Centro",
-        },
-      });
-      const user = await client.user.create({
-        data: {
-          email: "pending@example.test",
-          name: "Docente pendiente",
-          passwordHash: "preserved-hash",
-          role: "maestro",
-          status: "pending",
-          schoolCodUe: school.codUe,
-          letterFilename: "letter.pdf",
-        },
-      });
-      await client.teacherSchool.create({
-        data: {
-          id: "teacher-school-test",
-          userId: user.id,
-          schoolCodUe: school.codUe,
-          schoolName: school.name,
-          letterFilename: "second-letter.pdf",
-        },
-      });
-      const customTask = await client.taskDraft.create({
-        data: {
-          id: "custom-task",
-          title: "Tarea local",
-          category: "[]",
-          difficulties: "{}",
-          bodyBlocks: "[]",
-          challengeBlocks: "[]",
-          answers: "[]",
-          correctAnswerId: "",
-        },
-      });
-      const contest = await client.contest.create({
-        data: {
-          id: "contest-test",
-          title: "Concurso histórico",
-          category: "Capibara",
-          durationMinutes: 40,
-          initialScore: 0,
-          createdById: user.id,
-        },
-      });
-      await client.contestTask.create({
-        data: {
-          contestId: contest.id,
-          taskDraftId: customTask.id,
-          position: 1,
-          difficulty: "easy",
-          minScore: -2,
-          noAnswerScore: 0,
-          maxScore: 6,
-        },
-      });
-      const group = await client.contestGroup.create({
-        data: {
-          contestId: contest.id,
-          name: "Grupo histórico",
-          accessCode: "REPLACE-TEST",
-          recoveryCode: "RECOVERY-TEST",
-        },
-      });
-      const team = await client.team.create({
-        data: {
-          groupId: group.id,
-          memberOneFirstName: "Ada",
-          memberOneLastName: "Lovelace",
-          personalCode: "PERSONAL-TEST",
-        },
-      });
-      const attempt = await client.attempt.create({
-        data: { teamId: team.id },
-      });
-      await client.attemptAnswer.create({
-        data: {
-          attemptId: attempt.id,
-          taskDraftId: customTask.id,
-          responsePayload: "{}",
-        },
-      });
-      await client.result.create({ data: { attemptId: attempt.id } });
-
-      const identitiesBefore = {
-        schools: await client.school.findMany(),
-        users: await client.user.findMany(),
-        teacherSchools: await client.teacherSchool.findMany(),
-      };
-      await client.$disconnect();
-      client = undefined;
-
-      const seedCommand = [
-        "--import",
-        "tsx",
-        path.resolve(__dirname, "seed-tasks.ts"),
-      ];
-      const firstSeed = runNode(seedCommand, databaseUrl);
-      assert.equal(firstSeed.status, 0, firstSeed.stderr);
-
-      client = databaseClient(databasePath);
-      assert.equal(await client.taskDraft.count(), 44);
-      assert.equal(
-        await client.taskDraft.count({
-          where: { id: { startsWith: "seed-bebras-" } },
-        }),
-        0,
-      );
-      const edited = await client.taskDraft.update({
-        where: { id: "bebras-2024-01-caja-de-pulseras" },
-        data: { title: "Edición administrativa preservada" },
-      });
-      await client.$disconnect();
-      client = undefined;
-
-      const secondSeed = runNode(seedCommand, databaseUrl);
-      assert.equal(secondSeed.status, 0, secondSeed.stderr);
-      client = databaseClient(databasePath);
-      const preservedEdit = await client.taskDraft.findUniqueOrThrow({
-        where: { id: edited.id },
-      });
-      assert.equal(preservedEdit.title, edited.title);
-      assert.deepEqual(preservedEdit.updatedAt, edited.updatedAt);
-      assert.equal(await client.taskDraft.count(), 44);
-      await client.$disconnect();
-      client = undefined;
-
-      const replacement = runNode(
-        [
-          "--import",
-          "tsx",
-          path.resolve(__dirname, "replace-tasks.ts"),
-          "--confirm-replace",
-          "--backup",
-          backupPath,
-        ],
-        databaseUrl,
-      );
-      assert.equal(replacement.status, 0, replacement.stderr);
-      assert.match(replacement.stdout, /Reemplazo completo: 43 tareas/);
-      assert.equal(fs.existsSync(backupPath), true);
-
-      client = databaseClient(databasePath);
-      assert.deepEqual(
-        {
-          schools: await client.school.findMany(),
-          users: await client.user.findMany(),
-          teacherSchools: await client.teacherSchool.findMany(),
-        },
-        identitiesBefore,
-      );
-      assert.equal(await client.taskDraft.count(), 43);
-      assert.equal(
-        await client.taskDraft.count({
-          where: { id: { startsWith: "bebras-2024-" } },
-        }),
-        43,
-      );
-      assert.equal(
-        await client.taskDraft.findUnique({ where: { id: customTask.id } }),
-        null,
-      );
-      const graphCounts = await Promise.all([
-        client.result.count(),
-        client.attemptAnswer.count(),
-        client.attempt.count(),
-        client.team.count(),
-        client.contestGroup.count(),
-        client.contestTask.count(),
-        client.contest.count(),
-      ]);
-      for (const count of graphCounts) {
-        assert.equal(count, 0);
+test("reemplazo D1: export restaurable, 43 tareas exactas, identidades y rollback", async () => {
+  const dir = privateDirectory("replace-test-");
+  const config = join(dir, "wrangler.jsonc");
+  const backup = join(dir, "backup.sql");
+  writeFileSync(config, JSON.stringify({ name: "replace-test", compatibility_date: "2026-09-11", d1_databases: [{ binding: "DB", database_name: "replace-test", database_id: "00000000-0000-0000-0000-000000000003" }] }));
+  try {
+    await withLocalD1(config, fixture);
+    const before = await withLocalD1(config, databaseSnapshot);
+    await assert.rejects(createVerifiedBackup(config, join(dir, "failed.sql"), () => { throw new Error("export failed"); }));
+    assert.ok(!existsSync(join(dir, "failed.sql")));
+    assert.equal(await withLocalD1(config, databaseSnapshot), before);
+    await main(["--target", "local", "--config", config, "--confirm-replace", "--backup", backup]);
+    assert.ok(readFileSync(backup, "utf8").includes("custom-task"));
+    const originalBackup = readFileSync(backup, "utf8");
+    await assert.rejects(createVerifiedBackup(config, backup));
+    assert.equal(readFileSync(backup, "utf8"), originalBackup);
+    await withLocalD1(config, async db => {
+      const rows = (await db.prepare("SELECT * FROM TaskDraft ORDER BY id").all()).results;
+      const { statements } = catalogStatements();
+      assert.deepEqual(rows.map(row => row.id), statements.map(s => s.params[0]).sort());
+      const columns = statements[0].sql.match(/\((.*?)\) VALUES/)![1].split(",").map(c => c.replaceAll('"', ""));
+      for (const row of rows) {
+        const expected = statements.find(s => s.params[0] === row.id)!;
+        for (const [i, name] of columns.entries()) if (!["createdAt", "updatedAt"].includes(name)) assert.equal(row[name], expected.params[i]);
       }
-
-      const backup = databaseClient(backupPath);
-      try {
-        assert.equal(await backup.taskDraft.count(), 44);
-        assert.equal(await backup.contest.count(), 1);
-        assert.equal(await backup.attemptAnswer.count(), 1);
-        assert.deepEqual(await backup.user.findMany(), identitiesBefore.users);
-        assert.equal(
-          (
-            await backup.taskDraft.findUniqueOrThrow({
-              where: { id: edited.id },
-            })
-          ).title,
-          edited.title,
-        );
-      } finally {
-        await backup.$disconnect();
-      }
-    } finally {
-      await client?.$disconnect();
-      fs.rmSync(temporaryDirectory, { recursive: true, force: true });
-    }
-  },
-);
+      for (const table of ["Contest", "ContestGroup", "ContestTask", "Team", "Attempt", "AttemptAnswer", "Result"]) assert.equal((await db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).all()).results[0].n, 0);
+      const snapshot = JSON.parse(await databaseSnapshot(db));
+      const identities = JSON.parse(before);
+      for (const table of ["User", "School", "TeacherSchool", "sqlite_sequence"]) assert.deepEqual(snapshot.tables[table], identities.tables[table]);
+      await db.prepare("CREATE TRIGGER AlterIdentity AFTER DELETE ON TaskDraft BEGIN UPDATE User SET passwordHash = 'changed'; END").run();
+      const guarded = await databaseSnapshot(db);
+      await assert.rejects(replaceTasks(db));
+      assert.equal(await databaseSnapshot(db), guarded);
+      await db.prepare("DROP TRIGGER AlterIdentity").run();
+      const rollback = await databaseSnapshot(db);
+      const broken = [...statements, { sql: "INSERT INTO TaskDraft (id) VALUES (?)", params: [statements[0].params[0]] }];
+      await assert.rejects(replaceTasks(db, broken));
+      assert.equal(await databaseSnapshot(db), rollback);
+      await db.prepare("ALTER TABLE ContestGroup ADD COLUMN scheduledAt TEXT").run();
+      const outdated = await databaseSnapshot(db);
+      await assert.rejects(replaceTasks(db), /scheduledAt/);
+      assert.equal(await databaseSnapshot(db), outdated);
+    });
+    const outdated = await withLocalD1(config, databaseSnapshot);
+    const outdatedBackup = join(dir, "outdated.sql");
+    await assert.rejects(main(["--target", "local", "--config", config, "--confirm-replace", "--backup", outdatedBackup]), /scheduledAt/);
+    assert.ok(readFileSync(outdatedBackup, "utf8").includes("scheduledAt"));
+    assert.equal(await withLocalD1(config, databaseSnapshot), outdated);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
