@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "bebras-bo",
+    "production": "bebras-bo"
+  }
+}
