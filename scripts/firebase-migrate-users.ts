@@ -32,14 +32,15 @@ const markVerified = args.includes("--mark-verified");
 const targetIndex = args.indexOf("--target");
 const target = targetIndex >= 0 ? args[targetIndex + 1] : undefined;
 
-if (target !== "production") {
+if (target !== "production" && target !== "staging") {
   throw new Error(
-    "Uso: bun scripts/firebase-migrate-users.ts --target production [--check] [--mark-verified]\n" +
-      "Staging usara su propio proyecto Firebase; todavia no esta conectado.",
+    "Uso: bun scripts/firebase-migrate-users.ts --target production|staging [--check] [--mark-verified]",
   );
 }
 
-const FIREBASE_PROJECT = "production"; // alias de .firebaserc -> bebras-bo
+// Cada entorno tiene su propio proyecto Firebase para no compartir usuarios; en
+// .firebaserc el alias se llama igual que el entorno.
+const FIREBASE_PROJECT = target;
 
 interface Row {
   id: number;
@@ -80,7 +81,7 @@ function readRows(): Row[] {
     "execute",
     "DB",
     "--env",
-    "production",
+    target!,
     "--remote",
     "--json",
     "--command",
@@ -212,7 +213,7 @@ try {
     "execute",
     "DB",
     "--env",
-    "production",
+    target!,
     "--remote",
     "--file",
     sqlFile,

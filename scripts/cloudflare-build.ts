@@ -10,12 +10,18 @@ if (branch && branch !== (target === "production" ? "master" : "staging")) {
   throw new Error(`La rama ${branch} no puede publicar el entorno ${target}.`);
 }
 // Configuracion Web de Firebase: identificadores publicos que viajan en el
-// bundle del navegador, no secretos. Solo production apunta a `bebras-bo`;
-// staging usara su propio proyecto cuando exista, para no compartir usuarios.
+// bundle del navegador, no secretos. Cada entorno usa su propio proyecto para
+// no compartir usuarios: production -> bebras-bo, staging -> bebras-bo-staging.
 // Cualquiera de estos valores se puede sobreescribir desde el entorno.
 const firebase: Record<string, Record<string, string>> = {
   local: {},
-  staging: {},
+  staging: {
+    PUBLIC_FIREBASE_API_KEY: "AIzaSyBHXAM0ixV2iCWD_dE2rN-SHKS2W2Ay2z0",
+    PUBLIC_FIREBASE_AUTH_DOMAIN: "bebras-bo-staging.firebaseapp.com",
+    PUBLIC_FIREBASE_PROJECT_ID: "bebras-bo-staging",
+    PUBLIC_FIREBASE_APP_ID: "1:88239195646:web:044edbc9ca41c429286caf",
+    PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "88239195646",
+  },
   production: {
     PUBLIC_FIREBASE_API_KEY: "AIzaSyCgEF_MekXH2WfuRVkwcWex__IfafBAGKs",
     PUBLIC_FIREBASE_AUTH_DOMAIN: "bebras-bo.firebaseapp.com",

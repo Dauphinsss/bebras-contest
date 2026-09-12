@@ -18,17 +18,24 @@ No se usa Firestore, Realtime Database, Storage, Functions ni Hosting.
 
 ## Proyecto y proveedores
 
-| | |
-| --- | --- |
-| Project ID | `bebras-bo` |
-| Alias en `.firebaserc` | `production` |
-| App Web | `1:1026208753397:web:652dd936ef213b6bab87bc` |
-| Proveedores | Email/Password y Google, solo esos |
+Cada entorno usa su **propio proyecto**, para que las pruebas de staging no
+creen usuarios en el Firebase de producción:
+
+| | Producción | Staging |
+| --- | --- | --- |
+| Project ID | `bebras-bo` | `bebras-bo-staging` |
+| Alias en `.firebaserc` | `production` | `staging` |
+| App Web | `1:1026208753397:web:652dd936ef213b6bab87bc` | `1:88239195646:web:044edbc9ca41c429286caf` |
+| Proveedores | Email/Password y Google | Email/Password y Google |
+| D1 | `bebras-prod` | `bebras-staging` |
+
+Los dos habilitan **solo** Email/Password y Google.
 
 Los proveedores se declaran en `firebase.json` y se aplican por CLI:
 
 ```powershell
 npx firebase deploy --only auth --project production
+npx firebase deploy --only auth --project staging
 ```
 
 `authorizedRedirectUris` no se declara: el proyecto ya registra
@@ -47,9 +54,15 @@ bun scripts/firebase-authorized-domains.ts
 bun scripts/firebase-authorized-domains.ts --add bebras-contest.bebrasbolivia.workers.dev
 ```
 
-Autorizados hoy: `bebras-bo.firebaseapp.com`, `bebras-bo.web.app` y el Worker de
-producción. Para desarrollar en local contra este proyecto hay que agregar
-`localhost`.
+Autorizados hoy:
+
+- **producción**: `bebras-bo.firebaseapp.com`, `bebras-bo.web.app` y
+  `bebras-contest.bebrasbolivia.workers.dev`;
+- **staging**: los suyos, `bebras-contest-staging.bebrasbolivia.workers.dev` y
+  `localhost`.
+
+Para desarrollar en local conviene apuntar a **staging**, que ya autoriza
+`localhost`; producción no lo autoriza a propósito.
 
 ## Verificación de tokens en el Worker
 
@@ -104,7 +117,8 @@ es el flujo oficial de vinculación, sin identidades paralelas.
 Worker (`wrangler.jsonc` → `vars`), local en `.dev.vars`:
 
 ```text
-FIREBASE_PROJECT_ID   production = bebras-bo | staging y local = vacío
+FIREBASE_PROJECT_ID   production = bebras-bo | staging = bebras-bo-staging
+                      local = vacío (apuntar a staging para desarrollar)
 ```
 
 Frontend (`PUBLIC_*`, públicas por diseño, viajan en el bundle). Producción las
@@ -119,14 +133,19 @@ PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 ```
 
 Vacío = entorno sin Firebase: los formularios lo dicen y no dejan entrar. Es el
-estado de **staging**, que deberá usar un proyecto Firebase propio para no
-compartir usuarios con producción.
+estado de **local** hasta que se apunte a un proyecto.
+
+`REGISTRATION_ONLY` es independiente de todo esto: `true` solo en producción, que
+por eso oculta las secciones que no son inscripción. Staging lo tiene en `false`
+y muestra todo.
 
 ## Migración de cuentas existentes
 
 ```powershell
 bun scripts/firebase-migrate-users.ts --target production --check
 bun scripts/firebase-migrate-users.ts --target production
+# staging usa su propio proyecto y su propia D1
+bun scripts/firebase-migrate-users.ts --target staging
 ```
 
 Sube a Firebase las filas de D1 con `passwordHash` y sin `firebaseUid`,

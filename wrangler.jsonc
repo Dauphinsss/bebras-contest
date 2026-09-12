@@ -21,7 +21,7 @@
     "staging": {
       "name": "bebras-contest-staging",
       "durable_objects": { "bindings": [{ "name": "PASSWORDS", "class_name": "PasswordService" }] },
-      "vars": { "REGISTRATION_ONLY": "false", "FRONTEND_ORIGIN": "", "FIREBASE_PROJECT_ID": "" },
+      "vars": { "REGISTRATION_ONLY": "false", "FRONTEND_ORIGIN": "", "FIREBASE_PROJECT_ID": "bebras-bo-staging" },
       "d1_databases": [{ "binding": "DB", "database_name": "bebras-staging", "database_id": "767cab4c-1445-4dbb-9e24-b93512d684f9", "migrations_dir": "backend/migrations" }],
       "r2_buckets": [{ "binding": "UPLOADS", "bucket_name": "bebras-uploads-staging" }]
     },
