@@ -35,13 +35,29 @@ import { validatePhone } from "@/lib/phone";
 import { validateEmail } from "@/lib/email";
 import { validateRegistrationText } from "@/lib/registration-text";
 import { registrationPasswordError } from "@/lib/registration-password";
+import { REGISTRATION_LIMITS } from "@/lib/registration-limits";
 import {
   registrationInputError,
   registrationInputGuards,
   type RestrictedRegistrationField,
 } from "@/lib/registration-input";
 import { API_BASE_URL } from "@/lib/api-client";
-import { setSession, type AuthUser } from "@/lib/auth";
+import { GoogleButton } from "@/components/google-button";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import {
+  GoogleRedirectStarted,
+  continueWithGoogle,
+  firebaseErrorMessage,
+  forgetGoogleProfile,
+  readGoogleProfile,
+  recallGoogleProfile,
+  registerWithEmail,
+  rememberGoogleProfile,
+  sendVerificationEmail,
+  signOutFirebase,
+} from "@/lib/firebase-auth";
+import { useFirebaseSession } from "@/lib/use-firebase-session";
+import { landingPath, openBebrasSession } from "@/lib/session-api";
 
 type RegisterErrors = {
   firstName?: string;
@@ -81,7 +97,14 @@ function confirmationError(password: string, confirmation: string) {
 }
 
 export function RegisterForm() {
-  const [step, setStep] = useState<"form" | "confirm">("form");
+  const configured = isFirebaseConfigured();
+  const session = useFirebaseSession();
+  // Ya autenticado en Firebase pero sin perfil Bebras: la identidad y el correo
+  // estan decididos, solo faltan los datos propios de Bebras (§9).
+  const completing = Boolean(session.user);
+  const [step, setStep] = useState<"form" | "confirm" | "verify">("form");
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [resending, setResending] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -112,6 +135,7 @@ export function RegisterForm() {
   const idFrontRef = useRef<HTMLInputElement>(null);
   const idBackRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
+  const prefilledRef = useRef(false);
   const pendingResponseFocusRef = useRef<
     | "firstName"
     | "lastName"
@@ -174,6 +198,17 @@ export function RegisterForm() {
     }
   }, [errors.form, step]);
 
+  // Correo, nombre y apellido llegan desde Google. El correo queda fijo porque
+  // es la identidad verificada; nombre y apellido son editables (§9, §12).
+  useEffect(() => {
+    if (!completing || prefilledRef.current || !session.user) return;
+    prefilledRef.current = true;
+    const profile = recallGoogleProfile();
+    setEmail(session.email ?? profile?.email ?? "");
+    if (profile?.firstName) setFirstName(profile.firstName);
+    if (profile?.lastName) setLastName(profile.lastName);
+  }, [completing, session.email, session.user]);
+
   useEffect(() => {
     if (submitting || step !== "form" || !pendingResponseFocusRef.current) {
       return;
@@ -211,8 +246,10 @@ export function RegisterForm() {
       lastName: validatedLastName.error,
       email: validatedEmail.error,
       phone: validatedPhone.error,
-      password: registrationPasswordError(password),
-      confirmPassword: confirmationError(password, confirmPassword),
+      password: completing ? undefined : registrationPasswordError(password),
+      confirmPassword: completing
+        ? undefined
+        : confirmationError(password, confirmPassword),
       school: hasSchoolChoice
         ? validatedSchool.error
         : "Indica tu colegio o selecciona educación en casa.",
@@ -264,16 +301,77 @@ export function RegisterForm() {
     setStep("confirm");
   };
 
+  const handleGoogle = async () => {
+    setErrors({});
+    setGoogleBusy(true);
+
+    try {
+      const credential = await continueWithGoogle();
+      rememberGoogleProfile(readGoogleProfile(credential));
+      const outcome = await openBebrasSession(credential.user);
+
+      // Si ya era usuario de Bebras entra directo: no se vuelve a registrar (§8).
+      if (outcome.status === "ok") {
+        forgetGoogleProfile();
+        window.location.replace(landingPath(outcome.user));
+        return;
+      }
+      if (outcome.status === "error") {
+        setErrors({ form: outcome.message });
+      }
+      // `profile-required`: el efecto de precarga cambia el formulario a modo
+      // completar perfil en cuanto llega la sesion de Firebase.
+    } catch (error) {
+      if (error instanceof GoogleRedirectStarted) return;
+      setErrors({
+        form: firebaseErrorMessage(error, "No se pudo continuar con Google."),
+      });
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!session.user) return;
+    setResending(true);
+    try {
+      await sendVerificationEmail(session.user);
+      toast.success("Te reenviamos el correo de verificación.");
+    } catch (error) {
+      toast.error(firebaseErrorMessage(error, "No se pudo reenviar el correo."));
+    } finally {
+      setResending(false);
+    }
+  };
+
   const submit = async () => {
     setErrors({});
     setSubmitting(true);
 
     try {
+      // Firebase decide la identidad; Bebras solo guarda el perfil asociado.
+      let user = session.user;
+
+      if (!user) {
+        try {
+          user = await registerWithEmail(email.trim(), password);
+        } catch (error) {
+          const message = firebaseErrorMessage(
+            error,
+            "No se pudo crear la cuenta.",
+          );
+          toast.error(message);
+          setErrors({ email: message });
+          pendingResponseFocusRef.current = "email";
+          setStep("form");
+          return;
+        }
+      }
+
+      const token = await user.getIdToken();
       const form = new FormData();
       form.append("firstName", formatPersonName(firstName));
       form.append("lastName", formatPersonName(lastName));
-      form.append("email", email.trim());
-      form.append("password", password);
       form.append("schoolName", school.name.trim());
       form.append("institutionType", school.institutionType);
       form.append("phone", phone.trim());
@@ -296,13 +394,12 @@ export function RegisterForm() {
 
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
 
       const data = (await response.json().catch(() => ({}))) as {
         message?: string;
-        token?: string;
-        user?: AuthUser;
         field?:
           | "firstName"
           | "lastName"
@@ -327,20 +424,87 @@ export function RegisterForm() {
         return;
       }
 
-      if (!data.token || !data.user) {
+      // Google ya trae el correo verificado: entra sin pasos extra.
+      if (user.emailVerified) {
+        const outcome = await openBebrasSession(user);
+        forgetGoogleProfile();
+        if (outcome.status === "ok") {
+          window.location.replace(landingPath(outcome.user));
+          return;
+        }
         setErrors({
-          form: "No se pudo iniciar tu sesión. Ingresa desde Iniciar sesión.",
+          form:
+            outcome.status === "error"
+              ? outcome.message
+              : "Cuenta creada. Inicia sesión para continuar.",
         });
         return;
       }
-      setSession(data.token, data.user);
-      window.location.replace("/perfil");
+
+      // Correo y contraseña: Firebase manda la verificación y recién después
+      // se puede iniciar sesión (§4, §5).
+      await sendVerificationEmail(user).catch(() => undefined);
+      setStep("verify");
     } catch {
       toast.error("No se pudo conectar con el servidor.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (!configured) {
+    return (
+      <Card className="mx-auto w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle>Registro de maestro</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertDescription>
+              Este entorno todavía no tiene configurado Firebase Authentication.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (step === "verify") {
+    return (
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Verifica tu correo</CardTitle>
+          <CardDescription>
+            Tu cuenta quedó creada. Te enviamos un enlace a {email.trim()};
+            ábrelo y ya podrás iniciar sesión.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={resending}
+            onClick={() => void handleResend()}
+          >
+            {resending ? "Enviando..." : "Reenviar correo de verificación"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              void signOutFirebase().then(() => {
+                window.location.replace("/login");
+              });
+            }}
+          >
+            Ir a iniciar sesión
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Revisa también la carpeta de correo no deseado.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (step === "confirm") {
     return (
@@ -436,12 +600,35 @@ export function RegisterForm() {
       <CardHeader>
         <CardTitle>Registro de maestro</CardTitle>
         <CardDescription>
-          {REGISTRATION_ONLY
-            ? "Crea tu cuenta y completa tus datos y documentos. Un administrador revisará tu registro."
-            : "Crea tu cuenta y entra enseguida. El administrador la aprueba para que puedas crear grupos e inscribir estudiantes."}
+          {completing
+            ? "Confirma tus datos y completa lo que falta para terminar tu registro."
+            : REGISTRATION_ONLY
+              ? "Crea tu cuenta y completa tus datos y documentos. Un administrador revisará tu registro."
+              : "Crea tu cuenta y entra enseguida. El administrador la aprueba para que puedas crear grupos e inscribir estudiantes."}
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {!completing && (
+          <>
+            <GoogleButton
+              disabled={googleBusy || submitting}
+              loading={googleBusy}
+              onClick={() => void handleGoogle()}
+            />
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">
+                o con tu correo
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          </>
+        )}
+        {errors.form && (
+          <Alert ref={formErrorRef} variant="destructive" tabIndex={-1} className="mb-4">
+            <AlertDescription>{errors.form}</AlertDescription>
+          </Alert>
+        )}
         <form className="flex flex-col gap-6" onSubmit={goToConfirm} noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={Boolean(errors.firstName) || undefined}>
@@ -450,6 +637,7 @@ export function RegisterForm() {
                 <Input
                   ref={firstNameRef}
                   id="reg-first"
+                  maxLength={REGISTRATION_LIMITS.firstName}
                   {...inputGuards("firstName")}
                   value={firstName}
                   onChange={(event) => {
@@ -474,6 +662,7 @@ export function RegisterForm() {
                 <Input
                   ref={lastNameRef}
                   id="reg-last"
+                  maxLength={REGISTRATION_LIMITS.lastName}
                   {...inputGuards("lastName")}
                   value={lastName}
                   onChange={(event) => {
@@ -501,7 +690,10 @@ export function RegisterForm() {
                   ref={emailRef}
                   id="reg-email"
                   type="email"
+                  maxLength={REGISTRATION_LIMITS.email}
                   value={email}
+                  readOnly={completing}
+                  disabled={completing}
                   onChange={(event) => {
                     setEmail(event.target.value);
                     if (errors.email) {
@@ -511,9 +703,15 @@ export function RegisterForm() {
                   placeholder="tu@correo.com"
                   aria-invalid={Boolean(errors.email)}
                   aria-describedby={
-                    errors.email ? "reg-email-error" : undefined
+                    errors.email ? "reg-email-error" : "reg-email-hint"
                   }
                 />
+                {completing && (
+                  <p id="reg-email-hint" className="text-xs text-muted-foreground">
+                    Es el correo de la cuenta con la que entraste; no se puede
+                    cambiar.
+                  </p>
+                )}
                 <FieldError id="reg-email-error">{errors.email}</FieldError>
               </FieldContent>
             </Field>
@@ -523,6 +721,7 @@ export function RegisterForm() {
                 <Input
                   ref={phoneRef}
                   id="reg-phone"
+                  maxLength={REGISTRATION_LIMITS.phone}
                   {...inputGuards("phone")}
                   type="tel"
                   inputMode="tel"
@@ -545,6 +744,7 @@ export function RegisterForm() {
               </FieldContent>
             </Field>
           </div>
+          {!completing && (
           <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={Boolean(errors.password) || undefined}>
               <FieldLabel htmlFor="reg-password">Contraseña</FieldLabel>
@@ -553,6 +753,7 @@ export function RegisterForm() {
                   <InputGroupInput
                     ref={passwordRef}
                     id="reg-password"
+                    maxLength={REGISTRATION_LIMITS.password}
                     {...inputGuards("password")}
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
@@ -607,6 +808,7 @@ export function RegisterForm() {
                   <InputGroupInput
                     ref={confirmPasswordRef}
                     id="reg-confirm"
+                    maxLength={REGISTRATION_LIMITS.password}
                     {...inputGuards("confirmPassword")}
                     type={showConfirmPassword ? "text" : "password"}
                     autoComplete="new-password"
@@ -653,6 +855,7 @@ export function RegisterForm() {
               </FieldContent>
             </Field>
           </FieldGroup>
+          )}
           <Field data-invalid={Boolean(errors.school) || undefined}>
             <FieldLabel htmlFor="school-search">¿Dónde enseñas?</FieldLabel>
             <FieldContent>
@@ -818,7 +1021,7 @@ export function RegisterForm() {
               </div>
             </div>
           </div>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={googleBusy}>
             Continuar
           </Button>
         </form>

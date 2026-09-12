@@ -1,11 +1,12 @@
 "use client";
 import { REGISTRATION_ONLY } from "@/lib/registration-only";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { toast } from "sonner";
+import type { User } from "firebase/auth";
 
-import { setSession, type AuthUser } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,13 +23,36 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { API_BASE_URL } from "@/lib/api-client";
+import { GoogleButton } from "@/components/google-button";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { REGISTRATION_LIMITS } from "@/lib/registration-limits";
+import {
+  GoogleRedirectStarted,
+  continueWithGoogle,
+  firebaseErrorMessage,
+  linkPendingGoogleCredential,
+  pendingGoogleLinkEmail,
+  readGoogleProfile,
+  rememberGoogleProfile,
+  rememberPendingGoogleCredential,
+  sendVerificationEmail,
+  signInWithEmail,
+  signOutFirebase,
+} from "@/lib/firebase-auth";
+import { useFirebaseSession } from "@/lib/use-firebase-session";
+import { landingPath, openBebrasSession } from "@/lib/session-api";
 
 export function LoginForm() {
+  const configured = isFirebaseConfigured();
+  const session = useFirebaseSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [unverified, setUnverified] = useState<User | null>(null);
+  const [linkEmail, setLinkEmail] = useState("");
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -36,6 +60,46 @@ export function LoginForm() {
   }>({});
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const resumedRef = useRef(false);
+
+  const busy = submitting || googleBusy;
+
+  /** Camino comun de los dos proveedores: Firebase ya autentico, falta Bebras. */
+  const enterBebras = async (user: User) => {
+    const outcome = await openBebrasSession(user);
+
+    switch (outcome.status) {
+      case "ok":
+        toast.success("Sesión iniciada.");
+        window.location.replace(landingPath(outcome.user));
+        return;
+      case "profile-required":
+        window.location.replace("/registro");
+        return;
+      case "email-not-verified":
+        setUnverified(user);
+        return;
+      case "error":
+        setErrors({ form: outcome.message });
+    }
+  };
+
+  // Si Firebase todavia recuerda la sesion (volvio de un redirect de Google o
+  // expiro solo la sesion Bebras), se retoma sin pedir credenciales de nuevo.
+  useEffect(() => {
+    if (
+      !configured ||
+      session.loading ||
+      !session.user ||
+      resumedRef.current ||
+      unverified ||
+      getUser()
+    ) {
+      return;
+    }
+    resumedRef.current = true;
+    void enterBebras(session.user);
+  }, [configured, session.loading, session.user, unverified]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -62,40 +126,128 @@ export function LoginForm() {
     }
 
     setErrors({});
+    setUnverified(null);
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-
-      const data = (await response.json().catch(() => ({}))) as {
-        token?: string;
-        user?: AuthUser;
-        message?: string;
-      };
-
-      if (!response.ok || !data.token || !data.user) {
-        setErrors({
-          form: data.message ?? "No se pudo iniciar sesión.",
-        });
-        emailRef.current?.focus();
+      const user = await signInWithEmail(email.trim(), password);
+      // Quedaba una credencial de Google pendiente del mismo correo: ahora que
+      // hay sesion se enlaza y la persona podra usar cualquiera de los dos.
+      if (pendingGoogleLinkEmail()) {
+        await linkPendingGoogleCredential(user);
+        setLinkEmail("");
+      }
+      if (!user.emailVerified) {
+        setUnverified(user);
         return;
       }
-
-      setSession(data.token, data.user);
-      toast.success("Sesión iniciada.");
-      window.location.replace(
-        data.user.role === "admin" ? "/desafios" : "/perfil",
-      );
-    } catch {
-      toast.error("No se pudo conectar con el servidor.");
+      await enterBebras(user);
+    } catch (error) {
+      setErrors({
+        form: firebaseErrorMessage(error, "No se pudo iniciar sesión."),
+      });
+      emailRef.current?.focus();
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleGoogle = async () => {
+    setErrors({});
+    setUnverified(null);
+    setGoogleBusy(true);
+
+    try {
+      const credential = await continueWithGoogle();
+      rememberGoogleProfile(readGoogleProfile(credential));
+      await enterBebras(credential.user);
+    } catch (error) {
+      if (error instanceof GoogleRedirectStarted) return;
+
+      const pending = rememberPendingGoogleCredential(error);
+      if (pending) {
+        setLinkEmail(pending);
+        setEmail(pending);
+        passwordRef.current?.focus();
+        return;
+      }
+
+      setErrors({
+        form: firebaseErrorMessage(error, "No se pudo continuar con Google."),
+      });
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!unverified) return;
+    setResending(true);
+    try {
+      await sendVerificationEmail(unverified);
+      toast.success("Te reenviamos el correo de verificación.");
+    } catch (error) {
+      toast.error(
+        firebaseErrorMessage(error, "No se pudo reenviar el correo."),
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (!configured) {
+    return (
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Iniciar sesión</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertDescription>
+              Este entorno todavía no tiene configurado Firebase Authentication.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (unverified) {
+    return (
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Verifica tu correo</CardTitle>
+          <CardDescription>
+            Te enviamos un enlace a {unverified.email}. Ábrelo y vuelve a entrar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={resending}
+            onClick={() => void handleResend()}
+          >
+            {resending ? "Enviando..." : "Reenviar correo de verificación"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              void signOutFirebase().then(() => {
+                setUnverified(null);
+                setPassword("");
+              });
+            }}
+          >
+            Volver a iniciar sesión
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Revisa también la carpeta de correo no deseado.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mx-auto w-full max-w-md">
@@ -104,11 +256,31 @@ export function LoginForm() {
         <CardDescription>Acceso para maestros y organizadores.</CardDescription>
       </CardHeader>
       <CardContent>
+        <GoogleButton
+          disabled={busy}
+          loading={googleBusy}
+          onClick={() => void handleGoogle()}
+        />
+
+        <div className="my-5 flex items-center gap-3">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">o con tu correo</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
         <form
           className="flex flex-col gap-4"
           onSubmit={handleSubmit}
           noValidate
         >
+          {linkEmail && (
+            <Alert>
+              <AlertDescription>
+                Ya tienes una cuenta con contraseña para {linkEmail}. Ingresa esa
+                contraseña una vez y dejamos Google vinculado a tu cuenta.
+              </AlertDescription>
+            </Alert>
+          )}
           {errors.form && (
             <Alert variant="destructive">
               <AlertDescription>{errors.form}</AlertDescription>
@@ -121,6 +293,8 @@ export function LoginForm() {
                 ref={emailRef}
                 id="login-email"
                 type="email"
+                autoComplete="email"
+                maxLength={REGISTRATION_LIMITS.email}
                 value={email}
                 onChange={(event) => {
                   setEmail(event.target.value);
@@ -149,6 +323,8 @@ export function LoginForm() {
                   ref={passwordRef}
                   id="login-password"
                   type={showPassword ? "text" : "password"}
+                  maxLength={REGISTRATION_LIMITS.password}
+                  autoComplete="current-password"
                   className="pr-10"
                   value={password}
                   onChange={(event) => {
@@ -186,7 +362,7 @@ export function LoginForm() {
               </FieldError>
             </FieldContent>
           </Field>
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button type="submit" className="w-full" disabled={busy}>
             {submitting ? "Entrando..." : "Entrar"}
           </Button>
         </form>
