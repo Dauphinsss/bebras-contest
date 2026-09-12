@@ -35,6 +35,22 @@ npx firebase deploy --only auth --project production
 `https://bebras-bo.firebaseapp.com/__/auth/handler` y repetirlo hace fallar el
 despliegue con `OAuth 2 redirect URLs have duplicate`.
 
+### Dominios autorizados
+
+Google sign-in solo funciona desde un dominio autorizado; si falta, el navegador
+responde `auth/unauthorized-domain`. El CLI no tiene un comando para esto, pero
+sí el módulo interno que usa `hosting:channel:deploy`, con la misma sesión de
+`firebase login`:
+
+```powershell
+bun scripts/firebase-authorized-domains.ts
+bun scripts/firebase-authorized-domains.ts --add bebras-contest.bebrasbolivia.workers.dev
+```
+
+Autorizados hoy: `bebras-bo.firebaseapp.com`, `bebras-bo.web.app` y el Worker de
+producción. Para desarrollar en local contra este proyecto hay que agregar
+`localhost`.
+
 ## Verificación de tokens en el Worker
 
 `backend/src/lib/firebase-auth.ts` valida los ID Token con **jose** y Web Crypto,
