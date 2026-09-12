@@ -13,7 +13,8 @@ para los comandos CI. Los temporales de pruebas usan `os.tmpdir()` y directorios
 migraciones aplicadas quedan registradas por Wrangler y se pueden reejecutar sin
 recrear tablas. Una base preexistente con tablas y sin historial de migraciones
 requiere reconciliar su esquema/historial antes de aplicar el baseline; no se
-resuelve borrando la base. Los builds no aplican migraciones ni semillas.
+resuelve borrando la base. Los builds aplican las migraciones versionadas
+pendientes antes de desplegar, pero nunca ejecutan semillas.
 
 La configuración `wrangler.jsonc` ya está disponible. Aplicar sus migraciones D1 antes de las semillas:
 

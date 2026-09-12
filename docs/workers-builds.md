@@ -10,7 +10,7 @@ En cada Worker, abrir **Settings → Builds → Connect** y configurar:
 | Worker | `bebras-contest` | `bebras-contest-staging` |
 | Rama de producción del build | `master` | `staging` |
 | Directorio raíz | `/` | `/` |
-| Build command | `bun run setup && bun run db:migrations:check:production && bun run build:production` | `bun run setup && bun run db:migrations:check:staging && bun run build:staging` |
+| Build command | `bun run setup && bun run db:migrations:apply:production && bun run db:migrations:check:production && bun run build:production` | `bun run setup && bun run db:migrations:apply:staging && bun run db:migrations:check:staging && bun run build:staging` |
 | Deploy command | `bunx wrangler deploy --env production` | `bunx wrangler deploy --env staging` |
 | Non-production branch builds | Deshabilitado | Deshabilitado |
 
@@ -24,9 +24,10 @@ SKIP_DEPENDENCY_INSTALL=1
 
 Los builds comprobados también funcionan sin estas variables usando los valores
 actuales por defecto de Cloudflare. `setup` instala los tres paquetes con sus
-lockfiles congelados. El gate ejecuta un `SELECT` sobre `d1_migrations`, compara
-el resultado con los archivos locales y bloquea el despliegue si existe una
-migración pendiente o un historial divergente. Después el build genera Prisma
+lockfiles congelados. Wrangler aplica las migraciones pendientes y guarda un
+backup; luego el gate ejecuta un `SELECT` sobre `d1_migrations`, compara el
+resultado con los archivos locales y bloquea el despliegue si la aplicación falló
+o existe un historial divergente. Después el build genera Prisma
 para workerd, compila Astro y aplica el recorte sólo a producción. Si
 Workers Builds comunica una rama distinta a la esperada, falla antes de compilar.
 `develop` no debe estar conectado a ningún build.
@@ -38,18 +39,19 @@ inyecta `scripts/cloudflare-build.ts` según el entorno. Estos comandos no carga
 tareas, no ejecutan seeds y no borran/recrean D1 ni R2. Los cambios de esquema se
 aplican explícitamente con las migraciones versionadas, primero en local.
 
-## Estado: conectado y comprobado
+## Estado: conexión comprobada
 
 Ambos Workers despliegan solos desde GitHub. La conexión se hizo desde el
-Dashboard (la autorización de la cuenta de Git no tiene API) y el resto quedó
-ajustado por API, porque **los valores que crea el Dashboard no sirven para este
-repositorio**.
+Dashboard (la autorización de la cuenta de Git no tiene API) y sus triggers se
+ajustaron por API, porque **los valores que crea el Dashboard no sirven para este
+repositorio**. Los comandos de la tabla siguiente son la configuración versionada;
+cualquier cambio requiere volver a ejecutar el script de sincronización.
 
 | | Producción | Staging |
 | --- | --- | --- |
 | Trigger | `ccea49e5-0176-4f63-b2bf-4d15eaa6a792` | `ebcc05a1-0b7d-487c-beef-10df2e9071f8` |
 | Rama | `master` | `staging` |
-| Build | `bun run setup && bun run db:migrations:check:production && bun run build:production` | `bun run setup && bun run db:migrations:check:staging && bun run build:staging` |
+| Build versionado | `bun run setup && bun run db:migrations:apply:production && bun run db:migrations:check:production && bun run build:production` | `bun run setup && bun run db:migrations:apply:staging && bun run db:migrations:check:staging && bun run build:staging` |
 | Deploy | `bunx wrangler deploy --env production` | `bunx wrangler deploy --env staging` |
 | Tag del Worker | `4c3e208b37024d22b0bd4b9829cddef7` | `40c913ff795147878d4c502300477ade` |
 
@@ -108,20 +110,17 @@ como token persistente del build.
 
 ## Publicación con migraciones D1
 
-Workers Builds nunca aplica migraciones. El token de despliegue necesita permiso
-para consultar D1, porque el build lee la tabla `d1_migrations`; si no puede
-comprobar el estado, falla cerrado.
+Workers Builds aplica automáticamente las migraciones pendientes del entorno y
+luego verifica el historial. El token de despliegue necesita permiso para
+modificar y consultar D1; si la migración o la comprobación falla, el build se
+detiene antes de desplegar el Worker.
 
 1. Crear la migración versionada y probarla sobre D1 local.
-2. Desde la rama exacta que se publicará, ejecutar
-   `bun run db:migrations:apply:staging` y luego
-   `bun run db:migrations:check:staging`.
-3. Publicar en `staging`; Workers Builds vuelve a comprobar D1 antes de desplegar.
-4. Validar el Worker alojado.
-5. Antes de fusionar ese mismo commit a `master`, ejecutar
-   `bun run db:migrations:apply:production` y
-   `bun run db:migrations:check:production`.
-6. Fusionar a `master`; el build de producción verifica nuevamente y despliega.
+2. Publicar en `staging`; Workers Builds aplica las migraciones de staging,
+   verifica el historial y despliega.
+3. Validar el Worker alojado y la funcionalidad que depende del nuevo esquema.
+4. Fusionar el mismo commit a `master`; Workers Builds aplica esas migraciones en
+   producción, verifica el historial y despliega.
 
 La migración debe ser compatible con el Worker anterior durante el intervalo
 entre cambiar D1 y desplegar código. Para retirar o renombrar columnas, usar una

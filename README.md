@@ -359,9 +359,9 @@ bun x --no-install wrangler deploy --env production --dry-run
 ```
 
 Con los recursos remotos provisionados, `bun run deploy:staging` y
-`bun run deploy:production` verifican que D1 no tenga migraciones pendientes,
-reconstruyen el modo correcto y despliegan con su `--env`. Las migraciones se
-aplican antes y de forma explícita:
+`bun run deploy:production` aplican las migraciones D1 pendientes, verifican el
+historial, reconstruyen el modo correcto y despliegan con su `--env`. También se
+pueden ejecutar por separado para diagnóstico:
 
 ```bash
 bun run db:migrations:apply:staging
@@ -386,19 +386,20 @@ automática del paquete raíz no instala `backend` ni `frontend`:
 
 | Worker / rama | Build command | Deploy command |
 | --- | --- | --- |
-| Staging / `staging` | `bun run setup && bun run db:migrations:check:staging && bun run build:staging` | `bun x --no-install wrangler deploy --env staging` |
-| Producción / `master` | `bun run setup && bun run db:migrations:check:production && bun run build:production` | `bun x --no-install wrangler deploy --env production` |
+| Staging / `staging` | `bun run setup && bun run db:migrations:apply:staging && bun run db:migrations:check:staging && bun run build:staging` | `bun x --no-install wrangler deploy --env staging` |
+| Producción / `master` | `bun run setup && bun run db:migrations:apply:production && bun run db:migrations:check:production && bun run build:production` | `bun x --no-install wrangler deploy --env production` |
 
 Opcionalmente fija `BUN_VERSION=1.3.5`, `NODE_VERSION=22` y
 `SKIP_DEPENDENCY_INSTALL=1` si se necesita aislar el build de cambios en la imagen
 predeterminada de Cloudflare. Los tres lockfiles deben estar en el checkout. El
 build genera Prisma antes de Astro y fija sus variables públicas por entorno; no
 necesita archivos `.env` personales.
-El build solo consulta el estado de migraciones y falla si encuentra alguna
-pendiente; nunca modifica D1. Las migraciones y el bootstrap se ejecutan
-explícitamente por el operador. Los secretos runtime no se guardan en el
-repositorio. La conexión GitHub y los ajustes remotos de Builds son independientes
-de estos comandos locales.
+El build aplica únicamente las migraciones versionadas que todavía estén
+pendientes y luego comprueba el historial. Wrangler crea un backup y revierte la
+migración que falle; el Worker no se construye ni despliega en ese caso. Los seeds
+y el bootstrap siguen siendo operaciones separadas. Los secretos runtime no se
+guardan en el repositorio. La conexión GitHub y los ajustes remotos de Builds son
+independientes de estos comandos locales.
 
 Referencia: [configuración de Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
 
