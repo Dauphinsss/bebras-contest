@@ -5,7 +5,12 @@ export const API_BASE_URL =
   "http://localhost:3000";
 
 export type ApiRequestOptions = RequestInit & {
-  auth?: boolean;
+  /**
+   * `true` exige sesion y un 401 la cierra. `"optional"` manda el token si lo
+   * hay pero no cierra nada: es para lo que normalmente es publico y solo a
+   * veces queda restringido, como practicar durante la fase de inscripcion.
+   */
+  auth?: boolean | "optional";
   fallbackMessage?: string;
 };
 
@@ -54,7 +59,7 @@ export async function apiRequest<T>(
   // El SDK renueva el ID Token por su cuenta; pedirselo a el evita mandar una
   // copia vencida de localStorage.
   const requestHeaders = new Headers(
-    auth ? await authorizationHeaders() : undefined,
+    auth === false ? undefined : await authorizationHeaders(),
   );
 
   new Headers(headers).forEach((value, key) => {
@@ -70,7 +75,7 @@ export async function apiRequest<T>(
     ...init,
   });
 
-  if (auth && response.status === 401) {
+  if (auth === true && response.status === 401) {
     void endRejectedSession();
     throw new ApiError(
       "Sesión expirada. Inicia sesión de nuevo.",
@@ -106,4 +111,12 @@ export function publicRequest<T>(
   options: ApiRequestOptions = {},
 ) {
   return apiRequest<T>(path, { ...options, auth: false });
+}
+
+/** Publico, pero aprovecha la sesion si existe. Ver `auth: "optional"`. */
+export function optionalAuthRequest<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+) {
+  return apiRequest<T>(path, { ...options, auth: "optional" });
 }

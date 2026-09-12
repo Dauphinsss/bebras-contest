@@ -8,6 +8,7 @@ import {
   listPracticeCategories,
   type PracticeCategory,
 } from "@/lib/practice-api";
+import { ApiError } from "@/lib/api-client";
 import {
   practiceCategoryHref,
   practiceOrigin,
@@ -16,6 +17,9 @@ import {
 export function PracticeCategories() {
   const [categories, setCategories] = useState<PracticeCategory[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // Durante la inscripción la práctica queda cerrada: es un estado previsto, no
+  // un error, y reintentar no cambiaría nada.
+  const [closed, setClosed] = useState(false);
   const [requestVersion, setRequestVersion] = useState(0);
   const [origin] = useState(() =>
     typeof window === "undefined"
@@ -32,15 +36,27 @@ export function PracticeCategories() {
           setFailed(false);
         }
       })
-      .catch(() => {
-        if (active) {
-          setFailed(true);
-        }
+      .catch((error: unknown) => {
+        if (!active) return;
+        const restricted =
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403);
+        setClosed(restricted);
+        setFailed(!restricted);
       });
     return () => {
       active = false;
     };
   }, [requestVersion]);
+
+  if (closed) {
+    return (
+      <p className="rounded-md border bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
+        Los desafíos de práctica no están disponibles por ahora. Mientras tanto
+        está abierta la inscripción de maestros.
+      </p>
+    );
+  }
 
   if (failed) {
     return (
@@ -55,6 +71,7 @@ export function PracticeCategories() {
           onClick={() => {
             setCategories(null);
             setFailed(false);
+            setClosed(false);
             setRequestVersion((version) => version + 1);
           }}
         >

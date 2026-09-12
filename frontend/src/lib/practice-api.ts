@@ -1,6 +1,6 @@
 import type { ContentBlock } from "@/lib/task-schema";
 import type { PlayTask } from "@/lib/play-api";
-import { publicRequest } from "@/lib/api-client";
+import { optionalAuthRequest } from "@/lib/api-client";
 
 export type PracticeCategory = {
   name: string;
@@ -25,8 +25,10 @@ export type PracticeCheck = {
   explanationBlocks?: ContentBlock[];
 };
 
+// Practicar es publico, pero mientras solo hay inscripcion la API queda
+// restringida: si hay sesion, conviene mandarla para no chocar con un 401.
 function get<T>(path: string) {
-  return publicRequest<T>(path);
+  return optionalAuthRequest<T>(path);
 }
 
 export function listPracticeCategories() {
@@ -44,7 +46,7 @@ export function getPracticeTask(id: string) {
 }
 
 export function checkPracticeAnswer(id: string, payload: unknown) {
-  return publicRequest<PracticeCheck>(`/api/practice/tasks/${id}/check`, {
+  return optionalAuthRequest<PracticeCheck>(`/api/practice/tasks/${id}/check`, {
     method: "POST",
     body: JSON.stringify({ payload }),
   });
