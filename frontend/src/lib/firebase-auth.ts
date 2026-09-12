@@ -16,6 +16,7 @@ import {
 } from "firebase/auth";
 
 import { clearToken, setToken } from "@/lib/auth";
+import { emailVerificationActionSettings } from "@/lib/email-verification";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import { idTokenFrom } from "@/lib/firebase-token";
 
@@ -176,7 +177,10 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function sendVerificationEmail(user: User) {
-  await sendEmailVerification(user);
+  await sendEmailVerification(
+    user,
+    emailVerificationActionSettings(window.location.origin),
+  );
 }
 
 // --- Google ---------------------------------------------------------------

@@ -1,6 +1,8 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 
+import { FIREBASE_AUTH_LANGUAGE } from "@/lib/email-verification";
+
 // Astro sustituye estas variables al compilar. La configuracion Web de Firebase
 // es publica por diseno (las reglas de acceso viven en el proyecto Firebase y en
 // el Worker), pero sigue el mismo mecanismo `PUBLIC_*` del resto del frontend.
@@ -33,6 +35,9 @@ export function firebaseApp() {
 }
 
 export function firebaseAuth() {
-  auth ??= getAuth(firebaseApp());
+  if (!auth) {
+    auth = getAuth(firebaseApp());
+    auth.languageCode = FIREBASE_AUTH_LANGUAGE;
+  }
   return auth;
 }
