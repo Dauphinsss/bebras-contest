@@ -11,10 +11,10 @@
  *   bun scripts/firebase-migrate-users.ts --target production --check
  *   bun scripts/firebase-migrate-users.ts --target production
  *
- * `--mark-verified` es la excepcion, no el camino normal: reimporta cuentas ya
- * migradas con `emailVerified: true`. Solo tiene sentido cuando su correo no
- * puede recibir el enlace de Firebase y por eso la verificacion normal es
- * imposible; decidirlo es del operador, nunca del script.
+ * `--mark-verified` es la excepcion, no el camino normal: reimporta las cuentas
+ * ya migradas indicadas con `--user <correo-o-uid>` y `emailVerified: true`.
+ * Solo tiene sentido cuando su correo no puede recibir el enlace de Firebase y
+ * por eso la verificacion normal es imposible.
  */
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -23,19 +23,30 @@ import { rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 import { privateDirectory, protectPath } from "./cloudflare-cli";
+import {
+  matchesMigrationUser,
+  selectedMigrationUsers,
+} from "./firebase-migrate-users-options";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const args = process.argv.slice(2);
 const check = args.includes("--check");
 const markVerified = args.includes("--mark-verified");
+const selectedUsers = selectedMigrationUsers(args);
 const targetIndex = args.indexOf("--target");
 const target = targetIndex >= 0 ? args[targetIndex + 1] : undefined;
 
 if (target !== "production" && target !== "staging") {
   throw new Error(
-    "Uso: bun scripts/firebase-migrate-users.ts --target production|staging [--check] [--mark-verified]",
+    "Uso: bun scripts/firebase-migrate-users.ts --target production|staging [--check] [--mark-verified --user <correo-o-uid> ...]",
   );
+}
+if (markVerified && !selectedUsers.length) {
+  throw new Error("--mark-verified requiere al menos un --user <correo-o-uid>.");
+}
+if (!markVerified && selectedUsers.length) {
+  throw new Error("--user solo puede usarse junto con --mark-verified.");
 }
 
 // Cada entorno tiene su propio proyecto Firebase para no compartir usuarios; en
@@ -92,7 +103,19 @@ function readRows(): Row[] {
   const start = stdout.indexOf("[");
   if (start < 0) throw new Error("Respuesta inesperada de Wrangler.");
   const payload = JSON.parse(stdout.slice(start)) as { results: Row[] }[];
-  return payload.flatMap((entry) => entry.results ?? []);
+  const rows = payload.flatMap((entry) => entry.results ?? []);
+  if (!markVerified) return rows;
+
+  const selected = rows.filter((row) =>
+    selectedUsers.some((selector) => matchesMigrationUser(selector, row)),
+  );
+  const missing = selectedUsers.filter(
+    (selector) => !selected.some((row) => matchesMigrationUser(selector, row)),
+  );
+  if (missing.length) {
+    throw new Error(`No se encontraron cuentas migradas para: ${missing.join(", ")}`);
+  }
+  return selected;
 }
 
 /** El UID deriva del id de D1: reejecutar la migración no duplica identidades. */

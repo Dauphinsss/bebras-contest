@@ -185,13 +185,15 @@ ocurrió. Esas cuentas deben verificar su correo antes de poder entrar.
 ### Excepción: `--mark-verified`
 
 ```powershell
-bun scripts/firebase-migrate-users.ts --target production --mark-verified --check
-bun scripts/firebase-migrate-users.ts --target production --mark-verified
+bun scripts/firebase-migrate-users.ts --target production --mark-verified --user admin@ejemplo.org --check
+bun scripts/firebase-migrate-users.ts --target production --mark-verified --user admin@ejemplo.org
 ```
 
-Reimporta cuentas **ya migradas** con `emailVerified: true`, conservando su
-contraseña. Es una decisión del operador, no del script, y solo tiene sentido
-cuando esas direcciones no pueden recibir el enlace de Firebase.
+Reimporta únicamente las cuentas **ya migradas** seleccionadas con uno o más
+`--user <correo-o-uid>`, usando `emailVerified: true` y conservando su contraseña.
+El comando falla si falta un selector o si alguno no corresponde a una cuenta
+migrada. Es una decisión del operador y solo tiene sentido cuando esas
+direcciones no pueden recibir el enlace de Firebase.
 
 Se aplicó a los tres administradores: `bebras.bo` no existe en DNS (`NXDOMAIN`,
 sin registros MX), así que la verificación normal era imposible y sin esto
