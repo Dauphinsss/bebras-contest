@@ -34,53 +34,64 @@ inyecta `scripts/cloudflare-build.ts` según el entorno. Estos comandos no carga
 tareas, no ejecutan seeds y no borran/recrean D1 ni R2. Los cambios de esquema se
 aplican explícitamente con las migraciones versionadas, primero en local.
 
-## Estado comprobado
+## Estado: conectado y comprobado
 
-Los despliegues manuales funcionan con el OAuth de Wrangler. Con un API token de
-usuario con **Workers Builds Configuration: Edit** y **Workers Scripts: Read**,
-la API de Builds ya responde: se resuelven los tags de ambos Workers y se llega a
-`builds/repos/connections`.
+Ambos Workers despliegan solos desde GitHub. La conexión se hizo desde el
+Dashboard (la autorización de la cuenta de Git no tiene API) y el resto quedó
+ajustado por API, porque **los valores que crea el Dashboard no sirven para este
+repositorio**.
 
-Lo que **no** se puede hacer por API es la autorización inicial de la cuenta de
-GitHub: es un OAuth del Dashboard, no hay endpoint para crearla ni para listar
-instalaciones. Sin ella, crear la conexión responde:
+| | Producción | Staging |
+| --- | --- | --- |
+| Trigger | `ccea49e5-0176-4f63-b2bf-4d15eaa6a792` | `ebcc05a1-0b7d-487c-beef-10df2e9071f8` |
+| Rama | `master` | `staging` |
+| Build | `bun run setup && bun run build:production` | `bun run setup && bun run build:staging` |
+| Deploy | `bunx wrangler deploy --env production` | `bunx wrangler deploy --env staging` |
+| Tag del Worker | `4c3e208b37024d22b0bd4b9829cddef7` | `40c913ff795147878d4c502300477ade` |
 
-```text
-8000008  This project is disconnected from your Git account
-```
+Repositorio `Bebras-Bolivia/bebras-contest` (id `1195777825`, org `295968330`),
+conexión `8c881761-84af-4865-bc97-d4a14b1266b2`, cuenta
+`a9ca7f3bfd5ff492721f722856ac79b6`.
 
-y `builds/tokens` viene vacío, porque Cloudflare crea el build token al conectar
-el repositorio. Hay que hacer esa conexión una vez desde el Dashboard.
+### Lo que hubo que corregir
 
-El lado de GitHub **ya está completo**: la app `cloudflare-workers-and-pages`
-está instalada en la organización con acceso a todos los repositorios
-(installation `160729019`, comprobado con `gh api orgs/Bebras-Bolivia/installations`).
-Lo que falta es solo que la cuenta de Cloudflare guarde esa asociación, y eso lo
-crea el OAuth del Dashboard. El error es el mismo con el id de la organización
-(`295968330`) y con el de la instalación, así que no es cuestión de dar con el
-identificador correcto.
+El Dashboard dejó los dos triggers **sin comando de build** y con
+`npx wrangler deploy` **sin `--env`**. Eso habría desplegado la configuración
+raíz, que es la local: Worker `bebras-contest-local`, D1 `database_id: "local"`
+y R2 `bebras-uploads-local`. Además creó en producción un trigger
+"Deploy non-production branches" (`*` excepto `master`, con
+`wrangler versions upload`) que habría subido versiones del Worker de producción
+en cada push a cualquier rama, incluida `staging`. Se retiró;
+`previews_enabled` quedó en `false`.
 
-Al pulsar *Connect*, GitHub redirige a la página de instalación: hay que elegir
-la organización **Bebras-Bolivia**, no la cuenta personal, porque el repositorio
-es de la organización. Como la app ya está instalada ahí, es un paso de
-confirmación y vuelve a Cloudflare.
+### Variables del build
 
-Datos ya resueltos, por si se configura por API:
+`environment_variables` aparece en la configuración pero el endpoint de triggers
+no la acepta (`12002 Invalid request body`): solo se puede editar desde el
+Dashboard. **No hicieron falta**: los dos builds pasan con los valores por
+defecto de Cloudflare, porque `bun run setup` ya instala los tres paquetes con
+lockfile congelado. Si alguna vez falla la instalación, el ajuste es fijar
+`BUN_VERSION` al bun que escribió los lockfiles.
 
-| | |
-| --- | --- |
-| Cuenta | `a9ca7f3bfd5ff492721f722856ac79b6` |
-| Repositorio | `Bebras-Bolivia/bebras-contest` (id `1195777825`, org `295968330`) |
-| Tag de `bebras-contest` | `4c3e208b37024d22b0bd4b9829cddef7` |
-| Tag de `bebras-contest-staging` | `40c913ff795147878d4c502300477ade` |
+### Comprobado
+
+Build manual en las dos ramas, con despliegue real y verificación posterior:
+
+| | Build | Resultado |
+| --- | --- | --- |
+| staging | `665e9828` | correcto en 3m30s, desplegó `536f093e` |
+| producción | `7343bb52` | correcto en 3m41s, desplegó `1a5b28e2` |
+
+Después de cada uno: login del administrador, token en todas las llamadas,
+ninguna respuesta 401, la sesión sobrevive a recargar, y staging sigue mostrando
+lo que producción oculta.
 
 ```powershell
 $env:CLOUDFLARE_API_TOKEN = '<token de usuario>'
 bun scripts/cloudflare-builds-setup.ts --check
-bun scripts/cloudflare-builds-setup.ts
 ```
 
-El script crea la conexión y los dos triggers una vez exista la autorización.
+El script sigue sirviendo para rehacer la conexión y los triggers si se pierden.
 El token que administra Builds y el que ejecuta el despliegue tienen permisos
 distintos. No guardar tokens en el repositorio ni usar OAuth de corta duración
 como token persistente del build.
