@@ -99,7 +99,7 @@ async function main() {
   if (comparison.pending.length) {
     throw new Error(
       `D1 ${target} tiene migraciones pendientes: ${comparison.pending.join(", ")}. ` +
-        "Aplícalas explícitamente antes del deploy.",
+        "El paso automático de aplicación no las completó.",
     );
   }
   console.log(`D1 ${target}: ${applied.length} migraciones aplicadas, sin pendientes.`);

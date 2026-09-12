@@ -31,14 +31,14 @@ const TRIGGERS = [
     worker: "bebras-contest",
     trigger_name: "production",
     branch: "master",
-    build_command: "bun run setup && bun run db:migrations:check:production && bun run build:production",
+    build_command: "bun run setup && bun run db:migrations:apply:production && bun run db:migrations:check:production && bun run build:production",
     deploy_command: "bunx wrangler deploy --env production",
   },
   {
     worker: "bebras-contest-staging",
     trigger_name: "staging",
     branch: "staging",
-    build_command: "bun run setup && bun run db:migrations:check:staging && bun run build:staging",
+    build_command: "bun run setup && bun run db:migrations:apply:staging && bun run db:migrations:check:staging && bun run build:staging",
     deploy_command: "bunx wrangler deploy --env staging",
   },
 ];
