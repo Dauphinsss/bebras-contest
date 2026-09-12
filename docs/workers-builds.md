@@ -10,7 +10,7 @@ En cada Worker, abrir **Settings → Builds → Connect** y configurar:
 | Worker | `bebras-contest` | `bebras-contest-staging` |
 | Rama de producción del build | `master` | `staging` |
 | Directorio raíz | `/` | `/` |
-| Build command | `bun run setup && bun run build:production` | `bun run setup && bun run build:staging` |
+| Build command | `bun run setup && bun run db:migrations:check:production && bun run build:production` | `bun run setup && bun run db:migrations:check:staging && bun run build:staging` |
 | Deploy command | `bunx wrangler deploy --env production` | `bunx wrangler deploy --env staging` |
 | Non-production branch builds | Deshabilitado | Deshabilitado |
 
@@ -24,8 +24,10 @@ SKIP_DEPENDENCY_INSTALL=1
 
 Los builds comprobados también funcionan sin estas variables usando los valores
 actuales por defecto de Cloudflare. `setup` instala los tres paquetes con sus
-lockfiles congelados. El build genera Prisma para workerd, compila Astro y aplica
-el recorte sólo a producción. Si
+lockfiles congelados. El gate ejecuta un `SELECT` sobre `d1_migrations`, compara
+el resultado con los archivos locales y bloquea el despliegue si existe una
+migración pendiente o un historial divergente. Después el build genera Prisma
+para workerd, compila Astro y aplica el recorte sólo a producción. Si
 Workers Builds comunica una rama distinta a la esperada, falla antes de compilar.
 `develop` no debe estar conectado a ningún build.
 
@@ -47,7 +49,7 @@ repositorio**.
 | --- | --- | --- |
 | Trigger | `ccea49e5-0176-4f63-b2bf-4d15eaa6a792` | `ebcc05a1-0b7d-487c-beef-10df2e9071f8` |
 | Rama | `master` | `staging` |
-| Build | `bun run setup && bun run build:production` | `bun run setup && bun run build:staging` |
+| Build | `bun run setup && bun run db:migrations:check:production && bun run build:production` | `bun run setup && bun run db:migrations:check:staging && bun run build:staging` |
 | Deploy | `bunx wrangler deploy --env production` | `bunx wrangler deploy --env staging` |
 | Tag del Worker | `4c3e208b37024d22b0bd4b9829cddef7` | `40c913ff795147878d4c502300477ade` |
 
@@ -98,9 +100,33 @@ bun scripts/cloudflare-builds-setup.ts
 `--check` lista y compara los triggers remotos sin modificarlos. El modo normal
 actualiza el trigger existente por UUID o lo crea cuando falta; si encuentra más
 de un trigger activo para un Worker, se detiene para no producir duplicados.
+Después de cambiar los comandos versionados en este documento, se debe ejecutar
+el modo normal con un token administrativo nuevo para sincronizarlos en Cloudflare.
 El token que administra Builds y el que ejecuta el despliegue tienen permisos
 distintos. No guardar tokens en el repositorio ni usar OAuth de corta duración
 como token persistente del build.
+
+## Publicación con migraciones D1
+
+Workers Builds nunca aplica migraciones. El token de despliegue necesita permiso
+para consultar D1, porque el build lee la tabla `d1_migrations`; si no puede
+comprobar el estado, falla cerrado.
+
+1. Crear la migración versionada y probarla sobre D1 local.
+2. Desde la rama exacta que se publicará, ejecutar
+   `bun run db:migrations:apply:staging` y luego
+   `bun run db:migrations:check:staging`.
+3. Publicar en `staging`; Workers Builds vuelve a comprobar D1 antes de desplegar.
+4. Validar el Worker alojado.
+5. Antes de fusionar ese mismo commit a `master`, ejecutar
+   `bun run db:migrations:apply:production` y
+   `bun run db:migrations:check:production`.
+6. Fusionar a `master`; el build de producción verifica nuevamente y despliega.
+
+La migración debe ser compatible con el Worker anterior durante el intervalo
+entre cambiar D1 y desplegar código. Para retirar o renombrar columnas, usar una
+secuencia expandir/migrar/contraer en más de una publicación, no una migración
+destructiva junto con el código que empieza a depender de ella.
 
 ## Verificación al conectar
 
@@ -114,3 +140,14 @@ Referencias:
 - https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 - https://developers.cloudflare.com/api/resources/workers_builds/subresources/triggers/methods/create/
 - https://developers.cloudflare.com/fundamentals/api/reference/permissions/#account-permissions
+
+## Pendientes de cierre
+
+- Adaptar la suite E2E heredada a D1/workerd y Firebase; hoy todavía conserva
+  partes del runner SQLite anterior.
+- Validar de extremo a extremo en staging el registro de maestro, selección de
+  colegio, documentos R2 y persistencia D1/R2 después de un redeploy.
+- Incorporar una comprobación operativa postdeploy de logs y acceso directo a
+  rutas/endpoints restringidos con un usuario no administrador.
+- Medir requests, CPU, lecturas/escrituras D1 y operaciones R2 antes de una
+  competencia real; un despliegue correcto no certifica capacidad suficiente.

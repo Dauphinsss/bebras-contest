@@ -37,15 +37,16 @@ try {
 
 Inserta Marko, Steven y Vladimir, y el snapshot `backend/prisma/seed/schools.ndjson.gz`. Conserva por completo usuarios/colegios existentes, incluso roles y contraseñas. La contraseña es obligatoria sin valor predeterminado y se convierte con el **bcryptjs actual, coste 10**, fuera del Worker. No se imprime el secreto. Esos hashes se conservan para el bootstrap y la migración de cuentas; el login actual usa Firebase Authentication.
 
-Para arrancar el Worker, además se requiere `.dev.vars` en raíz con
-`FIREBASE_PROJECT_ID` (ver [Firebase Authentication](./firebase-auth.md)).
+El entorno local de `wrangler.jsonc` usa Firebase staging y `bun run dev` lo
+fuerza también por CLI; `.dev.vars` solo sirve como override al invocar Wrangler
+directamente (ver [Firebase Authentication](./firebase-auth.md)).
 `bun scripts/cloudflare-credentials.ts local prepare` genera credenciales aleatorias
-y `.dev.vars` sin sobrescribir archivos existentes; `local seed` reutiliza la
-contraseña guardada para el bootstrap. El helper resuelve las rutas desde el
+sin sobrescribir archivos existentes; `local seed` reutiliza la contraseña guardada
+para el bootstrap. El helper resuelve las rutas desde el
 repositorio, verifica exclusión Git y protege archivos/directorios con permisos
 POSIX o ACL Windows. `.wrangler/` está excluido por el `.gitignore` versionado.
-`bun run env:setup` no genera ese archivo. `SEED_ADMIN_PASSWORD` se inyecta al
-proceso de bootstrap como en el ejemplo; no es el secreto JWT.
+`SEED_ADMIN_PASSWORD` se inyecta al proceso de bootstrap como en el ejemplo y no
+es un secreto de runtime del Worker.
 
 Con los IDs remotos configurados y el secreto inyectado, los comandos del operador son:
 

@@ -24,12 +24,11 @@ bun run env:setup
 ```
 
 `env:setup` crea `backend/.env` y `frontend/.env` a partir de sus ejemplos sin
-sobrescribir archivos existentes. **No crea `.dev.vars`**: Wrangler requiere ese
-archivo en la raíz, junto a `wrangler.jsonc`, con el `FIREBASE_PROJECT_ID` del
-entorno; `.dev.vars.example` indica el nombre requerido. `.dev.vars` no se versiona
-ni se sube automáticamente al Worker. La autenticación es Firebase: el frontend
-además necesita las `PUBLIC_FIREBASE_*` en `frontend/.env`
-(ver [guía de Firebase Authentication](docs/firebase-auth.md)).
+sobrescribir archivos existentes. `bun run dev` no depende de esos archivos para
+seleccionar Firebase: fuerza Firebase Auth de staging tanto en Astro como en el
+Worker local, mientras D1 y R2 permanecen locales. `.dev.vars` es solo un override
+opcional para invocar Wrangler directamente y nunca se sube al Worker. Consulta la
+[guía de Firebase Authentication](docs/firebase-auth.md).
 
 Prepara Prisma, la base de datos y los datos iniciales:
 
@@ -46,6 +45,11 @@ Levanta backend y frontend juntos:
 ```bash
 bun run dev
 ```
+
+Este comando no admite producción ni bindings remotos. Las identidades de
+Firebase se comparten con staging, pero perfiles, roles, colegios, documentos,
+concursos y tareas se guardan en D1/R2 locales. Para probar staging completo, usa
+su URL desplegada en lugar de mezclar frontend local con servicios remotos.
 
 ## Base de datos
 
@@ -354,14 +358,17 @@ bun run build:production
 bun x --no-install wrangler deploy --env production --dry-run
 ```
 
-Con recursos y secretos remotos provisionados, `bun run deploy:staging` y
-`bun run deploy:production` reconstruyen el modo correcto y despliegan con su
-`--env`. Para migraciones remotas, antes del bootstrap correspondiente:
+Con los recursos remotos provisionados, `bun run deploy:staging` y
+`bun run deploy:production` verifican que D1 no tenga migraciones pendientes,
+reconstruyen el modo correcto y despliegan con su `--env`. Las migraciones se
+aplican antes y de forma explícita:
 
 ```bash
-bun x --no-install wrangler d1 migrations apply DB --env staging --remote
+bun run db:migrations:apply:staging
+bun run db:migrations:check:staging
 bun scripts/cloudflare-seed.ts --target staging
-bun x --no-install wrangler d1 migrations apply DB --env production --remote
+bun run db:migrations:apply:production
+bun run db:migrations:check:production
 bun scripts/cloudflare-seed.ts --target production
 ```
 
@@ -379,17 +386,19 @@ automática del paquete raíz no instala `backend` ni `frontend`:
 
 | Worker / rama | Build command | Deploy command |
 | --- | --- | --- |
-| Staging / `staging` | `bun run setup && bun run build:staging` | `bun x --no-install wrangler deploy --env staging` |
-| Producción / `master` | `bun run setup && bun run build:production` | `bun x --no-install wrangler deploy --env production` |
+| Staging / `staging` | `bun run setup && bun run db:migrations:check:staging && bun run build:staging` | `bun x --no-install wrangler deploy --env staging` |
+| Producción / `master` | `bun run setup && bun run db:migrations:check:production && bun run build:production` | `bun x --no-install wrangler deploy --env production` |
 
 Opcionalmente fija `BUN_VERSION=1.3.5`, `NODE_VERSION=22` y
 `SKIP_DEPENDENCY_INSTALL=1` si se necesita aislar el build de cambios en la imagen
-predeterminada de Cloudflare. Los tres lockfiles deben estar en el checkout. El build genera Prisma antes de Astro y
-fija sus variables públicas por entorno; no necesita archivos `.env` personales.
-Las migraciones y el bootstrap se ejecutan explícitamente por el operador, fuera
-del build/deploy. Los secretos runtime se provisionan por Worker y no se guardan
-en el repositorio ni se necesitan para compilar. La conexión GitHub y los ajustes
-remotos de Builds son independientes de estos comandos locales.
+predeterminada de Cloudflare. Los tres lockfiles deben estar en el checkout. El
+build genera Prisma antes de Astro y fija sus variables públicas por entorno; no
+necesita archivos `.env` personales.
+El build solo consulta el estado de migraciones y falla si encuentra alguna
+pendiente; nunca modifica D1. Las migraciones y el bootstrap se ejecutan
+explícitamente por el operador. Los secretos runtime no se guardan en el
+repositorio. La conexión GitHub y los ajustes remotos de Builds son independientes
+de estos comandos locales.
 
 Referencia: [configuración de Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
 

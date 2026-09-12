@@ -18,16 +18,17 @@ No se usa Firestore, Realtime Database, Storage, Functions ni Hosting.
 
 ## Proyecto y proveedores
 
-Cada entorno usa su **propio proyecto**, para que las pruebas de staging no
-creen usuarios en el Firebase de producción:
+Producción usa un proyecto independiente. Desarrollo local comparte únicamente
+las identidades de Firebase con staging; sus datos de aplicación siguen en D1/R2
+locales:
 
-| | Producción | Staging |
+| | Producción | Staging y desarrollo local |
 | --- | --- | --- |
 | Project ID | `bebras-bo` | `bebras-bo-staging` |
 | Alias en `.firebaserc` | `production` | `staging` |
 | App Web | `1:1026208753397:web:652dd936ef213b6bab87bc` | `1:88239195646:web:044edbc9ca41c429286caf` |
 | Proveedores | Email/Password y Google | Email/Password y Google |
-| D1 | `bebras-prod` | `bebras-staging` |
+| D1 | `bebras-prod` | `bebras-staging` (staging) / D1 local (desarrollo) |
 
 Los dos habilitan **solo** Email/Password y Google.
 
@@ -114,15 +115,15 @@ es el flujo oficial de vinculación, sin identidades paralelas.
 
 ## Variables
 
-Worker (`wrangler.jsonc` → `vars`), local en `.dev.vars`:
+Worker (`wrangler.jsonc` → `vars`):
 
 ```text
-FIREBASE_PROJECT_ID   production = bebras-bo | staging = bebras-bo-staging
-                      local = vacío (apuntar a staging para desarrollar)
+FIREBASE_PROJECT_ID   production = bebras-bo
+                      staging/local = bebras-bo-staging
 ```
 
-Frontend (`PUBLIC_*`, públicas por diseño, viajan en el bundle). Producción las
-inyecta `scripts/cloudflare-build.ts`; en local salen de `frontend/.env`:
+Frontend (`PUBLIC_*`, públicas por diseño, viajan en el bundle). Los builds las
+inyectan desde `scripts/firebase-config.ts`; `bun run dev` inyecta staging:
 
 ```text
 PUBLIC_FIREBASE_API_KEY
@@ -132,8 +133,12 @@ PUBLIC_FIREBASE_APP_ID
 PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 ```
 
-Vacío = entorno sin Firebase: los formularios lo dicen y no dejan entrar. Es el
-estado de **local** hasta que se apunte a un proyecto.
+Vacío = entorno sin Firebase: los formularios lo dicen y no dejan entrar.
+
+`bun run dev` siempre levanta Astro y Wrangler local con Firebase staging. No
+selecciona bindings remotos ni permite producción. La cuenta y su UID existen en
+Firebase staging; el perfil Bebras asociado se crea o enlaza independientemente
+en D1 local. Para probar staging con su D1/R2, se abre el sitio desplegado.
 
 `REGISTRATION_ONLY` es independiente de todo esto: `true` solo en producción, que
 por eso oculta las secciones que no son inscripción. Staging lo tiene en `false`
@@ -179,7 +184,6 @@ direcciones reales, lo correcto es cambiar el correo y verificarlo de verdad.
 
 ```powershell
 bun run db:push          # aplica 0002_user_firebase_uid.sql
-# .dev.vars con FIREBASE_PROJECT_ID y frontend/.env con las PUBLIC_FIREBASE_*
 bun run dev
 ```
 
