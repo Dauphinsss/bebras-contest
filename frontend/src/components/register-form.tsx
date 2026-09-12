@@ -42,6 +42,7 @@ import {
   type RestrictedRegistrationField,
 } from "@/lib/registration-input";
 import { API_BASE_URL } from "@/lib/api-client";
+import { refreshEmailVerification } from "@/lib/email-verification";
 import { GoogleButton } from "@/components/google-button";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import {
@@ -105,6 +106,11 @@ export function RegisterForm() {
   const [step, setStep] = useState<"form" | "confirm" | "verify">("form");
   const [googleBusy, setGoogleBusy] = useState(false);
   const [resending, setResending] = useState(false);
+  const [checkingVerification, setCheckingVerification] = useState(false);
+  const [verificationDeliveryFailed, setVerificationDeliveryFailed] =
+    useState(false);
+  const [verificationError, setVerificationError] = useState("");
+  const [verificationCheckRequest, setVerificationCheckRequest] = useState(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -136,6 +142,8 @@ export function RegisterForm() {
   const idBackRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
   const prefilledRef = useRef(false);
+  const manualVerificationCheckRef = useRef(false);
+  const verificationCheckRunningRef = useRef(false);
   const pendingResponseFocusRef = useRef<
     | "firstName"
     | "lastName"
@@ -228,6 +236,70 @@ export function RegisterForm() {
     refs[pendingResponseFocusRef.current].current?.focus();
     pendingResponseFocusRef.current = null;
   }, [step, submitting]);
+
+  useEffect(() => {
+    if (step !== "verify" || !session.user) return;
+
+    const user = session.user;
+    const reportPending = manualVerificationCheckRef.current;
+    manualVerificationCheckRef.current = false;
+    let disposed = false;
+
+    const check = async (showPendingMessage = false) => {
+      if (verificationCheckRunningRef.current || disposed) return;
+      verificationCheckRunningRef.current = true;
+      if (showPendingMessage) setCheckingVerification(true);
+
+      try {
+        const verified = await refreshEmailVerification(user);
+        if (disposed) return;
+        if (!verified) {
+          if (showPendingMessage) {
+            toast.info("Firebase todavía no confirmó el correo.");
+          }
+          return;
+        }
+
+        const outcome = await openBebrasSession(user);
+        if (disposed) return;
+        if (outcome.status === "ok") {
+          toast.success("Correo verificado. Sesión iniciada.");
+          window.location.replace(landingPath(outcome.user));
+          return;
+        }
+
+        setVerificationError(
+          outcome.status === "error"
+            ? outcome.message
+            : "El correo está verificado, pero no pudimos iniciar tu sesión.",
+        );
+      } catch {
+        if (showPendingMessage && !disposed) {
+          toast.error("No se pudo comprobar la verificación del correo.");
+        }
+      } finally {
+        if (!disposed) setCheckingVerification(false);
+        verificationCheckRunningRef.current = false;
+      }
+    };
+
+    void check(reportPending);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void check();
+    }, 4000);
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+    window.addEventListener("focus", checkWhenVisible);
+    document.addEventListener("visibilitychange", checkWhenVisible);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", checkWhenVisible);
+      document.removeEventListener("visibilitychange", checkWhenVisible);
+    };
+  }, [session.user, step, verificationCheckRequest]);
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -336,6 +408,7 @@ export function RegisterForm() {
     setResending(true);
     try {
       await sendVerificationEmail(session.user);
+      setVerificationDeliveryFailed(false);
       toast.success("Te reenviamos el correo de verificación.");
     } catch (error) {
       toast.error(firebaseErrorMessage(error, "No se pudo reenviar el correo."));
@@ -443,7 +516,18 @@ export function RegisterForm() {
 
       // Correo y contraseña: Firebase manda la verificación y recién después
       // se puede iniciar sesión (§4, §5).
-      await sendVerificationEmail(user).catch(() => undefined);
+      try {
+        await sendVerificationEmail(user);
+        setVerificationDeliveryFailed(false);
+      } catch (error) {
+        setVerificationDeliveryFailed(true);
+        toast.error(
+          firebaseErrorMessage(
+            error,
+            "Tu cuenta fue creada, pero no pudimos enviar el correo de verificación.",
+          ),
+        );
+      }
       setStep("verify");
     } catch {
       toast.error("No se pudo conectar con el servidor.");
@@ -475,11 +559,17 @@ export function RegisterForm() {
         <CardHeader>
           <CardTitle>Verifica tu correo</CardTitle>
           <CardDescription>
-            Tu cuenta quedó creada. Te enviamos un enlace a {email.trim()};
-            ábrelo y ya podrás iniciar sesión.
+            {verificationDeliveryFailed
+              ? `Tu cuenta quedó creada, pero el correo no pudo enviarse. Intenta reenviarlo a ${email.trim()}.`
+              : `Te enviamos un enlace a ${email.trim()}. Al verificarlo, iniciaremos tu sesión automáticamente.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {verificationError && (
+            <Alert variant="destructive">
+              <AlertDescription>{verificationError}</AlertDescription>
+            </Alert>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -490,13 +580,27 @@ export function RegisterForm() {
           </Button>
           <Button
             type="button"
+            disabled={checkingVerification}
+            onClick={() => {
+              setVerificationError("");
+              manualVerificationCheckRef.current = true;
+              setVerificationCheckRequest((current) => current + 1);
+            }}
+          >
+            {checkingVerification
+              ? "Comprobando..."
+              : "Ya verifiqué mi correo"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
             onClick={() => {
               void signOutFirebase().then(() => {
                 window.location.replace("/login");
               });
             }}
           >
-            Ir a iniciar sesión
+            Usar otra cuenta
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             Revisa también la carpeta de correo no deseado.

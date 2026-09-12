@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { User } from "firebase/auth";
 
 import { getUser } from "@/lib/auth";
+import { refreshEmailVerification } from "@/lib/email-verification";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,7 +102,21 @@ export function LoginForm() {
       return;
     }
     resumedRef.current = true;
-    void enterBebras(session.user);
+    const user = session.user;
+    void (async () => {
+      if (new URLSearchParams(window.location.search).get("verified") === "1") {
+        try {
+          await refreshEmailVerification(user);
+        } catch {
+          setErrors({
+            form: "No se pudo comprobar la verificación del correo.",
+          });
+          resumedRef.current = false;
+          return;
+        }
+      }
+      await enterBebras(user);
+    })();
   }, [busy, configured, session.loading, session.user, unverified]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
