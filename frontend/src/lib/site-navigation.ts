@@ -1,11 +1,10 @@
 import { REGISTRATION_ONLY } from "./registration-only";
+import {
+  canAccessSiteNavForMode,
+  type SiteNavRole,
+} from "./site-navigation-access";
 
-export type SiteNavRole =
-  | "public"
-  | "admin"
-  | "staff"
-  | "maestro"
-  | "approved-maestro";
+export type { SiteNavRole } from "./site-navigation-access";
 
 export const SITE_NAV_ITEMS = [
   { href: "/practica", label: "Práctica", role: "public" },
@@ -27,32 +26,12 @@ export function canAccessSiteNav(
   userStatus?: string,
   registrationOnly = REGISTRATION_ONLY,
 ) {
-  if (
-    registrationOnly &&
-    (itemRole === "public" ||
-      itemRole === "staff" ||
-      itemRole === "approved-maestro") &&
-    userRole !== "admin"
-  ) {
-    return false;
-  }
-  if (itemRole === "public") {
-    return true;
-  }
-  if (itemRole === "maestro") return userRole === "maestro";
-
-  if (itemRole === "approved-maestro")
-    return userRole === "maestro" && userStatus === "approved";
-
-  if (userStatus !== "approved") {
-    return false;
-  }
-
-  if (userRole === "admin") {
-    return true;
-  }
-
-  return userRole === "maestro" && itemRole === "staff";
+  return canAccessSiteNavForMode(
+    itemRole,
+    userRole,
+    userStatus,
+    registrationOnly,
+  );
 }
 
 /**

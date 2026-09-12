@@ -1,5 +1,5 @@
 import { test, expect, request } from "@playwright/test";
-import { canAccessSiteNav } from "../frontend/src/lib/site-navigation";
+import { canAccessSiteNavForMode as canAccessSiteNav } from "../frontend/src/lib/site-navigation-access";
 import { API, ADMIN, loginAdmin } from "./support/helpers";
 
 test("blocks the panel for users without a session", async ({ page }) => {
