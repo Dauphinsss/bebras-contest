@@ -1,3 +1,5 @@
+import { REGISTRATION_ONLY } from "./registration-only";
+
 export type SiteNavRole =
   | "public"
   | "admin"
@@ -23,7 +25,17 @@ export function canAccessSiteNav(
   itemRole: SiteNavRole,
   userRole?: string,
   userStatus?: string,
+  registrationOnly = REGISTRATION_ONLY,
 ) {
+  if (
+    registrationOnly &&
+    (itemRole === "public" ||
+      itemRole === "staff" ||
+      itemRole === "approved-maestro") &&
+    userRole !== "admin"
+  ) {
+    return false;
+  }
   if (itemRole === "public") {
     return true;
   }

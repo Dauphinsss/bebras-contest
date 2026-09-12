@@ -8,6 +8,7 @@ interface Props {
 import { UserMenu } from "./user-menu";
 import { MobileNavigation } from "./mobile-navigation";
 import { SITE_NAV_ITEMS } from "../lib/site-navigation";
+import { REGISTRATION_ONLY } from "../lib/registration-only";
 
 const { heading, backHref, hidden = false } = Astro.props;
 const pathname = Astro.url.pathname;
@@ -77,9 +78,11 @@ const links = SITE_NAV_ITEMS.filter((item) => item.role !== "public").map(
     <div class="hidden shrink-0 items-center gap-2 lg:flex">
       <a
         href="/practica"
+        data-nav-role="public"
         data-nav-active={isPractice ? "" : undefined}
         class:list={[
           "relative rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+          REGISTRATION_ONLY && "hidden",
           isPractice
             ? "text-primary-foreground"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",

@@ -1,4 +1,5 @@
 "use client";
+import { REGISTRATION_ONLY } from "@/lib/registration-only";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
@@ -435,8 +436,9 @@ export function RegisterForm() {
       <CardHeader>
         <CardTitle>Registro de maestro</CardTitle>
         <CardDescription>
-          Crea tu cuenta y entra enseguida. El administrador la aprueba para que
-          puedas crear grupos e inscribir estudiantes.
+          {REGISTRATION_ONLY
+            ? "Crea tu cuenta y completa tus datos y documentos. Un administrador revisará tu registro."
+            : "Crea tu cuenta y entra enseguida. El administrador la aprueba para que puedas crear grupos e inscribir estudiantes."}
         </CardDescription>
       </CardHeader>
       <CardContent>

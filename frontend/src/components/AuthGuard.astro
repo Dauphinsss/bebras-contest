@@ -1,11 +1,16 @@
 ---
 interface Props {
   allowMaestro?: boolean;
+  registrationRestricted?: boolean;
 }
-const { allowMaestro = false } = Astro.props;
+const { allowMaestro = false, registrationRestricted = false } = Astro.props;
 ---
 
-<span hidden data-auth-guard data-allow-maestro={String(allowMaestro)}></span>
+<span
+  hidden
+  data-auth-guard
+  data-allow-maestro={String(allowMaestro)}
+  data-registration-restricted={String(registrationRestricted)}></span>
 
 <script>
   import { getToken, getUser, subscribeSession } from "../lib/auth";
@@ -15,6 +20,17 @@ const { allowMaestro = false } = Astro.props;
     const marker = document.querySelector<HTMLElement>("[data-auth-guard]");
     if (!marker) return;
     const user = getUser();
+    if (marker.dataset.registrationRestricted === "true") {
+      const allowed = user?.role === "admin" && user.status === "approved";
+      document.documentElement.toggleAttribute(
+        "data-registration-blocked",
+        !allowed,
+      );
+      if (!allowed) {
+        window.location.replace(user?.role === "maestro" ? "/perfil" : "/");
+        return;
+      }
+    }
     if (!user) {
       window.location.replace("/login");
       return;
@@ -34,6 +50,7 @@ const { allowMaestro = false } = Astro.props;
     }
   }
   guard();
+  document.addEventListener("astro:after-swap", guard);
   document.addEventListener("astro:page-load", guard);
   subscribeSession(() => {
     const token = getToken();

@@ -5,6 +5,7 @@ import { AppToaster } from "../components/app-toaster";
 import AuthGuard from "../components/AuthGuard.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
+import { isRegistrationRestrictedPath } from "../lib/registration-only";
 
 interface Props {
   title?: string;
@@ -25,17 +26,30 @@ const {
   enableClientRouting = true,
   deferChrome = false,
 } = Astro.props;
+const registrationRestricted = isRegistrationRestrictedPath(Astro.url.pathname);
 ---
 
 <!doctype html>
-<html lang="es" transition:name="app-root" transition:animate="none">
+<html
+  lang="es"
+  transition:name="app-root"
+  transition:animate="none"
+  data-registration-blocked={registrationRestricted ? "" : undefined}
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/png" href="/castor.png" />
     <title>{title}</title>
     {enableClientRouting && <ClientRouter />}
-    {requireAuth && <AuthGuard allowMaestro={allowMaestro} />}
+    {
+      (requireAuth || registrationRestricted) && (
+        <AuthGuard
+          allowMaestro={allowMaestro}
+          registrationRestricted={registrationRestricted}
+        />
+      )
+    }
   </head>
   <body>
     <div class="flex min-h-screen flex-col">
@@ -53,3 +67,9 @@ const {
     <AppToaster client:load transition:persist="app-toaster" />
   </body>
 </html>
+
+<style is:global>
+  html[data-registration-blocked] [data-page-content] {
+    display: none;
+  }
+</style>

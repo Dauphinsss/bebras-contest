@@ -1,4 +1,5 @@
 "use client";
+import { REGISTRATION_ONLY } from "@/lib/registration-only";
 
 import { useRef, useState, type FormEvent } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
@@ -199,16 +200,18 @@ export function LoginForm() {
           </Button>
         </div>
 
-        <p className="mt-5 text-center text-xs text-muted-foreground">
-          ¿Eres estudiante? No necesitas cuenta: entra con el{" "}
-          <a
-            href="/entrar"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            código de tu maestro
-          </a>
-          .
-        </p>
+        {!REGISTRATION_ONLY && (
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            ¿Eres estudiante? No necesitas cuenta: entra con el{" "}
+            <a
+              href="/entrar"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              código de tu maestro
+            </a>
+            .
+          </p>
+        )}
       </CardContent>
     </Card>
   );

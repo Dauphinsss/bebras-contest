@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 
 import { API_BASE_URL, apiRequest } from "@/lib/api-client";
+import { REGISTRATION_ONLY } from "@/lib/registration-only";
 import { authHeaders, getToken, getUser, setUser } from "@/lib/auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -72,7 +73,9 @@ const ACCOUNT_STATUS: Record<string, { label: string; hint: string }> = {
   pending: { label: "Pendiente", hint: "Un administrador revisará tus datos." },
   approved: {
     label: "Aprobado",
-    hint: "Ya puedes crear grupos e inscribir estudiantes.",
+    hint: REGISTRATION_ONLY
+      ? "Tu registro ha sido aprobado. Puedes mantener tus datos y documentos al día."
+      : "Ya puedes crear grupos e inscribir estudiantes.",
   },
   suspended: {
     label: "Suspendido",
@@ -315,7 +318,7 @@ export function ProfilePage() {
         </div>
       </header>
 
-      {profile.role === "maestro" && (
+      {!REGISTRATION_ONLY && profile.role === "maestro" && (
         <section id="mis-grupos" className="flex scroll-mt-6 flex-col gap-2">
           <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Mis grupos
