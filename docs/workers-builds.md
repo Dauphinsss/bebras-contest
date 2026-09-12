@@ -27,9 +27,10 @@ Prisma para workerd, compila Astro y aplica el recorte sólo a producción. Si
 Workers Builds comunica una rama distinta a la esperada, falla antes de compilar.
 `develop` no debe estar conectado a ningún build.
 
-Cloudflare proporciona el token de despliegue elegido en el Dashboard. Los
-secrets de runtime (`JWT_SECRET`) ya están configurados en ambos Workers:
-**no regenerarlos ni copiarlos al entorno de build**. Estos comandos no cargan
+Cloudflare proporciona el token de despliegue elegido en el Dashboard. La
+autenticación pasó a Firebase y no requiere secrets de runtime: `FIREBASE_PROJECT_ID`
+es una `var` de `wrangler.jsonc` y la configuración Web (`PUBLIC_FIREBASE_*`) la
+inyecta `scripts/cloudflare-build.ts` según el entorno. Estos comandos no cargan
 tareas, no ejecutan seeds y no borran/recrean D1 ni R2. Los cambios de esquema se
 aplican explícitamente con las migraciones versionadas, primero en local.
 

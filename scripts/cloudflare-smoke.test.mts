@@ -1,7 +1,21 @@
 /** Real local workerd + Prisma/D1 + R2 + Astro smoke. Run: bun scripts/cloudflare-smoke.test.mts
  * Uses only a disposable temp directory. JWT secret/tokens/passwords stay in memory.
  * Miniflare is resolved from the installed Wrangler, without installing packages.
+ *
+ * PENDIENTE: la autenticacion pasó a Firebase (ID Token RS256 verificado contra
+ * el JWKS de Google). Los grupos de este smoke firman su propio JWT y llaman a
+ * /api/auth/login, que ya no existe, asi que estan desactualizados. Para
+ * revivirlo hace falta emitir tokens desde el emulador de Firebase Auth y que el
+ * Worker acepte su emisor. Ver docs/firebase-auth.md.
  */
+if (!process.env.BEBRAS_SMOKE_FIREBASE) {
+  console.error(
+    "Smoke desactualizado: usa el login heredado, retirado al migrar a Firebase Authentication.
+" +
+      "Ver docs/firebase-auth.md. Para ejecutarlo igualmente: BEBRAS_SMOKE_FIREBASE=1.",
+  );
+  process.exit(1);
+}
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile, rm, readdir } from "node:fs/promises";

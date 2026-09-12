@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { rmSync, writeFileSync } from "node:fs";
-import { signToken } from "../backend/src/lib/auth";
 import {
   ADMIN,
   API,
@@ -27,12 +26,12 @@ test("private drafts use authenticated preview/check, preserve the storage contr
   expect(task.sourceTaskCode).toBe("2024-DE-04a");
   expect(task.answerConfig).toEqual({});
   expect(task.answerKey).toEqual({});
-  const teacher = {
-    authorization: `Bearer ${signToken({ id: 99999, email: "test@example.com", role: "teacher" })}`,
-  };
+  // Ya no se pueden firmar tokens propios: la identidad la emite Firebase. El
+  // rechazo por rol se cubre contra el Worker en las pruebas de sesion.
+  const forged = { authorization: "Bearer no.es.un.token" };
   for (const auth of [
     { headers: {}, status: 401 },
-    { headers: teacher, status: 403 },
+    { headers: forged, status: 401 },
   ]) {
     expect(
       (

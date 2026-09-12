@@ -25,11 +25,11 @@ bun run env:setup
 
 `env:setup` crea `backend/.env` y `frontend/.env` a partir de sus ejemplos sin
 sobrescribir archivos existentes. **No crea `.dev.vars`**: Wrangler requiere ese
-archivo en la raíz, junto a `wrangler.jsonc`, con un `JWT_SECRET` aleatorio y
-propio del entorno; `.dev.vars.example` indica el nombre requerido. Ejecuta
-`bun scripts/cloudflare-credentials.ts local prepare` para generarlo sin sobrescribir
-credenciales existentes. Este paso no forma parte de `env:setup`. No usar el placeholder
-del ejemplo. `.dev.vars` no se versiona ni se sube automáticamente al Worker.
+archivo en la raíz, junto a `wrangler.jsonc`, con el `FIREBASE_PROJECT_ID` del
+entorno; `.dev.vars.example` indica el nombre requerido. `.dev.vars` no se versiona
+ni se sube automáticamente al Worker. La autenticación es Firebase: el frontend
+además necesita las `PUBLIC_FIREBASE_*` en `frontend/.env`
+(ver [guía de Firebase Authentication](docs/firebase-auth.md)).
 
 Prepara Prisma, la base de datos y los datos iniciales:
 
@@ -277,11 +277,13 @@ interactivas. `--check` nunca escribe el archivo de salida.
 bun scripts/cloudflare-smoke.test.mts
 ```
 
-Comprueba empaquetado Wrangler, builds Astro en ambos modos, login bcrypt/JWT,
-PDF, registros school/homeschool, permisos, documentos R2, colegios adicionales,
-restricciones de API, login hidratado en navegador y persistencia tras reiniciar
-workerd. Usa D1/R2/DO locales y estado temporal aislado. **10/10 smoke no significa
-que toda la suite pase ni valida un despliegue remoto.**
+Comprueba empaquetado Wrangler, builds Astro en ambos modos, PDF, registros
+school/homeschool, permisos, documentos R2, colegios adicionales, restricciones de
+API y persistencia tras reiniciar workerd. Usa D1/R2/DO locales y estado temporal
+aislado. **10/10 smoke no significa que toda la suite pase ni valida un despliegue
+remoto.** Sus grupos de autenticación quedaron desactualizados al migrar a
+Firebase y el script avisa antes de correr; ver
+[guía de Firebase Authentication](docs/firebase-auth.md#pruebas-pendientes).
 
 ### E2E legado: adaptación pendiente
 
@@ -379,8 +381,10 @@ bun scripts/cloudflare-seed.ts --target production
 
 `SEED_ADMIN_PASSWORD` es obligatorio en el entorno del script; véase su entrada
 privada en la [guía](docs/cloudflare-bootstrap.md#bootstrap-de-admins-y-colegios).
-`JWT_SECRET` debe provisionarse como secreto de cada Worker; `.dev.vars` sólo
-sirve en local ([documentación de secretos](https://developers.cloudflare.com/workers/configuration/secrets/)).
+La autenticación no usa secretos propios: `FIREBASE_PROJECT_ID` es una `var`
+pública de `wrangler.jsonc` y los ID Token se verifican contra las claves públicas
+de Google, sin Service Account. `.dev.vars` sólo sirve en local
+([documentación de secretos](https://developers.cloudflare.com/workers/configuration/secrets/)).
 
 ### Configuración reproducible de Workers Builds
 

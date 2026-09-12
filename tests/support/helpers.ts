@@ -11,11 +11,35 @@ export const ADMIN = {
   password: process.env.E2E_ADMIN_PASSWORD ?? "bebras2026",
 };
 
+/**
+ * La autenticacion es Firebase, asi que el token de las suites tambien tiene que
+ * salir de Firebase. `E2E_FIREBASE_API_KEY` decide contra que proyecto: usar el
+ * emulador de Auth o un proyecto aparte, nunca `bebras-bo`, para no mezclar
+ * usuarios de prueba con los reales.
+ */
 export async function loginAdmin(api: APIRequestContext) {
-  const login = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
-  return { authorization: `Bearer ${login.token}` };
+  const apiKey = process.env.E2E_FIREBASE_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "Falta E2E_FIREBASE_API_KEY: las suites necesitan un proyecto Firebase de pruebas o el emulador de Auth.",
+    );
+  }
+
+  const host =
+    process.env.FIREBASE_AUTH_EMULATOR_HOST ??
+    "identitytoolkit.googleapis.com";
+  const base = host.startsWith("http") ? host : `https://${host}`;
+  const response = await api.post(
+    `${base}/v1/accounts:signInWithPassword?key=${apiKey}`,
+    { data: { ...ADMIN, returnSecureToken: true } },
+  );
+  const session = (await response.json()) as { idToken?: string };
+
+  if (!session.idToken) {
+    throw new Error(`Firebase no autenticó a ${ADMIN.email}.`);
+  }
+
+  return { authorization: `Bearer ${session.idToken}` };
 }
 
 export const SEEDED_TASK = {

@@ -37,7 +37,8 @@ try {
 
 Inserta Marko, Steven y Vladimir, y el snapshot `backend/prisma/seed/schools.ndjson.gz`. Conserva por completo usuarios/colegios existentes, incluso roles y contraseñas. La contraseña es obligatoria sin valor predeterminado y se convierte con el **bcryptjs actual, coste 10**, fuera del Worker. No se imprime el secreto. El login del Worker ya delega bcrypt al DO SQLite `PasswordService`; esta prueba local no verifica la atribución CPU ni los límites efectivos de Workers Free remoto.
 
-Para arrancar el Worker, además se requiere `.dev.vars` en raíz con `JWT_SECRET`.
+Para arrancar el Worker, además se requiere `.dev.vars` en raíz con
+`FIREBASE_PROJECT_ID` (ver [Firebase Authentication](./firebase-auth.md)).
 `bun scripts/cloudflare-credentials.ts local prepare` genera credenciales aleatorias
 y `.dev.vars` sin sobrescribir archivos existentes; `local seed` reutiliza la
 contraseña guardada para el bootstrap. El helper resuelve las rutas desde el

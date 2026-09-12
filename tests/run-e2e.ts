@@ -29,7 +29,9 @@ const serversOnly = process.argv.includes("--servidores");
 const testEnv = {
   ...process.env,
   DATABASE_URL: "file:./test.db",
-  JWT_SECRET: "bebras-isolated-e2e-session-secret",
+  // La sesion la emite Firebase; el proyecto tiene que ser uno de pruebas o el
+  // emulador de Auth, nunca `bebras-bo`. Ver docs/firebase-auth.md.
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ?? "",
   E2E_ADMIN_EMAIL: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
   E2E_ADMIN_PASSWORD: adminPassword,
   SEED_ADMIN_PASSWORD: adminPassword,
