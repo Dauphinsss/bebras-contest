@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { REGISTRATION_LIMITS } from "@/lib/registration-limits";
 import { searchSchools, type SchoolResult } from "@/lib/schools-api";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +91,7 @@ export function SchoolPicker({
         <Input
           ref={inputRef}
           id="school-search"
+          maxLength={REGISTRATION_LIMITS.schoolName}
           value={value.name}
           onChange={(event) =>
             onChange({
@@ -172,6 +174,7 @@ export function SchoolPicker({
           ref={inputRef}
           id="school-search"
           className="pl-9"
+          maxLength={REGISTRATION_LIMITS.schoolName}
           value={query}
           onChange={(event) => {
             const nextQuery = event.target.value;
