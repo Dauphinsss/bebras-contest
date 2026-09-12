@@ -110,7 +110,6 @@ export function RegisterForm() {
   const [verificationDeliveryFailed, setVerificationDeliveryFailed] =
     useState(false);
   const [verificationError, setVerificationError] = useState("");
-  const [verificationCheckRequest, setVerificationCheckRequest] = useState(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -142,8 +141,9 @@ export function RegisterForm() {
   const idBackRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
   const prefilledRef = useRef(false);
-  const manualVerificationCheckRef = useRef(false);
-  const verificationCheckRunningRef = useRef(false);
+  const verificationCheckRef = useRef<((showPendingMessage?: boolean) => void) | null>(
+    null,
+  );
   const pendingResponseFocusRef = useRef<
     | "firstName"
     | "lastName"
@@ -241,13 +241,20 @@ export function RegisterForm() {
     if (step !== "verify" || !session.user) return;
 
     const user = session.user;
-    const reportPending = manualVerificationCheckRef.current;
-    manualVerificationCheckRef.current = false;
     let disposed = false;
+    let running = false;
+    let manualCheckQueued = false;
 
     const check = async (showPendingMessage = false) => {
-      if (verificationCheckRunningRef.current || disposed) return;
-      verificationCheckRunningRef.current = true;
+      if (disposed) return;
+      if (running) {
+        if (showPendingMessage) {
+          manualCheckQueued = true;
+          setCheckingVerification(true);
+        }
+        return;
+      }
+      running = true;
       if (showPendingMessage) setCheckingVerification(true);
 
       try {
@@ -264,6 +271,7 @@ export function RegisterForm() {
         if (disposed) return;
         if (outcome.status === "ok") {
           toast.success("Correo verificado. Sesión iniciada.");
+          disposed = true;
           window.location.replace(landingPath(outcome.user));
           return;
         }
@@ -278,12 +286,21 @@ export function RegisterForm() {
           toast.error("No se pudo comprobar la verificación del correo.");
         }
       } finally {
-        if (!disposed) setCheckingVerification(false);
-        verificationCheckRunningRef.current = false;
+        running = false;
+        const runQueuedCheck = manualCheckQueued && !disposed;
+        manualCheckQueued = false;
+        if (runQueuedCheck) {
+          void check(true);
+        } else if (!disposed) {
+          setCheckingVerification(false);
+        }
       }
     };
 
-    void check(reportPending);
+    verificationCheckRef.current = (showPendingMessage = false) => {
+      void check(showPendingMessage);
+    };
+    void check();
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") void check();
     }, 4000);
@@ -295,11 +312,12 @@ export function RegisterForm() {
 
     return () => {
       disposed = true;
+      verificationCheckRef.current = null;
       window.clearInterval(interval);
       window.removeEventListener("focus", checkWhenVisible);
       document.removeEventListener("visibilitychange", checkWhenVisible);
     };
-  }, [session.user, step, verificationCheckRequest]);
+  }, [session.user, step]);
 
   const goToConfirm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -583,8 +601,7 @@ export function RegisterForm() {
             disabled={checkingVerification}
             onClick={() => {
               setVerificationError("");
-              manualVerificationCheckRef.current = true;
-              setVerificationCheckRequest((current) => current + 1);
+              verificationCheckRef.current?.(true);
             }}
           >
             {checkingVerification

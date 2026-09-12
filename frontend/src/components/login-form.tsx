@@ -66,8 +66,9 @@ export function LoginForm() {
   const busy = submitting || googleBusy;
 
   /** Camino comun de los dos proveedores: Firebase ya autentico, falta Bebras. */
-  const enterBebras = async (user: User) => {
+  const enterBebras = async (user: User, isCurrent = () => true) => {
     const outcome = await openBebrasSession(user);
+    if (!isCurrent()) return;
 
     switch (outcome.status) {
       case "ok":
@@ -103,11 +104,13 @@ export function LoginForm() {
     }
     resumedRef.current = true;
     const user = session.user;
+    let disposed = false;
     void (async () => {
       if (new URLSearchParams(window.location.search).get("verified") === "1") {
         try {
           await refreshEmailVerification(user);
         } catch {
+          if (disposed) return;
           setErrors({
             form: "No se pudo comprobar la verificación del correo.",
           });
@@ -115,8 +118,11 @@ export function LoginForm() {
           return;
         }
       }
-      await enterBebras(user);
+      if (!disposed) await enterBebras(user, () => !disposed);
     })();
+    return () => {
+      disposed = true;
+    };
   }, [busy, configured, session.loading, session.user, unverified]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
