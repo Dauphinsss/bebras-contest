@@ -91,6 +91,27 @@ verifica por si mismo. La regla vive en `needsEmailVerification`:
   manda el correo *después* de crear la cuenta. El perfil se guarda, pero no se
   entra al sistema hasta verificar.
 
+La instancia de Auth usa `languageCode = "es"`. El primer envío y los reenvíos
+incluyen una URL de continuación construida desde el origen actual:
+`/login?verified=1`. Así local vuelve a local, staging a staging y producción a
+producción sin compartir URLs entre entornos.
+
+Después del registro se mantiene abierta la sesión Firebase. Mientras se muestra
+la pantalla de verificación, el navegador ejecuta `user.reload()` al recuperar el
+foco y cada cuatro segundos si la pestaña está visible. Cuando Firebase confirma
+el correo, fuerza `getIdToken(true)`, abre la sesión Bebras y redirige según el
+rol. El botón **Ya verifiqué mi correo** ejecuta la misma comprobación de forma
+manual.
+
+Si el enlace vuelve a `/login?verified=1`, el login actualiza primero el usuario
+y el token antes de abrir la sesión. Esto permite continuar automáticamente en
+el mismo navegador. En otro dispositivo, donde no existe esa sesión Firebase,
+la persona debe identificarse normalmente.
+
+Un fallo del primer envío ya no se presenta como éxito: la cuenta queda creada,
+la pantalla explica el problema y permite reenviar. Los reenvíos están
+bloqueados mientras hay otro envío en curso.
+
 ## Rutas
 
 | Ruta | Qué hace |
@@ -188,6 +209,10 @@ bun run dev
 ```
 
 ## Pruebas pendientes
+
+`tests/email-verification.unit.ts` cubre el idioma español, las URLs de retorno
+de local/staging/producción, la actualización de `emailVerified`, la renovación
+forzada del ID Token y los fallos de red o renovación.
 
 Las suites Playwright antiguas firmaban su propio JWT o llamaban a
 `/api/auth/login`. Con Firebase necesitan tokens reales:
