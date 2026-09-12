@@ -4,8 +4,8 @@ Plataforma del **Desafío Bebras Bolivia**: gestión de tareas, competencias,
 grupos, participantes y evaluación.
 
 - `frontend/`: Astro 5 + React 19 + Tailwind + Shadcn/ui
-- `backend/`: Express 5 + TypeScript en Cloudflare Workers, Prisma con D1,
-  documentos privados en R2 y `PasswordService` en Durable Objects SQLite.
+- `backend/`: Express 5 + TypeScript en Cloudflare Workers, Prisma con D1 y
+  documentos privados en R2.
 
 Gestor de paquetes: **Bun 1.3.5** (`packageManager`); Node.js **22.12 o posterior**
 para el CLI instalado de Wrangler. Hay tres paquetes independientes (raíz,
@@ -271,20 +271,6 @@ interactivas. `--check` nunca escribe el archivo de salida.
 
 ## Pruebas
 
-### Smoke Cloudflare local: 10/10 grupos
-
-```bash
-bun scripts/cloudflare-smoke.test.mts
-```
-
-Comprueba empaquetado Wrangler, builds Astro en ambos modos, PDF, registros
-school/homeschool, permisos, documentos R2, colegios adicionales, restricciones de
-API y persistencia tras reiniciar workerd. Usa D1/R2/DO locales y estado temporal
-aislado. **10/10 smoke no significa que toda la suite pase ni valida un despliegue
-remoto.** Sus grupos de autenticación quedaron desactualizados al migrar a
-Firebase y el script avisa antes de correr; ver
-[guía de Firebase Authentication](docs/firebase-auth.md#pruebas-pendientes).
-
 ### E2E legado: adaptación pendiente
 
 ```bash
@@ -344,9 +330,9 @@ las asignaciones se comprueban sin navegador:
 bun run test:unidad
 ```
 
-El comando agregado todavía no incluye `scripts/cloudflare-smoke.test.mts` ni
-`scripts/cloudflare-seed.test.ts`; las pruebas D1 tienen su comando explícito en
-la guía de bootstrap. No se declara aprobada toda la suite unitaria.
+El comando agregado no incluye `scripts/cloudflare-seed.test.ts`; las pruebas D1
+tienen su comando explícito en la guía de bootstrap. No se declara aprobada toda
+la suite unitaria.
 
 ## Operación Cloudflare
 
@@ -396,9 +382,9 @@ automática del paquete raíz no instala `backend` ni `frontend`:
 | Staging / `staging` | `bun run setup && bun run build:staging` | `bun x --no-install wrangler deploy --env staging` |
 | Producción / `master` | `bun run setup && bun run build:production` | `bun x --no-install wrangler deploy --env production` |
 
-Fija `BUN_VERSION=1.3.5`, `NODE_VERSION=22` y `SKIP_DEPENDENCY_INSTALL=1`
-en el entorno de build para que `setup` controle la instalación completa. Los tres
-lockfiles deben estar en el checkout. El build genera Prisma antes de Astro y
+Opcionalmente fija `BUN_VERSION=1.3.5`, `NODE_VERSION=22` y
+`SKIP_DEPENDENCY_INSTALL=1` si se necesita aislar el build de cambios en la imagen
+predeterminada de Cloudflare. Los tres lockfiles deben estar en el checkout. El build genera Prisma antes de Astro y
 fija sus variables públicas por entorno; no necesita archivos `.env` personales.
 Las migraciones y el bootstrap se ejecutan explícitamente por el operador, fuera
 del build/deploy. Los secretos runtime se provisionan por Worker y no se guardan
@@ -407,13 +393,13 @@ remotos de Builds son independientes de estos comandos locales.
 
 Referencia: [configuración de Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
 
-### Estado y pendientes (2026-09-11)
+### Estado (2026-09-12)
 
 - Las ramas `develop`, `staging` y `master` comparten la configuración versionada;
   el entorno de despliegue determina las funcionalidades habilitadas.
-- **Workers Builds**: la app GitHub está instalada. La conexión por API está
-  bloqueada por el permiso `Workers CI → Edit` (403 con el OAuth de Wrangler).
-  Configuración exacta y verificación en [Workers Builds](docs/workers-builds.md).
+- **Workers Builds**: producción y staging están conectados a GitHub y despliegan
+  automáticamente desde `master` y `staging`, respectivamente. Configuración y
+  verificación en [Workers Builds](docs/workers-builds.md).
 - **Desplegados**: [producción](https://bebras-contest.bebrasbolivia.workers.dev) y
   [staging](https://bebras-contest-staging.bebrasbolivia.workers.dev), con bases D1 y
   buckets R2 Standard privados separados. Ambas bases tienen 3 administradores,
@@ -423,16 +409,14 @@ Referencia: [configuración de Workers Builds](https://developers.cloudflare.com
   corresponde a los tres admins (`marko@bebras.bo`, `steven@bebras.bo`, `vladimir@bebras.bo`).
   El bootstrap es aditivo y no restablece contraseñas existentes.
   Desde otro equipo, recuperar esas credenciales mediante un respaldo privado;
-  no regenerar ni subir un JWT nuevo al Worker existente. Los comandos normales
-  de build/deploy no necesitan los archivos privados locales.
-- `bun scripts/cloudflare-check.ts` verificó páginas, login de administrador,
-  perfil, API administrativa y restricción pública en ambos Workers remotos.
-- `PasswordService` ya usa el binding `PASSWORDS` de DO SQLite para hash y
-  verificación **bcrypt coste 10**, conservando hashes existentes. Traslada ese
-  cómputo fuera del Worker HTTP principal para preservar su presupuesto CPU Free;
-  el login alojado está verificado; la atribución CPU y el consumo sostenido
-  aún requieren medición remota.
-  Véase la [investigación y estado de integración](docs/passwords-workers-free-investigation.md).
+  no subirlas al Worker ni al repositorio. Los comandos normales de build/deploy
+  no necesitan los archivos privados locales.
+- La autenticación actual usa Firebase ID Tokens. Se retiraron la comprobación
+  remota y el smoke que dependían de `/api/auth/login` y JWT propios, porque ya no
+  representaban el sistema desplegado.
+- `PasswordService` y su binding Durable Object se retiraron al dejar de existir
+  consumidores después de migrar la autenticación. `wrangler.jsonc` conserva el
+  historial de creación y añade la migración de borrado de la clase.
 - Runtime: Prisma usa `@prisma/adapter-d1` y los PDF usan `pdf-lib`. Se retiraron
   `@prisma/adapter-better-sqlite3`, `pdfkit` y `@types/pdfkit` mediante `bun remove`.
   `better-sqlite3` queda explícitamente en desarrollo por la prueba E2E legada.

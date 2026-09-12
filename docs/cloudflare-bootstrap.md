@@ -35,7 +35,7 @@ try {
 }
 ```
 
-Inserta Marko, Steven y Vladimir, y el snapshot `backend/prisma/seed/schools.ndjson.gz`. Conserva por completo usuarios/colegios existentes, incluso roles y contraseñas. La contraseña es obligatoria sin valor predeterminado y se convierte con el **bcryptjs actual, coste 10**, fuera del Worker. No se imprime el secreto. El login del Worker ya delega bcrypt al DO SQLite `PasswordService`; esta prueba local no verifica la atribución CPU ni los límites efectivos de Workers Free remoto.
+Inserta Marko, Steven y Vladimir, y el snapshot `backend/prisma/seed/schools.ndjson.gz`. Conserva por completo usuarios/colegios existentes, incluso roles y contraseñas. La contraseña es obligatoria sin valor predeterminado y se convierte con el **bcryptjs actual, coste 10**, fuera del Worker. No se imprime el secreto. Esos hashes se conservan para el bootstrap y la migración de cuentas; el login actual usa Firebase Authentication.
 
 Para arrancar el Worker, además se requiere `.dev.vars` en raíz con
 `FIREBASE_PROJECT_ID` (ver [Firebase Authentication](./firebase-auth.md)).
@@ -111,24 +111,15 @@ Después verifica el esquema vigente (incluido el retiro de `ContestGroup.schedu
 
 ## Pruebas
 
-Smoke de integración ejecutado tras retirar dependencias: **10/10 grupos locales**.
-Incluye bundle Wrangler, builds en ambos modos, auth bcrypt/JWT mediante DO,
-PDF, registros y permisos, navegador real y persistencia D1/R2 tras reinicio:
-
-```powershell
-bun scripts/cloudflare-smoke.test.mts
-```
-
-No equivale a toda la suite ni verifica servicios remotos. La suite específica
-de semillas/reemplazo se invoca separadamente:
+La suite específica de semillas y reemplazo se ejecuta con:
 
 ```powershell
 bun run test:cloudflare:d1
 ```
 
-Revisión de reproducibilidad: **20 pasan, 1 omitida, 0 fallan**. La omitida
-requiere `BEBRAS_LEGACY_JSON`, un archivo legado opcional. El smoke se reejecutó
-con **10/10 grupos** usando el directorio temporal estándar del sistema.
+La última revisión de reproducibilidad registró **20 pruebas aprobadas, 1 omitida
+y 0 fallidas**. La omitida requiere `BEBRAS_LEGACY_JSON`, un archivo legado
+opcional. Este resultado no valida servicios remotos ni la autenticación Firebase.
 
 Las pruebas D1 se ejecutan siempre con workerd local y configuración temporal: insertan y leen las 43 tareas comparando todos los campos, repiten la carga, verifican preservación de contraseña/rol/fecha/colegio, texto con intento de inyección, conflictos no ignorados y rollback de limpieza ante una FK. También cargan el snapshot completo de colegios y comprueban la omisión por conteo y `--force`. El reemplazo prueba exportación real, restauración del catálogo grande, conservación del backup, esquema antiguo, grafo vacío e identidades conservadas, y rollback ante constraints/triggers. Los targets remotos se prueban con un ejecutor simulado: argumentos, escape, limpieza ante errores y ausencia de ejecución con `--check`.
 

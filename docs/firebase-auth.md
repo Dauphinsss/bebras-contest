@@ -185,14 +185,15 @@ bun run dev
 
 ## Pruebas pendientes
 
-Las suites Playwright y `scripts/cloudflare-smoke.test.mts` firmaban su propio
-JWT o llamaban a `/api/auth/login`. Con Firebase necesitan tokens reales:
+Las suites Playwright antiguas firmaban su propio JWT o llamaban a
+`/api/auth/login`. Con Firebase necesitan tokens reales:
 
 - `tests/support/helpers.ts` ya pide el token a Identity Toolkit y requiere
   `E2E_FIREBASE_API_KEY` (emulador de Auth o un proyecto de pruebas, **nunca**
-  `bebras-bo`);
-- `cloudflare-smoke.test.mts` avisa y no corre hasta adaptarlo: necesita emitir
-  tokens desde el emulador y que el Worker acepte ese emisor.
+  `bebras-bo`).
+
+El smoke heredado de Cloudflare se eliminó en lugar de conservar una prueba
+desactivada que ya no representaba la autenticación desplegada.
 
 Lo ya comprobado de extremo a extremo contra el Worker: token ausente e
 inválido, bloqueo por correo sin verificar, registro con correo sin verificar,

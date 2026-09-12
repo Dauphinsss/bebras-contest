@@ -14,7 +14,7 @@ En cada Worker, abrir **Settings → Builds → Connect** y configurar:
 | Deploy command | `bunx wrangler deploy --env production` | `bunx wrangler deploy --env staging` |
 | Non-production branch builds | Deshabilitado | Deshabilitado |
 
-Variables **del build**:
+Variables opcionales para fijar explícitamente las versiones del entorno de build:
 
 ```text
 BUN_VERSION=1.3.5
@@ -22,8 +22,10 @@ NODE_VERSION=22
 SKIP_DEPENDENCY_INSTALL=1
 ```
 
-`setup` instala los tres paquetes con sus lockfiles congelados. El build genera
-Prisma para workerd, compila Astro y aplica el recorte sólo a producción. Si
+Los builds comprobados también funcionan sin estas variables usando los valores
+actuales por defecto de Cloudflare. `setup` instala los tres paquetes con sus
+lockfiles congelados. El build genera Prisma para workerd, compila Astro y aplica
+el recorte sólo a producción. Si
 Workers Builds comunica una rama distinta a la esperada, falla antes de compilar.
 `develop` no debe estar conectado a ningún build.
 
@@ -68,10 +70,10 @@ en cada push a cualquier rama, incluida `staging`. Se retiró;
 
 `environment_variables` aparece en la configuración pero el endpoint de triggers
 no la acepta (`12002 Invalid request body`): solo se puede editar desde el
-Dashboard. **No hicieron falta**: los dos builds pasan con los valores por
-defecto de Cloudflare, porque `bun run setup` ya instala los tres paquetes con
-lockfile congelado. Si alguna vez falla la instalación, el ajuste es fijar
-`BUN_VERSION` al bun que escribió los lockfiles.
+Dashboard. No son obligatorias mientras los valores por defecto sigan siendo
+compatibles. Si alguna vez cambia la imagen de build, fijar `BUN_VERSION=1.3.5`,
+`NODE_VERSION=22` y `SKIP_DEPENDENCY_INSTALL=1` permite que `setup` controle la
+instalación completa.
 
 ### Comprobado
 
@@ -89,9 +91,13 @@ lo que producción oculta.
 ```powershell
 $env:CLOUDFLARE_API_TOKEN = '<token de usuario>'
 bun scripts/cloudflare-builds-setup.ts --check
+# Solo si el check informa diferencias:
+bun scripts/cloudflare-builds-setup.ts
 ```
 
-El script sigue sirviendo para rehacer la conexión y los triggers si se pierden.
+`--check` lista y compara los triggers remotos sin modificarlos. El modo normal
+actualiza el trigger existente por UUID o lo crea cuando falta; si encuentra más
+de un trigger activo para un Worker, se detiene para no producir duplicados.
 El token que administra Builds y el que ejecuta el despliegue tienen permisos
 distintos. No guardar tokens en el repositorio ni usar OAuth de corta duración
 como token persistente del build.
