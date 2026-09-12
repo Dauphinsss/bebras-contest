@@ -52,6 +52,19 @@ instalaciones. Sin ella, crear la conexión responde:
 y `builds/tokens` viene vacío, porque Cloudflare crea el build token al conectar
 el repositorio. Hay que hacer esa conexión una vez desde el Dashboard.
 
+El lado de GitHub **ya está completo**: la app `cloudflare-workers-and-pages`
+está instalada en la organización con acceso a todos los repositorios
+(installation `160729019`, comprobado con `gh api orgs/Bebras-Bolivia/installations`).
+Lo que falta es solo que la cuenta de Cloudflare guarde esa asociación, y eso lo
+crea el OAuth del Dashboard. El error es el mismo con el id de la organización
+(`295968330`) y con el de la instalación, así que no es cuestión de dar con el
+identificador correcto.
+
+Al pulsar *Connect*, GitHub redirige a la página de instalación: hay que elegir
+la organización **Bebras-Bolivia**, no la cuenta personal, porque el repositorio
+es de la organización. Como la app ya está instalada ahí, es un paso de
+confirmación y vuelve a Cloudflare.
+
 Datos ya resueltos, por si se configura por API:
 
 | | |
