@@ -21,6 +21,14 @@ test("verification emails use Spanish and return to the current environment", ()
       url: "https://bebras-contest-staging.bebrasbolivia.workers.dev/login?verified=1",
     },
   );
+  assert.deepEqual(
+    emailVerificationActionSettings(
+      "https://bebras-contest.bebrasbolivia.workers.dev",
+    ),
+    {
+      url: "https://bebras-contest.bebrasbolivia.workers.dev/login?verified=1",
+    },
+  );
 });
 
 test("an unverified user reloads without refreshing the token", async () => {
@@ -56,4 +64,29 @@ test("a verified user refreshes the token before opening a session", async () =>
 
   assert.equal(await refreshEmailVerification(user), true);
   assert.deepEqual(calls, ["reload", "getIdToken:true"]);
+});
+
+test("verification refresh surfaces Firebase reload failures", async () => {
+  const user: EmailVerificationUser = {
+    emailVerified: false,
+    reload: async () => {
+      throw new Error("offline");
+    },
+    getIdToken: async () => "unused",
+  };
+
+  await assert.rejects(refreshEmailVerification(user), /offline/u);
+});
+
+test("verification refresh surfaces forced token failures", async () => {
+  const user: EmailVerificationUser = {
+    emailVerified: true,
+    reload: async () => undefined,
+    getIdToken: async (forceRefresh) => {
+      assert.equal(forceRefresh, true);
+      throw new Error("token unavailable");
+    },
+  };
+
+  await assert.rejects(refreshEmailVerification(user), /token unavailable/u);
 });
