@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
 import { httpServerHandler } from "cloudflare:node";
 import express from "express";
-export { PasswordService } from "./lib/password-service";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
