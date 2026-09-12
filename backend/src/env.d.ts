@@ -1,5 +1,6 @@
 declare namespace Cloudflare {
   interface Env {
-    JWT_SECRET: string;
+    /** Proyecto Firebase cuyos ID Token acepta el Worker. Vacio = sin Firebase. */
+    FIREBASE_PROJECT_ID: string;
   }
 }

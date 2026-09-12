@@ -1,1 +1,3 @@
-JWT_SECRET=replace-with-a-long-random-local-secret
+# Proyecto Firebase cuyos ID Token acepta el Worker. Debe coincidir con
+# PUBLIC_FIREBASE_PROJECT_ID del frontend. Vacio deja la API sin autenticacion.
+FIREBASE_PROJECT_ID=bebras-bo

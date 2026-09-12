@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
 import { httpServerHandler } from "cloudflare:node";
 import express from "express";
-import { hashPassword, verifyPassword } from "./lib/password-service";
 export { PasswordService } from "./lib/password-service";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
@@ -15,7 +14,6 @@ import { formatPersonName } from "./lib/person-name";
 import { validatePhone } from "./lib/phone";
 import { validateEmail } from "./lib/email";
 import { validateRegistrationText } from "./lib/registration-text";
-import { registrationPasswordError } from "./lib/registration-password";
 import {
   countFilledBlocks,
   normalizeDragDropConfig,
@@ -26,7 +24,7 @@ import { answerIsCorrect } from "./lib/task-answers/grading";
 import { validateTaskAnswer } from "./lib/task-answers/validation";
 import { renderSafeTask } from "./lib/task-answers/public-task";
 import type { PlayTask } from "./lib/task-answers/types";
-import { requireAdmin, requireAuth, signToken } from "./lib/auth";
+import { authenticateFirebase, requireAdmin, requireAuth } from "./lib/auth";
 
 const app = express();
 const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
@@ -1369,44 +1367,67 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-app.post("/api/auth/login", async (req, res) => {
-  const email =
-    typeof req.body?.email === "string"
-      ? req.body.email.trim().toLowerCase()
-      : "";
-  const password =
-    typeof req.body?.password === "string" ? req.body.password : "";
+/**
+ * Punto unico de entrada: el frontend ya autentico contra Firebase y manda el
+ * ID Token. Aqui solo se resuelve el perfil Bebras que le corresponde.
+ *
+ * Si el UID todavia no esta asociado pero existe una cuenta con ese mismo
+ * correo (admins migrados, o un maestro que antes entraba con contrasena y
+ * ahora usa Google), se enlaza en vez de crear un usuario duplicado.
+ */
+app.post("/api/auth/session", async (req, res) => {
+  const authenticated = await authenticateFirebase(req);
 
-  if (!email || !password) {
-    res.status(400).json({ message: "Correo y contraseña son obligatorios." });
+  if ("failure" in authenticated) {
+    res.status(authenticated.failure.status).json(authenticated.failure.body);
     return;
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const { identity } = authenticated;
+  let user = await prisma.user.findUnique({
+    where: { firebaseUid: identity.uid },
+  });
 
-  if (!user || !user.passwordHash) {
-    res.status(401).json({ message: "Credenciales inválidas." });
-    return;
+  if (!user) {
+    const byEmail = await prisma.user.findUnique({
+      where: { email: identity.email },
+    });
+
+    if (byEmail?.firebaseUid && byEmail.firebaseUid !== identity.uid) {
+      res.status(409).json({
+        message:
+          "Ese correo ya está enlazado a otra cuenta de Firebase. Contacta al administrador.",
+        code: "UID_CONFLICT",
+      });
+      return;
+    }
+
+    if (byEmail) {
+      user = await prisma.user.update({
+        where: { id: byEmail.id },
+        data: { firebaseUid: identity.uid },
+      });
+    }
   }
 
-  const valid = await verifyPassword(password, user.passwordHash);
-
-  if (!valid) {
-    res.status(401).json({ message: "Credenciales inválidas." });
+  if (!user) {
+    res.status(404).json({
+      message: "Completa tu registro para entrar.",
+      code: "PROFILE_REQUIRED",
+      email: identity.email,
+    });
     return;
   }
 
   if (user.status === "rejected") {
     res.status(403).json({
       message: "Tu cuenta fue rechazada. Contacta al administrador.",
+      code: "ACCOUNT_REJECTED",
     });
     return;
   }
 
-  const token = signToken({ id: user.id, email: user.email, role: user.role });
-
   res.json({
-    token,
     user: {
       id: user.id,
       email: user.email,
@@ -1689,6 +1710,21 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   const idBackFile = pickUploaded(req, "idBack");
   const allFiles = [letterFile, idFrontFile, idBackFile];
 
+  // El registro llega con el ID Token recien emitido por Firebase: la identidad
+  // (uid y correo) sale del token, nunca del formulario. El correo aun no esta
+  // verificado en este punto del flujo, por eso `allowUnverified`.
+  const authenticated = await authenticateFirebase(req, {
+    allowUnverified: true,
+  });
+
+  if ("failure" in authenticated) {
+    await cleanupFiles(...allFiles);
+    res.status(authenticated.failure.status).json(authenticated.failure.body);
+    return;
+  }
+
+  const { identity } = authenticated;
+
   const validatedFirstName = validateRegistrationText(
     typeof req.body?.firstName === "string" ? req.body.firstName : "",
     "firstName",
@@ -1699,12 +1735,7 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   );
   const firstName = validatedFirstName.value;
   const lastName = validatedLastName.value;
-  const email =
-    typeof req.body?.email === "string"
-      ? req.body.email.trim().toLowerCase()
-      : "";
-  const password =
-    typeof req.body?.password === "string" ? req.body.password : "";
+  const email = identity.email;
   const schoolCodUe =
     typeof req.body?.schoolCodUe === "string" && req.body.schoolCodUe.trim()
       ? req.body.schoolCodUe.trim()
@@ -1750,17 +1781,11 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  const passwordError = registrationPasswordError(password);
-  if (passwordError) {
-    await cleanupFiles(...allFiles);
-    res.status(400).json({ message: passwordError, field: "password" });
-    return;
-  }
-
   if (!firstName || !lastName) {
     await cleanupFiles(...allFiles);
     res.status(400).json({
-      message: "Nombres, apellidos, correo y contraseña son obligatorios.",
+      message: "Nombres y apellidos son obligatorios.",
+      field: "firstName",
     });
     return;
   }
@@ -1783,13 +1808,16 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
     return;
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ firebaseUid: identity.uid }, { email }] },
+  });
 
   if (existing) {
     await cleanupFiles(...allFiles);
     res.status(409).json({
       message: "Ya existe una cuenta con ese correo.",
       field: "email",
+      code: "PROFILE_EXISTS",
     });
     return;
   }
@@ -1797,15 +1825,13 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   let created;
 
   try {
-    const passwordHash = await hashPassword(password);
-
     created = await prisma.user.create({
       data: {
         firstName,
         lastName,
         name: `${firstName} ${lastName}`,
         email,
-        passwordHash,
+        firebaseUid: identity.uid,
         role: "maestro",
         status: "pending",
         schoolCodUe,
@@ -1826,18 +1852,13 @@ app.post("/api/auth/register", registerUploadMiddleware, async (req, res) => {
   res.locals.documentsCommitted = true;
   await cleanupFiles(...(isSchool ? [idFrontFile, idBackFile] : [letterFile]));
   const pendingDocuments = isSchool ? !letterFile : !idFrontFile || !idBackFile;
-  const token = signToken({
-    id: created.id,
-    email: created.email,
-    role: created.role,
-  });
 
   res.status(201).json({
     message: pendingDocuments
       ? "Cuenta de maestro creada. Sube tus documentos desde tu perfil para que te aprueben."
       : "Cuenta de maestro creada. Queda pendiente de aprobación.",
     pendingDocuments,
-    token,
+    emailVerified: identity.emailVerified,
     user: {
       id: created.id,
       email: created.email,
@@ -2058,7 +2079,7 @@ async function requireApproved(
   res: express.Response,
   next: express.NextFunction,
 ) {
-  requireAuth(req, res, () => {
+  await requireAuth(req, res, () => {
     void prisma.user
       .findUnique({ where: { id: req.user!.id } })
       .then((user) => {
