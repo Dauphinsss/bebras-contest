@@ -59,6 +59,22 @@ export function setSession(token: string, user: AuthUser) {
   notifySession();
 }
 
+/**
+ * Refresca solo el token, conservando el perfil Bebras ya guardado. Lo usa el
+ * puente con Firebase: el ID Token se renueva cada hora por su cuenta y eso no
+ * debe borrar ni reemplazar la sesion.
+ */
+export function setToken(token: string) {
+  if (typeof window === "undefined" || !token?.trim()) return;
+  try {
+    if (window.localStorage.getItem(TOKEN_KEY) === token) return;
+    window.localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    return;
+  }
+  notifySession();
+}
+
 export function setUser(user: AuthUser) {
   if (!getToken() || !validUser(user)) return;
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));

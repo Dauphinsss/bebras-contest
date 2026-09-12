@@ -13,9 +13,11 @@ const { allowMaestro = false, registrationRestricted = false } = Astro.props;
   data-registration-restricted={String(registrationRestricted)}></span>
 
 <script>
-  import { getToken, getUser, subscribeSession } from "../lib/auth";
+  import { getUser, subscribeSession } from "../lib/auth";
 
-  let previousToken = getToken();
+  // Firebase renueva el ID Token cada hora: recargar por el token cambiaria la
+  // pagina sola. Lo que importa es que sea otra persona la que esta dentro.
+  let previousUserId = getUser()?.id ?? null;
   function guard() {
     const marker = document.querySelector<HTMLElement>("[data-auth-guard]");
     if (!marker) return;
@@ -53,16 +55,16 @@ const { allowMaestro = false, registrationRestricted = false } = Astro.props;
   document.addEventListener("astro:after-swap", guard);
   document.addEventListener("astro:page-load", guard);
   subscribeSession(() => {
-    const token = getToken();
+    const userId = getUser()?.id ?? null;
     guard();
     if (
-      token &&
-      previousToken &&
-      token !== previousToken &&
+      userId &&
+      previousUserId &&
+      userId !== previousUserId &&
       document.querySelector("[data-auth-guard]")
     ) {
       window.location.reload();
     }
-    previousToken = token;
+    previousUserId = userId;
   });
 </script>

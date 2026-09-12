@@ -11,7 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { clearToken, type AuthUser } from "@/lib/auth";
+import { type AuthUser } from "@/lib/auth";
+import { signOutFirebase } from "@/lib/firebase-auth";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { Button } from "@/components/ui/button";
 
@@ -46,8 +47,11 @@ export function UserMenu() {
   }
 
   const handleLogout = () => {
-    clearToken();
-    window.location.href = "/";
+    // Cerrar tambien en Firebase: si no, la proxima visita a /login retomaria
+    // la sesion automaticamente.
+    void signOutFirebase().finally(() => {
+      window.location.href = "/";
+    });
   };
 
   if (user.role === "maestro") {

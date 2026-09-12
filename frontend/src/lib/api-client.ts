@@ -1,4 +1,5 @@
-import { authHeaders, handleUnauthorized } from "@/lib/auth";
+import { handleUnauthorized } from "@/lib/auth";
+import { authorizationHeaders } from "@/lib/firebase-auth";
 
 export const API_BASE_URL =
   import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -51,7 +52,11 @@ export async function apiRequest<T>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { auth = true, fallbackMessage, headers, ...init } = options;
-  const requestHeaders = new Headers(auth ? authHeaders() : undefined);
+  // El SDK renueva el ID Token por su cuenta; pedirselo a el evita mandar una
+  // copia vencida de localStorage.
+  const requestHeaders = new Headers(
+    auth ? await authorizationHeaders() : undefined,
+  );
 
   new Headers(headers).forEach((value, key) => {
     requestHeaders.set(key, value);
