@@ -137,9 +137,24 @@ identidades. Después guarda ese UID en `User.firebaseUid`.
 `emailVerified` se importa en `false`: no se afirma una verificación que nunca
 ocurrió. Esas cuentas deben verificar su correo antes de poder entrar.
 
-> Las tres cuentas de administrador usan direcciones `@bebras.bo`. Si ese dominio
-> no recibe correo, no podrán completar la verificación. La salida es cambiarles
-> el correo a uno real y volver a ejecutar la migración.
+### Excepción: `--mark-verified`
+
+```powershell
+bun scripts/firebase-migrate-users.ts --target production --mark-verified --check
+bun scripts/firebase-migrate-users.ts --target production --mark-verified
+```
+
+Reimporta cuentas **ya migradas** con `emailVerified: true`, conservando su
+contraseña. Es una decisión del operador, no del script, y solo tiene sentido
+cuando esas direcciones no pueden recibir el enlace de Firebase.
+
+Se aplicó a los tres administradores: `bebras.bo` no existe en DNS (`NXDOMAIN`,
+sin registros MX), así que la verificación normal era imposible y sin esto
+habrían quedado sin acceso a producción. Si algún día esas cuentas pasan a
+direcciones reales, lo correcto es cambiar el correo y verificarlo de verdad.
+
+> Reimportar **sin** el hash borra la contraseña de la cuenta. El script siempre
+> reenvía el hash existente junto con `--hash-algo=BCRYPT`.
 
 ## Estado en local
 

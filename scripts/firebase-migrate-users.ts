@@ -10,6 +10,11 @@
  *
  *   bun scripts/firebase-migrate-users.ts --target production --check
  *   bun scripts/firebase-migrate-users.ts --target production
+ *
+ * `--mark-verified` es la excepcion, no el camino normal: reimporta cuentas ya
+ * migradas con `emailVerified: true`. Solo tiene sentido cuando su correo no
+ * puede recibir el enlace de Firebase y por eso la verificacion normal es
+ * imposible; decidirlo es del operador, nunca del script.
  */
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -23,12 +28,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const args = process.argv.slice(2);
 const check = args.includes("--check");
+const markVerified = args.includes("--mark-verified");
 const targetIndex = args.indexOf("--target");
 const target = targetIndex >= 0 ? args[targetIndex + 1] : undefined;
 
 if (target !== "production") {
   throw new Error(
-    "Uso: bun scripts/firebase-migrate-users.ts --target production [--check]\n" +
+    "Uso: bun scripts/firebase-migrate-users.ts --target production [--check] [--mark-verified]\n" +
       "Staging usara su propio proyecto Firebase; todavia no esta conectado.",
   );
 }
@@ -40,6 +46,7 @@ interface Row {
   email: string;
   name: string | null;
   passwordHash: string;
+  firebaseUid: string | null;
 }
 
 function wranglerBin() {
@@ -77,7 +84,9 @@ function readRows(): Row[] {
     "--remote",
     "--json",
     "--command",
-    "SELECT id, email, name, passwordHash FROM User WHERE passwordHash <> '' AND firebaseUid IS NULL ORDER BY id",
+    markVerified
+      ? "SELECT id, email, name, passwordHash, firebaseUid FROM User WHERE passwordHash <> '' AND firebaseUid IS NOT NULL ORDER BY id"
+      : "SELECT id, email, name, passwordHash, firebaseUid FROM User WHERE passwordHash <> '' AND firebaseUid IS NULL ORDER BY id",
   ]);
   const start = stdout.indexOf("[");
   if (start < 0) throw new Error("Respuesta inesperada de Wrangler.");
@@ -87,13 +96,17 @@ function readRows(): Row[] {
 
 /** El UID deriva del id de D1: reejecutar la migración no duplica identidades. */
 function localId(row: Row) {
-  return `bebras-d1-${row.id}`;
+  return row.firebaseUid ?? `bebras-d1-${row.id}`;
 }
 
 const rows = readRows();
 
 if (!rows.length) {
-  console.log("No hay cuentas pendientes de migrar.");
+  console.log(
+    markVerified
+      ? "No hay cuentas migradas a las que marcar el correo."
+      : "No hay cuentas pendientes de migrar.",
+  );
   process.exit(0);
 }
 
@@ -105,8 +118,19 @@ for (const row of rows) {
   }
 }
 
-console.log(`Cuentas por migrar (${rows.length}):`);
+console.log(
+  markVerified
+    ? `Cuentas a marcar con el correo verificado (${rows.length}):`
+    : `Cuentas por migrar (${rows.length}):`,
+);
 for (const row of rows) console.log(`  ${localId(row)}  ${row.email}`);
+
+if (markVerified) {
+  console.log(
+    "\nAviso: se afirmará una verificación que Firebase no realizó. Hacerlo solo\n" +
+      "cuando esas direcciones no puedan recibir el enlace y quede constancia.",
+  );
+}
 
 if (check) {
   console.log("\n--check: no se escribió nada en Firebase ni en D1.");
@@ -123,8 +147,9 @@ try {
       users: rows.map((row) => ({
         localId: localId(row),
         email: row.email,
-        // Nunca se afirma una verificación que no ocurrió.
-        emailVerified: false,
+        // Por defecto nunca se afirma una verificación que no ocurrió; solo
+        // `--mark-verified` la fuerza, y es una decisión del operador.
+        emailVerified: markVerified,
         displayName: row.name ?? undefined,
         passwordHash: Buffer.from(row.passwordHash, "utf8").toString("base64"),
       })),
@@ -165,6 +190,11 @@ try {
   }
 
   process.stdout.write(output);
+
+  if (markVerified) {
+    console.log(`\nListo: ${rows.length} cuenta(s) con el correo marcado como verificado.`);
+    process.exit(0);
+  }
 
   // Enlaza cada fila con su identidad recien creada. Aditivo y repetible.
   const sql = rows
