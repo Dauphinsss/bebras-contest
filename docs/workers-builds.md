@@ -36,14 +36,41 @@ aplican explícitamente con las migraciones versionadas, primero en local.
 
 ## Estado comprobado
 
-Los despliegues manuales funcionan con el OAuth de Wrangler disponible. La API
-de Builds devuelve **403 / Authentication error** con esa sesión y
-`wrangler login --scopes-list` no ofrece el scope Workers CI. La conexión queda
-pendiente de completarla en el Dashboard o proporcionar un API token con
-**Account → Workers CI → Edit** para configurarla mediante API. El token que
-administra Builds y el token que ejecuta el despliegue tienen permisos distintos.
-No guardar tokens en el repositorio ni usar OAuth de corta duración como token
-persistente del build.
+Los despliegues manuales funcionan con el OAuth de Wrangler. Con un API token de
+usuario con **Workers Builds Configuration: Edit** y **Workers Scripts: Read**,
+la API de Builds ya responde: se resuelven los tags de ambos Workers y se llega a
+`builds/repos/connections`.
+
+Lo que **no** se puede hacer por API es la autorización inicial de la cuenta de
+GitHub: es un OAuth del Dashboard, no hay endpoint para crearla ni para listar
+instalaciones. Sin ella, crear la conexión responde:
+
+```text
+8000008  This project is disconnected from your Git account
+```
+
+y `builds/tokens` viene vacío, porque Cloudflare crea el build token al conectar
+el repositorio. Hay que hacer esa conexión una vez desde el Dashboard.
+
+Datos ya resueltos, por si se configura por API:
+
+| | |
+| --- | --- |
+| Cuenta | `a9ca7f3bfd5ff492721f722856ac79b6` |
+| Repositorio | `Bebras-Bolivia/bebras-contest` (id `1195777825`, org `295968330`) |
+| Tag de `bebras-contest` | `4c3e208b37024d22b0bd4b9829cddef7` |
+| Tag de `bebras-contest-staging` | `40c913ff795147878d4c502300477ade` |
+
+```powershell
+$env:CLOUDFLARE_API_TOKEN = '<token de usuario>'
+bun scripts/cloudflare-builds-setup.ts --check
+bun scripts/cloudflare-builds-setup.ts
+```
+
+El script crea la conexión y los dos triggers una vez exista la autorización.
+El token que administra Builds y el que ejecuta el despliegue tienen permisos
+distintos. No guardar tokens en el repositorio ni usar OAuth de corta duración
+como token persistente del build.
 
 ## Verificación al conectar
 
