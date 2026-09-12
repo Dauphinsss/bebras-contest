@@ -12,7 +12,7 @@ const config = {
   messagingSenderId: import.meta.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
 };
 
-/** Un entorno sin configuracion (por ahora staging) no habilita el login. */
+/** Un entorno sin configuracion de Firebase no habilita el login. */
 export function isFirebaseConfigured() {
   return Boolean(config.apiKey && config.authDomain && config.projectId);
 }

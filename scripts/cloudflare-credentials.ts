@@ -38,17 +38,6 @@ let secrets: { SEED_ADMIN_PASSWORD: string };
 try { secrets = JSON.parse(await readFile(path, "utf8")); }
 catch { throw new Error("No se pudo leer el archivo de credenciales JSON."); }
 if (!secrets || typeof secrets.SEED_ADMIN_PASSWORD !== "string" || !secrets.SEED_ADMIN_PASSWORD.trim()) throw new Error("Archivo de credenciales incompleto o inválido.");
-if (target === "local") {
-  const devVars = resolve(root, ".dev.vars");
-  assertIgnored(devVars);
-  try {
-    // Vacio = sin Firebase en local; ver docs/firebase-auth.md para conectarlo.
-    await writeFile(devVars, "FIREBASE_PROJECT_ID=\n", { flag: "wx", mode: 0o600 });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-  }
-  protectPath(devVars);
-}
 if (action === "seed") {
   const child = Bun.spawn(["bun", "scripts/cloudflare-seed.ts", "--target", target!], {
     cwd: root,

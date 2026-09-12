@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "bun@1.3.5",
   "scripts": {
-    "dev": "concurrently -k -n backend,frontend -c blue,magenta \"bunx wrangler dev\" \"bun run --cwd frontend dev\"",
+    "dev": "bun scripts/cloudflare-dev.ts",
     "build:local": "bun scripts/cloudflare-build.ts local",
     "build:staging": "bun scripts/cloudflare-build.ts staging",
     "build:production": "bun scripts/cloudflare-build.ts production",
