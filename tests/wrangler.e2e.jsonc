@@ -1,0 +1,22 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "bebras-contest-e2e",
+  "main": "../backend/src/index.ts",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": { "port": 3100 },
+  "vars": {
+    "REGISTRATION_ONLY": "false",
+    "FRONTEND_ORIGIN": "http://localhost:4421",
+    "FIREBASE_PROJECT_ID": "bebras-bo-staging",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bebras-e2e",
+      "database_id": "e2e",
+      "migrations_dir": "../backend/migrations",
+    },
+  ],
+  "r2_buckets": [{ "binding": "UPLOADS", "bucket_name": "bebras-uploads-e2e" }],
+}

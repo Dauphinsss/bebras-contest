@@ -1,22 +1,18 @@
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import { firebaseWebConfig } from "../scripts/firebase-config";
 
 type Env = Record<string, string>;
 
 const root = resolve(import.meta.dir, "..");
-const backend = resolve(root, "backend");
+const tests = resolve(root, "tests");
 const frontend = resolve(root, "frontend");
 const backendUrl = "http://localhost:3100";
 const frontendUrl = "http://localhost:4421";
-const database = resolve(backend, "test.db");
-const clockFile = resolve(backend, "test-clock.txt");
-const testArtifacts = [
-  "test.db",
-  "test.db-journal",
-  "test.db-shm",
-  "test.db-wal",
-  "test-clock.txt",
-].map((name) => resolve(backend, name));
+const wranglerConfig = resolve(tests, "wrangler.e2e.jsonc");
+const wranglerState = resolve(tests, ".wrangler");
+const clockFile = resolve(tests, "test-clock.txt");
+const testArtifacts = [wranglerState, clockFile];
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "bebras2026";
 
 /**
@@ -28,10 +24,11 @@ const fast = process.argv.includes("--rapido");
 const serversOnly = process.argv.includes("--servidores");
 const testEnv = {
   ...process.env,
-  DATABASE_URL: "file:./test.db",
   // La sesion la emite Firebase; el proyecto tiene que ser uno de pruebas o el
   // emulador de Auth, nunca `bebras-bo`. Ver docs/firebase-auth.md.
-  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ?? "",
+  ...firebaseWebConfig.staging,
+  FIREBASE_PROJECT_ID: "bebras-bo-staging",
+  E2E_FIREBASE_API_KEY: firebaseWebConfig.staging.PUBLIC_FIREBASE_API_KEY,
   E2E_ADMIN_EMAIL: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
   E2E_ADMIN_PASSWORD: adminPassword,
   SEED_ADMIN_PASSWORD: adminPassword,
@@ -46,14 +43,69 @@ const testEnv = {
  * en una siembra normal.
  */
 async function seedTasks() {
-  await run(["bun", "run", "db:tasks"], backend);
-  await run(["bun", "run", "db:test-tasks"], backend);
+  await run(
+    [
+      "bun",
+      "scripts/cloudflare-seed-tasks.ts",
+      "--target",
+      "local",
+      "--config",
+      wranglerConfig,
+    ],
+    root,
+  );
+  await run(
+    [
+      "bun",
+      "backend/prisma/seed-test-tasks.ts",
+      "--target",
+      "local",
+      "--config",
+      wranglerConfig,
+    ],
+    root,
+  );
 }
 
 function cleanupTestArtifacts() {
   for (const file of testArtifacts) {
-    rmSync(file, { force: true, maxRetries: 5, retryDelay: 200 });
+    rmSync(file, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
   }
+}
+
+async function prepareDatabase() {
+  await run(
+    [
+      "bun",
+      "x",
+      "wrangler",
+      "d1",
+      "migrations",
+      "apply",
+      "DB",
+      "--local",
+      "--config",
+      wranglerConfig,
+    ],
+    root,
+  );
+  await run(
+    [
+      "bun",
+      "scripts/cloudflare-seed.ts",
+      "--target",
+      "local",
+      "--config",
+      wranglerConfig,
+    ],
+    root,
+  );
+  await seedTasks();
 }
 
 async function run(command: string[], cwd: string, extraEnv: Env = {}) {
@@ -78,18 +130,13 @@ async function startServers() {
       "Déjalos abiertos y corre las pruebas con: bun run test:e2e:rapido\n",
   );
 
-  if (!existsSync(database)) {
-    await run(["bun", "run", "prisma:push"], backend);
-    await run(["bun", "run", "db:admins"], backend);
-    await seedTasks();
+  if (!existsSync(wranglerState)) {
+    await prepareDatabase();
   }
 
   // Los mismos puertos y variables que usa playwright.config.ts al levantarlos.
   await Promise.all([
-    run(["bun", "run", "dev"], backend, {
-      PORT: "3100",
-      FRONTEND_ORIGIN: frontendUrl,
-    }),
+    run(["bun", "x", "wrangler", "dev", "--config", wranglerConfig], root),
     run(["bun", "run", "dev", "--", "--port", "4421"], frontend, {
       PUBLIC_API_BASE_URL: backendUrl,
     }),
@@ -115,10 +162,8 @@ async function main() {
   }
 
   try {
-    if (!fast || !existsSync(database)) {
-      await run(["bun", "run", "prisma:push"], backend);
-      await run(["bun", "run", "db:admins"], backend);
-      await seedTasks();
+    if (!fast || !existsSync(wranglerState)) {
+      await prepareDatabase();
     }
 
     await run(["bun", "x", "playwright", "test", ...playwrightArgs], root);

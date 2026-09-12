@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 
 export const API = "http://localhost:3100";
 export const UPLOADS_DIR = resolve(process.cwd(), "backend/uploads/letters");
-export const E2E_CLOCK_FILE = resolve(process.cwd(), "backend/test-clock.txt");
+export const E2E_CLOCK_FILE =
+  process.env.E2E_CLOCK_FILE ?? resolve(process.cwd(), "tests/test-clock.txt");
 
 export const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
@@ -26,20 +27,29 @@ export async function loginAdmin(api: APIRequestContext) {
   }
 
   const host =
-    process.env.FIREBASE_AUTH_EMULATOR_HOST ??
-    "identitytoolkit.googleapis.com";
+    process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "identitytoolkit.googleapis.com";
   const base = host.startsWith("http") ? host : `https://${host}`;
-  const response = await api.post(
+  const firebaseResponse = await api.post(
     `${base}/v1/accounts:signInWithPassword?key=${apiKey}`,
     { data: { ...ADMIN, returnSecureToken: true } },
   );
-  const session = (await response.json()) as { idToken?: string };
+  const session = (await firebaseResponse.json()) as { idToken?: string };
 
-  if (!session.idToken) {
+  if (!firebaseResponse.ok() || !session.idToken) {
     throw new Error(`Firebase no autenticó a ${ADMIN.email}.`);
   }
 
-  return { authorization: `Bearer ${session.idToken}` };
+  const authorization = `Bearer ${session.idToken}`;
+  const bebrasResponse = await api.post(`${API}/api/auth/session`, {
+    headers: { authorization },
+  });
+  if (!bebrasResponse.ok()) {
+    throw new Error(
+      `No se pudo abrir la sesión Bebras E2E (${bebrasResponse.status()}).`,
+    );
+  }
+
+  return { authorization };
 }
 
 export const SEEDED_TASK = {

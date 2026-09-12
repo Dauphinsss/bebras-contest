@@ -4,9 +4,8 @@ const backendUrl = "http://localhost:3100";
 const frontendUrl = "http://localhost:4421";
 const backendEnv = {
   ...process.env,
-  DATABASE_URL: "file:./test.db",
-  FRONTEND_ORIGIN: frontendUrl,
-  PORT: "3100",
+  WRANGLER_SEND_METRICS: "false",
+  WRANGLER_WRITE_LOGS: "false",
 };
 const frontendEnv = {
   ...process.env,
@@ -63,7 +62,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "cd backend && bun run dev",
+      command: "bun x wrangler dev --config tests/wrangler.e2e.jsonc",
       url: `${backendUrl}/health`,
       env: backendEnv,
       reuseExistingServer: reuseServers,
