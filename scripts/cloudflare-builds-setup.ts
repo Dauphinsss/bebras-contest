@@ -1,5 +1,5 @@
 /**
- * Conecta los dos Workers con GitHub para que cada push despliegue solo.
+ * Verifica o ajusta los triggers que despliegan los dos Workers desde GitHub.
  *
  * Requiere que la cuenta de GitHub ya este autorizada en el Dashboard: esa
  * autorizacion es un OAuth que no tiene API y sin ella la creacion de la
@@ -11,7 +11,8 @@
  *   bun scripts/cloudflare-builds-setup.ts
  *
  * El token debe ser de usuario (los de cuenta no sirven) y necesita ademas
- * Workers Scripts: Read para resolver el tag de cada Worker.
+ * Workers Scripts: Read para resolver el tag de cada Worker. El script actualiza
+ * el trigger existente y falla ante duplicados; nunca crea un segundo trigger.
  */
 const ACCOUNT = "a9ca7f3bfd5ff492721f722856ac79b6";
 const API = "https://api.cloudflare.com/client/v4";
@@ -41,6 +42,20 @@ const TRIGGERS = [
     deploy_command: "bunx wrangler deploy --env staging",
   },
 ];
+
+type BuildTrigger = {
+  trigger_uuid: string;
+  trigger_name?: string;
+  build_command?: string;
+  deploy_command?: string;
+  root_directory?: string;
+  branch_includes?: string[];
+  branch_excludes?: string[];
+  path_includes?: string[];
+  path_excludes?: string[];
+  deleted_on?: string | null;
+  repo_connection?: { repo_id?: string; repo_name?: string };
+};
 
 const check = process.argv.includes("--check");
 const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -85,55 +100,100 @@ for (const t of TRIGGERS) {
   if (!tags.has(t.worker)) throw new Error(`No existe el Worker ${t.worker}.`);
 }
 
-const tokens: { build_token_uuid: string; build_token_name: string }[] =
-  await cf("builds/tokens");
-
 console.log("Workers:");
 for (const t of TRIGGERS) console.log(`  ${t.worker}  tag=${tags.get(t.worker)}`);
-console.log(`Build tokens disponibles: ${tokens.length}`);
 
-if (!tokens.length) {
-  console.log(
-    "\nNo hay build tokens: Cloudflare los crea al conectar el repositorio\n" +
-      "desde el Dashboard. Haz esa conexion una vez y vuelve a ejecutar.",
-  );
-  process.exit(1);
+let connectionUuid: string | undefined;
+let buildTokenUuid: string | undefined;
+let invalid = false;
+
+async function creationResources() {
+  if (!connectionUuid) {
+    const connection = await cf("builds/repos/connections", {
+      method: "PUT",
+      body: JSON.stringify(REPO),
+    });
+    connectionUuid = connection.repo_connection_uuid;
+  }
+  if (!buildTokenUuid) {
+    const tokens: { build_token_uuid: string }[] = await cf("builds/tokens");
+    if (!tokens.length) {
+      throw new Error(
+        "No hay build tokens. Conecta primero el repositorio desde el Dashboard.",
+      );
+    }
+    buildTokenUuid = tokens[0].build_token_uuid;
+  }
+  return { connectionUuid, buildTokenUuid };
 }
-
-if (check) {
-  console.log("\n--check: no se creo ninguna conexion ni trigger.");
-  process.exit(0);
-}
-
-const conexion = await cf("builds/repos/connections", {
-  method: "PUT",
-  body: JSON.stringify(REPO),
-});
-console.log(`\nConexion del repositorio: ${conexion.repo_connection_uuid}`);
 
 for (const t of TRIGGERS) {
-  const creado = await cf("builds/triggers", {
-    method: "POST",
-    body: JSON.stringify({
-      external_script_id: tags.get(t.worker),
-      repo_connection_uuid: conexion.repo_connection_uuid,
-      build_token_uuid: tokens[0].build_token_uuid,
-      trigger_name: t.trigger_name,
-      build_command: t.build_command,
-      deploy_command: t.deploy_command,
-      root_directory: "/",
-      // Solo su rama dispara su entorno; `cloudflare-build.ts` ademas falla si
-      // la rama que reporta Workers Builds no corresponde al objetivo.
-      branch_includes: [t.branch],
-      branch_excludes: [],
-      path_includes: ["*"],
-      path_excludes: [],
-    }),
+  const tag = tags.get(t.worker)!;
+  const triggers = (await cf(`builds/workers/${tag}/triggers`)) as BuildTrigger[];
+  const active = triggers.filter((trigger) => !trigger.deleted_on);
+  if (active.length > 1) {
+    throw new Error(
+      `${t.worker} tiene ${active.length} triggers activos. Elimina los duplicados ` +
+        "desde el Dashboard antes de continuar.",
+    );
+  }
+
+  const desired = {
+    trigger_name: t.trigger_name,
+    build_command: t.build_command,
+    deploy_command: t.deploy_command,
+    root_directory: "/",
+    branch_includes: [t.branch],
+    branch_excludes: [],
+    path_includes: ["*"],
+    path_excludes: [],
+  };
+  const current = active[0];
+  if (!current) {
+    if (check) {
+      console.error(`FALTA ${t.worker}: no tiene trigger activo.`);
+      invalid = true;
+      continue;
+    }
+    const resources = await creationResources();
+    const created = await cf("builds/triggers", {
+      method: "POST",
+      body: JSON.stringify({
+        external_script_id: tag,
+        repo_connection_uuid: resources.connectionUuid,
+        build_token_uuid: resources.buildTokenUuid,
+        ...desired,
+      }),
+    });
+    console.log(`CREADO ${t.worker} <- ${t.branch}: ${created.trigger_uuid}`);
+    continue;
+  }
+
+  const differences = Object.entries(desired).filter(([key, value]) =>
+    JSON.stringify(current[key as keyof BuildTrigger]) !== JSON.stringify(value),
+  );
+  if (current.repo_connection?.repo_id !== REPO.repo_id) {
+    throw new Error(
+      `${t.worker} esta conectado a otro repositorio. Reconectalo desde el Dashboard.`,
+    );
+  }
+  if (!differences.length) {
+    console.log(`OK ${t.worker} <- ${t.branch}: ${current.trigger_uuid}`);
+    continue;
+  }
+  if (check) {
+    console.error(
+      `DESAJUSTADO ${t.worker}: ${differences.map(([field]) => field).join(", ")}`,
+    );
+    invalid = true;
+    continue;
+  }
+  await cf(`builds/triggers/${current.trigger_uuid}`, {
+    method: "PATCH",
+    body: JSON.stringify(desired),
   });
-  console.log(`  ${t.worker} <- ${t.branch}: ${creado.trigger_uuid ?? "creado"}`);
+  console.log(`ACTUALIZADO ${t.worker} <- ${t.branch}: ${current.trigger_uuid}`);
 }
 
-console.log(
-  "\nListo. Falta comprobar en el Dashboard que las variables del build sean\n" +
-    "BUN_VERSION=1.3.5, NODE_VERSION=22 y SKIP_DEPENDENCY_INSTALL=1.",
-);
+if (invalid) process.exit(1);
+console.log(check ? "\nConfiguracion correcta; no se modifico nada." : "\nConfiguracion ajustada sin crear duplicados.");
