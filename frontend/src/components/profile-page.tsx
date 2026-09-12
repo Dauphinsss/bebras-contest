@@ -11,7 +11,8 @@ import { toast } from "sonner";
 
 import { API_BASE_URL, apiRequest } from "@/lib/api-client";
 import { REGISTRATION_ONLY } from "@/lib/registration-only";
-import { authHeaders, getToken, getUser, setUser } from "@/lib/auth";
+import { getUser, setUser } from "@/lib/auth";
+import { authorizationHeaders } from "@/lib/firebase-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -109,20 +110,22 @@ export function ProfilePage() {
     newSchool.institutionType === "school" && Boolean(newSchool.name.trim());
 
   const load = useCallback(async () => {
-    const token = getToken();
+    // El token rota solo cada hora; lo que invalida una respuesta en vuelo es
+    // que haya cambiado la persona, no que se haya renovado su token.
+    const userId = getUser()?.id ?? null;
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: authHeaders(),
+        headers: await authorizationHeaders(),
       });
 
-      if (getToken() !== token) return;
+      if ((getUser()?.id ?? null) !== userId) return;
       if (!response.ok) {
         toast.error("No se pudo cargar tu perfil.");
         return;
       }
 
       const data = (await response.json()) as Profile;
-      if (getToken() !== token || getUser()?.id !== data.id) return;
+      if (getUser()?.id !== data.id) return;
       setProfile(data);
       setUser({
         id: data.id,
@@ -153,7 +156,7 @@ export function ProfilePage() {
     try {
       const response = await fetch(`${API_BASE_URL}${path}`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: await authorizationHeaders(),
         body: form,
       });
 
@@ -234,7 +237,7 @@ export function ProfilePage() {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/auth/me/schools/${school.id}`,
-        { method: "DELETE", headers: authHeaders() },
+        { method: "DELETE", headers: await authorizationHeaders() },
       );
 
       if (!response.ok) {

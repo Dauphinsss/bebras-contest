@@ -134,15 +134,3 @@ export function subscribeSession(listener: () => void) {
   };
 }
 
-export function authHeaders(): Record<string, string> {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-/** Limpia la sesión y manda al login cuando la API responde 401. */
-export function handleUnauthorized() {
-  clearToken();
-  if (typeof window !== "undefined") {
-    window.location.replace("/login");
-  }
-}

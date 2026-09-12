@@ -1,13 +1,11 @@
 import {
   GoogleAuthProvider,
-  browserLocalPersistence,
   createUserWithEmailAndPassword,
   getAdditionalUserInfo,
   getRedirectResult,
   linkWithCredential,
   onIdTokenChanged,
   sendEmailVerification,
-  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -19,6 +17,7 @@ import {
 
 import { clearToken, setToken } from "@/lib/auth";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { idTokenFrom } from "@/lib/firebase-token";
 
 /** Estado unico de Firebase Authentication para todo el frontend (§16). */
 export interface FirebaseSession {
@@ -76,7 +75,8 @@ function start() {
   started = true;
 
   const auth = firebaseAuth();
-  void setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+  // No se toca la persistencia: `getAuth()` ya guarda en IndexedDB con respaldo
+  // en localStorage, y cambiarla aqui competiria con la restauracion en curso.
   // Consume el resultado del flujo por redireccion (respaldo de los popups).
   void getRedirectResult(auth).catch(() => undefined);
 
@@ -112,15 +112,34 @@ export function firebaseServerSnapshot() {
   return SIGNED_OUT;
 }
 
-/** ID Token vigente; Firebase lo renueva solo si esta por expirar. */
+/**
+ * ID Token vigente; Firebase lo renueva solo si esta por expirar.
+ *
+ * Espera a `authStateReady()`: al cargar una pagina la sesion persistida se
+ * restaura de forma asincrona y hasta que termina `currentUser` es null, asi que
+ * las primeras peticiones salian sin cabecera y el backend las rechazaba.
+ */
 export async function currentIdToken(): Promise<string | null> {
   if (!isFirebaseConfigured()) return null;
-  const user = firebaseAuth().currentUser;
-  if (!user) return null;
-  try {
-    return await user.getIdToken();
-  } catch {
-    return null;
+  // Deja instalado el observador aunque ningun componente se haya suscrito: asi
+  // la copia del token en localStorage tambien se mantiene al dia.
+  start();
+  return idTokenFrom(firebaseAuth());
+}
+
+let ending = false;
+
+/**
+ * El backend rechazo el token. Cerrar tambien en Firebase evita que /login
+ * retome la sesion al instante y se quede yendo y viniendo. Varias peticiones
+ * en vuelo pueden fallar a la vez, asi que solo la primera cierra.
+ */
+export async function endRejectedSession() {
+  if (ending) return;
+  ending = true;
+  await signOutFirebase();
+  if (typeof window !== "undefined") {
+    window.location.replace("/login");
   }
 }
 

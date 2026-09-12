@@ -1,5 +1,4 @@
-import { handleUnauthorized } from "@/lib/auth";
-import { authorizationHeaders } from "@/lib/firebase-auth";
+import { authorizationHeaders, endRejectedSession } from "@/lib/firebase-auth";
 
 export const API_BASE_URL =
   import.meta.env.PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -72,7 +71,7 @@ export async function apiRequest<T>(
   });
 
   if (auth && response.status === 401) {
-    handleUnauthorized();
+    void endRejectedSession();
     throw new ApiError(
       "Sesión expirada. Inicia sesión de nuevo.",
       response.status,

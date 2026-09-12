@@ -92,6 +92,9 @@ export function LoginForm() {
       session.loading ||
       !session.user ||
       resumedRef.current ||
+      // Mientras se esta enviando el formulario, ese envio ya abre la sesion:
+      // reanudar aqui dispararia una segunda llamada por la misma entrada.
+      busy ||
       unverified ||
       getUser()
     ) {
@@ -99,7 +102,7 @@ export function LoginForm() {
     }
     resumedRef.current = true;
     void enterBebras(session.user);
-  }, [configured, session.loading, session.user, unverified]);
+  }, [busy, configured, session.loading, session.user, unverified]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

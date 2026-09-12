@@ -1,5 +1,5 @@
 import { API_BASE_URL, apiRequest as request } from "@/lib/api-client";
-import { authHeaders } from "@/lib/auth";
+import { authorizationHeaders } from "@/lib/firebase-auth";
 
 export type GroupTeam = {
   id: string;
@@ -95,7 +95,7 @@ export type RosterImportResult = {
 export async function downloadRosterTemplate(groupId: string, name: string) {
   const response = await fetch(
     `${API_BASE_URL}/api/groups/${groupId}/roster-template`,
-    { headers: authHeaders() },
+    { headers: await authorizationHeaders() },
   );
 
   if (!response.ok) {

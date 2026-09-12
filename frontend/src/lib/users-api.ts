@@ -1,4 +1,4 @@
-import { authHeaders, handleUnauthorized } from "@/lib/auth";
+import { authorizationHeaders, endRejectedSession } from "@/lib/firebase-auth";
 import { API_BASE_URL, apiRequest as request } from "@/lib/api-client";
 
 export type MaestroSchool = {
@@ -65,11 +65,11 @@ export async function openMaestroDocument(id: number, doc: MaestroDoc) {
   try {
     const response = await fetch(
       `${API_BASE_URL}/api/users/${id}/documents/${doc}`,
-      { headers: { ...authHeaders() } },
+      { headers: await authorizationHeaders() },
     );
 
     if (response.status === 401) {
-      handleUnauthorized();
+      void endRejectedSession();
       throw new Error("Sesión expirada. Inicia sesión de nuevo.");
     }
 
