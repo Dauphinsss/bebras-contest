@@ -110,10 +110,12 @@ async function save(page: Page, id: string, headers: Record<string, string>) {
     (r) =>
       r.url() === `${API}/api/tasks/${id}` && r.request().method() === "PUT",
   );
+  const redirected = page.waitForURL((url) => url.pathname === "/tareas");
   await page
     .getByRole("button", { name: "Guardar cambios", exact: true })
     .click();
   expect((await response).status()).toBe(200);
+  await redirected;
   const stored = await page.request.get(`${API}/api/tasks/${id}`, { headers });
   expect(stored.ok(), await stored.text()).toBe(true);
   return stored.json();
