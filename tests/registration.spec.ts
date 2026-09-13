@@ -1,8 +1,10 @@
 import { test, expect, request } from "@playwright/test";
 import {
-  ADMIN,
   API,
   loginAdmin,
+  loginAdminPage,
+  loginPage,
+  loginUser,
   uploadedDocuments,
   removeNewUploads,
   registrationFields,
@@ -247,13 +249,9 @@ test("lets a teacher sign in first and upload the documents later", async () => 
   });
   expect(meWithRegisterToken.ok(), await meWithRegisterToken.text()).toBe(true);
 
-  const login = await api.post(`${API}/api/auth/login`, {
-    data: { email, password: "segura123" },
-  });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = await login.json();
+  const session = await loginUser(api, { email, password: "segura123" });
   expect(session.user.status).toBe("pending");
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = session.headers;
 
   const profile = await api
     .get(`${API}/api/auth/me`, { headers })
@@ -299,14 +297,13 @@ test("lets a teacher sign in first and upload the documents later", async () => 
   });
   expect(homeRegistered.status(), await homeRegistered.text()).toBe(201);
 
-  const homeLogin = await api
-    .post(`${API}/api/auth/login`, {
-      data: { email: homeEmail, password: "segura123" },
-    })
-    .then((r) => r.json());
+  const homeLogin = await loginUser(api, {
+    email: homeEmail,
+    password: "segura123",
+  });
   const homeProfile = await api
     .get(`${API}/api/auth/me`, {
-      headers: { authorization: `Bearer ${homeLogin.token}` },
+      headers: homeLogin.headers,
     })
     .then((r) => r.json());
   expect(homeProfile.documents.idFront).toBe(true);
@@ -342,15 +339,9 @@ test("sorts teachers by status and confirms rejecting or suspending", async ({
     expect(created.status(), await created.text()).toBe(201);
   }
 
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
   await api.dispose();
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/maestros");
 
   const filterBy = (name: RegExp) => page.getByRole("button", { name });
@@ -395,13 +386,12 @@ test("sorts teachers by status and confirms rejecting or suspending", async ({
   await expect(page.getByText(rejectedEmail)).toBeVisible();
 
   const suspendedApi = await request.newContext();
-  const suspendedLogin = await suspendedApi
-    .post(`${API}/api/auth/login`, {
-      data: { email: approvedEmail, password: "segura123" },
-    })
-    .then((r) => r.json());
+  const suspendedLogin = await loginUser(suspendedApi, {
+    email: approvedEmail,
+    password: "segura123",
+  });
   const groups = await suspendedApi.get(`${API}/api/groups`, {
-    headers: { authorization: `Bearer ${suspendedLogin.token}` },
+    headers: suspendedLogin.headers,
   });
   expect(groups.status()).toBe(403);
   await suspendedApi.dispose();
@@ -482,15 +472,7 @@ test("asks for another school that the admin approves on its own", async ({
 
   await api.dispose();
 
-  await page.goto("/");
-  await page.evaluate(
-    ({ token, user }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem("bebras_user", JSON.stringify(user));
-    },
-    { token: session.token, user: session.user },
-  );
-  await page.goto("/perfil");
+  await loginPage(page, { email, password: "segura123" }, /\/perfil\/?$/);
 
   await expect(page.getByText(email).first()).toBeVisible({ timeout: 15000 });
   await expect(page.getByText("70000004").first()).toBeVisible();
@@ -545,17 +527,9 @@ test("enables group navigation after the teacher is approved", async ({
       letter: VALID_PDF,
     },
   });
-  const teacher = await registered.json();
+  expect(registered.status(), await registered.text()).toBe(201);
 
-  await page.goto("/");
-  await page.evaluate(
-    ({ token, user }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem("bebras_user", JSON.stringify(user));
-    },
-    { token: teacher.token, user: teacher.user },
-  );
-  await page.goto("/perfil");
+  await loginPage(page, { email, password: "segura123" }, /\/perfil\/?$/);
   await expect(
     page.getByRole("heading", { name: "Mis colegios", exact: true }),
   ).toBeVisible({ timeout: 15000 });

@@ -7,6 +7,7 @@ import {
   createContest,
   joinContestSession,
   loginAdmin,
+  loginAdminPage,
   playHeaders,
   taskBlock,
 } from "./support/helpers";
@@ -429,16 +430,9 @@ test("edits destinations independently, repairs incomplete solutions and persist
   request,
   page,
 }) => {
-  const { ADMIN } = await import("./support/helpers");
-  const session = await request
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(request);
   const task = await createTask(request, headers);
-  await page.addInitScript(({ token, user }) => {
-    localStorage.setItem("bebras_token", token);
-    localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto(`/tareas/editar?id=${task.id}`);
   await expect(
     page.getByText("3 piezas · 12 destinos", { exact: true }),
@@ -566,15 +560,8 @@ test("checks equivalent pieces in the actual tester", async ({
   request,
   page,
 }) => {
-  const { ADMIN } = await import("./support/helpers");
-  const session = await request
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
-  const headers = { authorization: `Bearer ${session.token}` };
-  await page.addInitScript(({ token, user }) => {
-    localStorage.setItem("bebras_token", token);
-    localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  const headers = await loginAdmin(request);
+  await loginAdminPage(page);
   const task = await createTask(request, headers);
   const positions: Record<string, string> = Object.fromEntries(
     task.dragDropItems.map((item: { id: string; correctTargetId: string }) => [

@@ -9,6 +9,7 @@ import {
   joinContest,
   joinContestSession,
   playHeaders,
+  loginAdminPage,
 } from "./support/helpers";
 
 test.afterEach(() => {
@@ -110,21 +111,7 @@ test("results appear only after consolidating and publishing", async ({
   );
   expect(expiredResult?.elapsedSeconds).toBe(60);
 
-  await page.addInitScript(
-    ({ token }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem(
-        "bebras_user",
-        JSON.stringify({
-          id: 0,
-          email: "marko@bebras.bo",
-          name: "Marko",
-          role: "admin",
-        }),
-      );
-    },
-    { token: headers.authorization.replace("Bearer ", "") },
-  );
+  await loginAdminPage(page);
   await page.goto(`/desafios/resultados?id=${contest.id}`);
   await expect(page.getByText("Consolidado", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Publicar resultados" }).click();

@@ -1,7 +1,12 @@
 import { expect, request, test } from "@playwright/test";
 import ExcelJS from "exceljs";
 
-import { ADMIN, API, createContest, loginAdmin } from "./support/helpers";
+import {
+  API,
+  createContest,
+  loginAdmin,
+  loginAdminPage,
+} from "./support/helpers";
 
 test("returns structured fields for group creation errors", async () => {
   const api = await request.newContext();
@@ -35,21 +40,12 @@ test("returns structured fields for group creation errors", async () => {
 
 test("creates groups that inherit the contest schedule", async ({ page }) => {
   const api = await request.newContext();
-  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = (await login.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const contest = await createContest(api, headers, {
     title: "Desafío con calendario heredado",
   });
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/grupos");
   await page.waitForFunction(
     () => {
@@ -213,13 +209,7 @@ test("validates manual enrollment and recovers from a duplicate", async ({
   page,
 }) => {
   const api = await request.newContext();
-  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = (await login.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const contest = await createContest(api, headers, {
     title: "Desafío inscripción manual",
     allowPairs: true,
@@ -254,10 +244,7 @@ test("validates manual enrollment and recovers from a duplicate", async ({
     await route.continue();
   });
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/grupos");
   const groupCard = page
     .getByRole("heading", {
@@ -458,13 +445,7 @@ test("validates participant editing and recovers from a duplicate", async ({
   page,
 }) => {
   const api = await request.newContext();
-  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = (await login.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const contest = await createContest(api, headers, {
     title: "Desafío edición accesible",
     allowPairs: true,
@@ -513,10 +494,7 @@ test("validates participant editing and recovers from a duplicate", async ({
     await route.continue();
   });
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/grupos");
   const groupCard = page
     .getByRole("heading", { name: "Grupo edición accesible", exact: true })
@@ -1021,13 +999,7 @@ test("announces roster validation, atomic results and refresh failures", async (
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   const api = await request.newContext();
-  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = (await login.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const contest = await createContest(api, headers, {
     title: "Desafío importación accesible",
   });
@@ -1079,10 +1051,7 @@ test("announces roster validation, atomic results and refresh failures", async (
     await route.continue();
   });
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/grupos");
   const groupCard = page
     .getByRole("heading", {
@@ -1288,13 +1257,7 @@ test("associates group creation errors and recovers after a remote rejection", a
   page,
 }) => {
   const api = await request.newContext();
-  const login = await api.post(`${API}/api/auth/login`, { data: ADMIN });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = (await login.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const firstContest = await createContest(api, headers, {
     title: "Desafío validación uno",
   });
@@ -1319,10 +1282,7 @@ test("associates group creation errors and recovers after a remote rejection", a
     }
     await route.continue();
   });
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/grupos");
   await page.waitForFunction(
     () => {

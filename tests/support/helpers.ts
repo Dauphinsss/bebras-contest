@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -8,8 +8,8 @@ export const E2E_CLOCK_FILE =
   process.env.E2E_CLOCK_FILE ?? resolve(process.cwd(), "tests/test-clock.txt");
 
 export const ADMIN = {
-  email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
-  password: process.env.E2E_ADMIN_PASSWORD ?? "bebras2026",
+  email: process.env.E2E_ADMIN_EMAIL ?? "",
+  password: process.env.E2E_ADMIN_PASSWORD ?? "",
 };
 
 /**
@@ -18,7 +18,15 @@ export const ADMIN = {
  * emulador de Auth o un proyecto aparte, nunca `bebras-bo`, para no mezclar
  * usuarios de prueba con los reales.
  */
-export async function loginAdmin(api: APIRequestContext) {
+export async function loginUser(
+  api: APIRequestContext,
+  credentials: { email: string; password: string },
+) {
+  if (!credentials.email || !credentials.password) {
+    throw new Error(
+      "Faltan las credenciales E2E para autenticar la cuenta Firebase.",
+    );
+  }
   const apiKey = process.env.E2E_FIREBASE_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -31,12 +39,12 @@ export async function loginAdmin(api: APIRequestContext) {
   const base = host.startsWith("http") ? host : `https://${host}`;
   const firebaseResponse = await api.post(
     `${base}/v1/accounts:signInWithPassword?key=${apiKey}`,
-    { data: { ...ADMIN, returnSecureToken: true } },
+    { data: { ...credentials, returnSecureToken: true } },
   );
   const session = (await firebaseResponse.json()) as { idToken?: string };
 
   if (!firebaseResponse.ok() || !session.idToken) {
-    throw new Error(`Firebase no autenticó a ${ADMIN.email}.`);
+    throw new Error(`Firebase no autenticó a ${credentials.email}.`);
   }
 
   const authorization = `Bearer ${session.idToken}`;
@@ -49,7 +57,34 @@ export async function loginAdmin(api: APIRequestContext) {
     );
   }
 
-  return { authorization };
+  const bebrasSession = (await bebrasResponse.json()) as {
+    user: { email: string; status: string };
+  };
+  return { headers: { authorization }, user: bebrasSession.user };
+}
+
+export async function loginAdmin(api: APIRequestContext) {
+  return (await loginUser(api, ADMIN)).headers;
+}
+
+export async function loginPage(
+  page: Page,
+  credentials: { email: string; password: string },
+  destination: RegExp,
+) {
+  await page.goto("/login");
+  await page
+    .getByRole("textbox", { name: "Correo", exact: true })
+    .fill(credentials.email);
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill(credentials.password);
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL(destination, { timeout: 15000 });
+}
+
+export async function loginAdminPage(page: Page) {
+  await loginPage(page, ADMIN, /\/desafios\/?$/);
 }
 
 export const SEEDED_TASK = {

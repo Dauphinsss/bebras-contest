@@ -1,6 +1,6 @@
 import { test, expect, request } from "@playwright/test";
 import { canAccessSiteNavForMode as canAccessSiteNav } from "../frontend/src/lib/site-navigation-access";
-import { API, ADMIN, loginAdmin } from "./support/helpers";
+import { API, loginAdmin, loginAdminPage } from "./support/helpers";
 
 test("blocks the panel for users without a session", async ({ page }) => {
   await page.goto("/desafios");
@@ -19,19 +19,7 @@ test("filters navigation sections by user role", () => {
 test("keeps the new contest form within a mobile viewport", async ({
   page,
 }) => {
-  const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, {
-    data: ADMIN,
-  });
-  expect(loginResponse.ok()).toBe(true);
-  const session = (await loginResponse.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/desafios");
   await page.waitForFunction(
@@ -123,8 +111,6 @@ test("keeps the new contest form within a mobile viewport", async ({
     "view-transition-name",
     "app-header",
   );
-
-  await api.dispose();
 });
 
 test("keeps the contest calendar within a mobile viewport", async ({
@@ -144,13 +130,7 @@ test("keeps the contest calendar within a mobile viewport", async ({
     })
     .then((response) => response.json());
 
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto(`/desafios/editar?id=${draft.id}`);
 

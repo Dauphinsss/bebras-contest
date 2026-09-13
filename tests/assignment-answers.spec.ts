@@ -1,17 +1,12 @@
-import {
-  expect,
-  test,
-  type APIRequestContext,
-  type Page,
-} from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { rmSync, writeFileSync } from "node:fs";
 import {
-  ADMIN,
   API,
   E2E_CLOCK_FILE,
   createContest,
   joinContestSession,
   loginAdmin,
+  loginAdminPage,
   playHeaders,
   taskBlock,
 } from "./support/helpers";
@@ -98,16 +93,6 @@ async function createTask(
   });
   expect(response.ok(), await response.text()).toBe(true);
   return response.json();
-}
-async function login(page: Page) {
-  const session = await page.request
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
-  await page.addInitScript(({ token, user }) => {
-    localStorage.setItem("bebras_token", token);
-    localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
-  return { authorization: `Bearer ${session.token}` };
 }
 function expectPrivateAbsent(value: Record<string, unknown>) {
   expect(value).not.toHaveProperty("answerKey");
@@ -226,7 +211,8 @@ for (const kind of kinds) {
   test(`${kind}: supports pointer, touch, keyboard, clearing and practice locking`, async ({
     page,
   }) => {
-    const headers = await login(page);
+    const headers = await loginAdmin(page.request);
+    await loginAdminPage(page);
     const authored = await createTask(page.request, headers, kind);
     for (const width of [1100, 390]) {
       await page.setViewportSize({ width, height: 844 });
@@ -296,7 +282,8 @@ for (const kind of kinds) {
   test(`${kind}: edits options and reopens saved content and solutions`, async ({
     page,
   }) => {
-    const headers = await login(page);
+    const headers = await loginAdmin(page.request);
+    await loginAdminPage(page);
     const authored = await createTask(page.request, headers, kind);
     await page.goto(`/tareas/editar?id=${authored.id}`);
     const option = page.getByRole("textbox", {
@@ -577,7 +564,8 @@ for (const width of [1100, 390]) {
     page,
   }) => {
     test.setTimeout(120000);
-    const headers = await login(page);
+    const headers = await loginAdmin(page.request);
+    await loginAdminPage(page);
     await page.setViewportSize({ width, height: 900 });
     for (const entry of seeded) {
       const author = await page.request
@@ -646,8 +634,8 @@ test("the five booklet tasks are answered, submitted and scored in a real contes
   // así que primero se arman los dos desafíos y recién después salta el reloj.
   const rounds = [];
   for (const group of contests) {
-    const entries = group.ids.map(
-      (id) => seeded.find((entry) => entry.id === id)!,
+    const entries = group.ids.map((id) =>
+      seeded.find((entry) => entry.id === id)!,
     );
     const authored = [];
     for (const entry of entries)

@@ -1,10 +1,11 @@
 import { test, expect, request } from "@playwright/test";
 import {
   API,
-  ADMIN,
   taskBlock,
   DRAG_DROP_TARGETS,
   createPracticeTask,
+  loginAdmin,
+  loginAdminPage,
 } from "./support/helpers";
 
 test("keeps task authoring controls responsive in the current layout", async ({
@@ -12,19 +13,10 @@ test("keeps task authoring controls responsive in the current layout", async ({
 }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   const api = await request.newContext();
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
-  const task = await createPracticeTask(
-    api,
-    { authorization: `Bearer ${session.token}` },
-    "drag_drop",
-  );
+  const headers = await loginAdmin(api);
+  const task = await createPracticeTask(api, headers, "drag_drop");
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto(`/tareas/editar?id=${task.id}`);
   await api.dispose();
 
@@ -385,10 +377,7 @@ test("edits task content with touch without adding mobile controls", async ({
   browser,
 }) => {
   const api = await request.newContext();
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const blockIds = {
     first: `touch-first-${Date.now()}`,
     image: `touch-image-${Date.now()}`,
@@ -418,11 +407,8 @@ test("edits task content with touch without adding mobile controls", async ({
   });
 
   try {
-    await touchContext.addInitScript(({ token, user }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem("bebras_user", JSON.stringify(user));
-    }, session);
     const page = await touchContext.newPage();
+    await loginAdminPage(page);
     const cdp = await touchContext.newCDPSession(page);
     const dragWithTouch = async (
       start: { x: number; y: number },
@@ -606,16 +592,9 @@ test("edits task content with touch without adding mobile controls", async ({
 test("returns a newly created task to the list and reopens its data", async ({
   page,
 }) => {
-  const api = await request.newContext();
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
   const title = `Tarea creada ${Date.now()}`;
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/tareas/nueva");
   await page.waitForFunction(() => {
     const form = document.querySelector("form");
@@ -687,23 +666,16 @@ test("returns a newly created task to the list and reopens its data", async ({
   await expect(
     page.getByRole("button", { name: "Guardar cambios" }),
   ).toBeVisible();
-  await api.dispose();
 });
 
 test("serializes every multiple-choice correctness criterion", async ({
   page,
 }) => {
   const api = await request.newContext();
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const task = await createPracticeTask(api, headers, "multiple_choice");
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   const editUrl = `/tareas/editar?id=${task.id}`;
   await page.goto(editUrl);
 
@@ -776,10 +748,7 @@ test("serializes every multiple-choice correctness criterion", async ({
 
 test("evaluates any and all criteria in the task tester", async ({ page }) => {
   const api = await request.newContext();
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const answers = ["A", "B", "C"].map((id) => ({
     id,
     blocks: [taskBlock(`tester-${id}-${Date.now()}`, `Respuesta ${id}`)],
@@ -795,10 +764,7 @@ test("evaluates any and all criteria in the task tester", async ({ page }) => {
     correctAnswerId: "all:B,C",
   });
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
 
   await page.goto(`/tareas/probador?id=${anyTask.id}`);
   const resultAlert = page.locator("main").getByRole("alert");
@@ -830,10 +796,7 @@ test("evaluates any and all criteria in the task tester", async ({ page }) => {
 
 test("labels tester controls for each answer type", async ({ page }) => {
   const api = await request.newContext();
-  const session = await api
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((response) => response.json());
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const cases = [
     { answerType: "multiple_choice", heading: "Opciones de respuesta" },
     { answerType: "short_text", heading: "Respuesta corta" },
@@ -845,10 +808,7 @@ test("labels tester controls for each answer type", async ({ page }) => {
     tasks.push(await createPracticeTask(api, headers, testCase.answerType));
   }
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
 
   for (const [index, testCase] of cases.entries()) {
     const task = tasks[index];

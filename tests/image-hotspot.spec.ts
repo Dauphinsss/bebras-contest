@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { rmSync, writeFileSync } from "node:fs";
 import {
-  ADMIN,
   API,
   E2E_CLOCK_FILE,
   createContest,
   joinContestSession,
   loginAdmin,
+  loginAdminPage,
   playHeaders,
   taskBlock,
 } from "./support/helpers";
@@ -73,16 +73,6 @@ test("checks unsaved hotspot drafts and locks the public practice after checking
   await expect(svg.locator('[aria-pressed="true"]')).toHaveCount(0);
   await expect(top).toHaveAttribute("aria-disabled", "false");
 });
-async function login(page: Page) {
-  const session = await page.request
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
-  await page.addInitScript(({ token, user }) => {
-    localStorage.setItem("bebras_token", token);
-    localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
-  return { authorization: `Bearer ${session.token}` };
-}
 async function screenPoint(svg: Locator, x: number, y: number) {
   return svg.evaluate(
     (element, p) => {
@@ -169,7 +159,8 @@ test("hotspot seeds reopen with private answer keys and reject invalid updates",
 test("selects actual paths and boat points by pointer, keyboard and touch at different widths", async ({
   page,
 }) => {
-  const headers = await login(page);
+  const headers = await loginAdmin(page.request);
+  await loginAdminPage(page);
   for (const width of [1100, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/tareas/probador?id=${ids[0]}`);
@@ -264,7 +255,8 @@ test("selects actual paths and boat points by pointer, keyboard and touch at dif
 test("edits points and polygon vertices on one canvas and saves/reopens both config and key", async ({
   page,
 }) => {
-  const headers = await login(page);
+  const headers = await loginAdmin(page.request);
+  await loginAdminPage(page);
   const response = await page.request.post(`${API}/api/tasks`, {
     headers,
     data: {

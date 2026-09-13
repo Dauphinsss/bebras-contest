@@ -4,6 +4,7 @@ import {
   API,
   ADMIN,
   loginAdmin,
+  loginUser,
   registrationFields,
   removeNewUploads,
   uploadedDocuments,
@@ -201,18 +202,16 @@ test("registers exact password boundaries and preserves Unicode for login", asyn
       multipart: { ...registrationFields(email, "school"), password },
     });
     expect(response.status()).toBe(201);
-    const login = await request.post(`${API}/api/auth/login`, {
-      data: { email, password },
-    });
-    expect(login.ok()).toBe(true);
+    await expect(
+      loginUser(request, { email, password }),
+    ).resolves.toBeDefined();
     const altered =
       password.normalize("NFC") !== password
         ? password.normalize("NFC")
         : `X${password.slice(1)}`;
-    const wrong = await request.post(`${API}/api/auth/login`, {
-      data: { email, password: altered },
-    });
-    expect(wrong.status()).toBe(401);
+    await expect(
+      loginUser(request, { email, password: altered }),
+    ).rejects.toThrow(`Firebase no autenticó a ${email}.`);
   }
 });
 
@@ -622,14 +621,11 @@ test("normalizes email aliases and subdomains for registration, duplicates and l
       message: "Ya existe una cuenta con ese correo.",
     });
   }
-  const login = await request.post(`${API}/api/auth/login`, {
-    data: {
-      email: ` ${email} `,
-      password: registrationFields(email, "school").password,
-    },
+  const login = await loginUser(request, {
+    email: email.trim().toLowerCase(),
+    password: registrationFields(email, "school").password,
   });
-  expect(login.ok(), await login.text()).toBe(true);
-  expect((await login.json()).user.email).toBe(normalized);
+  expect(login.user.email).toBe(normalized);
 });
 
 for (const width of [390, 1280]) {

@@ -1,9 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
-  ADMIN,
   API,
   DRAG_DROP_BACKGROUND,
   DRAG_DROP_ITEMS,
+  loginAdmin,
+  loginAdminPage,
   taskBlock,
 } from "./support/helpers";
 
@@ -18,16 +19,8 @@ function uploadedImage(image: { id: string; name: string; url: string }) {
 }
 
 async function author(page: Page, kind: "text_cloze" | "drag_drop") {
-  const login = await page.request.post(`${API}/api/auth/login`, {
-    data: ADMIN,
-  });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = await login.json();
-  const headers = { authorization: `Bearer ${session.token}` };
-  await page.addInitScript(({ token, user }) => {
-    localStorage.setItem("bebras_token", token);
-    localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  const headers = await loginAdmin(page.request);
+  await loginAdminPage(page);
   const base = {
     title: `Autoría ${kind} ${Date.now()}`,
     categories: ["Algoritmos y programación"],

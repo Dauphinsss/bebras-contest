@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { rmSync, writeFileSync } from "node:fs";
 import {
-  ADMIN,
   API,
   E2E_CLOCK_FILE,
   createPracticeTask,
   createContest,
   joinContestSession,
   loginAdmin,
+  loginAdminPage,
   playHeaders,
 } from "./support/helpers";
 
@@ -145,17 +145,11 @@ test("tester discards stale checks, clears feedback on changes/reset and retries
   request,
   page,
 }) => {
-  const session = await request
-    .post(`${API}/api/auth/login`, { data: ADMIN })
-    .then((r) => r.json());
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(request);
   const task = await createPracticeTask(request, headers, "short_text", {
     isPractice: false,
   });
-  await page.addInitScript(({ token, user }) => {
-    localStorage.setItem("bebras_token", token);
-    localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto(`/tareas/probador?id=${task.id}`);
   const input = page.getByRole("textbox", {
     name: "Tu respuesta",

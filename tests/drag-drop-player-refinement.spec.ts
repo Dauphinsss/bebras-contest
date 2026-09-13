@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { ADMIN, API, DRAG_DROP_BACKGROUND, DRAG_DROP_ITEMS } from "./support/helpers";
+import { DRAG_DROP_BACKGROUND, DRAG_DROP_ITEMS, loginAdminPage } from "./support/helpers";
 
 const targets = [
   { id: "center", x: 50, y: 50, snapRadius: 5 },
@@ -10,9 +10,7 @@ const targets = [
 ];
 
 async function openDraft(page: Page, textual = false) {
-  const login = await page.request.post(`${API}/api/auth/login`, { data: ADMIN });
-  expect(login.ok(), await login.text()).toBe(true);
-  const session = await login.json();
+  await loginAdminPage(page);
   const task = {
     taskId: "player-refinement-draft",
     title: "Borrador del player",
@@ -29,11 +27,9 @@ async function openDraft(page: Page, textual = false) {
       { id: "b", label: "", image: textual ? null : DRAG_DROP_ITEMS[1].image, widthPercent: 12 },
     ],
   };
-  await page.addInitScript(({ session, task }) => {
-    localStorage.setItem("bebras_token", session.token);
-    localStorage.setItem("bebras_user", JSON.stringify(session.user));
+  await page.addInitScript((task) => {
     sessionStorage.setItem("bebras:task-draft-test", JSON.stringify({ taskId: null, task }));
-  }, { session, task });
+  }, task);
   // This is a frontend draft fixture, including incomplete pieces. It does not
   // assert that the backend accepts missing images when saving or previewing.
   await page.route("**/api/tasks/draft/preview", (route) => route.fulfill({ json: task }));

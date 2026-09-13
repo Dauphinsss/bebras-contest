@@ -1,9 +1,10 @@
 import { test, expect, request } from "@playwright/test";
 import {
   API,
-  ADMIN,
   createContest,
   createPracticeTask,
+  loginAdmin,
+  loginAdminPage,
 } from "./support/helpers";
 
 test("keeps contest and task card actions responsive and compact", async ({
@@ -11,15 +12,7 @@ test("keeps contest and task card actions responsive and compact", async ({
   page,
 }) => {
   const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, {
-    data: ADMIN,
-  });
-  expect(loginResponse.ok()).toBe(true);
-  const session = (await loginResponse.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const listedContest = await createContest(api, headers, {
     title: `Responsive actions ${Date.now()}`,
     tasks: [
@@ -35,10 +28,7 @@ test("keeps contest and task card actions responsive and compact", async ({
   )[0];
   expect(listedTask).toBeDefined();
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/desafios");
 
@@ -166,10 +156,7 @@ test("keeps contest and task card actions responsive and compact", async ({
   });
   try {
     const touchPage = await touchContext.newPage();
-    await touchPage.addInitScript(({ token, user }) => {
-      window.localStorage.setItem("bebras_token", token);
-      window.localStorage.setItem("bebras_user", JSON.stringify(user));
-    }, session);
+    await loginAdminPage(touchPage);
     await touchPage.goto("/tareas");
     const touchTitleLink = touchPage.getByRole("link", {
       name: listedTask.title,
@@ -195,12 +182,7 @@ test("confirms task deletion and keeps the task list compact", async ({
   page,
 }) => {
   const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, {
-    data: ADMIN,
-  });
-  expect(loginResponse.ok()).toBe(true);
-  const session = await loginResponse.json();
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = await loginAdmin(api);
   const removableTask = await createPracticeTask(api, headers, "short_text", {
     title: `Tarea eliminable ${Date.now()}`,
     isPractice: false,
@@ -215,10 +197,7 @@ test("confirms task deletion and keeps the task list compact", async ({
     tasks: [{ taskId: protectedTask.id }],
   });
 
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
   await page.goto("/tareas");
 
   const listHeader = page
@@ -304,15 +283,6 @@ test("confirms task deletion and keeps the task list compact", async ({
 test("keeps group and teacher cards responsive and compact", async ({
   page,
 }) => {
-  const api = await request.newContext();
-  const loginResponse = await api.post(`${API}/api/auth/login`, {
-    data: ADMIN,
-  });
-  expect(loginResponse.ok()).toBe(true);
-  const session = (await loginResponse.json()) as {
-    token: string;
-    user: { id: number; email: string; name: string | null; role: string };
-  };
   const now = new Date().toISOString();
 
   await page.route(`${API}/api/published-contests`, (route) =>
@@ -382,10 +352,7 @@ test("keeps group and teacher cards responsive and compact", async ({
       ],
     }),
   );
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem("bebras_token", token);
-    window.localStorage.setItem("bebras_user", JSON.stringify(user));
-  }, session);
+  await loginAdminPage(page);
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/grupos");
@@ -459,6 +426,4 @@ test("keeps group and teacher cards responsive and compact", async ({
     desktopTeacherActions[0]!.x,
   );
   expect((await teacherRow.boundingBox())!.height).toBeLessThan(260);
-
-  await api.dispose();
 });
