@@ -1,6 +1,4 @@
 import { test, expect, request } from "@playwright/test";
-import { createRequire } from "node:module";
-import { resolve } from "node:path";
 import {
   API,
   SEEDED_TASK,
@@ -160,34 +158,30 @@ test("serves and checks every public practice answer type", async () => {
     expect(await incorrectResponse.json()).toMatchObject({ correct: false });
   }
 
-  const checkDragDrop = async (placements: Record<string, unknown>) => {
+  const checkInvalidDragDrop = async (placements: Record<string, unknown>) => {
     const response = await api.post(
       `${API}/api/practice/tasks/${dragDropTask.id}/check`,
       {
         data: { payload: { placements } },
       },
     );
-    expect(response.ok(), await response.text()).toBe(true);
-    return response.json();
+    expect(response.status(), await response.text()).toBe(400);
+    expect(await response.json()).toEqual({
+      message: "La respuesta de arrastrar y soltar no es válida.",
+    });
   };
 
-  expect(
-    await checkDragDrop({
-      [DRAG_DROP_ITEMS[0].id]: { x: 85, y: 75 },
-      [DRAG_DROP_ITEMS[1].id]: { x: 15, y: 25 },
-    }),
-  ).toMatchObject({ correct: false });
-  expect(
-    await checkDragDrop({
-      "nonexistent-item": DRAG_DROP_TARGETS[0].id,
-    }),
-  ).toMatchObject({ correct: false });
-  expect(
-    await checkDragDrop({
-      [DRAG_DROP_ITEMS[0].id]: DRAG_DROP_TARGETS[0].id,
-      [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_TARGETS[0].id,
-    }),
-  ).toMatchObject({ correct: false });
+  await checkInvalidDragDrop({
+    [DRAG_DROP_ITEMS[0].id]: { x: 85, y: 75 },
+    [DRAG_DROP_ITEMS[1].id]: { x: 15, y: 25 },
+  });
+  await checkInvalidDragDrop({
+    "nonexistent-item": DRAG_DROP_TARGETS[0].id,
+  });
+  await checkInvalidDragDrop({
+    [DRAG_DROP_ITEMS[0].id]: DRAG_DROP_TARGETS[0].id,
+    [DRAG_DROP_ITEMS[1].id]: DRAG_DROP_TARGETS[0].id,
+  });
 
   await api.dispose();
 });
@@ -252,30 +246,10 @@ test("uses a circular radius for legacy drag-drop coordinates", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const task = await createPracticeTask(api, headers, "drag_drop");
-  const backendRequire = createRequire(
-    resolve(process.cwd(), "backend/package.json"),
+  const makeLegacy = await api.patch(
+    `${API}/api/e2e/tasks/${task.id}/legacy-drag-drop`,
   );
-  const Database = backendRequire("better-sqlite3") as new (path: string) => {
-    prepare: (sql: string) => {
-      run: (...parameters: unknown[]) => unknown;
-    };
-    close: () => void;
-  };
-  const database = new Database(resolve(process.cwd(), "backend/test.db"));
-  try {
-    database
-      .prepare('UPDATE "TaskDraft" SET "dragDropItems" = ? WHERE "id" = ?')
-      .run(
-        JSON.stringify({
-          version: 1,
-          items: DRAG_DROP_ITEMS,
-          targets: DRAG_DROP_TARGETS,
-        }),
-        task.id,
-      );
-  } finally {
-    database.close();
-  }
+  expect(makeLegacy.status(), await makeLegacy.text()).toBe(204);
 
   const check = async (firstPlacement: { x: number; y: number }) => {
     const response = await api.post(
@@ -326,13 +300,15 @@ test("enforces every multiple-choice correctness criterion", async () => {
       mode: "single",
       correctAnswerId: "B",
       accepted: [["B"]],
-      rejected: [[], ["A"], ["B", "C"], ["B", "B"]],
+      rejected: [[], ["A"], ["B", "C"]],
+      invalid: [["B", "B"]],
     },
     {
       mode: "any",
       correctAnswerId: "any:B,C",
       accepted: [["B"], ["C"]],
-      rejected: [[], ["A"], ["B", "C"], ["B", "B"]],
+      rejected: [[], ["A"], ["B", "C"]],
+      invalid: [["B", "B"]],
     },
     {
       mode: "all",
@@ -341,7 +317,8 @@ test("enforces every multiple-choice correctness criterion", async () => {
         ["B", "C"],
         ["C", "B"],
       ],
-      rejected: [[], ["B"], ["C"], ["B", "A"], ["B", "C", "A"], ["B", "B"]],
+      rejected: [[], ["B"], ["C"], ["B", "A"], ["B", "C", "A"]],
+      invalid: [["B", "B"]],
     },
   ] as const;
 
@@ -382,6 +359,19 @@ test("enforces every multiple-choice correctness criterion", async () => {
       );
       expect(response.ok(), await response.text()).toBe(true);
       expect(await response.json()).toMatchObject({ correct: false });
+    }
+
+    for (const selected of criterion.invalid) {
+      const response = await api.post(
+        `${API}/api/practice/tasks/${task.id}/check`,
+        {
+          data: { payload: { selected } },
+        },
+      );
+      expect(response.status(), await response.text()).toBe(400);
+      expect(await response.json()).toEqual({
+        message: "La respuesta no es válida para esta tarea.",
+      });
     }
   }
 

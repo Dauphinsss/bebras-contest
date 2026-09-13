@@ -1377,6 +1377,35 @@ app.delete("/api/e2e/clock", (_req, res) => {
   res.sendStatus(204);
 });
 
+app.patch("/api/e2e/tasks/:id/legacy-drag-drop", async (req, res) => {
+  if (!isE2E()) {
+    res.sendStatus(404);
+    return;
+  }
+
+  const task = await prisma.taskDraft.findUnique({
+    where: { id: req.params.id },
+    select: { answerType: true, dragDropItems: true },
+  });
+  if (!task) {
+    res.sendStatus(404);
+    return;
+  }
+  if (task.answerType !== "drag_drop") {
+    res.status(400).json({ message: "La tarea no es de arrastrar y soltar." });
+    return;
+  }
+
+  const config = normalizeDragDropConfig(
+    parseJsonValue<unknown>(task.dragDropItems, []),
+  );
+  await prisma.taskDraft.update({
+    where: { id: req.params.id },
+    data: { dragDropItems: serializeJson({ ...config, version: 1 }) },
+  });
+  res.sendStatus(204);
+});
+
 app.use(
   ["/api/groups", "/api/teams", "/api/practices", "/api/practice",
     "/api/play", "/api/public-contests", "/api/published-contests"],
