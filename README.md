@@ -275,24 +275,16 @@ interactivas. `--check` nunca escribe el archivo de salida.
 
 ## Pruebas
 
-### E2E legado: adaptación pendiente
+### E2E sobre Worker/D1 local
 
 ```bash
 bun run test:e2e
 ```
 
-Los comandos E2E siguientes describen la organización histórica; aún no son un
-runner D1 validado. `tests/run-e2e.ts` y `playwright.config.ts` seleccionan
-`file:./test.db` con `DATABASE_URL` y limpian archivos SQLite. Ese mecanismo,
-heredado del desarrollo con `dev.db`, ya no aísla D1: `prisma:push` apunta al
-estado Wrangler local y las semillas exigen `--target local`, que el runner omite.
-Además, `PORT=3100` no sustituye el puerto 3000 configurado en Wrangler, y el
-secreto de pruebas debe llegar como binding. `tests/practice-api.spec.ts` abre
-directamente `backend/test.db` con `better-sqlite3`.
-
-Hace falta adaptar configuración/persistencia temporal D1, semillas, limpieza,
-puertos, secretos, reloj y acceso directo a datos antes de ejecutar estos E2E
-como verificación del Worker. No se ha validado aquí la suite E2E completa.
+`tests/run-e2e.ts` prepara migraciones y semillas en un D1 temporal bajo
+`tests/.wrangler`, levanta el Worker en el puerto 3100 y limpia el estado al
+terminar. `tests/wrangler.e2e.jsonc` mantiene aislados los bindings E2E; las
+pruebas no abren archivos SQLite directamente.
 
 ### Por módulo
 
@@ -428,6 +420,6 @@ Referencia: [configuración de Workers Builds](https://developers.cloudflare.com
   consumidores después de migrar la autenticación. `wrangler.jsonc` conserva el
   historial de creación y añade la migración de borrado de la clase.
 - Runtime: Prisma usa `@prisma/adapter-d1` y los PDF usan `pdf-lib`. Se retiraron
-  `@prisma/adapter-better-sqlite3`, `pdfkit` y `@types/pdfkit` mediante `bun remove`.
-  `better-sqlite3` queda explícitamente en desarrollo por la prueba E2E legada.
+  `@prisma/adapter-better-sqlite3`, `better-sqlite3`, `pdfkit` y `@types/pdfkit`
+  mediante `bun remove`.
   El lockfile activo es `backend/bun.lock`; `backend/package-lock.json` es legado.

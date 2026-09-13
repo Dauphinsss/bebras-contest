@@ -108,8 +108,8 @@ Después verifica el esquema vigente (incluido el retiro de `ContestGroup.schedu
 - `db:push`/`prisma:push` aplican migraciones D1 locales. `db:setup` genera Prisma, aplica migraciones y ejecuta bootstrap y catálogo con `--target local` explícito.
 - Actualizar aliases `db:seed`, `db:tasks`, `db:admins`, `db:clear-teams`, `db:test-tasks` y sus invocaciones E2E: `DATABASE_URL` ya no selecciona la base. El reset de admins es distinto del bootstrap idempotente.
 - `db:tasks:replace` vuelve a estar operativo sobre D1 local; el alias debe pasar target/config explícitos y conservar `--confirm-replace`. Los respaldos ahora son exports SQL D1, no archivos SQLite de `VACUUM INTO`.
-- `bun run test:cloudflare:d1` incluye semillas y reemplazo. La auditoría retiró `@prisma/adapter-better-sqlite3`, `pdfkit` y sus tipos con `bun remove`; `better-sqlite3@12.9.0` permanece como dependencia de desarrollo porque `tests/practice-api.spec.ts` abre `backend/test.db` directamente. No es un runtime alternativo del Worker.
-- `tests/run-e2e.ts` y `playwright.config.ts` conservan `DATABASE_URL=file:./test.db`, limpieza de archivos SQLite y puertos del servidor anterior. El flujo heredado de `dev.db` requiere D1 temporal/configuración aislada, adaptación de seeds, secretos, puertos y reloj. Borrar `test.db` no limpia D1; el alias de migraciones usa actualmente el estado local compartido. Las suites E2E legadas no están validadas para Cloudflare.
+- `bun run test:cloudflare:d1` incluye semillas y reemplazo. La auditoría retiró `@prisma/adapter-better-sqlite3`, `better-sqlite3`, `pdfkit` y sus tipos con `bun remove`; no hay un runtime SQLite alternativo al Worker/D1.
+- `tests/run-e2e.ts` prepara un D1 temporal y aislado en `tests/.wrangler` con `tests/wrangler.e2e.jsonc`. Las suites no abren archivos SQLite directamente.
 
 ## Pruebas
 

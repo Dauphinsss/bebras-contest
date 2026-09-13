@@ -46,7 +46,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^25.5.0",
-    "better-sqlite3": "12.9.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.4.0",
