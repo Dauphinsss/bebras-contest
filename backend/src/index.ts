@@ -30,7 +30,7 @@ const DOC_ALLOWED_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const DOC_MAX_BYTES = 5 * 1024 * 1024;
 const ROSTER_ALLOWED_EXT = new Set([".xlsx", ".csv"]);
 const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
-const activeRosterContests = new Set<string>();
+const ROSTER_LEASE_MS = 10 * 60 * 1000;
 
 function documentUploadField(value: unknown) {
   return value === "letter" || value === "idFront" || value === "idBack"
@@ -4036,7 +4036,30 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
     return;
   }
 
-  if (activeRosterContests.has(group.contestId)) {
+  const leaseOwner = randomUUID();
+  const acquiredAt = currentDate();
+  const lease = await env.DB.prepare(`INSERT INTO "RosterImportLock" ("contestId", "owner", "acquiredAt")
+    VALUES (?, ?, ?)
+    ON CONFLICT("contestId") DO UPDATE SET "owner" = excluded."owner", "acquiredAt" = excluded."acquiredAt"
+    WHERE "RosterImportLock"."acquiredAt" <= ?`)
+    .bind(
+      group.contestId,
+      leaseOwner,
+      acquiredAt.toISOString(),
+      new Date(acquiredAt.getTime() - ROSTER_LEASE_MS).toISOString(),
+    )
+    .run();
+  const isE2E =
+    (env as Cloudflare.Env & { BEBRAS_E2E?: string }).BEBRAS_E2E === "1";
+
+  if (lease.meta.changes === 0) {
+    if (isE2E && req.get("x-e2e-release-roster-lease") === "1") {
+      await env.DB.prepare(
+        'DELETE FROM "RosterImportLock" WHERE "contestId" = ?',
+      )
+        .bind(group.contestId)
+        .run();
+    }
     res.status(409).json({
       message:
         "Ya se está importando una planilla para este desafío. Intenta de nuevo cuando termine.",
@@ -4044,8 +4067,6 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
     });
     return;
   }
-
-  activeRosterContests.add(group.contestId);
 
   try {
     const workbook = new ExcelJS.Workbook();
@@ -4342,7 +4363,13 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
       skipped: [],
     });
   } finally {
-    activeRosterContests.delete(group.contestId);
+    if (!isE2E || req.get("x-e2e-keep-roster-lease") !== "1") {
+      await env.DB.prepare(
+        'DELETE FROM "RosterImportLock" WHERE "contestId" = ? AND "owner" = ?',
+      )
+        .bind(group.contestId, leaseOwner)
+        .run();
+    }
   }
 });
 
