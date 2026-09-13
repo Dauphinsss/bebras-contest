@@ -299,27 +299,28 @@ export function GroupsHome() {
   useEffect(() => {
     let active = true;
 
-    void Promise.all([listGroups(), listPublishedContests()])
-      .then(([loadedGroups, loadedContests]) => {
+    void (async () => {
+      try {
+        const loadedGroups = await listGroups();
+        const loadedContests = await listPublishedContests();
         if (!active) {
           return;
         }
         setGroups(loadedGroups);
         setPublishedContests(loadedContests);
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (!active) return;
         setLoadError(
           error instanceof Error
             ? error.message
             : "No se pudieron cargar los datos.",
         );
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setLoading(false);
         }
-      });
+      }
+    })();
 
     return () => {
       active = false;

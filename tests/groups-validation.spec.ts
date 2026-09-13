@@ -239,7 +239,10 @@ test("validates manual enrollment and recovers from a duplicate", async ({
   await page.route(endpoint, async (route) => {
     if (route.request().method() === "POST" && holdNextEnrollment) {
       holdNextEnrollment = false;
+      const response = await route.fetch();
       await enrollmentGate;
+      await route.fulfill({ response });
+      return;
     }
     await route.continue();
   });
@@ -314,14 +317,23 @@ test("validates manual enrollment and recovers from a duplicate", async ({
     page.locator("[data-sonner-toast]").filter({ hasText: duplicateMessage }),
   ).toBeVisible();
   await expect(firstName).toBeFocused();
+  await page.unroute(endpoint);
   await firstName.fill("Marta");
   await lastName.fill("Rojas");
+  const recoveryResponse = page.waitForResponse(
+    (response) =>
+      response.url() === endpoint &&
+      response.request().method() === "POST" &&
+      response.status() === 201,
+  );
   await lastName.press("Enter");
+  await recoveryResponse;
 
   await expect(dialog).toHaveCount(0);
   await expect(
     groupCard.getByText("Marta Rojas · Luis Gómez", { exact: true }),
   ).toBeVisible();
+  await page.waitForLoadState("networkidle");
 
   await api.dispose();
 });
@@ -489,7 +501,10 @@ test("validates participant editing and recovers from a duplicate", async ({
   await page.route(updateEndpoint, async (route) => {
     if (route.request().method() === "PUT" && holdNextUpdate) {
       holdNextUpdate = false;
+      const response = await route.fetch();
       await updateGate;
+      await route.fulfill({ response });
+      return;
     }
     await route.continue();
   });
@@ -557,6 +572,7 @@ test("validates participant editing and recovers from a duplicate", async ({
     page.locator("[data-sonner-toast]").filter({ hasText: duplicateMessage }),
   ).toBeVisible();
   await expect(firstName).toBeFocused();
+  await page.unroute(updateEndpoint);
   await firstName.fill("Marta");
   await lastName.fill("Rojas");
   await secondLastName.press("Enter");
@@ -969,20 +985,30 @@ test("allows only one roster import at a time per contest", async () => {
           `${prefix}${index},Apellido${prefix},${contest.picked.grade},individual`,
       ),
     ].join("\n");
-  const responses = await Promise.all(
-    groups.map((group, index) =>
-      api.post(`${API}/api/groups/${group.id}/roster`, {
-        headers,
-        multipart: {
-          file: {
-            name: `participantes-${index}.csv`,
-            mimeType: "text/csv",
-            buffer: Buffer.from(roster(index === 0 ? "Uno" : "Dos"), "utf8"),
-          },
+  const importRoster = (
+    group: { id: string },
+    index: number,
+    extraHeaders: Record<string, string> = {},
+  ) =>
+    api.post(`${API}/api/groups/${group.id}/roster`, {
+      headers: { ...headers, ...extraHeaders },
+      multipart: {
+        file: {
+          name: `participantes-${index}.csv`,
+          mimeType: "text/csv",
+          buffer: Buffer.from(roster(index === 0 ? "Uno" : "Dos"), "utf8"),
         },
-      }),
-    ),
-  );
+      },
+    });
+  const firstImport = await importRoster(groups[0], 0, {
+    "x-e2e-keep-roster-lease": "1",
+  });
+  const responses = [
+    firstImport,
+    await importRoster(groups[1], 1, {
+      "x-e2e-release-roster-lease": "1",
+    }),
+  ];
   expect(responses.map((response) => response.status()).sort()).toEqual([
     201, 409,
   ]);
@@ -1033,7 +1059,10 @@ test("announces roster validation, atomic results and refresh failures", async (
       return;
     }
     if (uploadCount === 3) {
+      const response = await route.fetch();
       await uploadGate;
+      await route.fulfill({ response });
+      return;
     }
     await route.continue();
   });
