@@ -9,10 +9,10 @@ test("blocks the panel for users without a session", async ({ page }) => {
 
 test("filters navigation sections by user role", () => {
   expect(canAccessSiteNav("public")).toBe(true);
-  expect(canAccessSiteNav("admin", "admin")).toBe(true);
-  expect(canAccessSiteNav("staff", "admin")).toBe(true);
-  expect(canAccessSiteNav("staff", "maestro")).toBe(true);
-  expect(canAccessSiteNav("admin", "maestro")).toBe(false);
+  expect(canAccessSiteNav("admin", "admin", "approved")).toBe(true);
+  expect(canAccessSiteNav("staff", "admin", "approved")).toBe(true);
+  expect(canAccessSiteNav("staff", "maestro", "approved")).toBe(true);
+  expect(canAccessSiteNav("admin", "maestro", "approved")).toBe(false);
   expect(canAccessSiteNav("staff")).toBe(false);
 });
 
