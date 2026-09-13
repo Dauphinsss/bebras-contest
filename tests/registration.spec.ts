@@ -1,13 +1,12 @@
 import { test, expect, request } from "@playwright/test";
 import {
   API,
+  createFirebaseUser,
   loginAdmin,
   loginAdminPage,
   loginPage,
   loginUser,
-  uploadedDocuments,
-  removeNewUploads,
-  registrationFields,
+  registerBebrasProfile,
   VALID_PDF,
   VALID_JPG,
   VALID_PNG,
@@ -15,12 +14,14 @@ import {
 
 test("rejects documents whose content does not match the extension", async () => {
   const api = await request.newContext();
+  const identity = await createFirebaseUser(api, {
+    email: `archivo-${Date.now()}@example.com`,
+  });
   const response = await api.post(`${API}/api/auth/register`, {
+    headers: identity.headers,
     multipart: {
       firstName: "Archivo",
       lastName: "Disfrazado",
-      email: `archivo-${Date.now()}@example.com`,
-      password: "segura123",
       schoolName: "Colegio manual",
       institutionType: "school",
       phone: "70000000",
@@ -45,22 +46,22 @@ test("rejects documents whose content does not match the extension", async () =>
 test("registers school and homeschool teachers with valid documents", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
-  const previousUploads = uploadedDocuments();
   const schoolEmail = `colegio-${Date.now()}@example.com`;
   const homeschoolEmail = `casa-${Date.now()}@example.com`;
 
   try {
-    const school = await api.post(`${API}/api/auth/register`, {
-      multipart: {
-        ...registrationFields(schoolEmail, "school"),
+    const { response: school } = await registerBebrasProfile(api, {
+      email: schoolEmail,
+      fields: {
         letter: VALID_PDF,
       },
     });
     expect(school.status(), await school.text()).toBe(201);
 
-    const homeschool = await api.post(`${API}/api/auth/register`, {
-      multipart: {
-        ...registrationFields(homeschoolEmail, "homeschool"),
+    const { response: homeschool } = await registerBebrasProfile(api, {
+      email: homeschoolEmail,
+      institutionType: "homeschool",
+      fields: {
         idFront: VALID_JPG,
         idBack: VALID_PNG,
       },
@@ -91,21 +92,19 @@ test("registers school and homeschool teachers with valid documents", async () =
       }),
     );
   } finally {
-    removeNewUploads(previousUploads);
     await api.dispose();
   }
 });
 
 test("rejects unsupported and oversized document uploads cleanly", async () => {
   const api = await request.newContext();
-  const previousUploads = uploadedDocuments();
 
-  const assertRejectedWithoutUploads = async (
-    multipart: Record<string, string | typeof VALID_PDF>,
+  const assertRejected = async (
+    fields: Record<string, string | typeof VALID_PDF>,
     expectedMessage: string,
     expectedField?: string,
   ) => {
-    const response = await api.post(`${API}/api/auth/register`, { multipart });
+    const { response } = await registerBebrasProfile(api, { fields });
     expect(response.status()).toBe(400);
     expect(await response.json()).toEqual(
       expect.objectContaining({
@@ -113,13 +112,11 @@ test("rejects unsupported and oversized document uploads cleanly", async () => {
         ...(expectedField ? { field: expectedField } : {}),
       }),
     );
-    expect(uploadedDocuments()).toEqual(previousUploads);
   };
 
   try {
-    await assertRejectedWithoutUploads(
+    await assertRejected(
       {
-        ...registrationFields(`tipo-${Date.now()}@example.com`, "school"),
         letter: {
           name: "carta.txt",
           mimeType: "text/plain",
@@ -129,9 +126,8 @@ test("rejects unsupported and oversized document uploads cleanly", async () => {
       "PDF o una imagen",
       "letter",
     );
-    await assertRejectedWithoutUploads(
+    await assertRejected(
       {
-        ...registrationFields(`grande-${Date.now()}@example.com`, "school"),
         letter: {
           name: "carta.pdf",
           mimeType: "application/pdf",
@@ -141,18 +137,16 @@ test("rejects unsupported and oversized document uploads cleanly", async () => {
       "5 MB",
       "letter",
     );
-    await assertRejectedWithoutUploads(
+    await assertRejected(
       {
-        ...registrationFields(`campos-${Date.now()}@example.com`, "school"),
         firstName: "",
         letter: VALID_PDF,
       },
       "Ingresa tus nombres.",
       "firstName",
     );
-    await assertRejectedWithoutUploads(
+    await assertRejected(
       {
-        ...registrationFields(`parcial-${Date.now()}@example.com`, "school"),
         letter: VALID_PDF,
         idFront: {
           name: "carnet.txt",
@@ -164,7 +158,6 @@ test("rejects unsupported and oversized document uploads cleanly", async () => {
       "idFront",
     );
   } finally {
-    removeNewUploads(previousUploads);
     await api.dispose();
   }
 });
@@ -228,14 +221,12 @@ test("lets a teacher sign in first and upload the documents later", async () => 
   const api = await request.newContext();
   const email = `luego-${Date.now()}@example.com`;
 
-  const registered = await api.post(`${API}/api/auth/register`, {
-    multipart: {
+  const { identity, response: registered } = await registerBebrasProfile(api, {
+    email,
+    fields: {
       firstName: "Sube",
       lastName: "Después",
-      email,
-      password: "segura123",
       schoolName: "Colegio de Prueba",
-      institutionType: "school",
       phone: "70000001",
     },
   });
@@ -244,10 +235,10 @@ test("lets a teacher sign in first and upload the documents later", async () => 
   expect(created.pendingDocuments).toBe(true);
 
   expect(created.user.status).toBe("pending");
-  const meWithRegisterToken = await api.get(`${API}/api/auth/me`, {
-    headers: { authorization: `Bearer ${created.token}` },
+  const meWithIdentityToken = await api.get(`${API}/api/auth/me`, {
+    headers: identity.headers,
   });
-  expect(meWithRegisterToken.ok(), await meWithRegisterToken.text()).toBe(true);
+  expect(meWithIdentityToken.ok(), await meWithIdentityToken.text()).toBe(true);
 
   const session = await loginUser(api, { email, password: "segura123" });
   expect(session.user.status).toBe("pending");
@@ -283,14 +274,13 @@ test("lets a teacher sign in first and upload the documents later", async () => 
   expect(updated.status).toBe("pending");
 
   const homeEmail = `casa-${Date.now()}@example.com`;
-  const homeRegistered = await api.post(`${API}/api/auth/register`, {
-    multipart: {
+  const { response: homeRegistered } = await registerBebrasProfile(api, {
+    email: homeEmail,
+    institutionType: "homeschool",
+    fields: {
       firstName: "Media",
       lastName: "Carnet",
-      email: homeEmail,
-      password: "segura123",
       schoolName: "Educación en casa",
-      institutionType: "homeschool",
       phone: "70000002",
       idFront: VALID_JPG,
     },
@@ -324,14 +314,12 @@ test("sorts teachers by status and confirms rejecting or suspending", async ({
     [approvedEmail, "Aprobable"],
     [rejectedEmail, "Rechazable"],
   ]) {
-    const created = await api.post(`${API}/api/auth/register`, {
-      multipart: {
+    const { response: created } = await registerBebrasProfile(api, {
+      email,
+      fields: {
         firstName,
         lastName: "Maestro",
-        email,
-        password: "segura123",
         schoolName: "Colegio de Prueba",
-        institutionType: "school",
         phone: "70000003",
         letter: VALID_PDF,
       },
@@ -403,21 +391,18 @@ test("asks for another school that the admin approves on its own", async ({
   const api = await request.newContext();
   const email = `dos-colegios-${Date.now()}@example.com`;
 
-  const registered = await api.post(`${API}/api/auth/register`, {
-    multipart: {
+  const { identity, response: registered } = await registerBebrasProfile(api, {
+    email,
+    fields: {
       firstName: "Dos",
       lastName: "Colegios",
-      email,
-      password: "segura123",
       schoolName: "Colegio Principal",
-      institutionType: "school",
       phone: "70000004",
       letter: VALID_PDF,
     },
   });
   expect(registered.status(), await registered.text()).toBe(201);
-  const session = await registered.json();
-  const headers = { authorization: `Bearer ${session.token}` };
+  const headers = identity.headers;
 
   const asked = await api.post(`${API}/api/auth/me/schools`, {
     headers,
@@ -515,14 +500,12 @@ test("enables group navigation after the teacher is approved", async ({
 }) => {
   const api = await request.newContext();
   const email = `panel-${Date.now()}@example.com`;
-  const registered = await api.post(`${API}/api/auth/register`, {
-    multipart: {
+  const { response: registered } = await registerBebrasProfile(api, {
+    email,
+    fields: {
       firstName: "Sin",
       lastName: "Aprobar",
-      email,
-      password: "segura123",
       schoolName: "Colegio de Prueba",
-      institutionType: "school",
       phone: "70000005",
       letter: VALID_PDF,
     },

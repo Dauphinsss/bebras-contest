@@ -1,9 +1,10 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { readdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const API = "http://localhost:3100";
-export const UPLOADS_DIR = resolve(process.cwd(), "backend/uploads/letters");
+const FIREBASE_EMULATOR = "http://127.0.0.1:9099";
+const FIREBASE_PROJECT_ID = "bebras-bo-staging";
 export const E2E_CLOCK_FILE =
   process.env.E2E_CLOCK_FILE ?? resolve(process.cwd(), "tests/test-clock.txt");
 
@@ -11,6 +12,121 @@ export const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
   password: process.env.E2E_ADMIN_PASSWORD ?? "bebras-e2e-only",
 };
+
+type FirebaseCredentials = { email: string; password: string };
+type Upload = { name: string; mimeType: string; buffer: Buffer };
+export type FirebaseTestUser = FirebaseCredentials & {
+  uid: string;
+  token: string;
+  headers: { authorization: string };
+};
+
+let uniqueUserIndex = 0;
+
+export function uniqueEmail(prefix = "maestro") {
+  uniqueUserIndex += 1;
+  return `${prefix}-${Date.now()}-${uniqueUserIndex}@example.com`;
+}
+
+function firebaseApiBase() {
+  const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  return emulatorHost
+    ? `${emulatorHost}/identitytoolkit.googleapis.com`
+    : "https://identitytoolkit.googleapis.com";
+}
+
+/** Obtiene un ID token sin exigir que el perfil Bebras ya exista. */
+export async function signInFirebaseUser(
+  api: APIRequestContext,
+  credentials: FirebaseCredentials,
+) {
+  const apiKey = process.env.E2E_FIREBASE_API_KEY;
+  if (!apiKey) {
+    throw new Error("Falta E2E_FIREBASE_API_KEY para autenticar Firebase E2E.");
+  }
+
+  const response = await api.post(
+    `${firebaseApiBase()}/v1/accounts:signInWithPassword?key=${apiKey}`,
+    { data: { ...credentials, returnSecureToken: true } },
+  );
+  const body = (await response.json()) as {
+    idToken?: string;
+    localId?: string;
+    error?: { message?: string };
+  };
+  if (!response.ok() || !body.idToken || !body.localId) {
+    throw new Error(
+      `Firebase no autenticó a ${credentials.email} (${response.status()}: ${body.error?.message ?? "sin ID token"}).`,
+    );
+  }
+
+  return {
+    ...credentials,
+    uid: body.localId,
+    token: body.idToken,
+    headers: { authorization: `Bearer ${body.idToken}` },
+  } satisfies FirebaseTestUser;
+}
+
+/** Crea una identidad verificada y estable para pruebas que luego iniciarán sesión. */
+export async function createFirebaseUser(
+  api: APIRequestContext,
+  options: Partial<FirebaseCredentials> & { emailVerified?: boolean } = {},
+) {
+  const email = options.email ?? uniqueEmail();
+  const password = options.password ?? "segura123";
+  uniqueUserIndex += 1;
+  const uid = `e2e-${Date.now()}-${uniqueUserIndex}`;
+  const response = await api.post(
+    `${FIREBASE_EMULATOR}/identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts`,
+    {
+      headers: { authorization: "Bearer owner" },
+      data: {
+        localId: uid,
+        email,
+        emailVerified: options.emailVerified ?? true,
+        password,
+      },
+    },
+  );
+  if (!response.ok()) {
+    throw new Error(
+      `No se pudo crear ${email} en Firebase Auth Emulator (${response.status()}: ${await response.text()}).`,
+    );
+  }
+
+  return signInFirebaseUser(api, { email, password });
+}
+
+export async function registerBebrasProfile(
+  api: APIRequestContext,
+  options: {
+    identity?: FirebaseTestUser;
+    email?: string;
+    password?: string;
+    emailVerified?: boolean;
+    institutionType?: "school" | "homeschool";
+    fields?: Record<string, string | Upload>;
+  } = {},
+) {
+  const identity =
+    options.identity ??
+    (await createFirebaseUser(api, {
+      email: options.email,
+      password: options.password,
+      emailVerified: options.emailVerified,
+    }));
+  const institutionType = options.institutionType ?? "school";
+  const response = await api.post(`${API}/api/auth/register`, {
+    headers: identity.headers,
+    multipart: {
+      ...registrationFields(institutionType),
+      ...options.fields,
+    },
+  });
+
+  return { identity, response };
+}
 
 /**
  * La autenticacion es Firebase, asi que el token de las suites tambien tiene que
@@ -27,28 +143,8 @@ export async function loginUser(
       "Faltan las credenciales E2E para autenticar la cuenta Firebase.",
     );
   }
-  const apiKey = process.env.E2E_FIREBASE_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "Falta E2E_FIREBASE_API_KEY: las suites necesitan un proyecto Firebase de pruebas o el emulador de Auth.",
-    );
-  }
-
-  const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-  const base = emulatorHost
-    ? `${emulatorHost}/identitytoolkit.googleapis.com`
-    : "https://identitytoolkit.googleapis.com";
-  const firebaseResponse = await api.post(
-    `${base}/v1/accounts:signInWithPassword?key=${apiKey}`,
-    { data: { ...credentials, returnSecureToken: true } },
-  );
-  const session = (await firebaseResponse.json()) as { idToken?: string };
-
-  if (!firebaseResponse.ok() || !session.idToken) {
-    throw new Error(`Firebase no autenticó a ${credentials.email}.`);
-  }
-
-  const authorization = `Bearer ${session.idToken}`;
+  const firebaseSession = await signInFirebaseUser(api, credentials);
+  const authorization = firebaseSession.headers.authorization;
   const bebrasResponse = await api.post(`${API}/api/auth/session`, {
     headers: { authorization },
   });
@@ -386,28 +482,10 @@ export async function submitScoringAttempt(
   expect(submit.ok(), await submit.text()).toBe(true);
 }
 
-export function uploadedDocuments() {
-  return readdirSync(UPLOADS_DIR).filter((name) => name !== ".gitkeep");
-}
-
-export function removeNewUploads(previous: string[]) {
-  const existing = new Set(previous);
-  for (const filename of uploadedDocuments()) {
-    if (!existing.has(filename)) {
-      rmSync(resolve(UPLOADS_DIR, filename), { force: true });
-    }
-  }
-}
-
-export function registrationFields(
-  email: string,
-  institutionType: "school" | "homeschool",
-) {
+export function registrationFields(institutionType: "school" | "homeschool") {
   return {
     firstName: "Registro",
     lastName: "Documentado",
-    email,
-    password: "segura123",
     schoolName:
       institutionType === "school" ? "Colegio manual" : "Educación en casa",
     institutionType,

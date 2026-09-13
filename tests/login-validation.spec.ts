@@ -60,7 +60,7 @@ test("associates login errors and focuses the first invalid field", async ({
 
   const credentialsError = page
     .getByRole("alert")
-    .filter({ hasText: "Credenciales inválidas." });
+    .filter({ hasText: "Correo o contraseña incorrectos." });
   await expect(credentialsError).toBeVisible();
   await expect(email).toBeFocused();
   await expect(email).toHaveAttribute("aria-invalid", "false");
