@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 
 import { FIREBASE_AUTH_LANGUAGE } from "@/lib/email-verification";
 
@@ -13,6 +13,7 @@ const config = {
   appId: import.meta.env.PUBLIC_FIREBASE_APP_ID ?? "",
   messagingSenderId: import.meta.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
 };
+const authEmulatorHost = import.meta.env.PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
 
 /** Un entorno sin configuracion de Firebase no habilita el login. */
 export function isFirebaseConfigured() {
@@ -37,6 +38,9 @@ export function firebaseApp() {
 export function firebaseAuth() {
   if (!auth) {
     auth = getAuth(firebaseApp());
+    if (authEmulatorHost) {
+      connectAuthEmulator(auth, authEmulatorHost, { disableWarnings: true });
+    }
     auth.languageCode = FIREBASE_AUTH_LANGUAGE;
   }
   return auth;

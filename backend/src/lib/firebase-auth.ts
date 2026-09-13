@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
+import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTPayload } from "jose";
 
 // Firebase publica las claves publicas de los ID Token como JWKS. Verificar con
 // Web Crypto evita el Admin SDK y la Service Account, que no corren en Workers.
@@ -56,12 +56,26 @@ export async function verifyFirebaseIdToken(
   let claims: FirebaseClaims;
 
   try {
-    const verified = await jwtVerify<FirebaseClaims>(token, jwks(), {
-      algorithms: ["RS256"],
-      issuer: `https://securetoken.google.com/${projectId}`,
-      audience: projectId,
-    });
-    claims = verified.payload;
+    const workerEnv = env as unknown as Record<string, string | undefined>;
+    if (
+      workerEnv.BEBRAS_E2E === "1" &&
+      workerEnv.FIREBASE_AUTH_EMULATOR_HOST
+    ) {
+      claims = decodeJwt(token) as FirebaseClaims;
+      if (
+        claims.aud !== projectId ||
+        claims.iss !== `https://securetoken.google.com/${projectId}`
+      ) {
+        throw new Error("Wrong emulator project");
+      }
+    } else {
+      const verified = await jwtVerify<FirebaseClaims>(token, jwks(), {
+        algorithms: ["RS256"],
+        issuer: `https://securetoken.google.com/${projectId}`,
+        audience: projectId,
+      });
+      claims = verified.payload;
+    }
   } catch {
     throw new FirebaseAuthError("Sesión inválida o expirada.");
   }

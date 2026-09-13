@@ -9,6 +9,8 @@
     "REGISTRATION_ONLY": "false",
     "FRONTEND_ORIGIN": "http://localhost:4421",
     "FIREBASE_PROJECT_ID": "bebras-bo-staging",
+    "FIREBASE_AUTH_EMULATOR_HOST": "http://127.0.0.1:9099",
+    "BEBRAS_E2E": "1",
   },
   "d1_databases": [
     {

@@ -13,8 +13,8 @@ const wranglerConfig = resolve(tests, "wrangler.e2e.jsonc");
 const wranglerState = resolve(tests, ".wrangler");
 const clockFile = resolve(tests, "test-clock.txt");
 const testArtifacts = [wranglerState, clockFile];
-const adminEmail = process.env.E2E_ADMIN_EMAIL;
-const adminPassword = process.env.E2E_ADMIN_PASSWORD;
+const adminEmail = process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo";
+const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "bebras-e2e-only";
 
 /**
  * Modo rápido: reaprovecha la base sembrada y los servidores que ya estén
@@ -23,23 +23,18 @@ const adminPassword = process.env.E2E_ADMIN_PASSWORD;
  */
 const fast = process.argv.includes("--rapido");
 const serversOnly = process.argv.includes("--servidores");
-const listOnly = process.argv.includes("--list");
-if (!listOnly && (!adminEmail || !adminPassword)) {
-  throw new Error(
-    "Define E2E_ADMIN_EMAIL y E2E_ADMIN_PASSWORD para una cuenta admin verificada de Firebase staging.",
-  );
-}
 const testEnv = {
   ...process.env,
   // La sesion la emite Firebase; el proyecto tiene que ser uno de pruebas o el
   // emulador de Auth, nunca `bebras-bo`. Ver docs/firebase-auth.md.
   ...firebaseWebConfig.staging,
+  PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "http://127.0.0.1:9099",
   FIREBASE_PROJECT_ID: "bebras-bo-staging",
   E2E_FIREBASE_API_KEY: firebaseWebConfig.staging.PUBLIC_FIREBASE_API_KEY,
-  E2E_ADMIN_EMAIL: adminEmail ?? "",
-  E2E_ADMIN_PASSWORD: adminPassword ?? "",
-  // D1 conserva la columna histórica, pero ningún flujo puede usar este hash.
-  SEED_ADMIN_PASSWORD: adminPassword ?? "firebase-auth-only",
+  FIREBASE_AUTH_EMULATOR_HOST: "http://127.0.0.1:9099",
+  E2E_ADMIN_EMAIL: adminEmail,
+  E2E_ADMIN_PASSWORD: adminPassword,
+  SEED_ADMIN_PASSWORD: adminPassword,
   E2E_CLOCK_FILE: clockFile,
   E2E_REUSE_SERVERS: fast || serversOnly ? "1" : "0",
   BEBRAS_E2E: "1",

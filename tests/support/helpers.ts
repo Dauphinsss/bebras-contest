@@ -8,8 +8,8 @@ export const E2E_CLOCK_FILE =
   process.env.E2E_CLOCK_FILE ?? resolve(process.cwd(), "tests/test-clock.txt");
 
 export const ADMIN = {
-  email: process.env.E2E_ADMIN_EMAIL ?? "",
-  password: process.env.E2E_ADMIN_PASSWORD ?? "",
+  email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
+  password: process.env.E2E_ADMIN_PASSWORD ?? "bebras-e2e-only",
 };
 
 /**
@@ -34,9 +34,10 @@ export async function loginUser(
     );
   }
 
-  const host =
-    process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "identitytoolkit.googleapis.com";
-  const base = host.startsWith("http") ? host : `https://${host}`;
+  const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  const base = emulatorHost
+    ? `${emulatorHost}/identitytoolkit.googleapis.com`
+    : "https://identitytoolkit.googleapis.com";
   const firebaseResponse = await api.post(
     `${base}/v1/accounts:signInWithPassword?key=${apiKey}`,
     { data: { ...credentials, returnSecureToken: true } },
@@ -73,6 +74,16 @@ export async function loginPage(
   destination: RegExp,
 ) {
   await page.goto("/login");
+  await page.waitForFunction(
+    () => {
+      const island = document.querySelector(
+        'astro-island[component-url*="login-form"]',
+      );
+      return island !== null && !island.hasAttribute("ssr");
+    },
+    null,
+    { timeout: 30000 },
+  );
   await page
     .getByRole("textbox", { name: "Correo", exact: true })
     .fill(credentials.email);

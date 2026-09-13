@@ -7,5 +7,12 @@
         "supportEmail": "bebrasbolivia@gmail.com"
       }
     }
+  },
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "singleProjectMode": true
   }
 }

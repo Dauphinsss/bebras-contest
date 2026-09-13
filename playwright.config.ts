@@ -49,6 +49,7 @@ const modules = {
 
 export default defineConfig({
   testDir: "./tests",
+  globalSetup: "./tests/global-setup.ts",
   timeout: 60000,
   fullyParallel: false,
   workers: 1,
@@ -61,6 +62,13 @@ export default defineConfig({
     headless: true,
   },
   webServer: [
+    {
+      command:
+        "bun x firebase emulators:start --only auth --project bebras-bo-staging",
+      url: "http://127.0.0.1:9099/emulator/v1/projects/bebras-bo-staging/config",
+      reuseExistingServer: reuseServers,
+      timeout: 120000,
+    },
     {
       command: "bun x wrangler dev --config tests/wrangler.e2e.jsonc",
       url: `${backendUrl}/health`,
