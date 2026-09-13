@@ -1,20 +1,18 @@
 import { test, expect, request } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
-  E2E_CLOCK_FILE,
   SEEDED_TASK,
   loginAdmin,
   createContest,
   joinContest,
   createScoringTask,
   openContest,
+  resetE2EClock,
+  setE2EClock,
   taskBlock,
 } from "./support/helpers";
 
-test.afterEach(() => {
-  rmSync(E2E_CLOCK_FILE, { force: true });
-});
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 test("rejects a grade that does not match the contest category", async () => {
   const api = await request.newContext();
@@ -177,10 +175,7 @@ test("creates a contest without tasks and schedules every phase", async () => {
   });
   expect(publish.ok(), await publish.text()).toBe(true);
 
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date(registrationStartsAt.getTime() + 1000).toISOString(),
-  );
+  await setE2EClock(api, new Date(registrationStartsAt.getTime() + 1000));
   const registration = await api
     .get(`${API}/api/contests/${contest.id}`, { headers })
     .then((response) => response.json());
@@ -199,10 +194,7 @@ test("creates a contest without tasks and schedules every phase", async () => {
   });
   expect(group.status(), await group.text()).toBe(201);
 
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date(registrationEndsAt.getTime() + 1000).toISOString(),
-  );
+  await setE2EClock(api, new Date(registrationEndsAt.getTime() + 1000));
   const preparation = await api
     .get(`${API}/api/contests/${contest.id}`, { headers })
     .then((response) => response.json());
@@ -215,10 +207,7 @@ test("creates a contest without tasks and schedules every phase", async () => {
   expect(lateGroup.status()).toBe(409);
   expect((await lateGroup.json()).message).toContain("inscripción ya terminó");
 
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date(startsAt.getTime() + 1000).toISOString(),
-  );
+  await setE2EClock(api, new Date(startsAt.getTime() + 1000));
   const running = await api
     .get(`${API}/api/contests/${contest.id}`, { headers })
     .then((response) => response.json());
@@ -313,7 +302,7 @@ test("protects tasks and played contest records from deletion", async () => {
   expect(removeUsedTask.status()).toBe(409);
   expect((await removeUsedTask.json()).message).toContain("desafío");
 
-  openContest(contest);
+  await openContest(api, contest);
   const start = await api.post(`${API}/api/play/start`, {
     data: { personalCode },
   });
@@ -435,7 +424,7 @@ test("freezes a contest once it is running", async () => {
   const api = await request.newContext();
   const headers = await loginAdmin(api);
   const contest = await createContest(api, headers);
-  openContest(contest);
+  await openContest(api, contest);
 
   const edit = await api.put(`${API}/api/contests/${contest.id}`, {
     headers,
@@ -545,11 +534,11 @@ test("gives the paused time back when the contest resumes", async () => {
   const suspendedContest = await suspended.json();
 
   const pauseMinutes = 10;
-  writeFileSync(
-    E2E_CLOCK_FILE,
+  await setE2EClock(
+    api,
     new Date(
       new Date(suspendedContest.suspendedAt).getTime() + pauseMinutes * 60000,
-    ).toISOString(),
+    ),
   );
 
   const resumed = await api.post(`${API}/api/contests/${contest.id}/resume`, {

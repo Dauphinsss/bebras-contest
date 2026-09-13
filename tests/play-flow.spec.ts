@@ -1,19 +1,17 @@
 import { test, expect, request } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
-  E2E_CLOCK_FILE,
   loginAdmin,
   createContest,
   joinContestSession,
   openContest,
   playHeaders,
   SCORING_TASKS,
+  resetE2EClock,
+  setE2EClock,
 } from "./support/helpers";
 
-test.afterEach(() => {
-  rmSync(E2E_CLOCK_FILE, { force: true });
-});
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 test("student starts, answers and submits without seeing the score", async ({
   page,
@@ -94,7 +92,6 @@ test("finishes the attempt and says so when the time runs out", async ({
     contest.id,
     contest.picked.grade,
   );
-  await api.dispose();
 
   await page.addInitScript((token) => {
     window.localStorage.setItem("bebras_play_session", token);
@@ -107,10 +104,11 @@ test("finishes the attempt and says so when the time runs out", async ({
 
   // El reloj de pruebas pasa el cierre del intento: al volver a la pantalla, el
   // servidor ya lo entregó y el equipo tiene que enterarse de por qué.
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date(Date.now() + 31 * 60000).toISOString(),
-  );
+  const attempt = await api
+    .get(`${API}/api/play/attempt`, { headers: playHeaders(sessionToken) })
+    .then((response) => response.json());
+  await setE2EClock(api, new Date(new Date(attempt.endsAt).getTime() + 1000));
+  await api.dispose();
   await page.goto("/rendir");
 
   await expect(page.getByText("Se acabó el tiempo")).toBeVisible({
@@ -428,9 +426,9 @@ test("keeps a single open session per student", async () => {
   });
   expect(attemptResponse.ok(), await attemptResponse.text()).toBe(true);
   const attempt = await attemptResponse.json();
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date(new Date(attempt.startedAt).getTime() + 60000).toISOString(),
+  await setE2EClock(
+    api,
+    new Date(new Date(attempt.startedAt).getTime() + 60000),
   );
 
   const takeover = await api.post(`${API}/api/play/session`, {
@@ -487,7 +485,7 @@ test("enters with the personal code handed out at enrolment", async ({
   });
   expect(registered.ok(), await registered.text()).toBe(true);
   const personalCode = (await registered.json()).personalCode as string;
-  openContest(contest);
+  await openContest(api, contest);
   await api.dispose();
 
   await page.goto("/entrar");

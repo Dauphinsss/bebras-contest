@@ -11,8 +11,7 @@ const backendUrl = "http://localhost:3100";
 const frontendUrl = "http://localhost:4421";
 const wranglerConfig = resolve(tests, "wrangler.e2e.jsonc");
 const wranglerState = resolve(tests, ".wrangler");
-const clockFile = resolve(tests, "test-clock.txt");
-const testArtifacts = [wranglerState, clockFile];
+const testArtifacts = [wranglerState];
 const adminEmail = process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo";
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "bebras-e2e-only";
 
@@ -35,7 +34,6 @@ const testEnv = {
   E2E_ADMIN_EMAIL: adminEmail,
   E2E_ADMIN_PASSWORD: adminPassword,
   SEED_ADMIN_PASSWORD: adminPassword,
-  E2E_CLOCK_FILE: clockFile,
   E2E_REUSE_SERVERS: fast || serversOnly ? "1" : "0",
   BEBRAS_E2E: "1",
 };
@@ -156,11 +154,7 @@ async function main() {
     .slice(2)
     .filter((argument) => argument !== "--" && argument !== "--rapido");
 
-  // La base sembrada se conserva entre corridas rápidas; el reloj de pruebas
-  // no, porque una hora vieja rompe cualquier ventana de desafío.
-  if (fast) {
-    rmSync(clockFile, { force: true, maxRetries: 5, retryDelay: 200 });
-  } else {
+  if (!fast) {
     cleanupTestArtifacts();
   }
 
@@ -171,9 +165,7 @@ async function main() {
 
     await run(["bun", "x", "playwright", "test", ...playwrightArgs], root);
   } finally {
-    if (fast) {
-      rmSync(clockFile, { force: true, maxRetries: 5, retryDelay: 200 });
-    } else {
+    if (!fast) {
       cleanupTestArtifacts();
     }
   }

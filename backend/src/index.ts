@@ -31,6 +31,11 @@ const DOC_MAX_BYTES = 5 * 1024 * 1024;
 const ROSTER_ALLOWED_EXT = new Set([".xlsx", ".csv"]);
 const ROSTER_MAX_BYTES = 2 * 1024 * 1024;
 const ROSTER_LEASE_MS = 10 * 60 * 1000;
+let e2eCurrentDate: Date | null = null;
+
+function isE2E() {
+  return (env as Cloudflare.Env & { BEBRAS_E2E?: string }).BEBRAS_E2E === "1";
+}
 
 function documentUploadField(value: unknown) {
   return value === "letter" || value === "idFront" || value === "idBack"
@@ -39,6 +44,9 @@ function documentUploadField(value: unknown) {
 }
 
 function currentDate() {
+  if (isE2E() && e2eCurrentDate) {
+    return new Date(e2eCurrentDate);
+  }
   return new Date();
 }
 
@@ -1338,6 +1346,36 @@ app.use((req, _res, next) => {
 });
 
 app.use(express.json({ limit: "10mb" }));
+
+app.put("/api/e2e/clock", (req, res) => {
+  if (!isE2E()) {
+    res.sendStatus(404);
+    return;
+  }
+
+  const value = req.body?.now;
+  if (
+    typeof value !== "string" ||
+    Number.isNaN(Date.parse(value)) ||
+    new Date(value).toISOString() !== value
+  ) {
+    res.status(400).json({ message: "now debe ser una fecha ISO válida." });
+    return;
+  }
+
+  e2eCurrentDate = new Date(value);
+  res.json({ now: e2eCurrentDate.toISOString() });
+});
+
+app.delete("/api/e2e/clock", (_req, res) => {
+  if (!isE2E()) {
+    res.sendStatus(404);
+    return;
+  }
+
+  e2eCurrentDate = null;
+  res.sendStatus(204);
+});
 
 app.use(
   ["/api/groups", "/api/teams", "/api/practices", "/api/practice",
@@ -4049,11 +4087,8 @@ app.post("/api/groups/:id/roster", rosterUploadMiddleware, async (req, res) => {
       new Date(acquiredAt.getTime() - ROSTER_LEASE_MS).toISOString(),
     )
     .run();
-  const isE2E =
-    (env as Cloudflare.Env & { BEBRAS_E2E?: string }).BEBRAS_E2E === "1";
-
   if (lease.meta.changes === 0) {
-    if (isE2E && req.get("x-e2e-release-roster-lease") === "1") {
+    if (isE2E() && req.get("x-e2e-release-roster-lease") === "1") {
       await env.DB.prepare(
         'DELETE FROM "RosterImportLock" WHERE "contestId" = ?',
       )

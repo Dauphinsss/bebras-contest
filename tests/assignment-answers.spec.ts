@@ -1,13 +1,13 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
-  E2E_CLOCK_FILE,
   createContest,
   joinContestSession,
   loginAdmin,
   loginAdminPage,
   playHeaders,
+  resetE2EClock,
+  setE2EClock,
   taskBlock,
 } from "./support/helpers";
 
@@ -100,7 +100,7 @@ function expectPrivateAbsent(value: Record<string, unknown>) {
   expect(value.answerConfig).not.toHaveProperty("acceptedAssignments");
 }
 test.use({ hasTouch: true });
-test.afterEach(() => rmSync(E2E_CLOCK_FILE, { force: true }));
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 for (const kind of kinds) {
   test(`${kind}: saves configurations, validates alternatives and protects private keys`, async ({
@@ -371,7 +371,7 @@ test("both assignment types recover partial answers, clear and reload, then scor
         entry.name,
       )),
     });
-  writeFileSync(E2E_CLOCK_FILE, new Date(now + 7260000).toISOString());
+  await setE2EClock(request, new Date(now + 7260000));
   for (const [studentIndex, student] of students.entries()) {
     const auth = playHeaders(student.sessionToken);
     expect(
@@ -671,7 +671,7 @@ test("the five booklet tasks are answered, submitted and scored in a real contes
     rounds.push({ contest, entries, authored, students });
   }
 
-  writeFileSync(E2E_CLOCK_FILE, new Date(now + 7260000).toISOString());
+  await setE2EClock(request, new Date(now + 7260000));
 
   for (const round of rounds) {
     for (const student of round.students) {

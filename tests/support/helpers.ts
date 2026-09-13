@@ -1,12 +1,8 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 export const API = "http://localhost:3100";
 const FIREBASE_EMULATOR = "http://127.0.0.1:9099";
 const FIREBASE_PROJECT_ID = "bebras-bo-staging";
-export const E2E_CLOCK_FILE =
-  process.env.E2E_CLOCK_FILE ?? resolve(process.cwd(), "tests/test-clock.txt");
 
 export const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "marko@bebras.bo",
@@ -22,6 +18,20 @@ export type FirebaseTestUser = FirebaseCredentials & {
 };
 
 let uniqueUserIndex = 0;
+
+export async function setE2EClock(
+  api: APIRequestContext,
+  value: Date | string,
+) {
+  const now = typeof value === "string" ? value : value.toISOString();
+  const response = await api.put(`${API}/api/e2e/clock`, { data: { now } });
+  expect(response.ok(), await response.text()).toBe(true);
+}
+
+export async function resetE2EClock(api: APIRequestContext) {
+  const response = await api.delete(`${API}/api/e2e/clock`);
+  expect(response.ok(), await response.text()).toBe(true);
+}
 
 export function uniqueEmail(prefix = "maestro") {
   uniqueUserIndex += 1;
@@ -239,7 +249,7 @@ export async function createContest(
     Math.min(now + 3600000, startsAt.getTime() - 60000),
   );
 
-  rmSync(E2E_CLOCK_FILE, { force: true });
+  await resetE2EClock(api);
 
   const created = await api.post(`${API}/api/contests`, {
     headers,
@@ -273,14 +283,17 @@ export async function createContest(
   return { ...contest, picked };
 }
 
-export function openContest(contest: { startsAt: string; endsAt: string }) {
+export async function openContest(
+  api: APIRequestContext,
+  contest: { startsAt: string; endsAt: string },
+) {
   const startsAt = new Date(contest.startsAt).getTime();
   const endsAt = new Date(contest.endsAt).getTime();
   const executionTime = Math.min(
     Math.max(Date.now(), startsAt + 1000),
     endsAt - 1000,
   );
-  writeFileSync(E2E_CLOCK_FILE, new Date(executionTime).toISOString());
+  await setE2EClock(api, new Date(executionTime));
 }
 
 async function enterContestRegistration(
@@ -300,9 +313,9 @@ async function enterContestRegistration(
   };
   const registrationStartsAt = new Date(contest.registrationStartsAt).getTime();
   const registrationEndsAt = new Date(contest.registrationEndsAt).getTime();
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date((registrationStartsAt + registrationEndsAt) / 2).toISOString(),
+  await setE2EClock(
+    api,
+    new Date((registrationStartsAt + registrationEndsAt) / 2),
   );
   return contest;
 }
@@ -333,7 +346,7 @@ export async function joinContest(
   });
   expect(response.ok(), await response.text()).toBe(true);
   const join = await response.json();
-  openContest(contest);
+  await openContest(api, contest);
 
   return join.personalCode as string;
 }
@@ -370,7 +383,7 @@ export async function joinContestSession(
   expect(join.ok(), await join.text()).toBe(true);
 
   const personalCode = (await join.json()).personalCode as string;
-  openContest(contest);
+  await openContest(api, contest);
 
   // Rendir exige el codigo personal; el del grupo solo sirve para inscribirse.
   const session = await api.post(`${API}/api/play/session`, {

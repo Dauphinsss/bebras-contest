@@ -1,17 +1,17 @@
 import { expect, test } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
-  E2E_CLOCK_FILE,
   createPracticeTask,
   createContest,
   joinContestSession,
   loginAdmin,
   loginAdminPage,
   playHeaders,
+  resetE2EClock,
+  setE2EClock,
 } from "./support/helpers";
 
-test.afterEach(() => rmSync(E2E_CLOCK_FILE, { force: true }));
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 test("private drafts use authenticated preview/check, preserve the storage contract and hide solutions", async ({
   request,
@@ -262,7 +262,7 @@ test("existing text and choice answers survive invalid saves and score identical
     "P3",
     "Contrato",
   );
-  writeFileSync(E2E_CLOCK_FILE, new Date(now + 7260000).toISOString());
+  await setE2EClock(request, new Date(now + 7260000));
   const studentHeaders = playHeaders(student.sessionToken);
   expect(
     (

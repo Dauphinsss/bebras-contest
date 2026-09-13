@@ -1,8 +1,6 @@
 import { test, expect, request } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
-  E2E_CLOCK_FILE,
   SCORING_TASKS,
   loginAdmin,
   createContest,
@@ -10,11 +8,11 @@ import {
   joinContestSession,
   playHeaders,
   loginAdminPage,
+  resetE2EClock,
+  setE2EClock,
 } from "./support/helpers";
 
-test.afterEach(() => {
-  rmSync(E2E_CLOCK_FILE, { force: true });
-});
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 test("results appear only after consolidating and publishing", async ({
   page,
@@ -88,10 +86,7 @@ test("results appear only after consolidating and publishing", async ({
   );
   expect(tooEarly.status()).toBe(409);
 
-  writeFileSync(
-    E2E_CLOCK_FILE,
-    new Date(endsAt.getTime() + 2000).toISOString(),
-  );
+  await setE2EClock(api, new Date(endsAt.getTime() + 2000));
 
   const consolidated = await api.post(
     `${API}/api/contests/${contest.id}/consolidate`,

@@ -1,13 +1,13 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
-  E2E_CLOCK_FILE,
   createContest,
   joinContestSession,
   loginAdmin,
   loginAdminPage,
   playHeaders,
+  resetE2EClock,
+  setE2EClock,
   taskBlock,
 } from "./support/helpers";
 
@@ -16,7 +16,7 @@ const ids = [
   "bebras-2024-11-dibujando-barquitos",
 ];
 test.use({ hasTouch: true });
-test.afterEach(() => rmSync(E2E_CLOCK_FILE, { force: true }));
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 test("checks unsaved hotspot drafts and locks the public practice after checking", async ({
   request,
@@ -413,7 +413,7 @@ test("persists and clears hotspot answers, rejects invalid saves and matches con
     "P3",
     "Zonas",
   );
-  writeFileSync(E2E_CLOCK_FILE, new Date(now + 7260000).toISOString());
+  await setE2EClock(request, new Date(now + 7260000));
   const auth = playHeaders(student.sessionToken);
   expect(
     (

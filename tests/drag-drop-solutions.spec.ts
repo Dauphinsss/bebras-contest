@@ -1,14 +1,14 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { rmSync, writeFileSync } from "node:fs";
 import {
   API,
   DRAG_DROP_BACKGROUND,
-  E2E_CLOCK_FILE,
   createContest,
   joinContestSession,
   loginAdmin,
   loginAdminPage,
   playHeaders,
+  resetE2EClock,
+  setE2EClock,
   taskBlock,
 } from "./support/helpers";
 
@@ -102,9 +102,7 @@ function expectPrivateSolutionsAbsent(task: Record<string, unknown>) {
   }
 }
 
-test.afterEach(() => {
-  rmSync(E2E_CLOCK_FILE, { force: true });
-});
+test.afterEach(async ({ request }) => resetE2EClock(request));
 
 test("saves and reopens three pieces, twelve independent targets and alternative subsets", async ({
   request,
@@ -317,7 +315,7 @@ test("recovers partial placements, preserves valid saves after invalid input, an
       )),
     });
   }
-  writeFileSync(E2E_CLOCK_FILE, new Date(now + 7260000).toISOString());
+  await setE2EClock(request, new Date(now + 7260000));
 
   for (const [index, student] of students.entries()) {
     const studentHeaders = playHeaders(student.sessionToken);
