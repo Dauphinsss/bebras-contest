@@ -1,6 +1,21 @@
 const base = "http://localhost:3000";
 const j = (r) => r.json();
 
+const firebaseApiKey =
+  process.env.E2E_FIREBASE_API_KEY ?? process.env.PUBLIC_FIREBASE_API_KEY;
+const adminEmail = process.env.E2E_ADMIN_EMAIL;
+const adminPassword = process.env.E2E_ADMIN_PASSWORD;
+const missing = [
+  !firebaseApiKey && "E2E_FIREBASE_API_KEY (or PUBLIC_FIREBASE_API_KEY)",
+  !adminEmail && "E2E_ADMIN_EMAIL",
+  !adminPassword && "E2E_ADMIN_PASSWORD",
+].filter(Boolean);
+if (missing.length) {
+  throw new Error(
+    `Missing required environment variables: ${missing.join(", ")}`,
+  );
+}
+
 function correctSelection(correctAnswerId) {
   const raw = String(correctAnswerId || "").trim();
   if (raw.startsWith("any:")) return [raw.slice(4).split(",")[0].trim()];
@@ -13,15 +28,43 @@ function correctSelection(correctAnswerId) {
   return [raw];
 }
 
-const login = await fetch(base + "/api/auth/login", {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ email: "marko@bebras.bo", password: "bebras2026" }),
-}).then(j);
+const firebaseHost =
+  process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "identitytoolkit.googleapis.com";
+const firebaseBase = firebaseHost.startsWith("http")
+  ? firebaseHost
+  : `https://${firebaseHost}`;
+const firebaseResponse = await fetch(
+  `${firebaseBase}/v1/accounts:signInWithPassword?key=${firebaseApiKey}`,
+  {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: adminEmail,
+      password: adminPassword,
+      returnSecureToken: true,
+    }),
+  },
+);
+const firebaseSession = await firebaseResponse.json();
+if (!firebaseResponse.ok || !firebaseSession.idToken) {
+  throw new Error(
+    `Firebase authentication failed (${firebaseResponse.status}): ${JSON.stringify(firebaseSession)}`,
+  );
+}
+
 const auth = {
-  authorization: "Bearer " + login.token,
+  authorization: `Bearer ${firebaseSession.idToken}`,
   "content-type": "application/json",
 };
+const sessionResponse = await fetch(base + "/api/auth/session", {
+  method: "POST",
+  headers: auth,
+});
+if (!sessionResponse.ok) {
+  throw new Error(
+    `Opening the Bebras session failed (${sessionResponse.status}): ${await sessionResponse.text()}`,
+  );
+}
 
 const tasks = await fetch(base + "/api/tasks", { headers: auth }).then(j);
 const tid = tasks[0].id;
